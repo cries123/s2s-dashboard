@@ -1,0 +1,345 @@
+import React, { useState } from 'react';
+import { useAuth } from './hooks/useAuth';
+import { useCustomers } from './hooks/useCustomers';
+import { signOut } from 'firebase/auth';
+import { auth, db } from './firebase';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { Customer, User } from './types';
+import { cn } from './lib/utils';
+import { 
+  LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
+  Settings, Loader2, Shield
+} from 'lucide-react';
+
+// Components
+import CustomerForm from './components/dashboard/CustomerForm';
+import ServiceAlerts from './components/dashboard/ServiceAlerts';
+import Appointments from './components/dashboard/Appointments';
+import CustomerCard from './components/dashboard/CustomerCard';
+import AdminPanel from './components/dashboard/AdminPanel';
+import ProfileModal from './components/modals/ProfileModal';
+import InjectModal from './components/modals/InjectModal';
+import LoginView from './components/auth/LoginView';
+
+import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
+
+export default function App() {
+  const { user, loading: authLoading } = useAuth();
+  const { customers, loading: customersLoading } = useCustomers();
+  
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin'>('add');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(24);
+  
+  // Modal States
+  const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
+  const [showInject, setShowInject] = useState(false);
+  const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const showNotification = (text: string, isError = false) => {
+    setNotification({ text, isError });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleSignOut = () => signOut(auth);
+
+  const activeAlertsCount = customers.filter(isServiceAlertActive).length;
+
+  const handleDeleteCustomer = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to PERMANENTLY delete ${name}?`)) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', id));
+      setSelectedProfile(null);
+      showNotification("Customer deleted successfully.");
+    } catch (err: any) {
+      showNotification(err.message, true);
+    }
+  };
+
+  // Memoize filtered results to prevent lag during re-renders
+  const filteredCustomers = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return customers;
+
+    return customers.filter(c => {
+      return (
+        c.firstName?.toLowerCase().includes(q) ||
+        c.lastName?.toLowerCase().includes(q) ||
+        c.vinLast8?.toLowerCase().includes(q) ||
+        c.phone?.includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.model?.toLowerCase().includes(q)
+      );
+    });
+  }, [customers, searchQuery]);
+
+  const displayCustomers = React.useMemo(() => {
+    return filteredCustomers.slice(0, visibleCount);
+  }, [filteredCustomers, visibleCount]);
+
+  if (authLoading) {
+    return (
+      <div className="fixed inset-0 flex flex-col justify-center items-center bg-surface-base gap-4">
+        <Loader2 className="animate-spin text-brand-primary" size={48} />
+        <p className="text-slate-400 font-medium animate-pulse tracking-widest uppercase text-xs">Initializing S2S Dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
+
+  if (user && user.status !== 'approved' && user.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-surface-base flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center space-y-8 animate-fade-in">
+          <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto ring-1 ring-amber-500/20">
+            <Shield className="text-amber-500" size={40} />
+          </div>
+          <div className="space-y-3">
+            <h1 className="text-3xl font-black text-white tracking-tight">Access Restricted</h1>
+            <p className="text-slate-400 font-medium leading-relaxed">
+              Your account enrollment is currently <span className="text-amber-500 font-black">PENDING APPROVAL</span>. 
+              A system administrator must verify your identity before dashboard access is granted.
+            </p>
+          </div>
+          <div className="pt-4 border-t border-slate-800">
+             <button 
+               onClick={handleSignOut}
+               className="btn-primary bg-slate-800 hover:bg-slate-700 w-full"
+             >
+               Exit System
+             </button>
+          </div>
+          <p className="text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em]">
+            Identity ID: {user.uid}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentUser = user;
+
+  return (
+    <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-surface-base/80 backdrop-blur-xl border-b border-surface-border">
+        <div className="section-container !py-4 flex justify-between items-center">
+          <div className="flex items-center gap-10">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20">
+                <LayoutDashboard className="text-white" size={20} />
+              </div>
+              <h1 className="text-xl font-bold text-white tracking-tight hidden sm:block">S2S<span className="text-brand-primary"> Dashboard</span></h1>
+            </div>
+
+            <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1 md:pb-0 scroll-smooth">
+              {[
+                { id: 'add', label: 'Onboard', icon: UserPlus },
+                { id: 'search', label: 'Directory', icon: Search },
+                { id: 'alerts', label: 'Service Alerts', icon: Bell, badge: activeAlertsCount },
+                { id: 'appointments', label: 'Operations', icon: Calendar },
+                ...(currentUser.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all relative whitespace-nowrap",
+                    activeTab === tab.id 
+                      ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
+                  )}
+                >
+                  <tab.icon size={16} className="flex-shrink-0" />
+                  {tab.label}
+                  {tab.badge !== undefined && tab.badge > 0 && (
+                    <span className={cn(
+                      "absolute -top-1 -right-1 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-lg border-2",
+                      activeTab === tab.id ? "bg-white text-brand-primary border-brand-primary" : "bg-rose-500 text-white border-surface-base"
+                    )}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="flex items-center gap-6">
+             <div className="hidden lg:flex flex-col items-end">
+               <p className="text-sm font-bold text-white leading-none">{currentUser.username}</p>
+               <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest mt-1">{currentUser.jobTitle}</p>
+             </div>
+             
+             <button 
+               onClick={handleSignOut}
+               className="p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+               title="Sign Out"
+             >
+               <LogOut size={20} />
+             </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="section-container animate-fade-in pb-10">
+        {notification && (
+          <div className={cn(
+            "p-4 rounded-2xl mb-8 flex items-center gap-4 animate-slide-in border shadow-lg",
+            notification.isError ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+          )}>
+            <div className={cn("w-2 h-2 rounded-full", notification.isError ? "bg-rose-500" : "bg-emerald-500")}></div>
+            <span className="font-semibold text-sm">{notification.text}</span>
+          </div>
+        )}
+
+        <div className="space-y-10">
+          {activeTab === 'add' && (
+            <CustomerForm 
+              currentUser={currentUser} 
+              onSuccess={msg => showNotification(msg)} 
+              onError={msg => showNotification(msg, true)} 
+            />
+          )}
+
+          {activeTab === 'search' && (
+            <div className="space-y-10">
+              {/* Directory Header & Stats */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-6 border-b border-slate-800">
+                <div>
+                  <h2 className="text-4xl font-black text-white tracking-tight">Customer Directory</h2>
+                  <p className="text-slate-400 mt-1 font-medium italic">Comprehensive database of all customer relations.</p>
+                </div>
+
+                <div className="flex flex-wrap gap-4 w-full lg:w-auto">
+                   <div className="bg-slate-900 border border-slate-800 px-5 py-3 rounded-2xl flex flex-col min-w-[120px]">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Total Records</span>
+                      <span className="text-2xl font-black text-brand-primary">{customers.length}</span>
+                   </div>
+                   <div className="bg-slate-900 border border-slate-800 px-5 py-3 rounded-2xl flex flex-col min-w-[120px]">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Added This Month</span>
+                      <span className="text-2xl font-black text-brand-secondary">
+                        {customers.filter(c => {
+                          const date = c.createdAt?.toDate ? c.createdAt.toDate() : new Date();
+                          return date.getMonth() === new Date().getMonth();
+                        }).length}
+                      </span>
+                   </div>
+                </div>
+              </div>
+
+              {/* Toolbar */}
+              <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-900/50 p-6 rounded-3xl border border-slate-800 shadow-2xl">
+                <div className="relative flex-1 w-full">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search name, phone, VIN (last 8) or vehicle model..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setVisibleCount(24); // Reset pagination on search
+                    }}
+                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl pl-12 pr-6 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-primary/50 transition-all font-medium"
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 w-full md:w-auto overflow-x-auto no-scrollbar">
+                   {['All', 'Hyundai', 'Other'].map(cat => (
+                     <button key={cat} className={cn(
+                       "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                       cat === 'All' ? "bg-slate-800 text-white shadow-xl" : "text-slate-500 hover:text-slate-300"
+                     )}>
+                       {cat}
+                     </button>
+                   ))}
+                </div>
+              </div>
+
+              {filteredCustomers.length === 0 ? (
+                <div className="card-base p-20 text-center border-dashed border-slate-700 bg-transparent">
+                  <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-600">
+                    <Search size={40} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white">No results found</h3>
+                  <p className="text-slate-400 mt-2 max-w-sm mx-auto">We couldn't find any customers matching your search criteria.</p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+                    {displayCustomers.map(c => (
+                      <CustomerCard 
+                        key={c.id} 
+                        customer={c} 
+                        currentUser={currentUser}
+                        onViewProfile={(cust: Customer) => setSelectedProfile(cust)}
+                        onViewLog={(cust: Customer) => setSelectedProfile(cust)}
+                        onRefresh={showNotification}
+                        isAlert={false}
+                      />
+                    ))}
+                  </div>
+
+                  {filteredCustomers.length > visibleCount && (
+                    <div className="flex justify-center pt-8 pb-12">
+                      <button 
+                        onClick={() => setVisibleCount(prev => prev + 24)}
+                        className="btn-primary bg-slate-800 hover:bg-slate-700 text-white px-10 py-4 shadow-xl border border-slate-700"
+                      >
+                        Load More Customers
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'alerts' && (
+            <ServiceAlerts 
+              customers={customers} 
+              currentUser={currentUser} 
+              onViewProfile={setSelectedProfile}
+              onViewLog={c => setSelectedProfile(c)}
+              onRefresh={(msg, isError) => showNotification(msg || "Alerts updated successfully.", isError)}
+            />
+          )}
+
+          {activeTab === 'appointments' && (
+            <Appointments 
+              currentUser={currentUser} 
+              onSuccess={msg => showNotification(msg)}
+              onError={msg => showNotification(msg, true)}
+            />
+          )}
+
+          {activeTab === 'admin' && (
+            <AdminPanel />
+          )}
+        </div>
+      </main>
+
+      {/* Modals */}
+      {selectedProfile && (
+        <ProfileModal 
+          customer={selectedProfile} 
+          onClose={() => setSelectedProfile(null)} 
+          onDelete={handleDeleteCustomer}
+        />
+      )}
+
+      {showInject && (
+        <InjectModal 
+          currentUser={currentUser} 
+          customers={customers} 
+          onClose={() => setShowInject(false)} 
+          onSuccess={count => showNotification(`Successfully injected ${count} appointments.`)}
+        />
+      )}
+    </div>
+  );
+}

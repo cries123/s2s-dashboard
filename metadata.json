@@ -1,0 +1,12 @@
+{
+  "name": "S2S Dashboard",
+  "description": "A comprehensive dealer management system for tracking customers, service alerts, and appointments.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "Firebase Integration",
+    "AI Image Processing",
+    "PDF/CSV Data Injection"
+  ]
+}

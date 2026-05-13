@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Primitives & Safety ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Helper to get user data from the specific deep path
+    function getUserData(uid) {
+      return get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getUserData(request.auth.uid).role == 'admin';
+    }
+
+    function isApproved() {
+      return isSignedIn() && getUserData(request.auth.uid).status == 'approved';
+    }
+
+    // --- Users Collection ---
+    match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
+      allow create: if isSignedIn() && request.auth.uid == userId && 
+                    incoming().status == 'pending';
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
+      allow read, write: if isApproved() || isAdmin();
+      
+      match /contactLog/{logId} {
+        allow read, write: if isApproved() || isAdmin();
+      }
+    }
+
+    match /artifacts/hyundai-sales-to-service/public/data/appointmentTracker/{date=**} {
+      allow read, write: if isApproved() || isAdmin();
+    }
+  }
+}

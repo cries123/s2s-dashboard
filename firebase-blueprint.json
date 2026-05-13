@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account details and enrollment status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "username": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "Manager", "Salesperson", "Service Advisor", "Staff"] },
+        "jobTitle": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "username", "role", "status"]
+    },
+    "DailyStat": {
+      "title": "Daily Appointment Stat",
+      "description": "Total count of appointments for a specific day",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "count": { "type": "number", "description": "Total appointments for the day" },
+        "updatedBy": { "type": "string", "description": "User UID who last updated" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "count"]
+    }
+  },
+  "firestore": {
+    "artifacts/hyundai-sales-to-service/public/data/appointmentTracker": {
+      "schema": "DailyStat",
+      "description": "Daily appointment aggregations"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/users": {
+      "schema": "User",
+      "description": "User profiles and enrollment status"
+    }
+  }
+}
