@@ -8,6 +8,7 @@ import {
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, Calendar as CalendarIcon, 
   BarChart3, Target, Clock
 } from 'lucide-react';
+import { AdvisorPerformance } from './AdvisorPerformance';
 
 interface AppointmentsProps {
   currentUser: User;
@@ -134,12 +135,21 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
     const avgDaily = elapsedDays > 0 ? monthTotal / elapsedDays : 0;
     const forecast = Math.round(avgDaily * daysInMonth);
 
+    // Target tracking (Daily Target: 20)
+    const dailyTarget = 20;
+    const monthTarget = dailyTarget * daysInMonth;
+    const currentTarget = dailyTarget * elapsedDays;
+    const currentDeficit = Math.max(0, currentTarget - monthTotal);
+    const missedProjected = Math.max(0, monthTarget - forecast);
+
     return { 
       monthTotal, 
       weekTotal, 
       forecast, 
       avgDaily: avgDaily.toFixed(1),
       daysRemaining: daysInMonth - elapsedDays,
+      currentDeficit,
+      missedProjected,
       weekStats
     };
   };
@@ -223,6 +233,34 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
             <div>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">Month Status</p>
               <div className="badge badge-success px-4 py-1.5">{metrics.daysRemaining} Days Left</div>
+            </div>
+
+            <div className="col-span-2 sm:col-span-3 pt-6 mt-6 border-t border-slate-800/50">
+              <div className="flex flex-wrap gap-12">
+                <div>
+                  <p className="text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mb-2">MTD Lost Opportunity</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-rose-400">-{metrics.currentDeficit}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Appts</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Projected Shortfall</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-slate-300">-{metrics.missedProjected}</span>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Units</span>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                   <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mt-4">
+                      <div 
+                        className="h-full bg-brand-primary transition-all duration-1000" 
+                        style={{ width: `${Math.min(100, (metrics.monthTotal / (metrics.monthTotal + metrics.currentDeficit || 1)) * 100)}%` }}
+                      ></div>
+                   </div>
+                   <p className="text-[9px] font-bold text-slate-600 uppercase mt-2">Conversion to Daily Target Pace (Avg 20/Day)</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -349,6 +387,9 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
            </div>
         </div>
       </div>
+
+      {/* Advisor Performance Tracking */}
+      <AdvisorPerformance />
 
       <div className="card-base p-10 bg-slate-950 border-dashed border-slate-800 text-center">
         <Target size={40} className="text-slate-700 mx-auto mb-6" />

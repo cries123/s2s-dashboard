@@ -18,6 +18,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
     email: '',
     make: 'Hyundai',
     model: '',
+    vin: '',
     vinLast8: '',
     soldDate: '',
     language: 'English',
@@ -27,6 +28,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
   const [salespeople, setSalespeople] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDecoding, setIsDecoding] = useState(false);
 
   useEffect(() => {
     // Load salespeople for the dropdown
@@ -95,16 +97,63 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
       if (data.error) throw new Error(data.error.message);
       
       const result = JSON.parse(data.choices[0].message.content);
-      setFormData(prev => ({
-        ...prev,
-        ...result,
-        vinLast8: result.vinLast8?.toUpperCase() || ''
-      }));
+      
+      // Auto-decode VIN if full VIN is found
+      if (result.vin && result.vin.length === 17) {
+        setFormData(prev => ({ ...prev, ...result }));
+        handleVinDecode(result.vin);
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          ...result,
+          vinLast8: result.vinLast8?.toUpperCase() || ''
+        }));
+      }
+
       onSuccess("AI successfully extracted data from image.");
     } catch (err: any) {
       onError(`AI Error: ${err.message}`);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleVinDecode = async (vinToDecode: string) => {
+    if (!vinToDecode || vinToDecode.length < 17) return;
+
+    setIsDecoding(true);
+    try {
+      const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vinToDecode}?format=json`);
+      const data = await response.json();
+      
+      const decodeResults = data.Results || [];
+      const getVal = (id: number) => decodeResults.find((r: any) => r.VariableId === id)?.Value;
+
+      const make = getVal(26); // Make
+      const model = getVal(28); // Model
+      const year = getVal(29); // Model Year
+      
+      if (make || model) {
+        setFormData(prev => ({
+          ...prev,
+          make: make || prev.make,
+          model: model ? `${year} ${model}` : prev.model,
+          vinLast8: vinToDecode.slice(-8).toUpperCase()
+        }));
+        onSuccess(`VIN Decoded: ${year} ${make} ${model}`);
+      }
+    } catch (err) {
+      console.error("VIN Decode error:", err);
+    } finally {
+      setIsDecoding(false);
+    }
+  };
+
+  const handleVinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.toUpperCase();
+    setFormData(prev => ({ ...prev, vin: val, vinLast8: val.length >= 8 ? val.slice(-8) : prev.vinLast8 }));
+    if (val.length === 17) {
+      handleVinDecode(val);
     }
   };
 
@@ -214,6 +263,27 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   <input type="email" id="email" value={formData.email} onChange={handleChange} className="input-field pl-12" placeholder="john@example.com" />
                 </div>
               </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="input-label" htmlFor="vin">Full VIN (17 Characters)</label>
+                <div className="relative">
+                  <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                  <input 
+                    type="text" 
+                    id="vin" 
+                    value={formData.vin} 
+                    onChange={handleVinChange} 
+                    maxLength={17} 
+                    className="input-field pl-12 font-mono" 
+                    placeholder="Enter 17-character VIN for auto-decode" 
+                  />
+                  {isDecoding && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <Loader2 className="animate-spin text-brand-primary" size={18} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="input-label" htmlFor="model">Vehicle Model</label>
                 <div className="relative">

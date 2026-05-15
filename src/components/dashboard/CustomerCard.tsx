@@ -6,6 +6,8 @@ import { db } from '../../firebase';
 import { cn } from '../../lib/utils';
 import { calculateServiceCycle, getNextServiceMilestone } from '../../lib/alerts';
 import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
+import { getRecommendedServices, getMonthsOwned } from '../../lib/maintenance';
+import { ChevronDown, ChevronUp, Wrench } from 'lucide-react';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -25,6 +27,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   isAlert 
 }) => {
   const [isLogging, setIsLogging] = useState(false);
+  const [showMaintenance, setShowMaintenance] = useState(false);
   const [outcome, setOutcome] = useState('Answered');
   const [notes, setNotes] = useState('');
   const [appointmentSet, setAppointmentSet] = useState(false);
@@ -82,6 +85,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
       return 'Date Error';
     }
   };
+
+  const monthsOwned = getMonthsOwned(customer.soldDate);
+  const maintenanceTasks = getRecommendedServices(monthsOwned);
 
   return (
     <div className="card-base card-interactive p-0 overflow-hidden border-slate-800/50 group">
@@ -184,6 +190,41 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
                 {getNextServiceMilestone(customer.soldDate)}
               </span>
            </div>
+        </div>
+
+        <div className="mt-4">
+          <button 
+            onClick={() => setShowMaintenance(!showMaintenance)}
+            className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-900 rounded-xl border border-slate-800/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Wrench size={14} className="text-brand-secondary" />
+              <span className="text-[10px] font-black text-white uppercase tracking-widest">View Maintenance Roadmap</span>
+            </div>
+            {showMaintenance ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+          </button>
+
+          {showMaintenance && (
+            <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/30">
+                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Recommended Services ({monthsOwned}mo of ownership)</p>
+                <div className="space-y-1.5">
+                  {maintenanceTasks.map((task, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-slate-900/40 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-1 h-1 rounded-full",
+                          task.importance === 'high' ? "bg-rose-500" : task.importance === 'medium' ? "bg-amber-500" : "bg-slate-600"
+                        )}></div>
+                        <span className="text-[10px] font-bold text-slate-300">{task.task}</span>
+                      </div>
+                      <span className="text-[8px] font-black text-slate-500 uppercase">{task.interval}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

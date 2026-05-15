@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield
+  Settings, Loader2, Shield, Trophy
 } from 'lucide-react';
 
 // Components
@@ -17,6 +17,9 @@ import ServiceAlerts from './components/dashboard/ServiceAlerts';
 import Appointments from './components/dashboard/Appointments';
 import CustomerCard from './components/dashboard/CustomerCard';
 import AdminPanel from './components/dashboard/AdminPanel';
+import { VinLookup } from './components/dashboard/VinLookup';
+import { WeatherWidget } from './components/dashboard/WeatherWidget';
+import { PotOfGold } from './components/dashboard/PotOfGold';
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
@@ -27,7 +30,7 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const { customers, loading: customersLoading } = useCustomers();
   
-  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin'>('add');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(24);
   
@@ -125,61 +128,71 @@ export default function App() {
   return (
     <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-surface-base/80 backdrop-blur-xl border-b border-surface-border">
-        <div className="section-container !py-4 flex justify-between items-center">
-          <div className="flex items-center gap-10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20">
-                <LayoutDashboard className="text-white" size={20} />
-              </div>
-              <h1 className="text-xl font-bold text-white tracking-tight hidden sm:block">S2S<span className="text-brand-primary"> Dashboard</span></h1>
+      <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
+        <div className="section-container !py-3 flex items-center justify-between gap-4">
+          {/* Logo Section */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10">
+              <LayoutDashboard className="text-white" size={20} />
             </div>
-
-            <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1 md:pb-0 scroll-smooth">
-              {[
-                { id: 'add', label: 'Onboard', icon: UserPlus },
-                { id: 'search', label: 'Directory', icon: Search },
-                { id: 'alerts', label: 'Service Alerts', icon: Bell, badge: activeAlertsCount },
-                { id: 'appointments', label: 'Operations', icon: Calendar },
-                ...(currentUser.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all relative whitespace-nowrap",
-                    activeTab === tab.id 
-                      ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/20" 
-                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
-                  )}
-                >
-                  <tab.icon size={16} className="flex-shrink-0" />
-                  {tab.label}
-                  {tab.badge !== undefined && tab.badge > 0 && (
-                    <span className={cn(
-                      "absolute -top-1 -right-1 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-lg border-2",
-                      activeTab === tab.id ? "bg-white text-brand-primary border-brand-primary" : "bg-rose-500 text-white border-surface-base"
-                    )}>
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
+            <div className="hidden sm:block">
+              <h1 className="text-base font-black text-white leading-none tracking-tighter uppercase whitespace-nowrap">
+                S2S <span className="text-brand-primary">Dashboard</span>
+              </h1>
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-1">Hyundai of Santa Maria</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          {/* Navigation Section */}
+          <nav className="flex-1 flex items-center justify-center gap-1 overflow-x-auto no-scrollbar scroll-smooth px-2">
+            {[
+              { id: 'add', label: 'Onboard', icon: UserPlus },
+              { id: 'search', label: 'Directory', icon: Search },
+              { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
+              { id: 'appointments', label: 'Operations', icon: Calendar },
+              { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
+              { id: 'vin-search', label: 'VIN Search', icon: Search },
+              ...(currentUser.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative shrink-0",
+                  activeTab === tab.id 
+                    ? "bg-white/10 text-white shadow-inner border border-white/10" 
+                    : "text-slate-500 hover:text-slate-200 hover:bg-white/5"
+                )}
+              >
+                <tab.icon size={13} className={cn("shrink-0", activeTab === tab.id ? "text-brand-primary" : "")} />
+                <span className={cn(activeTab === tab.id ? "block" : "hidden sm:block")}>
+                  {tab.label}
+                </span>
+                {tab.badge !== undefined && tab.badge > 0 && (
+                  <span className="absolute -top-1 -right-0.5 text-[8px] font-black bg-rose-500 text-white px-1 py-0.5 rounded-full ring-2 ring-slate-950">
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+
+          {/* Profile Section */}
+          <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10">
              <div className="hidden lg:flex flex-col items-end">
-               <p className="text-sm font-bold text-white leading-none">{currentUser.username}</p>
-               <p className="text-[10px] font-bold text-brand-secondary uppercase tracking-widest mt-1">{currentUser.jobTitle}</p>
+               <p className="text-[10px] font-black text-white leading-none uppercase tracking-tight">{currentUser.username}</p>
+               <div className="flex items-center gap-1 mt-1">
+                  <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">{currentUser.jobTitle}</p>
+               </div>
              </div>
              
              <button 
                onClick={handleSignOut}
-               className="p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+               className="w-9 h-9 flex items-center justify-center bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-rose-500/20 hover:border-rose-500/30 rounded-lg transition-all shadow-sm"
                title="Sign Out"
              >
-               <LogOut size={20} />
+               <LogOut size={16} />
              </button>
           </div>
         </div>
@@ -310,11 +323,22 @@ export default function App() {
           )}
 
           {activeTab === 'appointments' && (
-            <Appointments 
-              currentUser={currentUser} 
-              onSuccess={msg => showNotification(msg)}
-              onError={msg => showNotification(msg, true)}
-            />
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <WeatherWidget />
+              <Appointments 
+                currentUser={currentUser} 
+                onSuccess={msg => showNotification(msg)}
+                onError={msg => showNotification(msg, true)}
+              />
+            </div>
+          )}
+
+          {activeTab === 'vin-search' && (
+            <VinLookup />
+          )}
+
+          {activeTab === 'pot-of-gold' && (
+            <PotOfGold />
           )}
 
           {activeTab === 'admin' && (
