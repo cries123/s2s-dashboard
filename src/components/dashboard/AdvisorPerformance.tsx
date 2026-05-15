@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
+import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
+import { useAuth } from '../../hooks/useAuth';
 
 interface UpsellItem {
   code: string;
@@ -23,17 +26,46 @@ interface AdvisorData {
 }
 
 export const AdvisorPerformance: React.FC = () => {
+  const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
-  const [advisors, setAdvisors] = useState<AdvisorData[]>(() => {
-    const saved = localStorage.getItem('advisor_performance_data');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [totals, setTotals] = useState<any>(() => {
-    const saved = localStorage.getItem('advisor_performance_totals');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
+  const [totals, setTotals] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // realtime sync
+  useEffect(() => {
+    if (!user) return;
+
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', 'advisorReports');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.advisors) setAdvisors(data.advisors);
+        if (data.totals) setTotals(data.totals);
+      }
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore sync error:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const saveToFirestore = async (data: { advisors: AdvisorData[], totals: any }) => {
+    if (!user) return;
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', 'advisorReports');
+    try {
+      await setDoc(docRef, {
+        ...data,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error saving advisor performance:', error);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -41,7 +73,7 @@ export const AdvisorPerformance: React.FC = () => {
 
     setIsImporting(true);
     // Simulating the extraction of data from the PDF file (Op Code Frequency Report)
-    setTimeout(() => {
+    setTimeout(async () => {
       const extractedAdvisors: AdvisorData[] = [
         {
           name: "FRANK",
@@ -103,16 +135,21 @@ export const AdvisorPerformance: React.FC = () => {
         avgGp: 82.6
       };
 
-      setAdvisors(extractedAdvisors);
-      setTotals(newTotals);
-      
-      localStorage.setItem('advisor_performance_data', JSON.stringify(extractedAdvisors));
-      localStorage.setItem('advisor_performance_totals', JSON.stringify(newTotals));
+      await saveToFirestore({ advisors: extractedAdvisors, totals: newTotals });
 
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }, 1200);
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-4">
+        <Loader2 className="animate-spin text-brand-secondary" size={32} />
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing Performance Dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

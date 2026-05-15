@@ -8,8 +8,9 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy
+  Settings, Loader2, Shield, Trophy, ChevronRight
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 // Components
 import CustomerForm from './components/dashboard/CustomerForm';
@@ -38,6 +39,7 @@ export default function App() {
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
   const [showInject, setShowInject] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   const showNotification = (text: string, isError = false) => {
     setNotification({ text, isError });
@@ -144,7 +146,7 @@ export default function App() {
           </div>
 
           {/* Navigation Section */}
-          <nav className="flex-1 flex items-center justify-center gap-1 overflow-x-auto no-scrollbar scroll-smooth px-2">
+          <nav className="flex-1 hidden md:flex items-center justify-center gap-1 overflow-x-auto no-scrollbar scroll-smooth px-2">
             {[
               { id: 'add', label: 'Onboard', icon: UserPlus },
               { id: 'search', label: 'Directory', icon: Search },
@@ -176,6 +178,83 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          {/* Mobile Navigation Dropdown */}
+          <div className="flex-1 md:hidden flex justify-center">
+            <div className="relative">
+              <button 
+                onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-95"
+              >
+                {activeTab === 'add' && <UserPlus size={14} className="text-brand-primary" />}
+                {activeTab === 'search' && <Search size={14} className="text-brand-primary" />}
+                {activeTab === 'alerts' && <Bell size={14} className="text-brand-primary" />}
+                {activeTab === 'appointments' && <Calendar size={14} className="text-brand-primary" />}
+                {activeTab === 'pot-of-gold' && <Trophy size={14} className="text-brand-primary" />}
+                {activeTab === 'vin-search' && <Search size={14} className="text-brand-primary" />}
+                {activeTab === 'admin' && <Settings size={14} className="text-brand-primary" />}
+                <span>
+                  {activeTab === 'add' && 'Onboard'}
+                  {activeTab === 'search' && 'Directory'}
+                  {activeTab === 'alerts' && 'Alerts'}
+                  {activeTab === 'appointments' && 'Operations'}
+                  {activeTab === 'pot-of-gold' && 'Competition'}
+                  {activeTab === 'vin-search' && 'VIN Search'}
+                  {activeTab === 'admin' && 'Admin'}
+                </span>
+                <ChevronRight size={14} className={cn("transition-transform duration-300 text-slate-500", isMobileNavOpen ? "-rotate-90" : "rotate-90")} />
+              </button>
+              
+              <AnimatePresence>
+                {isMobileNavOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[90]" 
+                      onClick={() => setIsMobileNavOpen(false)} 
+                    />
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[100]"
+                    >
+                      {[
+                        { id: 'add', label: 'Onboard', icon: UserPlus },
+                        { id: 'search', label: 'Directory', icon: Search },
+                        { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
+                        { id: 'appointments', label: 'Operations', icon: Calendar },
+                        { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
+                        { id: 'vin-search', label: 'VIN Search', icon: Search },
+                        ...(currentUser.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id as any);
+                            setIsMobileNavOpen(false);
+                          }}
+                          className={cn(
+                            "w-full flex items-center justify-between px-4 py-3 text-[9px] font-black uppercase tracking-widest text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0",
+                            activeTab === tab.id ? "text-brand-primary" : "text-slate-400"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <tab.icon size={14} />
+                            {tab.label}
+                          </div>
+                          {tab.badge !== undefined && tab.badge > 0 && (
+                            <span className="bg-rose-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">
+                              {tab.badge}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
 
           {/* Profile Section */}
           <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10">

@@ -26,6 +26,29 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["date", "count"]
+    },
+    "PotOfGoldConfig": {
+      "title": "Pot of Gold Configuration",
+      "description": "Shared configuration for the Pot of Gold competition",
+      "type": "object",
+      "properties": {
+        "advData": { "type": "array" },
+        "techData": { "type": "array" },
+        "prices": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
+    },
+    "AdvisorPerformanceReport": {
+      "title": "Advisor Performance Report",
+      "description": "Aggregated advisor performance data from CSR reports",
+      "type": "object",
+      "properties": {
+        "advisors": { "type": "array" },
+        "totals": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -36,6 +59,14 @@
     "artifacts/hyundai-sales-to-service/public/data/users": {
       "schema": "User",
       "description": "User profiles and enrollment status"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/performance/potOfGold": {
+      "schema": "PotOfGoldConfig",
+      "description": "Pot of Gold competition data"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/performance/advisorReports": {
+      "schema": "AdvisorPerformanceReport",
+      "description": "Advisor performance tracking data"
     }
   }
 }

@@ -8,6 +8,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { parseReportWithAI } from '../../services/geminiService';
+import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../../firebase';
+import { useAuth } from '../../hooks/useAuth';
 
 interface PerformanceRow {
   code: string;
@@ -46,10 +49,61 @@ const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
 ];
 
 export const PotOfGold: React.FC = () => {
+  const { user } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [advData, setAdvData] = useState<PerformanceRow[]>(INITIAL_PERFORMANCE_DATA);
+  const [techData, setTechData] = useState<TechPerformanceRow[]>(() => 
+    INITIAL_PERFORMANCE_DATA.map(d => {
+      const base: TechPerformanceRow = { code: d.code, desc: d.desc };
+      TECHNICIANS.forEach(t => base[t] = 0);
+      return base;
+    })
+  );
+  const [prices, setPrices] = useState<Record<string, number>>(() => {
+    const p: Record<string, number> = {};
+    INITIAL_PERFORMANCE_DATA.forEach(d => p[d.code] = 0);
+    return p;
+  });
+
+  // realtime sync with firestore
+  useEffect(() => {
+    if (!user) return;
+    
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', 'potOfGold');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.advData) setAdvData(data.advData);
+        if (data.techData) setTechData(data.techData);
+        if (data.prices) setPrices(data.prices);
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Firestore sync error:", error);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any }) => {
+    if (!user) return;
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', 'potOfGold');
+    try {
+      await setDoc(docRef, {
+        ...updates,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error saving to Firestore:', error);
+    }
+  };
   
   // Success message timer
   useEffect(() => {
@@ -58,37 +112,6 @@ export const PotOfGold: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
-
-  // State initialization with Persistence
-  const [advData, setAdvData] = useState<PerformanceRow[]>(() => {
-    const saved = localStorage.getItem('pot_adv_data');
-    return saved ? JSON.parse(saved) : INITIAL_PERFORMANCE_DATA;
-  });
-
-  const [techData, setTechData] = useState<TechPerformanceRow[]>(() => {
-    const saved = localStorage.getItem('pot_tech_data');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_PERFORMANCE_DATA.map(d => {
-      const base: TechPerformanceRow = { code: d.code, desc: d.desc };
-      TECHNICIANS.forEach(t => base[t] = 0);
-      return base;
-    });
-  });
-
-  const [prices, setPrices] = useState<Record<string, number>>(() => {
-    const saved = localStorage.getItem('pot_prices');
-    if (saved) return JSON.parse(saved);
-    const p: Record<string, number> = {};
-    INITIAL_PERFORMANCE_DATA.forEach(d => p[d.code] = 0);
-    return p;
-  });
-
-  // Persistence Effects
-  useEffect(() => {
-    localStorage.setItem('pot_adv_data', JSON.stringify(advData));
-    localStorage.setItem('pot_tech_data', JSON.stringify(techData));
-    localStorage.setItem('pot_prices', JSON.stringify(prices));
-  }, [advData, techData, prices]);
 
   // Calculations
   const calculateAdvisorTotals = () => {
@@ -157,8 +180,6 @@ export const PotOfGold: React.FC = () => {
 
     setIsAiProcessing(true);
 
-    // Exact data distribution from the provided Op Code Frequency reports (100% Data Parity)
-    // Advisor Totals: Frank (34), Lemmy (15), Jay (1) = 50 Total Units
     const FRANK_REPORT = {
       'AF': 3, 'ALIGN': 2, 'BFR': 5, 'CAF': 5, 'CCC': 1, 'CE': 1, 
       'FB': 2, 'FSC': 11, 'GDI': 2, 'RB': 1, 'TS': 1
@@ -173,39 +194,37 @@ export const PotOfGold: React.FC = () => {
     };
 
     // AI Simulation + Data Mapping
-    setTimeout(() => {
-      setAdvData(prev => prev.map(row => ({
+    setTimeout(async () => {
+      const newAdvData = advData.map(row => ({
         ...row,
         frank: (FRANK_REPORT as any)[row.code] || 0,
         lemmy: (LEMMY_REPORT as any)[row.code] || 0,
         jay: (JARYN_REPORT as any)[row.code] || 0
-      })));
+      }));
 
-      setTechData(prev => {
-        const newData = prev.map(row => {
-          const base = { ...row };
-          TECHNICIANS.forEach(t => base[t] = 0);
-          
-          // Data exactly balanced to match the 50 Advisor Units (OCR Authenticated)
-          const reportData: Record<string, any> = {
-            'Daniel': { 'AF': 1, 'ALIGN': 1, 'BFR': 2, 'CAF': 3, 'FSC': 6, 'GDI': 1, 'TIRE1': 1 }, 
-            'Jon': { 'ALIGN': 1, 'BFR': 2, 'CAF': 1, 'FSC': 4, 'TS': 1, 'FB': 1, 'CCC': 1 },
-            'Matthew': { 'AF': 1, 'BFR': 1, 'CAF': 1, 'FSC': 3, 'CE': 1 },
-            'Ethan': { 'AF': 1, 'BFR': 1, 'CAF': 1, 'CE': 1, 'TIRE4': 1, 'GDI': 1 },
-            'Trevor': { 'FSC': 4, 'FB': 1, 'RB': 1 },
-            'Jacinto': { 'FSC': 3, 'CAF': 2 }
-          };
+      const newTechData = techData.map(row => {
+        const base = { ...row };
+        TECHNICIANS.forEach(t => base[t] = 0);
+        
+        const reportData: Record<string, any> = {
+          'Daniel': { 'AF': 1, 'ALIGN': 1, 'BFR': 2, 'CAF': 3, 'FSC': 6, 'GDI': 1, 'TIRE1': 1 }, 
+          'Jon': { 'ALIGN': 1, 'BFR': 2, 'CAF': 1, 'FSC': 4, 'TS': 1, 'FB': 1, 'CCC': 1 },
+          'Matthew': { 'AF': 1, 'BFR': 1, 'CAF': 1, 'FSC': 3, 'CE': 1 },
+          'Ethan': { 'AF': 1, 'BFR': 1, 'CAF': 1, 'CE': 1, 'TIRE4': 1, 'GDI': 1 },
+          'Trevor': { 'FSC': 4, 'FB': 1, 'RB': 1 },
+          'Jacinto': { 'FSC': 3, 'CAF': 2 }
+        };
 
-          TECHNICIANS.forEach(tech => {
-            if (reportData[tech] && reportData[tech][row.code]) {
-              base[tech] = reportData[tech][row.code];
-            }
-          });
-
-          return base;
+        TECHNICIANS.forEach(tech => {
+          if (reportData[tech] && reportData[tech][row.code]) {
+            base[tech] = reportData[tech][row.code];
+          }
         });
-        return newData;
+
+        return base;
       });
+
+      await saveToFirestore({ advData: newAdvData, techData: newTechData });
 
       setSuccessMessage(`AI Analysis Complete: ${file.name}`);
       setIsAiProcessing(false);
@@ -213,7 +232,7 @@ export const PotOfGold: React.FC = () => {
     }, 1500);
   };
 
-  const handleClearData = () => {
+  const handleClearData = async () => {
     const freshAdvData = INITIAL_PERFORMANCE_DATA.map(d => ({ ...d }));
     const freshTechData = INITIAL_PERFORMANCE_DATA.map(d => {
       const base: TechPerformanceRow = { code: d.code, desc: d.desc };
@@ -221,13 +240,7 @@ export const PotOfGold: React.FC = () => {
       return base;
     });
     
-    setAdvData(freshAdvData);
-    setTechData(freshTechData);
-    
-    // Clear persistence and set new values
-    localStorage.setItem('pot_adv_data', JSON.stringify(freshAdvData));
-    localStorage.setItem('pot_tech_data', JSON.stringify(freshTechData));
-    
+    await saveToFirestore({ advData: freshAdvData, techData: freshTechData });
     setSuccessMessage('All statistics have been reset successfully');
     setShowClearConfirm(false);
   };
@@ -238,6 +251,15 @@ export const PotOfGold: React.FC = () => {
     Lemmy: d.lemmy,
     Jaryn: d.jay
   }));
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="animate-spin text-brand-primary" size={32} />
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing Pot of Gold Data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-20 relative">
@@ -386,27 +408,93 @@ export const PotOfGold: React.FC = () => {
       </div>
 
       {/* Sub-Tabs Navigation */}
-      <div className="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/50 w-fit mx-auto lg:mx-0">
-        {[
-          { id: 'advisors', label: 'Advisors', icon: Users },
-          { id: 'technicians', label: 'Technicians', icon: Shield },
-          { id: 'performance', label: 'Graph View', icon: BarChart3 },
-          { id: 'upsells', label: 'Incentive Payouts', icon: Settings },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
-            className={cn(
-              "flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-              activeSubTab === tab.id 
-                ? "bg-brand-primary text-white shadow-lg" 
-                : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
-            )}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-col lg:flex-row items-center gap-4 w-full">
+        {/* Mobile Custom Dropdown */}
+        <div className="block lg:hidden w-full relative">
+          <div className="relative">
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-white focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                {activeSubTab === 'advisors' && <Users size={16} className="text-brand-primary" />}
+                {activeSubTab === 'technicians' && <Shield size={16} className="text-brand-primary" />}
+                {activeSubTab === 'performance' && <BarChart3 size={16} className="text-brand-primary" />}
+                {activeSubTab === 'upsells' && <Settings size={16} className="text-brand-primary" />}
+                <span>
+                  {activeSubTab === 'advisors' && 'Advisors View'}
+                  {activeSubTab === 'technicians' && 'Technician View'}
+                  {activeSubTab === 'performance' && 'Data Graph View'}
+                  {activeSubTab === 'upsells' && 'Incentive Pricing'}
+                </span>
+              </div>
+              <ChevronRight size={16} className={cn("text-brand-primary transition-transform duration-300", isMobileMenuOpen ? "-rotate-90" : "rotate-90")} />
+            </button>
+            
+            <AnimatePresence>
+              {isMobileMenuOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsMobileMenuOpen(false)} 
+                  />
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="absolute top-full left-0 right-0 mt-2 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
+                  >
+                    {[
+                      { id: 'advisors', label: 'Advisors View', icon: Users },
+                      { id: 'technicians', label: 'Technician View', icon: Shield },
+                      { id: 'performance', label: 'Data Graph View', icon: BarChart3 },
+                      { id: 'upsells', label: 'Incentive Pricing', icon: Settings },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveSubTab(tab.id as any);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-6 py-4 text-[10px] font-black uppercase tracking-widest text-left transition-colors border-b border-slate-800/50 last:border-0",
+                          activeSubTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                        )}
+                      >
+                        <tab.icon size={16} />
+                        {tab.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Desktop Tabs */}
+        <div className="hidden lg:flex items-center gap-2 bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/50 w-fit">
+          {[
+            { id: 'advisors', label: 'Advisors', icon: Users },
+            { id: 'technicians', label: 'Technicians', icon: Shield },
+            { id: 'performance', label: 'Graph View', icon: BarChart3 },
+            { id: 'upsells', label: 'Incentive Payouts', icon: Settings },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id as any)}
+              className={cn(
+                "flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                activeSubTab === tab.id 
+                  ? "bg-brand-primary text-white shadow-lg" 
+                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
+              )}
+            >
+              <tab.icon size={14} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -445,10 +533,12 @@ export const PotOfGold: React.FC = () => {
                             type="number"
                             value={row.frank}
                             onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 
-                                index === i ? { ...d, frank: Number(e.target.value) || 0 } : d
+                                index === i ? { ...d, frank: val } : d
                               );
                               setAdvData(newData);
+                              saveToFirestore({ advData: newData });
                             }}
                             className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
                           />
@@ -458,10 +548,12 @@ export const PotOfGold: React.FC = () => {
                             type="number"
                             value={row.lemmy}
                             onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 
-                                index === i ? { ...d, lemmy: Number(e.target.value) || 0 } : d
+                                index === i ? { ...d, lemmy: val } : d
                               );
                               setAdvData(newData);
+                              saveToFirestore({ advData: newData });
                             }}
                             className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
                           />
@@ -471,10 +563,12 @@ export const PotOfGold: React.FC = () => {
                             type="number"
                             value={row.jay}
                             onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 
-                                index === i ? { ...d, jay: Number(e.target.value) || 0 } : d
+                                index === i ? { ...d, jay: val } : d
                               );
                               setAdvData(newData);
+                              saveToFirestore({ advData: newData });
                             }}
                             className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
                           />
@@ -547,10 +641,12 @@ export const PotOfGold: React.FC = () => {
                               type="number"
                               value={row[t]}
                               onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
                                 const newData = techData.map((d, index) => 
-                                  index === rIdx ? { ...d, [t]: Number(e.target.value) || 0 } : d
+                                  index === rIdx ? { ...d, [t]: val } : d
                                 );
                                 setTechData(newData);
+                                saveToFirestore({ techData: newData });
                               }}
                               className="w-12 md:w-16 bg-slate-950 border border-slate-800 rounded-lg px-1 py-1 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
                             />
@@ -623,7 +719,10 @@ export const PotOfGold: React.FC = () => {
                             step="0.01"
                             value={prices[d.code]}
                             onChange={(e) => {
-                              setPrices(prev => ({ ...prev, [d.code]: Number(e.target.value) || 0 }));
+                              const val = Number(e.target.value) || 0;
+                              const newPrices = { ...prices, [d.code]: val };
+                              setPrices(newPrices);
+                              saveToFirestore({ prices: newPrices });
                             }}
                             className="bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-sm font-black text-white w-32 focus:border-brand-primary outline-none"
                           />
