@@ -180,29 +180,33 @@ export default function App() {
           </nav>
 
           {/* Mobile Navigation Dropdown */}
-          <div className="flex-1 md:hidden flex justify-center">
+          <div className="flex-1 md:hidden flex justify-center h-full items-center">
             <div className="relative">
               <button 
                 onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-95"
+                className="flex items-center gap-3 px-4 py-2.5 bg-slate-900 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-95 shadow-lg shadow-black/20"
               >
-                {activeTab === 'add' && <UserPlus size={14} className="text-brand-primary" />}
-                {activeTab === 'search' && <Search size={14} className="text-brand-primary" />}
-                {activeTab === 'alerts' && <Bell size={14} className="text-brand-primary" />}
-                {activeTab === 'appointments' && <Calendar size={14} className="text-brand-primary" />}
-                {activeTab === 'pot-of-gold' && <Trophy size={14} className="text-brand-primary" />}
-                {activeTab === 'vin-search' && <Search size={14} className="text-brand-primary" />}
-                {activeTab === 'admin' && <Settings size={14} className="text-brand-primary" />}
-                <span>
-                  {activeTab === 'add' && 'Onboard'}
-                  {activeTab === 'search' && 'Directory'}
-                  {activeTab === 'alerts' && 'Alerts'}
-                  {activeTab === 'appointments' && 'Operations'}
-                  {activeTab === 'pot-of-gold' && 'Competition'}
-                  {activeTab === 'vin-search' && 'VIN Search'}
-                  {activeTab === 'admin' && 'Admin'}
-                </span>
-                <ChevronRight size={14} className={cn("transition-transform duration-300 text-slate-500", isMobileNavOpen ? "-rotate-90" : "rotate-90")} />
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-md bg-brand-primary/20 flex items-center justify-center">
+                    {activeTab === 'add' && <UserPlus size={12} className="text-brand-primary" />}
+                    {activeTab === 'search' && <Search size={12} className="text-brand-primary" />}
+                    {activeTab === 'alerts' && <Bell size={12} className="text-brand-primary" />}
+                    {activeTab === 'appointments' && <Calendar size={12} className="text-brand-primary" />}
+                    {activeTab === 'pot-of-gold' && <Trophy size={12} className="text-brand-primary" />}
+                    {activeTab === 'vin-search' && <Search size={12} className="text-brand-primary" />}
+                    {activeTab === 'admin' && <Settings size={12} className="text-brand-primary" />}
+                  </div>
+                  <span className="min-w-[80px] text-left">
+                    {activeTab === 'add' && 'Onboard'}
+                    {activeTab === 'search' && 'Directory'}
+                    {activeTab === 'alerts' && 'Alerts'}
+                    {activeTab === 'appointments' && 'Operations'}
+                    {activeTab === 'pot-of-gold' && 'Competition'}
+                    {activeTab === 'vin-search' && 'VIN Search'}
+                    {activeTab === 'admin' && 'Admin'}
+                  </span>
+                </div>
+                <ChevronRight size={14} className={cn("transition-transform duration-300 text-brand-primary", isMobileNavOpen ? "-rotate-90" : "rotate-90")} />
               </button>
               
               <AnimatePresence>
@@ -216,8 +220,11 @@ export default function App() {
                       initial={{ opacity: 0, scale: 0.95, y: -10 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[100]"
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 bg-slate-900 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden z-[100]"
                     >
+                      <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
+                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
+                      </div>
                       {[
                         { id: 'add', label: 'Onboard', icon: UserPlus },
                         { id: 'search', label: 'Directory', icon: Search },
@@ -234,8 +241,8 @@ export default function App() {
                             setIsMobileNavOpen(false);
                           }}
                           className={cn(
-                            "w-full flex items-center justify-between px-4 py-3 text-[9px] font-black uppercase tracking-widest text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0",
-                            activeTab === tab.id ? "text-brand-primary" : "text-slate-400"
+                            "w-full flex items-center justify-between px-4 py-3.5 text-[9px] font-black uppercase tracking-widest text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0",
+                            activeTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400"
                           )}
                         >
                           <div className="flex items-center gap-2">

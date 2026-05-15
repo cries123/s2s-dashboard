@@ -414,13 +414,15 @@ export const PotOfGold: React.FC = () => {
           <div className="relative">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.2em] text-white focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
+              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-white focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
-                {activeSubTab === 'advisors' && <Users size={16} className="text-brand-primary" />}
-                {activeSubTab === 'technicians' && <Shield size={16} className="text-brand-primary" />}
-                {activeSubTab === 'performance' && <BarChart3 size={16} className="text-brand-primary" />}
-                {activeSubTab === 'upsells' && <Settings size={16} className="text-brand-primary" />}
+                <div className="w-6 h-6 rounded-lg bg-brand-primary/20 flex items-center justify-center">
+                  {activeSubTab === 'advisors' && <Users size={14} className="text-brand-primary" />}
+                  {activeSubTab === 'technicians' && <Shield size={14} className="text-brand-primary" />}
+                  {activeSubTab === 'performance' && <BarChart3 size={14} className="text-brand-primary" />}
+                  {activeSubTab === 'upsells' && <Settings size={14} className="text-brand-primary" />}
+                </div>
                 <span>
                   {activeSubTab === 'advisors' && 'Advisors View'}
                   {activeSubTab === 'technicians' && 'Technician View'}
@@ -428,7 +430,7 @@ export const PotOfGold: React.FC = () => {
                   {activeSubTab === 'upsells' && 'Incentive Pricing'}
                 </span>
               </div>
-              <ChevronRight size={16} className={cn("text-brand-primary transition-transform duration-300", isMobileMenuOpen ? "-rotate-90" : "rotate-90")} />
+              <ChevronRight size={18} className={cn("text-brand-primary transition-transform duration-300", isMobileMenuOpen ? "-rotate-90" : "rotate-90")} />
             </button>
             
             <AnimatePresence>
@@ -442,8 +444,11 @@ export const PotOfGold: React.FC = () => {
                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute top-full left-0 right-0 mt-2 z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
+                    className="absolute top-full left-0 right-0 mt-2 z-50 bg-slate-900 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
                   >
+                    <div className="px-6 py-3 border-b border-slate-800 bg-slate-800/30">
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Switch View</span>
+                    </div>
                     {[
                       { id: 'advisors', label: 'Advisors View', icon: Users },
                       { id: 'technicians', label: 'Technician View', icon: Shield },
@@ -457,7 +462,7 @@ export const PotOfGold: React.FC = () => {
                           setIsMobileMenuOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center gap-3 px-6 py-4 text-[10px] font-black uppercase tracking-widest text-left transition-colors border-b border-slate-800/50 last:border-0",
+                          "w-full flex items-center gap-4 px-6 py-4.5 text-[10px] font-black uppercase tracking-widest text-left transition-colors border-b border-slate-800/50 last:border-0",
                           activeSubTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                         )}
                       >

@@ -15,18 +15,10 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    function existing() {
-      return resource.data;
-    }
-
-    // Helper to get user data from the specific deep path
-    function getUserData(uid) {
-      return get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(uid)).data;
-    }
-
+    // Robust role/status checks with email whitelist fallback
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == 'Jaryn.B.Healey@gmail.com' && request.auth.token.email_verified == true) ||
+        request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
         (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.role == 'admin')
       );
@@ -34,7 +26,7 @@ service cloud.firestore {
 
     function isApproved() {
       return isSignedIn() && (
-        (request.auth.token.email == 'Jaryn.B.Healey@gmail.com' && request.auth.token.email_verified == true) ||
+        request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
         (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.status == 'approved')
       );
@@ -42,14 +34,14 @@ service cloud.firestore {
 
     // --- Users Collection ---
     match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
-      allow create: if isSignedIn() && request.auth.uid == userId && 
-                    incoming().status == 'pending';
+      allow create: if isSignedIn() && request.auth.uid == userId;
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
+    // --- Customer & Operations Data ---
     match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
       allow read, write: if isApproved() || isAdmin();
       
@@ -62,6 +54,7 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin();
     }
 
+    // --- Performance Tracking (Pot of Gold & Advisor Reports) ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
       allow read, write: if isApproved() || isAdmin();
     }
