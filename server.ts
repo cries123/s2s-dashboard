@@ -25,6 +25,11 @@ const ai = new GoogleGenAI({
 // API Routes
 app.post("/api/parse-appointments", async (req, res) => {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("CRITICAL: GEMINI_API_KEY is not defined in the environment.");
+      return res.status(500).json({ error: "Server configuration error: AI key missing. Please check your environment settings." });
+    }
+
     const { pdfBase64 } = req.body;
 
     if (!pdfBase64) {
@@ -90,6 +95,11 @@ app.post("/api/parse-appointments", async (req, res) => {
 
 app.post("/api/parse-performance", async (req, res) => {
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("CRITICAL: GEMINI_API_KEY is not defined in the environment.");
+      return res.status(500).json({ error: "Server configuration error: AI key missing. Please check your environment settings." });
+    }
+
     const { pdfBase64 } = req.body;
 
     if (!pdfBase64) {

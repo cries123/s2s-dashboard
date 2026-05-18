@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown } from 'lucide-react';
+import { 
+  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -34,6 +36,7 @@ interface AdvisorPerformanceProps {
 export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [totals, setTotals] = useState<any>(null);
@@ -109,6 +112,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     if (!file) return;
 
     setIsImporting(true);
+    setImportStatus(null);
     
     try {
       const pdfBase64 = await fileToBase64(file);
@@ -120,15 +124,17 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       });
 
       if (!response.ok) {
-        throw new Error('Failed to analyze productivity report');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to analyze productivity report');
       }
 
       const data = await response.json();
       await saveToFirestore(data);
+      setImportStatus({ type: 'success', message: 'Productivity report imported successfully!' });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Performance Import Error:', error);
-      // You could add an onError prop if needed, similar to Appointments
+      setImportStatus({ type: 'error', message: error.message || 'Error importing PDF. Please try again.' });
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -137,31 +143,45 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
   // Calculate totals and projections
   const getPerformanceMetrics = () => {
-    if (!totals) return null;
+    let baseTotals = totals;
+    
+    // If totals object is missing but we have advisors, compute it
+    if (!baseTotals && advisors.length > 0) {
+      baseTotals = {
+        totalGross: advisors.reduce((a, b) => a + (b.grossLabor || 0), 0),
+        totalLabor: advisors.reduce((a, b) => a + (b.laborSold || 0), 0),
+        totalParts: advisors.reduce((a, b) => a + (b.partsSold || 0), 0),
+        totalGrossParts: advisors.reduce((a, b) => a + (b.grossParts || 0), 0),
+        totalSales: advisors.reduce((a, b) => a + (b.totalSales || 0), 0),
+        totalHrs: advisors.reduce((a, b) => a + (b.hrsSold || 0), 0),
+      };
+    }
+
+    if (!baseTotals) return null;
 
     const today = new Date();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const elapsedDays = today.getDate();
     
     // Pace calculation
-    const avgDailyGross = (totals.totalGross || 0) / Math.max(1, elapsedDays);
+    const avgDailyGross = (baseTotals.totalGross || 0) / Math.max(1, elapsedDays);
     const grossForecast = Math.round(avgDailyGross * daysInMonth);
     const grossPace = Math.round(avgDailyGross * elapsedDays);
     
-    const avgDailySales = (totals.totalSales || 0) / Math.max(1, elapsedDays);
+    const avgDailySales = (baseTotals.totalSales || 0) / Math.max(1, elapsedDays);
     const salesForecast = Math.round(avgDailySales * daysInMonth);
     const salesPace = Math.round(avgDailySales * elapsedDays);
 
-    const avgDailyParts = (totals.totalParts || 0) / Math.max(1, elapsedDays);
+    const avgDailyParts = (baseTotals.totalParts || 0) / Math.max(1, elapsedDays);
     const partsForecast = Math.round(avgDailyParts * daysInMonth);
     const partsPace = Math.round(avgDailyParts * elapsedDays);
 
-    const avgDailyGrossParts = (totals.totalGrossParts || 0) / Math.max(1, elapsedDays);
+    const avgDailyGrossParts = (baseTotals.totalGrossParts || 0) / Math.max(1, elapsedDays);
     const grossPartsForecast = Math.round(avgDailyGrossParts * daysInMonth);
     const grossPartsPace = Math.round(avgDailyGrossParts * elapsedDays);
 
     return {
-      ...totals,
+      ...baseTotals,
       grossForecast,
       grossPace,
       salesForecast,
@@ -176,9 +196,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     };
   };
 
-  const metrics = getPerformanceMetrics();
-
-  if (loading || !metrics) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-10 gap-4">
         <Loader2 className="animate-spin text-brand-secondary" size={32} />
@@ -186,6 +204,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       </div>
     );
   }
+
+  const metrics = getPerformanceMetrics();
 
   return (
     <div className="space-y-6">
@@ -215,6 +235,26 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           Import PDF Productivity Report
         </button>
       </div>
+
+      <AnimatePresence>
+        {importStatus && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className={cn(
+              "p-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-3",
+              importStatus.type === 'success' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-rose-500/10 border-rose-500/20 text-rose-500"
+            )}
+          >
+            {importStatus.type === 'success' ? <CheckCircle2 size={14} /> : <X size={14} />}
+            {importStatus.message}
+            <button onClick={() => setImportStatus(null)} className="ml-auto opacity-50 hover:opacity-100">
+              <X size={12} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {!advisors.length && !isImporting && (
         <div className="flex flex-col items-center justify-center py-20 bg-slate-900/10 rounded-3xl border-2 border-dashed border-slate-800/50">
