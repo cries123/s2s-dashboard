@@ -69,11 +69,13 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
   // Local state for immediate slider feedback
   const [localAppTargets, setLocalAppTargets] = useState<Record<string, number>>({});
   const [localLaborTargets, setLocalLaborTargets] = useState<Record<string, number>>({});
+  const [localPartsTargets, setLocalPartsTargets] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (Object.keys(dealershipSettings).length > 0) {
       const appTargets: Record<string, number> = {};
       const laborTargets: Record<string, number> = {};
+      const partsTargets: Record<string, number> = {};
       Object.entries(dealershipSettings).forEach(([id, data]: [string, any]) => {
         if (data) {
           if (typeof data.appointmentTarget === 'number') {
@@ -82,10 +84,14 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
           if (typeof data.laborGrossTarget === 'number') {
             laborTargets[id] = data.laborGrossTarget;
           }
+          if (typeof data.partsSalesTarget === 'number') {
+            partsTargets[id] = data.partsSalesTarget;
+          }
         }
       });
       setLocalAppTargets(prev => ({ ...prev, ...appTargets }));
       setLocalLaborTargets(prev => ({ ...prev, ...laborTargets }));
+      setLocalPartsTargets(prev => ({ ...prev, ...partsTargets }));
     }
   }, [dealershipSettings]);
 
@@ -97,6 +103,11 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
   const commitLaborTargetChange = (id: string) => {
     const value = localLaborTargets[id] ?? (dealershipSettings[id]?.laborGrossTarget || 500000);
     updateSetting(id, { laborGrossTarget: value });
+  };
+
+  const commitPartsTargetChange = (id: string) => {
+    const value = localPartsTargets[id] ?? (dealershipSettings[id]?.partsSalesTarget || 300000);
+    updateSetting(id, { partsSalesTarget: value });
   };
 
   useEffect(() => {
@@ -226,6 +237,7 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
 
             const appTarget = localAppTargets[d.id] ?? (dealershipSettings[d.id]?.appointmentTarget || 20);
             const laborTarget = localLaborTargets[d.id] ?? (dealershipSettings[d.id]?.laborGrossTarget || 500000);
+            const partsTarget = localPartsTargets[d.id] ?? (dealershipSettings[d.id]?.partsSalesTarget || 300000);
             
             return (
               <div key={d.id} className={cn(
@@ -236,19 +248,22 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{d.name} Management</span>
                     <div className="flex gap-2">
                        <div className="px-2 py-1 bg-brand-primary/10 rounded border border-brand-primary/20">
-                         <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">App Target: {appTarget}</span>
+                         <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">App: {appTarget}</span>
                        </div>
                        <div className="px-2 py-1 bg-emerald-500/10 rounded border border-emerald-500/20">
-                         <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Labor Target: ${laborTarget.toLocaleString()}</span>
+                         <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Labor: ${laborTarget.toLocaleString()}</span>
+                       </div>
+                       <div className="px-2 py-1 bg-brand-secondary/10 rounded border border-brand-secondary/20">
+                         <span className="text-[10px] font-black text-brand-secondary uppercase tracking-widest">Parts: ${partsTarget.toLocaleString()}</span>
                        </div>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     {/* Appointment Target */}
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Daily Appointment Count</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Daily Appointments</label>
                         <span className="text-brand-primary font-black text-xs">{appTarget} / Day</span>
                       </div>
                       <div className="flex items-center gap-3">
@@ -276,33 +291,65 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
                       </div>
                     </div>
 
-                    {/* Labor Gross Target */}
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Labor Gross Goal</label>
-                        <span className="text-emerald-500 font-black text-xs">${laborTarget.toLocaleString()}</span>
+                    <div className="space-y-8">
+                      {/* Labor Gross Target */}
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Labor Gross Goal</label>
+                          <span className="text-emerald-500 font-black text-xs">${laborTarget.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="range"
+                            min="100000"
+                            max="2000000"
+                            step="10000"
+                            value={laborTarget}
+                            onChange={(e) => setLocalLaborTargets(prev => ({ ...prev, [d.id]: parseInt(e.target.value) }))}
+                            onMouseUp={() => commitLaborTargetChange(d.id)}
+                            onTouchEnd={() => commitLaborTargetChange(d.id)}
+                            className="flex-1 accent-emerald-500 cursor-pointer h-1.5 rounded-lg appearance-none bg-slate-800"
+                          />
+                          <input 
+                            type="number"
+                            min="0"
+                            value={laborTarget}
+                            onChange={(e) => setLocalLaborTargets(prev => ({ ...prev, [d.id]: parseInt(e.target.value) || 0 }))}
+                            onBlur={() => commitLaborTargetChange(d.id)}
+                            onKeyDown={(e) => e.key === 'Enter' && commitLaborTargetChange(d.id)}
+                            className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-black text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <input 
-                          type="range"
-                          min="100000"
-                          max="2000000"
-                          step="10000"
-                          value={laborTarget}
-                          onChange={(e) => setLocalLaborTargets(prev => ({ ...prev, [d.id]: parseInt(e.target.value) }))}
-                          onMouseUp={() => commitLaborTargetChange(d.id)}
-                          onTouchEnd={() => commitLaborTargetChange(d.id)}
-                          className="flex-1 accent-emerald-500 cursor-pointer h-1.5 rounded-lg appearance-none bg-slate-800"
-                        />
-                        <input 
-                          type="number"
-                          min="0"
-                          value={laborTarget}
-                          onChange={(e) => setLocalLaborTargets(prev => ({ ...prev, [d.id]: parseInt(e.target.value) || 0 }))}
-                          onBlur={() => commitLaborTargetChange(d.id)}
-                          onKeyDown={(e) => e.key === 'Enter' && commitLaborTargetChange(d.id)}
-                          className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-black text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
-                        />
+
+                      {/* Parts Sales Target */}
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Parts Sales Goal</label>
+                          <span className="text-brand-secondary font-black text-xs">${partsTarget.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="range"
+                            min="50000"
+                            max="1500000"
+                            step="10000"
+                            value={partsTarget}
+                            onChange={(e) => setLocalPartsTargets(prev => ({ ...prev, [d.id]: parseInt(e.target.value) }))}
+                            onMouseUp={() => commitPartsTargetChange(d.id)}
+                            onTouchEnd={() => commitPartsTargetChange(d.id)}
+                            className="flex-1 accent-brand-secondary cursor-pointer h-1.5 rounded-lg appearance-none bg-slate-800"
+                          />
+                          <input 
+                            type="number"
+                            min="0"
+                            value={partsTarget}
+                            onChange={(e) => setLocalPartsTargets(prev => ({ ...prev, [d.id]: parseInt(e.target.value) || 0 }))}
+                            onBlur={() => commitPartsTargetChange(d.id)}
+                            onKeyDown={(e) => e.key === 'Enter' && commitPartsTargetChange(d.id)}
+                            className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-black text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

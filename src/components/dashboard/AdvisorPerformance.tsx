@@ -79,13 +79,43 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     return () => unsubscribe();
   }, [user, currentDealershipId]);
 
-  const saveToFirestore = async (data: { advisors: AdvisorData[], totals: any }) => {
+  const saveToFirestore = async (newData: { advisors: AdvisorData[], totals?: any }) => {
     if (!user || !currentDealershipId) return;
+    
+    // Merge logic: find existing advisors and update them or add new ones
+    const updatedAdvisors = [...advisors];
+    
+    newData.advisors.forEach(newAdvisor => {
+      const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === newAdvisor.name.toLowerCase().trim());
+      
+      if (idx !== -1) {
+        // Merge into existing advisor record
+        updatedAdvisors[idx] = {
+          ...updatedAdvisors[idx],
+          ...(newAdvisor.laborSold !== undefined && { laborSold: newAdvisor.laborSold }),
+          ...(newAdvisor.grossLabor !== undefined && { grossLabor: newAdvisor.grossLabor }),
+          ...(newAdvisor.partsSold !== undefined && { partsSold: newAdvisor.partsSold }),
+          ...(newAdvisor.grossParts !== undefined && { grossParts: newAdvisor.grossParts }),
+          ...(newAdvisor.soCount !== undefined && { soCount: newAdvisor.soCount }),
+          ...(newAdvisor.totalSales !== undefined && { totalSales: newAdvisor.totalSales }),
+          ...(newAdvisor.hrsSold !== undefined && { hrsSold: newAdvisor.hrsSold }),
+          ...(newAdvisor.elr !== undefined && { elr: newAdvisor.elr }),
+          ...(newAdvisor.gpPercent !== undefined && { gpPercent: newAdvisor.gpPercent }),
+          ...(newAdvisor.upsells && { upsells: newAdvisor.upsells })
+        };
+      } else {
+        // Create new advisor record
+        updatedAdvisors.push(newAdvisor);
+      }
+    });
+
     const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+    
     try {
       await setDoc(docRef, {
-        ...data,
+        advisors: updatedAdvisors,
+        ...(newData.totals && { totals: newData.totals }),
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       }, { merge: true });
@@ -125,12 +155,21 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to analyze productivity report');
+        throw new Error(errorData.error || 'Failed to analyze report');
       }
 
       const data = await response.json();
       await saveToFirestore(data);
-      setImportStatus({ type: 'success', message: 'Productivity report imported successfully!' });
+      
+      const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
+      const hasTotals = !!data.totals;
+      
+      let message = 'Report imported successfully!';
+      if (hasUpsells && hasTotals) message = 'Productivity and Upsell data imported and merged!';
+      else if (hasUpsells) message = 'Upsell data imported and merged!';
+      else if (hasTotals) message = 'Productivity data imported!';
+
+      setImportStatus({ type: 'success', message });
       
     } catch (error: any) {
       console.error('Performance Import Error:', error);
@@ -223,7 +262,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
             <Users size={20} className="text-brand-secondary" />
             Advisor Performance Tracking
           </h3>
-          <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-black">Labor & Profitability Analysis from CSR Report</p>
         </div>
         
         <button 
@@ -440,13 +478,20 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                                     {item.code}
                                   </div>
                                   <div>
-                                    <p className="text-[10px] font-black text-white leading-none mb-1">{item.description}</p>
-                                    <p className="text-[8px] font-bold text-brand-secondary uppercase tracking-tighter">Labour: ${item.revenue.toFixed(2)}</p>
+                                    <p className="text-[10px] font-black text-white leading-none mb-1">
+                                      {item.code === 'FB' || (item.description.toUpperCase().includes('FRONT BRAKE') && item.description.toUpperCase().includes('RESURFACE')) 
+                                        ? 'FB PAD R&R ROTOR RESURFACE' 
+                                        : item.code === 'RB' || (item.description.toUpperCase().includes('REAR BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
+                                        ? 'RB PAD R&R ROTOR RESURFACE'
+                                        : item.description}
+                                    </p>
+                                    <p className="text-[8px] font-bold text-brand-secondary uppercase tracking-tighter">Labor: ${item.revenue.toFixed(2)}</p>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                                    {item.count} Sold
+                                <div className="text-right flex-shrink-0 ml-2">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
+                                    <span className="text-xs">{item.count}</span>
+                                    <span className="opacity-70 uppercase text-[8px]">Sold</span>
                                   </span>
                                 </div>
                               </div>

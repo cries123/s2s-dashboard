@@ -54,7 +54,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [weekOffset, setWeekOffset] = useState(0);
   const [targetValue, setTargetValue] = useState(20);
   const [laborTarget, setLaborTarget] = useState(500000);
-  const [partsTarget, setPartsTarget] = useState(50000);
+  const [partsTarget, setPartsTarget] = useState(300000);
   const [mtdGross, setMtdGross] = useState(0);
   const [mtdPartsSales, setMtdPartsSales] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
@@ -72,7 +72,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         const data = docSnap.data();
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
-        setPartsTarget(data.partsGrossTarget || 50000);
+        setPartsTarget(data.partsSalesTarget || 300000);
       }
     });
 
@@ -224,7 +224,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         misc: rawData.misc || 0
       };
 
-      const totalCount = rawData.total || Object.values(breakdown).reduce((a, b) => a + b, 0);
+      // Ensure total count matches the sum of breakdown to avoid confusion
+      const sumBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
+      const totalCount = sumBreakdown > 0 ? sumBreakdown : (rawData.total || 0);
 
       await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
         date: selectedDate,
@@ -672,14 +674,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               </div>
 
               <div className="p-8 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl">
-                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Total Appts</p>
-                    <p className="text-3xl font-black text-white">{showBreakdown.count}</p>
-                  </div>
-                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl font-black">
-                     <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Efficiency Ratio</p>
-                     <p className="text-3xl font-black text-white">{Math.round(((showBreakdown.breakdown?.oilChange || 0) + (showBreakdown.breakdown?.diagnosis || 0)) / (showBreakdown.count || 1) * 100)}%</p>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="p-6 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl text-center">
+                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Total Appointments</p>
+                    <p className="text-4xl font-black text-white">{showBreakdown.count}</p>
                   </div>
                 </div>
 

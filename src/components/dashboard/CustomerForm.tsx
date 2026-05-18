@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { User } from '../../types';
-import { Camera, Loader2, User as UserIcon, Phone, Mail, Car, Calendar, Globe, BadgeCheck, Sparkles } from 'lucide-react';
+import { Camera, Loader2, User as UserIcon, Phone, Mail, Car, Calendar, Globe, BadgeCheck } from 'lucide-react';
 
 interface CustomerFormProps {
   currentUser: User;
@@ -205,122 +205,151 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
   return (
     <div className="max-w-4xl mx-auto">
       <div className="card-base overflow-hidden">
-        <div className="bg-slate-900/50 p-6 border-b border-surface-border">
-          <h2 className="text-xl font-bold text-white flex items-center gap-3">
-            <UserIcon className="text-brand-primary" /> 
-            New Customer Onboarding
-          </h2>
-          <p className="text-sm text-slate-400 mt-1">Enroll a new customer into the Sales-to-Service retention program.</p>
+        <div className="bg-slate-900/50 p-6 border-b border-surface-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-3">
+              <UserIcon className="text-brand-primary" /> 
+              New Customer Onboarding
+            </h2>
+            <p className="text-sm text-slate-400 mt-1">Enroll a new customer into the Sales-to-Service retention program.</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {isProcessing && (
+              <div className="flex items-center gap-2 text-brand-secondary text-xs font-bold uppercase tracking-tighter animate-pulse">
+                <Loader2 className="animate-spin" size={14} />
+                <span>Processing...</span>
+              </div>
+            )}
+            <label className="btn-secondary py-2 px-4 text-xs cursor-pointer flex items-center gap-2 uppercase tracking-widest font-black">
+              <Camera size={14} />
+              <span>Scan Document</span>
+              <input type="file" onChange={handleImageUpload} accept="image/*" className="hidden" />
+            </label>
+          </div>
         </div>
         
         <div className="p-8">
-          <div className="mb-10 p-6 bg-brand-primary/5 border border-brand-primary/10 rounded-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Camera size={64} />
-            </div>
-            
-            <div className="relative z-10">
-              <h3 className="text-sm font-bold text-brand-secondary mb-2 flex items-center gap-2 uppercase tracking-widest">
-                <Sparkles size={16} />
-                AI Silver Bullet Extraction
-              </h3>
-              <p className="text-sm text-slate-300 mb-6 max-w-lg">
-                Snap a photo of the sales folder or deal sheet. Our AI will automatically extract customer details, VIN, and deal info.
-              </p>
+          <form onSubmit={handleSubmit} className="space-y-10">
+            {/* Section: Customer Information */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <div className="w-1 h-4 bg-brand-primary rounded-full"></div>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Customer Information</h3>
+              </div>
               
-              <div className="flex items-center gap-4">
-                <label className="btn-primary cursor-pointer">
-                  <Camera size={18} />
-                  <span>Scan Document</span>
-                  <input type="file" onChange={handleImageUpload} accept="image/*" className="hidden" />
-                </label>
-                {isProcessing && (
-                  <div className="flex items-center gap-2 text-brand-secondary font-medium animate-pulse">
-                    <Loader2 className="animate-spin" size={18} />
-                    <span>Processing details...</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="firstName">First Name</label>
+                  <input type="text" id="firstName" value={formData.firstName} onChange={handleChange} required className="input-field" placeholder="e.g. John" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="lastName">Last Name</label>
+                  <input type="text" id="lastName" value={formData.lastName} onChange={handleChange} required className="input-field" placeholder="e.g. Doe" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="phone">Primary Phone</label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input type="tel" id="phone" value={formData.phone} onChange={handleChange} className="input-field pl-12" placeholder="(555) 000-0000" />
                   </div>
-                )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="email">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input type="email" id="email" value={formData.email} onChange={handleChange} className="input-field pl-12" placeholder="john@example.com" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="language">Preferred Language</label>
+                  <div className="relative">
+                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <select id="language" value={formData.language} onChange={handleChange} className="input-field pl-12 appearance-none">
+                      <option>English</option>
+                      <option>Spanish</option>
+                      <option>French</option>
+                      <option>Mandarin</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="firstName">First Name</label>
-                <input type="text" id="firstName" value={formData.firstName} onChange={handleChange} required className="input-field" placeholder="e.g. John" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="lastName">Last Name</label>
-                <input type="text" id="lastName" value={formData.lastName} onChange={handleChange} required className="input-field" placeholder="e.g. Doe" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="phone">Primary Phone</label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input type="tel" id="phone" value={formData.phone} onChange={handleChange} className="input-field pl-12" placeholder="(555) 000-0000" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="email">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input type="email" id="email" value={formData.email} onChange={handleChange} className="input-field pl-12" placeholder="john@example.com" />
-                </div>
-              </div>
-              <div className="space-y-1.5 md:col-span-2">
-                <label className="input-label" htmlFor="vin">Full VIN (17 Characters)</label>
-                <div className="relative">
-                  <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input 
-                    type="text" 
-                    id="vin" 
-                    value={formData.vin} 
-                    onChange={handleVinChange} 
-                    maxLength={17} 
-                    className="input-field pl-12 font-mono" 
-                    placeholder="Enter 17-character VIN for auto-decode" 
-                  />
-                  {isDecoding && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                      <Loader2 className="animate-spin text-brand-primary" size={18} />
-                    </div>
-                  )}
-                </div>
+            {/* Section: Vehicle Details */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <div className="w-1 h-4 bg-brand-secondary rounded-full"></div>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Vehicle Details</h3>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="model">Vehicle Model</label>
-                <div className="relative">
-                  <Car className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input type="text" id="model" value={formData.model} onChange={handleChange} className="input-field pl-12" placeholder="e.g. Palisade" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="input-label" htmlFor="vin">Full VIN (17 Characters)</label>
+                  <div className="relative">
+                    <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input 
+                      type="text" 
+                      id="vin" 
+                      value={formData.vin} 
+                      onChange={handleVinChange} 
+                      maxLength={17} 
+                      className="input-field pl-12 font-mono uppercase" 
+                      placeholder="ENTER 17-CHARACTER VIN" 
+                    />
+                    {isDecoding && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                        <Loader2 className="animate-spin text-brand-primary" size={18} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="model">Vehicle Model</label>
+                  <div className="relative">
+                    <Car className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input type="text" id="model" value={formData.model} onChange={handleChange} className="input-field pl-12" placeholder="e.g. 2024 Palisade" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="vinLast8">VIN (Last 8)</label>
+                  <div className="relative">
+                    <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input type="text" id="vinLast8" value={formData.vinLast8} onChange={handleChange} maxLength={8} className="input-field pl-12 font-mono uppercase" placeholder="ABC12345" />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="vinLast8">VIN (Last 8)</label>
-                <div className="relative">
-                  <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input type="text" id="vinLast8" value={formData.vinLast8} onChange={handleChange} maxLength={8} className="input-field pl-12 font-mono" placeholder="ABC12345" />
-                </div>
+            </div>
+
+            {/* Section: Delivery Details */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <div className="w-1 h-4 bg-emerald-500 rounded-full"></div>
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Delivery & Program Details</h3>
               </div>
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="soldDate">Delivery Date</label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <input type="date" id="soldDate" value={formData.soldDate} onChange={handleChange} className="input-field pl-12" />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="soldDate">Delivery Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input type="date" id="soldDate" value={formData.soldDate} onChange={handleChange} className="input-field pl-12" />
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="input-label" htmlFor="language">Preferred Language</label>
-                <div className="relative">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                  <select id="language" value={formData.language} onChange={handleChange} className="input-field pl-12 appearance-none">
-                    <option>English</option>
-                    <option>Spanish</option>
-                    <option>French</option>
-                    <option>Mandarin</option>
-                    <option>Other</option>
-                  </select>
+                
+                <div className="space-y-1.5">
+                  <label className="input-label" htmlFor="soldByUserId">Sales Person</label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <select id="soldByUserId" value={formData.soldByUserId} onChange={handleChange} className="input-field pl-12 appearance-none">
+                      <option value="">Select Salesperson...</option>
+                      {salespeople.map(sp => (
+                        <option key={sp.id} value={sp.id}>{sp.firstName} {sp.lastName}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
