@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -14,8 +14,15 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
 
   // Gemini Initialization
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-  
+  const ai = new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
+    }
+  });
+
   // API Routes
   app.post("/api/parse-appointments", async (req, res) => {
     try {
@@ -26,37 +33,38 @@ async function startServer() {
       const { pdfBase64 } = req.body;
       if (!pdfBase64) return res.status(400).json({ error: "Missing PDF" });
 
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
-        generationConfig: {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            inlineData: {
+              mimeType: "application/pdf",
+              data: pdfBase64,
+            },
+          },
+          "Extract appointment summary from this PDF. Provide a breakdown of diagnosis, oil changes, recalls, and misc counts. Return JSON."
+        ],
+        config: {
           responseMimeType: "application/json",
           responseSchema: {
-            type: SchemaType.OBJECT,
+            type: Type.OBJECT,
             properties: {
-              diagnosis: { type: SchemaType.NUMBER },
-              oilChange: { type: SchemaType.NUMBER },
-              recall: { type: SchemaType.NUMBER },
-              misc: { type: SchemaType.NUMBER },
-              total: { type: SchemaType.NUMBER },
+              diagnosis: { type: Type.NUMBER },
+              oilChange: { type: Type.NUMBER },
+              recall: { type: Type.NUMBER },
+              misc: { type: Type.NUMBER },
+              total: { type: Type.NUMBER },
             },
             required: ["diagnosis", "oilChange", "recall", "misc", "total"],
           },
         }
       });
 
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            mimeType: "application/pdf",
-            data: pdfBase64,
-          },
-        },
-        "Extract appointment summary from this PDF."
-      ]);
-
-      res.json(JSON.parse(result.response.text()));
+      const text = response.text;
+      if (!text) throw new Error("Empty response from AI");
+      res.json(JSON.parse(text));
     } catch (error: any) {
-      console.error("API Error:", error);
+      console.error("API Error Appointments:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -70,42 +78,51 @@ async function startServer() {
       const { pdfBase64 } = req.body;
       if (!pdfBase64) return res.status(400).json({ error: "Missing PDF" });
 
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
-        generationConfig: {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            inlineData: {
+              mimeType: "application/pdf",
+              data: pdfBase64,
+            },
+          },
+          "Extract performance summary from this PDF. Return advisor breakdown and MTD totals. Return JSON."
+        ],
+        config: {
           responseMimeType: "application/json",
           responseSchema: {
-            type: SchemaType.OBJECT,
+            type: Type.OBJECT,
             properties: {
               advisors: {
-                type: SchemaType.ARRAY,
+                type: Type.ARRAY,
                 items: {
-                  type: SchemaType.OBJECT,
+                  type: Type.OBJECT,
                   properties: {
-                    name: { type: SchemaType.STRING },
-                    soCount: { type: SchemaType.NUMBER },
-                    hrsSold: { type: SchemaType.NUMBER },
-                    laborSold: { type: SchemaType.NUMBER },
-                    grossLabor: { type: SchemaType.NUMBER },
-                    partsSold: { type: SchemaType.NUMBER },
-                    grossParts: { type: SchemaType.NUMBER },
-                    totalSales: { type: SchemaType.NUMBER },
-                    gpPercent: { type: SchemaType.NUMBER },
-                    elr: { type: SchemaType.NUMBER },
+                    name: { type: Type.STRING },
+                    soCount: { type: Type.NUMBER },
+                    hrsSold: { type: Type.NUMBER },
+                    laborSold: { type: Type.NUMBER },
+                    grossLabor: { type: Type.NUMBER },
+                    partsSold: { type: Type.NUMBER },
+                    grossParts: { type: Type.NUMBER },
+                    totalSales: { type: Type.NUMBER },
+                    gpPercent: { type: Type.NUMBER },
+                    elr: { type: Type.NUMBER },
                   },
                   required: ["name", "soCount", "laborSold", "grossLabor"],
                 },
               },
               totals: {
-                type: SchemaType.OBJECT,
+                type: Type.OBJECT,
                 properties: {
-                  totalSales: { type: SchemaType.NUMBER },
-                  totalLabor: { type: SchemaType.NUMBER },
-                  totalGross: { type: SchemaType.NUMBER },
-                  totalParts: { type: SchemaType.NUMBER },
-                  totalGrossParts: { type: SchemaType.NUMBER },
-                  totalHrs: { type: SchemaType.NUMBER },
-                  avgGp: { type: SchemaType.NUMBER },
+                  totalSales: { type: Type.NUMBER },
+                  totalLabor: { type: Type.NUMBER },
+                  totalGross: { type: Type.NUMBER },
+                  totalParts: { type: Type.NUMBER },
+                  totalGrossParts: { type: Type.NUMBER },
+                  totalHrs: { type: Type.NUMBER },
+                  avgGp: { type: Type.NUMBER },
                 },
                 required: ["totalSales", "totalGross"],
               },
@@ -115,17 +132,9 @@ async function startServer() {
         }
       });
 
-      const result = await model.generateContent([
-        {
-          inlineData: {
-            mimeType: "application/pdf",
-            data: pdfBase64,
-          },
-        },
-        "Extract performance summary from this PDF."
-      ]);
-
-      res.json(JSON.parse(result.response.text()));
+      const text = response.text;
+      if (!text) throw new Error("Empty response from AI");
+      res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Performance:", error);
       res.status(500).json({ error: error.message });
