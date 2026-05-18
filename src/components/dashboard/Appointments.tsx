@@ -5,7 +5,7 @@ import {
 import { db, auth } from '../../firebase';
 import { User, DailyStat } from '../../types';
 import { 
-  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, Calendar as CalendarIcon, 
+  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
   BarChart3, Target, Clock, FileUp, X, PieChart
 } from 'lucide-react';
 import { AdvisorPerformance } from './AdvisorPerformance';
@@ -54,7 +54,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [weekOffset, setWeekOffset] = useState(0);
   const [targetValue, setTargetValue] = useState(20);
   const [laborTarget, setLaborTarget] = useState(500000);
-  const [partsTarget, setPartsTarget] = useState(300000);
+  const [partsTarget, setPartsTarget] = useState(50000);
   const [mtdGross, setMtdGross] = useState(0);
   const [mtdPartsGross, setMtdPartsGross] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
@@ -72,7 +72,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         const data = docSnap.data();
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
-        setPartsTarget(data.partsGrossTarget || 300000);
+        setPartsTarget(data.partsGrossTarget || 50000);
       }
     });
 
@@ -405,8 +405,15 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card-base p-8 bg-gradient-to-br from-brand-primary/20 to-slate-900 border-brand-primary/30 col-span-1 lg:col-span-2">
-          <div className="flex items-center justify-between mb-8">
+        <div className="card-base p-8 bg-gradient-to-br from-brand-primary/20 to-slate-900 border-brand-primary/30 col-span-1 lg:col-span-2 relative">
+          <div className="absolute top-3 right-4">
+            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 whitespace-nowrap shadow-sm shadow-emerald-500/5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{metrics.daysRemaining} Days Left</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between mb-8 mt-10">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center text-brand-primary shadow-lg shadow-brand-primary/10">
                 <TrendingUp size={24} />
@@ -414,13 +421,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               <div>
                 <h2 className="text-2xl font-black text-white tracking-tight uppercase">Month-End Projections</h2>
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Real-time forecasting based on current monthly velocity.</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Status</span>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{metrics.daysRemaining} Days Left</span>
               </div>
             </div>
           </div>
@@ -457,7 +457,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               }
             ].map((kpi, idx) => (
               <div key={idx} className="relative group">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                   {/* LABEL & FORECAST (The Result) */}
                   <div className="w-full md:w-1/3">
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{kpi.label} Forecast</p>
@@ -474,26 +474,26 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                   </div>
 
                   {/* STATS STRIP */}
-                  <div className="flex-1 grid grid-cols-3 gap-8 md:gap-12">
+                  <div className="flex-1 grid grid-cols-3 gap-8 md:gap-12 items-end">
                     {/* CURRENT MTD */}
-                    <div>
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Current MTD</p>
+                    <div className="flex flex-col">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 opacity-70">Current MTD</p>
                       <p className="text-xl font-black text-white">
                         {kpi.isCurrency ? `$${Math.round(kpi.current).toLocaleString()}` : Math.round(kpi.current).toLocaleString()}
                       </p>
                     </div>
 
                     {/* DAILY PACE */}
-                    <div>
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Daily Pace</p>
+                    <div className="flex flex-col">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 opacity-70">Daily Pace</p>
                       <p className="text-xl font-black text-white">
                         {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}
                       </p>
                     </div>
 
                     {/* TARGET */}
-                    <div className="text-right">
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Monthly Goal</p>
+                    <div className="flex flex-col text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 opacity-70">Monthly Goal</p>
                       <p className="text-xl font-black text-slate-300">
                         {kpi.isCurrency ? `$${Math.round(kpi.target).toLocaleString()}` : Math.round(kpi.target).toLocaleString()}
                       </p>
