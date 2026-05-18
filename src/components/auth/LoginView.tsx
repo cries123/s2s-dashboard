@@ -7,7 +7,11 @@ import {
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { cn } from '../../lib/utils';
-import { LayoutDashboard, Mail, Lock, User as UserIcon, Briefcase, ArrowRight, Loader2 } from 'lucide-react';
+import { 
+  LayoutDashboard, Mail, Lock, User as UserIcon, Briefcase, 
+  ArrowRight, Loader2, ShieldCheck, Database 
+} from 'lucide-react';
+import { DEALERSHIPS } from '../../constants';
 
 export default function LoginView() {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
@@ -15,6 +19,9 @@ export default function LoginView() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [dealershipId, setDealershipId] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [isManagerRequested, setIsManagerRequested] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
@@ -39,21 +46,33 @@ export default function LoginView() {
     e.preventDefault();
     setIsLoading(true);
     try {
+      // Validate join code
+      const selectedDealership = DEALERSHIPS.find(d => d.id === dealershipId);
+      if (!selectedDealership) {
+        throw new Error("Please select a dealership.");
+      }
+      if (selectedDealership.code !== joinCode.toUpperCase().trim()) {
+        throw new Error(`Invalid join code for ${selectedDealership.name}.`);
+      }
+
       const isPrimaryAdmin = email.toLowerCase() === 'admin@hyundai.com';
-      const isNewAdmin = isPrimaryAdmin || username.toLowerCase() === 'admin';
+      const isNewAdmin = isPrimaryAdmin;
+      
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       
       await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', cred.user.uid), {
         uid: cred.user.uid,
         email: cred.user.email,
-        username: isNewAdmin ? (isPrimaryAdmin ? 'Primary Admin' : 'admin') : username,
-        role: isNewAdmin ? 'admin' : 'Staff',
+        username: isNewAdmin ? 'Primary Admin' : username,
+        role: isNewAdmin ? 'admin' : (isManagerRequested ? 'Manager' : 'Staff'),
+        isManager: isNewAdmin || isManagerRequested,
         status: isNewAdmin ? 'approved' : 'pending',
-        jobTitle: isPrimaryAdmin ? 'Master Administrator' : (isNewAdmin ? 'System Admin' : jobTitle),
+        jobTitle: isNewAdmin ? 'Master Administrator' : jobTitle,
+        dealershipId: dealershipId,
         createdAt: new Date()
       });
       
-      showMessage("Enrollment request sent. Please wait for administrator approval.", false);
+      showMessage("Enrollment request sent. Approved managers or system admins will grant access soon.", false);
       setMode('login');
     } catch (err: any) {
       showMessage(err.message, true);
@@ -167,6 +186,23 @@ export default function LoginView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
+                  <label className="input-label">Select Dealership</label>
+                  <div className="relative">
+                    <Database className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <select 
+                      value={dealershipId} 
+                      onChange={e => setDealershipId(e.target.value)} 
+                      required 
+                      className="input-field pl-12 appearance-none"
+                    >
+                      <option value="">-- Choose Location --</option>
+                      {DEALERSHIPS.map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
                   <label className="input-label">Organization Role</label>
                   <div className="relative">
                     <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
@@ -174,8 +210,43 @@ export default function LoginView() {
                       <option value="">-- Identity Type --</option>
                       <option value="Salesperson">Sales Professional</option>
                       <option value="Service Advisor">Service Advisor</option>
-                      <option value="Manager">Executive Manager</option>
+                      <option value="Porter">Porter / Driver</option>
+                      <option value="Office">Office Personnel</option>
                     </select>
+                  </div>
+                </div>
+                <div className="space-y-3 p-4 bg-slate-900/50 rounded-2xl border border-white/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <ShieldCheck className={cn("transition-colors", isManagerRequested ? "text-brand-primary" : "text-slate-500")} size={16} />
+                       <span className="text-[10px] font-black text-white uppercase tracking-widest">Enroll as Manager</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={isManagerRequested} 
+                        onChange={e => setIsManagerRequested(e.target.checked)} 
+                        className="sr-only peer" 
+                      />
+                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-primary"></div>
+                    </label>
+                  </div>
+                  {isManagerRequested && (
+                    <p className="text-[9px] text-slate-500 font-medium italic">Manager accounts must be verified by a system administrator.</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label">Dealership Join Code</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input 
+                      type="text" 
+                      value={joinCode} 
+                      onChange={e => setJoinCode(e.target.value)} 
+                      required 
+                      className="input-field pl-12 uppercase" 
+                      placeholder="Enter dealership code" 
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">

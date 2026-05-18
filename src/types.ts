@@ -10,7 +10,23 @@ export interface User {
   role: Role;
   jobTitle: string;
   status: UserStatus;
+  dealershipId?: string;
+  isManager?: boolean;
   createdAt?: Timestamp;
+}
+
+export interface Dealership {
+  id: string;
+  name: string;
+  code: string;
+  createdAt: Timestamp;
+}
+
+export interface DealershipSettings {
+  id: string;
+  appointmentTarget: number;
+  laborGrossTarget?: number;
+  updatedAt: Timestamp;
 }
 
 export interface Customer {
@@ -49,6 +65,7 @@ export interface Customer {
   createdAt: Timestamp;
   addedBy: string;
   addedByUsername: string;
+  dealershipId?: string;
 }
 
 export interface ContactLog {
@@ -76,5 +93,12 @@ export interface DailyStat {
   id: string;
   date: string;
   count: number;
+  dealershipId?: string;
   updatedAt: Timestamp;
+  breakdown?: {
+    diagnosis: number;
+    oilChange: number;
+    recall: number;
+    misc: number;
+  };
 }

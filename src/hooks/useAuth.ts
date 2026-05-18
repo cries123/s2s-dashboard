@@ -18,12 +18,20 @@ export function useAuth() {
           if (docSnap.exists()) {
             setUser({ uid: firebaseUser.uid, ...docSnap.data() } as User);
           } else {
-            setUser(null);
+            console.warn(`useAuth: No user document found for UID ${firebaseUser.uid} at path ${userDocRef.path}. This matches your account but requires a profile document.`);
+            setUser({ uid: firebaseUser.uid, email: firebaseUser.email, status: 'pending', role: 'Staff' } as any);
           }
+          setLoading(false);
+        }, (error) => {
+          console.error(`useAuth Snapshot Error for path ${userDocRef.path}:`, error);
+          // Fallback user object to avoid being stuck on loader if permissions fail
+          setUser({ uid: firebaseUser.uid, email: firebaseUser.email, status: 'pending', role: 'Staff' } as any);
           setLoading(false);
         });
 
-        return () => unsubDoc();
+        return () => {
+          unsubDoc();
+        };
       } else {
         setUser(null);
         setLoading(false);

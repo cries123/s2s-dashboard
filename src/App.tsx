@@ -27,14 +27,48 @@ import LoginView from './components/auth/LoginView';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
+import { DEALERSHIPS } from './constants';
+
 export default function App() {
   const { user, loading: authLoading } = useAuth();
-  const { customers, loading: customersLoading } = useCustomers();
   
   const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(24);
+  const [isDealershipDropdownOpen, setIsDealershipDropdownOpen] = useState(false);
+  const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(null);
+
+  // Sync current dealership with user's dealership on load
+  React.useEffect(() => {
+    if (user && !currentDealershipId) {
+      setCurrentDealershipId(user.dealershipId || 'hyundai');
+    }
+  }, [user, currentDealershipId]);
+
+  const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
+
+  const activeAlertsCount = customers.filter(isServiceAlertActive).length;
+
+  const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
+  // Filter tabs - Pot of Gold (Competition) only for Hyundai
+  const availableTabs = [
+    { id: 'add', label: 'Onboard', icon: UserPlus },
+    { id: 'search', label: 'Directory', icon: Search },
+    { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
+    { id: 'appointments', label: 'Operations', icon: Calendar },
+    ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
+    { id: 'vin-search', label: 'VIN Search', icon: Search },
+    ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
+  ];
+
+  // If current activeTab is hidden, fallback to first available
+  React.useEffect(() => {
+    if (!availableTabs.find(t => t.id === activeTab)) {
+      setActiveTab('add');
+    }
+  }, [currentDealershipId, activeTab, availableTabs]);
+
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
   const [showInject, setShowInject] = useState(false);
@@ -47,8 +81,6 @@ export default function App() {
   };
 
   const handleSignOut = () => signOut(auth);
-
-  const activeAlertsCount = customers.filter(isServiceAlertActive).length;
 
   const handleDeleteCustomer = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to PERMANENTLY delete ${name}?`)) return;
@@ -133,29 +165,71 @@ export default function App() {
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
         <div className="section-container !py-3 flex items-center justify-between gap-4">
           {/* Logo Section */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10">
+          <div className="flex items-center gap-3 shrink-0 relative">
+            <button 
+              onClick={() => {
+                if (currentUser.role === 'admin') {
+                  setIsDealershipDropdownOpen(!isDealershipDropdownOpen);
+                } else {
+                  showNotification("Only system admins can switch dealerships.", true);
+                }
+              }}
+              className={cn(
+                "w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10 transition-all z-50",
+                currentUser.role === 'admin' ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
+              )}
+            >
               <LayoutDashboard className="text-white" size={20} />
-            </div>
+            </button>
+
+            <AnimatePresence>
+              {isDealershipDropdownOpen && currentUser.role === 'admin' && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-[40]" 
+                    onClick={() => setIsDealershipDropdownOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 10, x: -20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 10, x: -20 }}
+                    className="absolute top-12 left-0 w-64 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[50]"
+                  >
+                    <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
+                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Select Dealership</span>
+                    </div>
+                    {DEALERSHIPS.map((dealership) => (
+                      <button
+                        key={dealership.id}
+                        onClick={() => {
+                          setCurrentDealershipId(dealership.id);
+                          setIsDealershipDropdownOpen(false);
+                          showNotification(`Switched to ${dealership.name}`);
+                        }}
+                        className={cn(
+                          "w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b border-white/5 last:border-0 hover:bg-white/5",
+                          currentDealershipId === dealership.id ? "text-brand-primary bg-brand-primary/5" : "text-slate-400"
+                        )}
+                      >
+                        {dealership.name}
+                      </button>
+                    ))}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
             <div className="hidden sm:block">
               <h1 className="text-base font-black text-white leading-none tracking-tighter uppercase whitespace-nowrap">
                 S2S <span className="text-brand-primary">Dashboard</span>
               </h1>
-              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-1">Hyundai of Santa Maria</p>
+              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-1">{currentDealership.name}</p>
             </div>
           </div>
 
           {/* Navigation Section */}
           <nav className="flex-1 hidden md:flex items-center justify-center gap-1 overflow-x-auto no-scrollbar scroll-smooth px-2">
-            {[
-              { id: 'add', label: 'Onboard', icon: UserPlus },
-              { id: 'search', label: 'Directory', icon: Search },
-              { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
-              { id: 'appointments', label: 'Operations', icon: Calendar },
-              { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
-              { id: 'vin-search', label: 'VIN Search', icon: Search },
-              ...(currentUser.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
-            ].map(tab => (
+            {availableTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
@@ -188,22 +262,10 @@ export default function App() {
               >
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-md bg-brand-primary/20 flex items-center justify-center">
-                    {activeTab === 'add' && <UserPlus size={12} className="text-brand-primary" />}
-                    {activeTab === 'search' && <Search size={12} className="text-brand-primary" />}
-                    {activeTab === 'alerts' && <Bell size={12} className="text-brand-primary" />}
-                    {activeTab === 'appointments' && <Calendar size={12} className="text-brand-primary" />}
-                    {activeTab === 'pot-of-gold' && <Trophy size={12} className="text-brand-primary" />}
-                    {activeTab === 'vin-search' && <Search size={12} className="text-brand-primary" />}
-                    {activeTab === 'admin' && <Settings size={12} className="text-brand-primary" />}
+                    {availableTabs.find(t => t.id === activeTab)?.icon && React.createElement(availableTabs.find(t => t.id === activeTab)!.icon, { size: 12, className: "text-brand-primary" })}
                   </div>
                   <span className="min-w-[80px] text-left">
-                    {activeTab === 'add' && 'Onboard'}
-                    {activeTab === 'search' && 'Directory'}
-                    {activeTab === 'alerts' && 'Alerts'}
-                    {activeTab === 'appointments' && 'Operations'}
-                    {activeTab === 'pot-of-gold' && 'Competition'}
-                    {activeTab === 'vin-search' && 'VIN Search'}
-                    {activeTab === 'admin' && 'Admin'}
+                    {availableTabs.find(t => t.id === activeTab)?.label}
                   </span>
                 </div>
                 <ChevronRight size={14} className={cn("transition-transform duration-300 text-brand-primary", isMobileNavOpen ? "-rotate-90" : "rotate-90")} />
@@ -225,15 +287,7 @@ export default function App() {
                       <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
                       </div>
-                      {[
-                        { id: 'add', label: 'Onboard', icon: UserPlus },
-                        { id: 'search', label: 'Directory', icon: Search },
-                        { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
-                        { id: 'appointments', label: 'Operations', icon: Calendar },
-                        { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
-                        { id: 'vin-search', label: 'VIN Search', icon: Search },
-                        ...(currentUser.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
-                      ].map(tab => (
+                      {availableTabs.map(tab => (
                         <button
                           key={tab.id}
                           onClick={() => {
@@ -413,6 +467,7 @@ export default function App() {
               <WeatherWidget />
               <Appointments 
                 currentUser={currentUser} 
+                currentDealershipId={currentDealershipId || 'hyundai'}
                 onSuccess={msg => showNotification(msg)}
                 onError={msg => showNotification(msg, true)}
               />
@@ -424,11 +479,15 @@ export default function App() {
           )}
 
           {activeTab === 'pot-of-gold' && (
-            <PotOfGold />
+            <PotOfGold currentDealershipId={currentDealershipId || 'hyundai'} />
           )}
 
           {activeTab === 'admin' && (
-            <AdminPanel />
+            <AdminPanel 
+              currentDealershipId={currentDealershipId || 'hyundai'} 
+              onSuccess={(msg) => showNotification(msg)}
+              onError={(msg) => showNotification(msg, true)}
+            />
           )}
         </div>
       </main>

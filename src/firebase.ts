@@ -17,3 +17,8 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
+
+// Debugging: Log active project context
+if (import.meta.env.DEV) {
+  console.log(`[Firebase] Initialized with Project ID: ${firebaseConfig.projectId}`);
+}

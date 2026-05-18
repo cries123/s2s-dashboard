@@ -35,14 +35,17 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
     const loadSalespeople = async () => {
       const q = query(
         collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users'),
-        where('jobTitle', 'in', ['Salesperson', 'Manager'])
+        where('jobTitle', 'in', ['Salesperson', 'Manager']),
+        where('dealershipId', '==', currentUser.dealershipId)
       );
       const snap = await getDocs(q);
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setSalespeople(list);
     };
-    loadSalespeople();
-  }, []);
+    if (currentUser.dealershipId) {
+      loadSalespeople();
+    }
+  }, [currentUser.dealershipId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value, type } = e.target as HTMLInputElement;
@@ -160,15 +163,16 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Duplicate check
+      // Duplicate check within dealership
       if (formData.vinLast8) {
         const q = query(
           collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers'),
-          where('vinLast8', '==', formData.vinLast8.toUpperCase())
+          where('vinLast8', '==', formData.vinLast8.toUpperCase()),
+          where('dealershipId', '==', currentUser.dealershipId)
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
-          onError(`Customer with VIN ending in ${formData.vinLast8} already exists.`);
+          onError(`Customer with VIN ending in ${formData.vinLast8} already exists in this dealership.`);
           return;
         }
       }
@@ -179,6 +183,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
         ...formData,
         vinLast8: formData.vinLast8.toUpperCase(),
         soldByUsername: selectedSP?.username || null,
+        dealershipId: currentUser.dealershipId,
         createdAt: Timestamp.now(),
         addedBy: currentUser.uid,
         addedByUsername: currentUser.username,

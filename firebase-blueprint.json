@@ -11,9 +11,23 @@
         "role": { "type": "string", "enum": ["admin", "Manager", "Salesperson", "Service Advisor", "Staff"] },
         "jobTitle": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "dealershipId": { "type": "string" },
+        "isManager": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "username", "role", "status"]
+    },
+    "Dealership": {
+      "title": "Dealership",
+      "description": "Dealership details and join codes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "code"]
     },
     "DailyStat": {
       "title": "Daily Appointment Stat",

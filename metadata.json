@@ -1,12 +1,10 @@
 {
   "name": "S2S Dashboard",
-  "description": "A comprehensive dealer management system for tracking customers, service alerts, and appointments.",
+  "description": "Multi-dealership operations dashboard with secure enrollment, manager approval workflows, and intelligent customer tracking.",
   "requestFramePermissions": [
     "camera"
   ],
   "majorCapabilities": [
-    "Firebase Integration",
-    "AI Image Processing",
-    "PDF/CSV Data Injection"
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

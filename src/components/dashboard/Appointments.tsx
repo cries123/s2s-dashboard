@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  collection, doc, setDoc, onSnapshot, serverTimestamp 
+  collection, doc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
 } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { User, DailyStat } from '../../types';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, Calendar as CalendarIcon, 
-  BarChart3, Target, Clock
+  BarChart3, Target, Clock, FileUp, X, PieChart
 } from 'lucide-react';
 import { AdvisorPerformance } from './AdvisorPerformance';
+import { cn } from '../../lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface AppointmentsProps {
   currentUser: User;
+  currentDealershipId: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -37,7 +40,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-export default function Appointments({ currentUser, onSuccess, onError }: AppointmentsProps) {
+export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -49,6 +52,59 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [targetValue, setTargetValue] = useState(20);
+  const [laborTarget, setLaborTarget] = useState(500000);
+  const [partsTarget, setPartsTarget] = useState(300000);
+  const [mtdGross, setMtdGross] = useState(0);
+  const [mtdPartsGross, setMtdPartsGross] = useState(0);
+  const [mtdLaborSales, setMtdLaborSales] = useState(0);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
+  const pdfInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+
+    // Fetch Settings
+    const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
+    const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setTargetValue(data.appointmentTarget || 20);
+        setLaborTarget(data.laborGrossTarget || 500000);
+        setPartsTarget(data.partsGrossTarget || 300000);
+      }
+    });
+
+    // Fetch Performance for Gross Tracking
+    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+    const unsubPerf = onSnapshot(perfRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        
+        // Use totals object if available (AI extracted), else fall back to sum
+        if (data.totals) {
+          setMtdGross(data.totals.totalGross || 0);
+          setMtdPartsGross(data.totals.totalGrossParts || 0);
+          setMtdLaborSales(data.totals.totalLabor || 0);
+        } else {
+          const rawAdvisors = data.advisors || [];
+          const totalGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.grossLabor || curr.laborGross || 0), 0);
+          const totalLabor = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.laborSold || 0), 0);
+          const totalPartsGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.grossParts || 0), 0);
+          setMtdGross(totalGross);
+          setMtdLaborSales(totalLabor);
+          setMtdPartsGross(totalPartsGross);
+        }
+      }
+    });
+
+    return () => {
+      unsubSettings();
+      unsubPerf();
+    };
+  }, [currentDealershipId]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -69,10 +125,28 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
   };
 
   useEffect(() => {
+    if (!currentDealershipId) return;
+
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const q = collection(db, path);
+    const isAdminUser = currentUser.role === 'admin';
+    
+    // For non-admins, Firestore REQUIRES the query to match the security rules.
+    // If rules say you can only see your dealership, you MUST query with that filter.
+    const q = isAdminUser 
+      ? collection(db, path)
+      : query(collection(db, path), where('dealershipId', '==', currentDealershipId));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyStat));
+      let stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyStat));
+      
+      // Filter by dealershipId, allowing legacy data (no id) in Hyundai view
+      stats = stats.filter(s => {
+        if (currentDealershipId === 'hyundai') {
+          return !s.dealershipId || s.dealershipId === 'hyundai';
+        }
+        return s.dealershipId === currentDealershipId;
+      });
+
       setAllStats(stats);
       
       const currentStat = stats.find(s => s.date === selectedDate);
@@ -83,7 +157,7 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
     });
 
     return () => unsubscribe();
-  }, [selectedDate]);
+  }, [selectedDate, currentDealershipId]);
 
   const handleSave = async () => {
     let countNum = parseInt(dailyCount);
@@ -95,14 +169,80 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
       await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
         date: selectedDate,
         count: countNum,
+        dealershipId: currentDealershipId || 'hyundai',
+        breakdown: deleteField(),
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.uid
-      });
-      onSuccess?.(`Recorded ${countNum} appointments for ${selectedDate}.`);
+      }, { merge: true });
+      onSuccess?.(`Recorded ${countNum} appointments for ${selectedDate}. Breakdown reset.`);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, path);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = reader.result?.toString().split(',')[1];
+        if (base64String) resolve(base64String);
+        else reject(new Error("Failed to convert file to base64"));
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPdf(true);
+    
+    try {
+      const pdfBase64 = await fileToBase64(file);
+      
+      const response = await fetch('/api/parse-appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64 })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to parse report');
+      }
+
+      const rawData = await response.json();
+      
+      const breakdown = {
+        diagnosis: rawData.diagnosis || 0,
+        oilChange: rawData.oilChange || 0,
+        recall: rawData.recall || 0,
+        misc: rawData.misc || 0
+      };
+
+      const totalCount = rawData.total || Object.values(breakdown).reduce((a, b) => a + b, 0);
+
+      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
+        date: selectedDate,
+        count: totalCount,
+        dealershipId: currentDealershipId || 'hyundai',
+        breakdown,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.uid
+      }, { merge: true });
+      
+      setDailyCount(totalCount.toString());
+      onSuccess?.(`AI Parsing Success: Identified ${totalCount} appointments.`);
+    } catch (err: any) {
+      console.error("PDF Parse Error:", err);
+      onError?.(err.message || "Failed to analyze PDF report.");
+    } finally {
+      setIsUploadingPdf(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
     }
   };
 
@@ -135,12 +275,34 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
     const avgDaily = elapsedDays > 0 ? monthTotal / elapsedDays : 0;
     const forecast = Math.round(avgDaily * daysInMonth);
 
-    // Target tracking (Daily Target: 20)
-    const dailyTarget = 20;
+    // PACE TRACKING
+    const dailyTarget = targetValue;
     const monthTarget = dailyTarget * daysInMonth;
-    const currentTarget = dailyTarget * elapsedDays;
-    const currentDeficit = Math.max(0, currentTarget - monthTotal);
-    const missedProjected = Math.max(0, monthTarget - forecast);
+    const paceTarget = Math.round(dailyTarget * elapsedDays);
+    
+    // Variance from Pace (The "Lost Opportunity" if negative, "Surplus" if positive)
+    const mtdVariance = monthTotal - paceTarget;
+    const lostOpportunity = mtdVariance < 0 ? Math.abs(mtdVariance) : 0;
+    
+    // Current Monthly Shortfall (Goal - Current)
+    const currentShortfall = Math.max(0, monthTarget - monthTotal);
+    
+    // Projected Shortfall (Goal - Forecast)
+    const projectedShortfall = monthTarget - forecast;
+
+    // PROJECTED SALES SHORTFALLS & FORECASTS
+    const laborDailyAvg = elapsedDays > 0 ? mtdGross / elapsedDays : 0;
+    const laborSalesDailyAvg = elapsedDays > 0 ? mtdLaborSales / elapsedDays : 0;
+    const grossPaceTarget = Math.round((laborTarget / daysInMonth) * elapsedDays);
+    const grossForecast = Math.round(laborDailyAvg * daysInMonth);
+    const laborSalesForecast = Math.round(laborSalesDailyAvg * daysInMonth);
+    const grossVariance = mtdGross - grossPaceTarget;
+    
+    // PARTS FORECAST
+    const partsDailyAvg = elapsedDays > 0 ? mtdPartsGross / elapsedDays : 0;
+    const partsPaceTarget = Math.round((partsTarget / daysInMonth) * elapsedDays);
+    const partsForecast = Math.round(partsDailyAvg * daysInMonth);
+    const partsVariance = mtdPartsGross - partsPaceTarget;
 
     return { 
       monthTotal, 
@@ -148,13 +310,43 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
       forecast, 
       avgDaily: avgDaily.toFixed(1),
       daysRemaining: daysInMonth - elapsedDays,
-      currentDeficit,
-      missedProjected,
-      weekStats
+      lostOpportunity,
+      mtdVariance,
+      projectedShortfall,
+      currentShortfall,
+      weekStats,
+      dailyTarget,
+      monthTarget,
+      paceTarget,
+      // Sales metrics
+      mtdGross,
+      mtdLaborSales,
+      laborTarget,
+      grossForecast,
+      laborSalesForecast,
+      grossPaceTarget,
+      grossVariance,
+      laborDailyAvg,
+      laborSalesDailyAvg,
+      // Parts metrics
+      mtdPartsGross,
+      partsForecast,
+      partsPaceTarget,
+      partsTarget,
+      partsDailyAvg,
+      partsVariance
     };
   };
 
   const metrics = calculateMetrics();
+
+  const prevTargetRef = React.useRef(targetValue);
+  useEffect(() => {
+    if (!loading && prevTargetRef.current !== targetValue) {
+      onSuccess?.(`Daily Target updated to ${targetValue} units.`);
+    }
+    prevTargetRef.current = targetValue;
+  }, [targetValue, loading, onSuccess]);
 
   const getWeekDays = () => {
     const today = new Date();
@@ -183,9 +375,9 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
 
   const getStatusColor = (count: number, hasData: boolean) => {
     if (!hasData && count === 0) return 'bg-slate-900 border-slate-800 text-slate-600';
-    if (count < 20) return 'bg-amber-500/10 border-amber-500/30 text-amber-500';
-    if (count >= 20 && count <= 25) return 'bg-green-500/10 border-green-500/30 text-green-500';
-    return 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400';
+    if (count < targetValue) return 'bg-rose-500/10 border-rose-500/30 text-rose-500';
+    if (count === targetValue) return 'bg-orange-500/10 border-orange-500/30 text-orange-500';
+    return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500';
   };
 
   const handlePrevDay = () => {
@@ -203,65 +395,125 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
   return (
     <div className="space-y-10 animate-fade-in">
       {/* Forecasting Hero */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
+          <div className="badge badge-primary px-3 py-1 flex items-center gap-2">
+            <Target size={12} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Active Daily Goal: {targetValue} Units</span>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="card-base p-8 bg-gradient-to-br from-brand-primary/20 to-slate-900 border-brand-primary/30 col-span-1 lg:col-span-2">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/20">
-              <TrendingUp className="text-white" size={28} />
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center text-brand-primary shadow-lg shadow-brand-primary/10">
+                <TrendingUp size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white tracking-tight uppercase">Month-End Projections</h2>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Real-time forecasting based on current monthly velocity.</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-3xl font-extrabold text-white tracking-tight">Month-End Projection</h2>
-              <p className="text-slate-400 font-medium mt-1">Real-time forecasting based on current monthly velocity.</p>
+            <div className="text-right">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Status</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{metrics.daysRemaining} Days Left</span>
+              </div>
             </div>
           </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-8">
-            <div>
-              <p className="text-[10px] font-bold text-brand-primary uppercase tracking-[0.2em] mb-2">Estimated Volume</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-5xl font-black text-white">{metrics.forecast}</span>
-                <span className="text-xs font-bold text-slate-500 uppercase">Units</span>
-              </div>
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">Daily Average</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-slate-200">{metrics.avgDaily}</span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Per Day</span>
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">Month Status</p>
-              <div className="badge badge-success px-4 py-1.5">{metrics.daysRemaining} Days Left</div>
-            </div>
 
-            <div className="col-span-2 sm:col-span-3 pt-6 mt-6 border-t border-slate-800/50">
-              <div className="flex flex-wrap gap-12">
-                <div>
-                  <p className="text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] mb-2">MTD Lost Opportunity</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-rose-400">-{metrics.currentDeficit}</span>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Appts</span>
+          <div className="flex flex-col gap-8">
+            {/* KPI MATRIX */}
+            {[
+              { 
+                label: 'Labor Gross', 
+                current: metrics.mtdGross,
+                daily: metrics.laborDailyAvg, 
+                forecast: metrics.grossForecast, 
+                target: metrics.laborTarget, 
+                isCurrency: true,
+                color: 'text-brand-secondary'
+              },
+              { 
+                label: 'Parts Gross', 
+                current: metrics.mtdPartsGross,
+                daily: metrics.partsDailyAvg, 
+                forecast: metrics.partsForecast, 
+                target: metrics.partsTarget, 
+                isCurrency: true,
+                color: 'text-emerald-400'
+              },
+              { 
+                label: 'Appt Volume', 
+                current: metrics.monthTotal,
+                daily: Number(metrics.avgDaily), 
+                forecast: metrics.forecast, 
+                target: metrics.monthTarget, 
+                isCurrency: false,
+                color: 'text-white'
+              }
+            ].map((kpi, idx) => (
+              <div key={idx} className="relative group">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  {/* LABEL & FORECAST (The Result) */}
+                  <div className="w-full md:w-1/3">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">{kpi.label} Forecast</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className={cn("text-4xl font-black leading-none", kpi.color)}>
+                        {kpi.isCurrency ? `$${Math.round(kpi.forecast).toLocaleString()}` : Math.round(kpi.forecast).toLocaleString()}
+                      </span>
+                      {kpi.forecast < kpi.target && (
+                        <span className="text-[10px] font-black text-rose-500 uppercase tracking-tight">
+                          -{kpi.isCurrency ? `$${Math.round(kpi.target - kpi.forecast).toLocaleString()}` : Math.round(kpi.target - kpi.forecast)} trend loss
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* STATS STRIP */}
+                  <div className="flex-1 grid grid-cols-3 gap-8 md:gap-12">
+                    {/* CURRENT MTD */}
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Current MTD</p>
+                      <p className="text-xl font-black text-white">
+                        {kpi.isCurrency ? `$${Math.round(kpi.current).toLocaleString()}` : Math.round(kpi.current).toLocaleString()}
+                      </p>
+                    </div>
+
+                    {/* DAILY PACE */}
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Daily Pace</p>
+                      <p className="text-xl font-black text-white">
+                        {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}
+                      </p>
+                    </div>
+
+                    {/* TARGET */}
+                    <div className="text-right">
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Monthly Goal</p>
+                      <p className="text-xl font-black text-slate-300">
+                        {kpi.isCurrency ? `$${Math.round(kpi.target).toLocaleString()}` : Math.round(kpi.target).toLocaleString()}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Projected Shortfall</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-slate-300">-{metrics.missedProjected}</span>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Units</span>
-                  </div>
-                </div>
-                <div className="flex-1 min-w-[200px]">
-                   <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mt-4">
-                      <div 
-                        className="h-full bg-brand-primary transition-all duration-1000" 
-                        style={{ width: `${Math.min(100, (metrics.monthTotal / (metrics.monthTotal + metrics.currentDeficit || 1)) * 100)}%` }}
-                      ></div>
-                   </div>
-                   <p className="text-[9px] font-bold text-slate-600 uppercase mt-2">Conversion to Daily Target Pace (Avg 20/Day)</p>
+
+                {/* VISUAL BAR */}
+                <div className="mt-4 h-1.5 w-full bg-slate-800/50 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, (kpi.forecast / Math.max(1, kpi.target)) * 100)}%` }}
+                    className={cn(
+                      "h-full transition-all duration-1000",
+                      kpi.forecast >= kpi.target ? "bg-emerald-500" : "bg-brand-primary"
+                    )}
+                  />
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -300,9 +552,24 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
                <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="w-full btn-primary h-14 flex items-center justify-center gap-2"
+                className="w-full btn-primary h-14 flex items-center justify-center gap-2 mb-3"
                >
                  {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> Record Count</>}
+               </button>
+
+               <div className="relative">
+                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
+                 <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-slate-900 px-3 text-slate-500">Or Smart Import</span></div>
+               </div>
+
+               <input type="file" ref={pdfInputRef} onChange={handlePdfUpload} accept=".pdf" className="hidden" />
+               <button 
+                 onClick={() => pdfInputRef.current?.click()}
+                 disabled={isUploadingPdf}
+                 className="w-full mt-3 h-12 flex items-center justify-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all disabled:opacity-50"
+               >
+                 {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
+                 Import Appt Details PDF
                </button>
              </div>
            </div>
@@ -340,28 +607,118 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
             </div>
           </div>
           <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest">
-             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500"></div><span className="text-slate-500">Below ({"<"}20)</span></div>
-             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500"></div><span className="text-slate-500">Target (20-25)</span></div>
-             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div><span className="text-slate-500">Surplus ({">"}25)</span></div>
+             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div><span className="text-slate-500">Below ({targetValue})</span></div>
+             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-orange-500"></div><span className="text-slate-500">Target ({targetValue})</span></div>
+             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div><span className="text-slate-500">Surplus ({targetValue}+)</span></div>
           </div>
         </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
-          {weekDays.map((day) => (
-            <button
-              key={day.date}
-              onClick={() => setSelectedDate(day.date)}
-              className={`card-base p-5 flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] border-2 ${
-                selectedDate === day.date ? 'ring-2 ring-brand-primary ring-offset-4 ring-offset-slate-950' : ''
-              } ${getStatusColor(day.count, day.hasData)}`}
-            >
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{day.label}</span>
-              <span className="text-3xl font-black">{day.count}</span>
-              <span className="text-[10px] font-bold opacity-60">{day.dayNum} {day.monthLabel}</span>
-            </button>
-          ))}
+          {weekDays.map((day) => {
+             const fullDayData = allStats.find(s => s.date === day.date);
+             return (
+               <button
+                 key={day.date}
+                 onClick={() => {
+                   setSelectedDate(day.date);
+                   if (fullDayData?.breakdown) {
+                     setShowBreakdown(fullDayData);
+                   }
+                 }}
+                 className={`card-base p-5 flex flex-col items-center justify-center gap-2 transition-all hover:scale-[1.02] border-2 relative group ${
+                   selectedDate === day.date ? 'ring-2 ring-brand-primary ring-offset-4 ring-offset-slate-950' : ''
+                 } ${getStatusColor(day.count, day.hasData)}`}
+               >
+                 {fullDayData?.breakdown && (
+                   <div className="absolute top-2 right-2 text-emerald-500 opacity-40 group-hover:opacity-100 transition-opacity">
+                     <PieChart size={10} />
+                   </div>
+                 )}
+                 <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{day.label}</span>
+                 <span className="text-3xl font-black">{day.count}</span>
+                 <span className="text-[10px] font-bold opacity-60">{day.dayNum} {day.monthLabel}</span>
+                 {fullDayData?.breakdown && (
+                   <span className="text-[8px] font-black uppercase tracking-tighter text-emerald-500/60 group-hover:text-emerald-500">Breakdown Avail.</span>
+                 )}
+               </button>
+             );
+          })}
         </div>
       </div>
+
+      {/* Breakdown Modal */}
+      <AnimatePresence>
+        {showBreakdown && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-slate-900 border border-slate-800 rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl"
+            >
+              <div className="p-8 border-b border-slate-800 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Appointment Breakdown</h3>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                    {new Date(showBreakdown.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowBreakdown(null)}
+                  className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-white transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl">
+                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Total Appts</p>
+                    <p className="text-3xl font-black text-white">{showBreakdown.count}</p>
+                  </div>
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl font-black">
+                     <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Efficiency Ratio</p>
+                     <p className="text-3xl font-black text-white">{Math.round(((showBreakdown.breakdown?.oilChange || 0) + (showBreakdown.breakdown?.diagnosis || 0)) / (showBreakdown.count || 1) * 100)}%</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {[
+                    { label: 'Diagnosis / Sputtering', value: showBreakdown.breakdown?.diagnosis || 0, color: 'bg-brand-secondary', icon: 'DIAG' },
+                    { label: 'Synthetic Oil Changes', value: showBreakdown.breakdown?.oilChange || 0, color: 'bg-emerald-500', icon: 'OIL' },
+                    { label: 'Recalls & Campaigns', value: showBreakdown.breakdown?.recall || 0, color: 'bg-brand-primary', icon: 'RCL' },
+                    { label: 'Miscellaneous / Other', value: showBreakdown.breakdown?.misc || 0, color: 'bg-slate-700', icon: 'MISC' },
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-4 group">
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-[8px] font-black text-white shadow-lg", item.color)}>
+                        {item.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-end mb-1.5">
+                          <span className="text-[10px] font-black text-white uppercase tracking-widest">{item.label}</span>
+                          <span className="text-xs font-black text-slate-300">{item.value} Units</span>
+                        </div>
+                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(item.value / showBreakdown.count) * 100}%` }}
+                            className={cn("h-full", item.color)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
+                  *Categorization based on PDF text analysis logic
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Aggregated Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -389,7 +746,7 @@ export default function Appointments({ currentUser, onSuccess, onError }: Appoin
       </div>
 
       {/* Advisor Performance Tracking */}
-      <AdvisorPerformance />
+      <AdvisorPerformance currentDealershipId={currentDealershipId} />
 
       <div className="card-base p-10 bg-slate-950 border-dashed border-slate-800 text-center">
         <Target size={40} className="text-slate-700 mx-auto mb-6" />

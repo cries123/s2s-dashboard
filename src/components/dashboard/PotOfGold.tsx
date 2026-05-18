@@ -48,7 +48,11 @@ const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
   { code: 'CCC', desc: 'COMBUSTION CHAMBER CLEANING', frank: 0, lemmy: 0, jay: 0 }
 ];
 
-export const PotOfGold: React.FC = () => {
+interface PotOfGoldProps {
+  currentDealershipId: string;
+}
+
+export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -73,15 +77,25 @@ export const PotOfGold: React.FC = () => {
 
   // realtime sync with firestore
   useEffect(() => {
-    if (!user) return;
+    if (!user || !currentDealershipId) return;
     
-    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', 'potOfGold');
+    // Scoped by dealership - fallback to legacy 'potOfGold' for hyundai
+    const docId = currentDealershipId === 'hyundai' ? 'potOfGold' : `potOfGold_${currentDealershipId}`;
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.advData) setAdvData(data.advData);
         if (data.techData) setTechData(data.techData);
         if (data.prices) setPrices(data.prices);
+      } else {
+        // Reset to initial if no data yet for this dealership
+        setAdvData(INITIAL_PERFORMANCE_DATA);
+        setTechData(INITIAL_PERFORMANCE_DATA.map(d => {
+          const base: TechPerformanceRow = { code: d.code, desc: d.desc };
+          TECHNICIANS.forEach(t => base[t] = 0);
+          return base;
+        }));
       }
       setIsLoading(false);
     }, (error) => {
@@ -89,11 +103,12 @@ export const PotOfGold: React.FC = () => {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [user]);
+  }, [user, currentDealershipId]);
 
   const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any }) => {
-    if (!user) return;
-    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', 'potOfGold');
+    if (!user || !currentDealershipId) return;
+    const docId = currentDealershipId === 'hyundai' ? 'potOfGold' : `potOfGold_${currentDealershipId}`;
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     try {
       await setDoc(docRef, {
         ...updates,
