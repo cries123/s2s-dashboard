@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Loader2, BadgeCheck, Car, Info, AlertTriangle, ListFilter, Fuel, Zap, Droplets, Gauge } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Search, Loader2, BadgeCheck, Car, Info, AlertTriangle, ListFilter, Fuel, Zap, Droplets, Gauge, DollarSign, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface VinData {
   Variable: string;
@@ -12,8 +12,11 @@ export const VinLookup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<VinData[] | null>(null);
   const [recalls, setRecalls] = useState<any[] | null>(null);
+  const [recallsExpanded, setRecallsExpanded] = useState(false);
   const [fuelData, setFuelData] = useState<any | null>(null);
+  const [marketValue, setMarketValue] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isValuing, setIsValuing] = useState(false);
 
   const getMake = () => data?.find(r => (r.Variable === "Make" || r.Variable === "Vehicle Make"))?.Value;
   const getModel = () => data?.find(r => (r.Variable === "Model" || r.Variable === "Vehicle Model"))?.Value;
@@ -38,7 +41,9 @@ export const VinLookup: React.FC = () => {
     setLoading(true);
     setError(null);
     setRecalls(null);
+    setRecallsExpanded(false);
     setFuelData(null);
+    setMarketValue(null);
     try {
       // 1. Decode VIN
       const decodeRes = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
@@ -89,17 +94,42 @@ export const VinLookup: React.FC = () => {
               headers: { 'Accept': 'application/json' }
             });
             const options = await optionsRes.json();
-            const vehicleId = Array.isArray(options.menuItem) ? options.menuItem[0].value : options.menuItem?.value;
             
-            if (vehicleId) {
-              const detailRes = await fetch(`https://www.fueleconomy.gov/ws/rest/vehicle/${vehicleId}`, {
-                headers: { 'Accept': 'application/json' }
-              });
-              const details = await detailRes.json();
-              setFuelData(details);
+            if (options && options.menuItem) {
+              const vehicleId = Array.isArray(options.menuItem) ? options.menuItem[0].value : options.menuItem.value;
+              
+              if (vehicleId) {
+                const detailRes = await fetch(`https://www.fueleconomy.gov/ws/rest/vehicle/${vehicleId}`, {
+                  headers: { 'Accept': 'application/json' }
+                });
+                const details = await detailRes.json();
+                setFuelData(details);
+              }
             }
           } catch (fErr) {
             console.error("Fuel Economy fetch failed", fErr);
+          }
+
+          // 5. Fetch Valuation (Conceptual AI powered)
+          try {
+            setIsValuing(true);
+            const valRes = await fetch('/api/estimate-value', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                year,
+                make,
+                model,
+                trim: data?.find(r => r.Variable === "Series")?.Value || "",
+                mileage: data?.find(r => r.Variable === "Mileage")?.Value || "15000" // Fallback mileage
+              })
+            });
+            const valData = await valRes.json();
+            setMarketValue(valData);
+          } catch (vErr) {
+            console.error("Valuation fetch failed", vErr);
+          } finally {
+            setIsValuing(false);
           }
         }
       }
@@ -156,28 +186,25 @@ export const VinLookup: React.FC = () => {
       {data && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
           
-          {/* Hero Section: Image + Primary Stats */}
+          {/* Hero Section: Primary Info */}
           <div className="md:col-span-2 lg:col-span-3 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-slate-900/50 rounded-3xl border border-slate-800 overflow-hidden relative group">
-              <img 
-                src={getCarImageUrl()} 
-                alt="Vehicle Preview" 
-                className="w-full h-64 lg:h-80 object-contain p-4 group-hover:scale-105 transition-transform duration-700"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&q=80&w=800';
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none"></div>
-              <div className="absolute bottom-6 left-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-brand-secondary/10 rounded-xl backdrop-blur-md border border-brand-secondary/20">
-                    <Car className="text-brand-secondary" size={28} />
+            <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 to-slate-950 p-10 rounded-3xl border border-slate-800 flex flex-col justify-center relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                <Car size={160} />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-6 mb-6">
+                  <div className="p-5 bg-brand-primary/10 rounded-2xl backdrop-blur-md border border-brand-primary/20">
+                    <Car className="text-brand-primary" size={40} />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-black text-white leading-none">
+                    <h3 className="text-4xl font-black text-white leading-tight uppercase tracking-tighter">
                       {getYear()} {getMake()} {getModel()}
                     </h3>
-                    <p className="text-slate-500 font-mono text-xs mt-1 uppercase tracking-widest">{vin}</p>
+                    <div className="flex items-center gap-3 mt-2">
+                      <span className="text-slate-500 font-mono text-sm uppercase tracking-[0.2em]">{vin}</span>
+                      <BadgeCheck className="text-brand-primary" size={16} />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -235,44 +262,133 @@ export const VinLookup: React.FC = () => {
               
               <p className="text-[8px] text-slate-600 font-bold uppercase mt-4">Source: fueleconomy.gov</p>
             </div>
+
+            {/* Smart Market Valuation */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-950 p-6 rounded-3xl border border-slate-800/50 flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="text-brand-primary" size={18} />
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Market Valuation</h4>
+                </div>
+                {isValuing && <Loader2 className="animate-spin text-brand-primary" size={14} />}
+              </div>
+
+              {marketValue ? (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase mb-1">Trade-In Range</p>
+                      <p className="text-xl font-black text-brand-primary">
+                        ${(marketValue.tradeInLow / 1000).toFixed(1)}k - ${(marketValue.tradeInHigh / 1000).toFixed(1)}k
+                      </p>
+                    </div>
+                    {marketValue.marketTrend && (
+                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${
+                        marketValue.marketTrend === 'Rising' ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/20' :
+                        marketValue.marketTrend === 'Falling' ? 'bg-red-500/20 text-red-500 border border-red-500/20' :
+                        'bg-slate-500/20 text-slate-500 border border-slate-500/20'
+                      }`}>
+                        Trend: {marketValue.marketTrend}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-brand-primary/5 rounded-2xl border border-brand-primary/10 relative overflow-hidden group">
+                    <div className="absolute -right-2 -top-2 opacity-5 scale-150 group-hover:rotate-12 transition-transform">
+                      <Sparkles size={48} />
+                    </div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles size={12} className="text-brand-primary" />
+                      <p className="text-[9px] font-black text-brand-primary uppercase tracking-widest">Advisor insight</p>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed italic">
+                      "{marketValue.advisorTip}"
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/50 flex justify-between items-center text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                    <span>Private Party</span>
+                    <span className="text-slate-300">
+                      ${(marketValue.privatePartyLow / 1000).toFixed(1)}k - ${(marketValue.privatePartyHigh / 1000).toFixed(1)}k
+                    </span>
+                  </div>
+                </div>
+              ) : isValuing ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-700 animate-pulse">
+                   <DollarSign size={32} className="mb-2 opacity-20" />
+                   <p className="text-[10px] font-bold uppercase tracking-widest">Generating Valuation...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-700">
+                   <Info size={32} className="mb-2 opacity-20" />
+                   <p className="text-[10px] font-bold uppercase tracking-widest">Awaiting Analysis</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Recall Section */}
           <div className="md:col-span-2 lg:col-span-3">
              {recalls && recalls.length > 0 ? (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2 text-rose-500">
-                      <AlertTriangle size={20} />
-                      <h4 className="text-sm font-black uppercase tracking-widest">{recalls.length} SAFETY RECALLS FOUND</h4>
-                    </div>
-                    {recalls[0].isModelLevel && (
-                      <span className="text-[10px] font-black bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full border border-amber-500/20 uppercase tracking-tighter">
-                        Model-Wide Potential Recalls
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {recalls.map((recall, i) => (
-                      <div key={i} className="p-4 bg-rose-500/5 border border-rose-500/20 rounded-2xl">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">NHTSA #{recall.NHTSACampaignNumber}</span>
-                          <span className="text-[10px] font-bold text-slate-500">{recall.ReportReceivedDate}</span>
-                        </div>
-                        <h5 className="text-sm font-bold text-white mb-2">{recall.Component}</h5>
-                        <p className="text-xs text-slate-400 line-clamp-3 mb-4">{recall.Summary}</p>
-                        <div className="p-3 bg-rose-500/10 rounded-xl">
-                          <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">Service Remedy</p>
-                          <p className="text-xs text-slate-300">{recall.Remedy}</p>
-                        </div>
+                  <button 
+                    onClick={() => setRecallsExpanded(!recallsExpanded)}
+                    className="w-full flex items-center justify-between p-6 bg-rose-500/10 border border-rose-500/20 rounded-2xl hover:bg-rose-500/15 transition-colors group"
+                  >
+                    <div className="flex items-center gap-4 text-rose-500">
+                      <AlertTriangle size={24} className="group-hover:animate-bounce" />
+                      <div className="text-left">
+                        <h4 className="text-sm font-black uppercase tracking-widest">{recalls.length} SAFETY RECALLS IDENTIFIED</h4>
+                        <p className="text-[10px] font-bold text-rose-400/60 uppercase tracking-tighter mt-0.5">Click to view detailed campaign summaries</p>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {recalls[0].isModelLevel && (
+                        <span className="hidden sm:inline-block text-[9px] font-black bg-amber-500/20 text-amber-500 px-3 py-1 rounded-full border border-amber-500/40 uppercase tracking-tighter">
+                          Model-Wide Data
+                        </span>
+                      )}
+                      <div className={`p-2 rounded-lg bg-rose-500/20 transition-transform ${recallsExpanded ? 'rotate-180' : ''}`}>
+                        <Info size={16} />
+                      </div>
+                    </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {recallsExpanded && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                          {recalls.map((recall, i) => (
+                            <div key={i} className="p-5 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
+                              <div className="flex justify-between items-start mb-3">
+                                <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">NHTSA #{recall.NHTSACampaignNumber}</span>
+                                <span className="text-[10px] font-bold text-slate-500">{recall.ReportReceivedDate}</span>
+                              </div>
+                              <h5 className="text-sm font-bold text-white mb-2 leading-snug">{recall.Component}</h5>
+                              <p className="text-xs text-slate-400 line-clamp-3 mb-4">{recall.Summary}</p>
+                              <div className="p-4 bg-rose-500/10 rounded-xl border border-rose-500/10">
+                                <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1.5">Action Required</p>
+                                <p className="text-xs text-slate-300 leading-relaxed">{recall.Remedy}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
              ) : (
-               <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-500">
-                 <BadgeCheck size={20} />
-                 <span className="text-sm font-bold uppercase tracking-widest">No Open Recalls Identified in NHTSA Database</span>
+               <div className="flex items-center gap-3 p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-500">
+                 <BadgeCheck size={24} />
+                 <div>
+                   <span className="text-sm font-black uppercase tracking-widest block">Clean Vehicle Record</span>
+                   <span className="text-[10px] font-bold opacity-60 uppercase tracking-tighter">No open recalls identified in NHTSA database</span>
+                 </div>
                </div>
              )}
           </div>

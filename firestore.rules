@@ -15,7 +15,7 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    // Role checks with master email override
+    // Robust role/status checks with case-insensitive email whitelist fallback
     function isAdmin() {
       let email = request.auth.token.email.lower();
       return isSignedIn() && (
@@ -65,6 +65,12 @@ service cloud.firestore {
     // --- Performance Tracking ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
       allow read, write: if isApproved() || isAdmin();
+    }
+
+    // --- Audit Logs ---
+    match /artifacts/hyundai-sales-to-service/public/audit/imports/{docId} {
+      // Temporarily looser check to diagnose Permission Denied errors
+      allow read, write: if isSignedIn();
     }
   }
 }

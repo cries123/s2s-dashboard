@@ -3,10 +3,10 @@ import {
   FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../../lib/utils';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../../firebase';
-import { useAuth } from '../../hooks/useAuth';
+import { db, auth } from '../../../firebase';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface UpsellItem {
   code: string;

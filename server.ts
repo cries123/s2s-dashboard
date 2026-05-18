@@ -90,7 +90,11 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Appointments:", error);
-      res.status(500).json({ error: error.message });
+      const isQuotaError = error.message?.includes("429") || error.status === 429;
+      res.status(isQuotaError ? 429 : 500).json({ 
+        error: error.message,
+        isQuotaError
+      });
     }
   });
 
@@ -196,7 +200,223 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Performance:", error);
-      res.status(500).json({ error: error.message });
+      const isQuotaError = error.message?.includes("429") || error.status === 429;
+      res.status(isQuotaError ? 429 : 500).json({ 
+        error: error.message,
+        isQuotaError
+      });
+    }
+  });
+
+  app.post("/api/parse-service-history", async (req, res) => {
+    try {
+      const { pdfBase64 } = req.body;
+      if (!pdfBase64) return res.status(400).json({ error: "Missing PDF" });
+
+      const response = await getAI().models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                inlineData: {
+                  mimeType: "application/pdf",
+                  data: pdfBase64,
+                },
+              },
+              { text: `This is a high-volume Service History report. Extract EVERY unique customer visit found in the document.
+              
+              For each entry, capture:
+              1. CUSTOMER INFO:
+                 - firstName / lastName (Split 'CASSEL, STEVEN' or 'MEEHAN, APRIL/STEVEN')
+                 - phone (e.g., (805) 598-9179)
+                 - vin (Full 17 digits)
+                 - make & model
+                 - year
+              2. VISIT INFO:
+                 - soNumber (Service Order #)
+                 - date (Open Date)
+                 - mileage (Odom In)
+                 - advisor (CSR Code or Name)
+                 - requests (The full text in the 'Requests' column)
+              
+              Return a JSON object with an array 'visits'.` }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              visits: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    firstName: { type: Type.STRING },
+                    lastName: { type: Type.STRING },
+                    phone: { type: Type.STRING },
+                    vin: { type: Type.STRING },
+                    make: { type: Type.STRING },
+                    model: { type: Type.STRING },
+                    year: { type: Type.STRING },
+                    soNumber: { type: Type.STRING },
+                    date: { type: Type.STRING },
+                    mileage: { type: Type.NUMBER },
+                    advisor: { type: Type.STRING },
+                    requests: { type: Type.STRING },
+                  },
+                  required: ["lastName", "vin", "soNumber", "date", "mileage"],
+                }
+              }
+            },
+            required: ["visits"],
+          },
+        }
+      });
+
+      const text = response.text;
+      if (!text) throw new Error("Empty response from AI");
+      res.json(JSON.parse(text));
+    } catch (error: any) {
+      console.error("API Error Service History:", error);
+      const isQuotaError = error.message?.includes("429") || error.status === 429;
+      res.status(isQuotaError ? 429 : 500).json({ 
+        error: error.message,
+        isQuotaError
+      });
+    }
+  });
+
+  app.post("/api/parse-pot-of-gold", async (req, res) => {
+    try {
+      const { reportText } = req.body;
+      if (!reportText) return res.status(400).json({ error: "Missing report text" });
+
+      const response = await getAI().models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `
+          Analyze the following Op Code Frequency Report text and extract the counts for each advisor and technician.
+          Map the results to the following Op Codes:
+          - AF: ENGINE AIR FILTER
+          - ALIGN: PERFORM 2/4 WHEEL ALIGNMENT
+          - BAT: BATTERY REPLACEMENT
+          - BFR: BRAKE FLUID SERVICE
+          - CAF: CABIN AIR FILTER
+          - CE: COOLING SYSTEM EXCHANGE
+          - FB: FRONT BRAKE PAD/RESURFACE
+          - FSC: MOC ENHANCE FUEL SYSTEM
+          - GDI: GDI FUEL/AIR INDUCTION
+          - RB: REAR BRAKE PAD/SERVICE
+          - TIRE1: MOUNT AND BALANCE 1 TIRE
+          - TIRE2: MOUNT AND BALANCE 2 TIRES
+          - TIRE3: MOUNT AND BALANCE 3 TIRES
+          - TIRE4: MOUNT AND BALANCE 4 TIRES
+          - TS: TRANSMISSION SERVICE
+          - CCC: COMBUSTION CHAMBER CLEANING
+
+          Report Text:
+          ${reportText}
+
+          Return a JSON object with:
+          1. "advisors": { "frank": { "CODE": COUNT }, "lemmy": { ... }, "jay": { ... } }
+          2. "technicians": { "Daniel": { "CODE": COUNT }, "Jon": { ... }, "Matthew": { ... }, "Jacinto": { ... }, "Ethan": { ... }, "Trevor": { ... } }
+        `,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              advisors: {
+                type: Type.OBJECT,
+                properties: {
+                  frank: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  lemmy: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  jay: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                }
+              },
+              technicians: {
+                type: Type.OBJECT,
+                properties: {
+                  Daniel: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  Jon: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  Matthew: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  Jacinto: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  Ethan: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                  Trevor: { type: Type.OBJECT, additionalProperties: { type: Type.NUMBER } },
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const text = response.text;
+      if (!text) throw new Error("Empty response from AI");
+      res.json(JSON.parse(text));
+    } catch (error: any) {
+      console.error("API Error Pot of Gold:", error);
+      const isQuotaError = error.message?.includes("429") || error.status === 429;
+      res.status(isQuotaError ? 429 : 500).json({ 
+        error: error.message,
+        isQuotaError
+      });
+    }
+  });
+
+  app.post("/api/estimate-value", async (req, res) => {
+    try {
+      const { year, make, model, trim, mileage } = req.body;
+      
+      const response = await getAI().models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: `Estimate the current trade-in market value range for this vehicle in 2026:
+              Year: ${year}
+              Make: ${make}
+              Model: ${model}
+              Trim: ${trim}
+              Mileage: ${mileage}
+              
+              Provide a low and high estimate for "Trade-In" and "Private Party". 
+              Also provide a brief "Advisor Tip" on why this car is a good trade candidate (e.g., high demand, aging tech, or upcoming major service).
+              
+              Return JSON.` }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              tradeInLow: { type: Type.NUMBER },
+              tradeInHigh: { type: Type.NUMBER },
+              privatePartyLow: { type: Type.NUMBER },
+              privatePartyHigh: { type: Type.NUMBER },
+              advisorTip: { type: Type.STRING },
+              marketTrend: { type: Type.STRING, enum: ["Rising", "Stable", "Falling"] }
+            },
+            required: ["tradeInLow", "tradeInHigh", "advisorTip", "marketTrend"],
+          },
+        }
+      });
+
+      const text = response.text;
+      if (!text) throw new Error("Empty response from AI");
+      res.json(JSON.parse(text));
+    } catch (error: any) {
+      console.error("API Error Valuation:", error);
+      const isQuotaError = error.message?.includes("429") || error.status === 429;
+      res.status(isQuotaError ? 429 : 500).json({ 
+        error: error.message,
+        isQuotaError
+      });
     }
   });
 

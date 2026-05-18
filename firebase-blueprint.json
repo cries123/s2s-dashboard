@@ -41,6 +41,24 @@
       },
       "required": ["date", "count"]
     },
+    "ImportLog": {
+      "title": "Database Import Log",
+      "description": "Records of CSV or PDF database synchronization events",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "filename": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "totalRecords": { "type": "number" },
+        "newProfiles": { "type": "number" },
+        "matchedProfiles": { "type": "number" },
+        "visitsLogged": { "type": "number" },
+        "duplicates": { "type": "number" },
+        "type": { "type": "string", "enum": ["pdf", "csv"] }
+      },
+      "required": ["userId", "filename", "timestamp", "totalRecords", "type"]
+    },
     "PotOfGoldConfig": {
       "title": "Pot of Gold Configuration",
       "description": "Shared configuration for the Pot of Gold competition",
@@ -81,6 +99,10 @@
     "artifacts/hyundai-sales-to-service/public/data/performance/advisorReports": {
       "schema": "AdvisorPerformanceReport",
       "description": "Advisor performance tracking data"
+    },
+    "artifacts/hyundai-sales-to-service/public/audit/imports": {
+      "schema": "ImportLog",
+      "description": "History of data import operations"
     }
   }
 }

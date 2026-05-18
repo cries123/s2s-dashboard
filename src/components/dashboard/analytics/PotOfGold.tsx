@@ -5,12 +5,12 @@ import {
   Zap, Shield, Plus, Info, X, BrainCircuit, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { parseReportWithAI } from '../../services/geminiService';
+import { parseReportWithAI } from '../../../services/geminiService';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../../firebase';
-import { useAuth } from '../../hooks/useAuth';
+import { db, auth } from '../../../firebase';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface PerformanceRow {
   code: string;

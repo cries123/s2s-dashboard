@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, Save, Edit2, Trash2, User as UserIcon, Phone, Mail, MapPin, Car, Calendar, Gauge, History
+  X, Save, Edit2, Trash2, User as UserIcon, Phone, Mail, MapPin, Car, Calendar, Gauge, History, Database, Wrench
 } from 'lucide-react';
 import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -217,6 +217,65 @@ export default function ProfileModal({ customer, onClose, onDelete }: ProfileMod
                   </div>
                 </div>
               </section>
+            </div>
+
+            {/* Service History - Full Width */}
+            <div className="col-span-full pt-10 border-t border-white/5 space-y-8">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h4 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                    <Database size={20} className="text-brand-primary" />
+                    Ultimate Database: Service Records
+                  </h4>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Historical synchronization of all dealership visits</p>
+                </div>
+                <div className="bg-brand-primary/10 border border-brand-primary/20 px-4 py-2 rounded-xl">
+                   <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Total Logs: {customer.recentVisits?.length || 0}</span>
+                </div>
+              </div>
+
+              {!customer.recentVisits || customer.recentVisits.length === 0 ? (
+                <div className="p-16 text-center border-2 border-dashed border-slate-800 rounded-[2.5rem] bg-slate-900/20">
+                  <div className="w-16 h-16 bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-6 text-slate-600">
+                    <History size={32} />
+                  </div>
+                  <h5 className="text-lg font-black text-slate-400 uppercase tracking-tight">No Historical Records</h5>
+                  <p className="text-slate-600 mt-2 font-medium italic text-sm">Synchronize with the Ultimate Database to import service history.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {customer.recentVisits.map((visit, idx) => (
+                    <div key={idx} className="group bg-slate-950 p-6 rounded-3xl border border-white/5 hover:border-brand-primary/30 transition-all shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <Wrench size={40} className="rotate-12" />
+                      </div>
+                      
+                      <div className="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 bg-brand-primary/10 text-brand-primary text-[8px] font-black uppercase tracking-widest rounded border border-brand-primary/20">SO #{visit.soNumber}</span>
+                            <span className="text-xs font-black text-white">{visit.date}</span>
+                          </div>
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Advisor: {visit.advisor}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-white leading-none">{visit.mileage.toLocaleString()}</p>
+                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Recorded Mileage</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-900/50 rounded-2xl p-4 border border-white/5 group-hover:bg-slate-900 transition-colors relative z-10">
+                        <p className="text-[9px] font-black text-brand-secondary uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                           <History size={10} /> Scope of Work
+                        </p>
+                        <p className="text-xs text-slate-300 font-medium leading-relaxed line-clamp-3 group-hover:line-clamp-none transition-all whitespace-pre-wrap">
+                          {visit.requests}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

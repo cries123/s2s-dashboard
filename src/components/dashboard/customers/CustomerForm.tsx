@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { User } from '../../types';
+import { db } from '../../../firebase';
+import { User } from '../../../types';
 import { Camera, Loader2, User as UserIcon, Phone, Mail, Car, Calendar, Globe, BadgeCheck } from 'lucide-react';
 
 interface CustomerFormProps {

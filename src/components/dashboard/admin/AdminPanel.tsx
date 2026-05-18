@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, where, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { User, Role, UserStatus } from '../../types';
+import { db } from '../../../firebase';
+import { User, Role, UserStatus } from '../../../types';
 import { 
   Users, 
   Shield, 
@@ -15,10 +15,11 @@ import {
   UserX,
   Target
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../../lib/utils';
 
-import { DEALERSHIPS } from '../../constants';
-import { useAuth } from '../../hooks/useAuth';
+import { DEALERSHIPS } from '../../../constants';
+import { useAuth } from '../../../hooks/useAuth';
+import { DatabaseSync } from './DatabaseSync';
 
 interface AdminPanelProps {
   currentDealershipId?: string;
@@ -363,6 +364,17 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
           })}
         </div>
       </div>
+
+      {/* Database Sync - NEW */}
+      {currentUser?.role === 'admin' && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+          <DatabaseSync 
+            currentUser={currentUser} 
+            onSuccess={onSuccess} 
+            onError={onError} 
+          />
+        </div>
+      )}
 
       {pendingUsers.length > 0 && (
         <div className="space-y-4">

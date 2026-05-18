@@ -29,6 +29,30 @@ export interface DealershipSettings {
   updatedAt: Timestamp;
 }
 
+export interface ImportLog {
+  id: string;
+  timestamp: Timestamp;
+  userId: string;
+  username: string;
+  filename: string;
+  totalRecords: number;
+  newProfiles: number;
+  matchedProfiles: number;
+  visitsLogged: number;
+  duplicates: number;
+  type: 'pdf' | 'csv';
+}
+
+export interface ServiceVisit {
+  id: string;
+  soNumber: string;
+  date: string;
+  mileage: number;
+  advisor: string;
+  requests: string;
+  createdAt: Timestamp;
+}
+
 export interface Customer {
   id: string;
   firstName: string;
@@ -54,6 +78,7 @@ export interface Customer {
   lastContactUsername?: string;
   lastAcknowledgedCycle?: number;
   lastServiceDate?: string;
+  recentVisits?: ServiceVisit[]; // Last few for quick display
   stopAlertInfo?: {
     reason: string;
     notes: string;

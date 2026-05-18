@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   collection, doc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
 } from 'firebase/firestore';
-import { db, auth } from '../../firebase';
-import { User, DailyStat } from '../../types';
+import { db, auth } from '../../../firebase';
+import { User, DailyStat } from '../../../types';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
   BarChart3, Target, Clock, FileUp, X, PieChart
 } from 'lucide-react';
-import { AdvisorPerformance } from './AdvisorPerformance';
-import { cn } from '../../lib/utils';
+import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
+import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AppointmentsProps {
@@ -60,6 +60,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
+  const [showManualBreakdownEntry, setShowManualBreakdownEntry] = useState(false);
+  const [manualBreakdown, setManualBreakdown] = useState({
+    diagnosis: 0,
+    oilChange: 0,
+    recall: 0,
+    misc: 0
+  });
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -163,18 +170,35 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     let countNum = parseInt(dailyCount);
     if (isNaN(countNum)) countNum = 0;
     
+    // Default manual breakdown to match total count if no specific breakdown is entered yet
+    // But since we want to ask them, we'll open the modal first
+    setManualBreakdown({
+      diagnosis: 0,
+      oilChange: 0,
+      recall: 0,
+      misc: 0
+    });
+    setShowManualBreakdownEntry(true);
+  };
+
+  const confirmManualSave = async () => {
+    const totalCount = Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0) as number;
+    
     setSaving(true);
     const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${selectedDate}`;
     try {
       await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
         date: selectedDate,
-        count: countNum,
+        count: totalCount,
         dealershipId: currentDealershipId || 'hyundai',
-        breakdown: deleteField(),
+        breakdown: manualBreakdown,
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.uid
       }, { merge: true });
-      onSuccess?.(`Recorded ${countNum} appointments for ${selectedDate}. Breakdown reset.`);
+      
+      setDailyCount(totalCount.toString());
+      setShowManualBreakdownEntry(false);
+      onSuccess?.(`Recorded ${totalCount} appointments with breakdown for ${selectedDate}.`);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, path);
     } finally {
@@ -650,7 +674,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
       {/* Breakdown Modal */}
       <AnimatePresence>
-        {showBreakdown && (
+        {(showBreakdown || showManualBreakdownEntry) && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -660,13 +684,18 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             >
               <div className="p-8 border-b border-slate-800 flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Appointment Breakdown</h3>
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                    {showManualBreakdownEntry ? 'Manual Entry Breakdown' : 'Appointment Breakdown'}
+                  </h3>
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
-                    {new Date(showBreakdown.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    {new Date((showBreakdown?.date || selectedDate) + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
                 <button 
-                  onClick={() => setShowBreakdown(null)}
+                  onClick={() => {
+                    setShowBreakdown(null);
+                    setShowManualBreakdownEntry(false);
+                  }}
                   className="p-2 hover:bg-slate-800 rounded-xl text-slate-500 hover:text-white transition-all"
                 >
                   <X size={20} />
@@ -675,43 +704,81 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
               <div className="p-8 space-y-6">
                 <div className="grid grid-cols-1 gap-4">
-                  <div className="p-6 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl text-center">
-                    <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Total Appointments</p>
-                    <p className="text-4xl font-black text-white">{showBreakdown.count}</p>
+                  <div className={cn(
+                    "p-6 rounded-2xl text-center border",
+                    showManualBreakdownEntry ? "bg-slate-950 border-slate-800" : "bg-brand-primary/10 border-brand-primary/20"
+                  )}>
+                    <p className={cn(
+                      "text-[10px] font-black uppercase tracking-widest mb-1",
+                      showManualBreakdownEntry ? "text-slate-500" : "text-brand-primary"
+                    )}>
+                      Total Appointments
+                    </p>
+                    <p className="text-4xl font-black text-white">
+                      {showManualBreakdownEntry 
+                        ? Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0)
+                        : (showBreakdown?.count || 0)
+                      }
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {[
-                    { label: 'Diagnosis', value: showBreakdown.breakdown?.diagnosis || 0, color: 'bg-brand-secondary', icon: 'DIAG' },
-                    { label: 'Synthetic Oil Changes', value: showBreakdown.breakdown?.oilChange || 0, color: 'bg-emerald-500', icon: 'OIL' },
-                    { label: 'Recalls & Campaigns', value: showBreakdown.breakdown?.recall || 0, color: 'bg-brand-primary', icon: 'RCL' },
-                    { label: 'Miscellaneous / Other', value: showBreakdown.breakdown?.misc || 0, color: 'bg-slate-700', icon: 'MISC' },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-4 group">
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-[8px] font-black text-white shadow-lg", item.color)}>
+                    { key: 'diagnosis', label: 'Diagnosis', color: 'bg-brand-secondary', icon: 'DIAG' },
+                    { key: 'oilChange', label: 'Synthetic Oil Changes', color: 'bg-emerald-500', icon: 'OIL' },
+                    { key: 'recall', label: 'Recalls & Campaigns', color: 'bg-brand-primary', icon: 'RCL' },
+                    { key: 'misc', label: 'Miscellaneous / Other', color: 'bg-slate-700', icon: 'MISC' },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center gap-4 group">
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-[8px] font-black text-white shadow-lg shrink-0", item.color)}>
                         {item.icon}
                       </div>
                       <div className="flex-1">
-                        <div className="flex justify-between items-end mb-1.5">
+                        <div className="flex justify-between items-center mb-1.5">
                           <span className="text-[10px] font-black text-white uppercase tracking-widest">{item.label}</span>
-                          <span className="text-xs font-black text-slate-300">{item.value} Units</span>
+                          {showManualBreakdownEntry ? (
+                            <input 
+                              type="number"
+                              min="0"
+                              value={manualBreakdown[item.key as keyof typeof manualBreakdown]}
+                              onChange={(e) => setManualBreakdown(prev => ({
+                                ...prev,
+                                [item.key]: parseInt(e.target.value) || 0
+                              }))}
+                              className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs font-black text-white focus:ring-1 focus:ring-brand-primary outline-none text-right"
+                            />
+                          ) : (
+                            <span className="text-xs font-black text-slate-300">{showBreakdown?.breakdown?.[item.key as keyof typeof showBreakdown.breakdown] || 0} Units</span>
+                          )}
                         </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(item.value / showBreakdown.count) * 100}%` }}
-                            className={cn("h-full", item.color)}
-                          />
-                        </div>
+                        {!showManualBreakdownEntry && (
+                          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${((showBreakdown?.breakdown?.[item.key as keyof typeof showBreakdown.breakdown] || 0) / (showBreakdown?.count || 1)) * 100}%` }}
+                              className={cn("h-full", item.color)}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
-                  *Categorization based on PDF text analysis logic
-                </p>
+                {showManualBreakdownEntry ? (
+                  <button 
+                    onClick={confirmManualSave}
+                    disabled={saving}
+                    className="w-full btn-primary h-14 flex items-center justify-center gap-2 mt-4"
+                  >
+                    {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> Confirm & Save Count</>}
+                  </button>
+                ) : (
+                  <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
+                    *Categorization based on PDF text analysis logic
+                  </p>
+                )}
               </div>
             </motion.div>
           </div>

@@ -1,11 +1,11 @@
 import React from 'react';
-import { Customer, User } from '../../types';
+import { Customer, User } from '../../../types';
 import CustomerCard from './CustomerCard';
 import { Trash2, History, Loader2 } from 'lucide-react';
 import { writeBatch, doc, collection, Timestamp, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { isServiceAlertActive, calculateServiceCycle } from '../../lib/alerts';
-import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
+import { db } from '../../../firebase';
+import { isServiceAlertActive, calculateServiceCycle } from '../../../lib/alerts';
+import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 
 interface ServiceAlertsProps {
   customers: Customer[];

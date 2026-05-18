@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { Customer, User } from '../../types';
-import { Phone, Mail, Car, Calendar, History, Trash2, Edit2, Loader2, FastForward } from 'lucide-react';
+import { Customer, User } from '../../../types';
+import { Phone, Mail, Car, Calendar, History, Trash2, Edit2, Loader2, FastForward, Database, CheckCircle2, ChevronDown, ChevronUp, Wrench } from 'lucide-react';
 import { Timestamp, addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { cn } from '../../lib/utils';
-import { calculateServiceCycle, getNextServiceMilestone } from '../../lib/alerts';
-import { handleFirestoreError, OperationType } from '../../lib/firebaseUtils';
-import { getRecommendedServices, getMonthsOwned } from '../../lib/maintenance';
-import { ChevronDown, ChevronUp, Wrench } from 'lucide-react';
+import { db } from '../../../firebase';
+import { cn } from '../../../lib/utils';
+import { calculateServiceCycle, getNextServiceMilestone } from '../../../lib/alerts';
+import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
+import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -31,6 +30,8 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const [outcome, setOutcome] = useState('Answered');
   const [notes, setNotes] = useState('');
   const [appointmentSet, setAppointmentSet] = useState(false);
+
+  const lastVisit = customer.recentVisits?.[0];
 
   const handleLogCall = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,103 +91,108 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const maintenanceTasks = getRecommendedServices(monthsOwned);
 
   return (
-    <div className="card-base card-interactive p-0 overflow-hidden border-slate-800/50 group">
+    <div className="card-base card-interactive p-0 overflow-hidden border-slate-800/50 group bg-slate-900/40 backdrop-blur-sm shadow-2xl">
       <div className="p-6">
         <div className="flex justify-between items-start gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-2">
                <span className={cn(
-                 "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
-                 customer.language === 'Spanish' ? "bg-amber-500/10 text-amber-500" : "bg-slate-800 text-slate-500"
+                 "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                 customer.language === 'Spanish' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" : "bg-slate-800/50 text-slate-500 border-slate-700/50"
                )}>
                  {customer.language || 'English'}
                </span>
-               {customer.addedByUsername && (
-                 <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-brand-primary/10 text-brand-primary">
-                    Rep: {customer.addedByUsername}
+               {customer.recentVisits && customer.recentVisits.length > 0 && (
+                 <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
+                    <Database size={8} /> Synced
                  </span>
                )}
             </div>
             <button 
               onClick={() => onViewProfile(customer)}
-              className="text-xl font-black text-white hover:text-brand-primary transition-colors text-left leading-tight"
+              className="text-2xl font-black text-white hover:text-brand-primary transition-colors text-left leading-none tracking-tight uppercase italic"
             >
               {customer.firstName} {customer.lastName}
             </button>
             
-            <div className="flex flex-col gap-1.5 mt-3">
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-brand-secondary transition-colors group/link">
-                <div className="w-6 h-6 rounded-lg bg-slate-900 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors">
-                  <Phone size={12} className="text-slate-500 group-hover/link:text-brand-secondary" />
+            <div className="flex flex-col gap-2 mt-4">
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-2.5 text-[11px] font-bold text-slate-400 hover:text-brand-secondary transition-colors group/link">
+                <div className="w-7 h-7 rounded-xl bg-slate-950 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors border border-white/5 shadow-inner">
+                  <Phone size={13} className="text-slate-600 group-hover/link:text-brand-secondary" />
                 </div>
-                {customer.phone || 'No phone'}
+                {customer.phone || 'No Phone Entry'}
               </a>
-              <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-brand-secondary transition-colors group/link">
-                <div className="w-6 h-6 rounded-lg bg-slate-900 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors">
-                  <Mail size={12} className="text-slate-500 group-hover/link:text-brand-secondary" />
+              {lastVisit && (
+                <div className="flex items-center gap-2.5 text-[10px] font-black text-brand-primary uppercase tracking-widest mt-1">
+                   <div className="w-7 h-7 rounded-xl bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
+                     <CheckCircle2 size={13} />
+                   </div>
+                   Last Visit: {lastVisit.date}
                 </div>
-                {customer.email || 'No email'}
-              </a>
+              )}
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
             <button 
               onClick={() => onViewLog(customer)}
-              className="w-10 h-10 flex items-center justify-center bg-slate-900 text-slate-500 hover:text-brand-primary hover:bg-brand-primary/10 rounded-xl transition-all border border-slate-800"
+              className="w-11 h-11 flex items-center justify-center bg-slate-950 text-slate-500 hover:text-brand-primary hover:bg-brand-primary/10 rounded-2xl transition-all border border-white/5 shadow-inner hover:scale-105 active:scale-95"
               title="View Interaction Log"
             >
-              <History size={18} />
+              <History size={20} />
             </button>
             <button 
               onClick={() => onViewProfile(customer)}
-              className="w-10 h-10 flex items-center justify-center bg-slate-900 text-slate-500 hover:text-white hover:bg-slate-800 rounded-xl transition-all border border-slate-800"
+              className="w-11 h-11 flex items-center justify-center bg-slate-950 text-slate-600 hover:text-white hover:bg-slate-800 rounded-2xl transition-all border border-white/5 shadow-inner hover:scale-105 active:scale-95"
               title="Edit Profile"
             >
-              <Edit2 size={16} />
+              <Edit2 size={18} />
             </button>
           </div>
         </div>
         
         {isAlert && (
-          <div className="mt-5 px-4 py-3 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center gap-3">
-            <div className="relative">
-              <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-              <div className="absolute inset-0 w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
+          <div className="mt-6 px-5 py-4 bg-rose-500/10 border border-rose-500/20 rounded-[1.25rem] flex items-center gap-3 shadow-lg shadow-rose-950/20">
+            <div className="relative shrink-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+              <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
             </div>
-            <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">6-Month Service Overdue</span>
+            <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] leading-none">Maintenance Opportunity</span>
           </div>
         )}
         
-        <div className="grid grid-cols-2 gap-4 mt-6 py-5 border-y border-slate-800/50 bg-slate-950/30 -mx-6 px-6">
-          <div className="space-y-1">
-            <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Vehicle</p>
-            <p className="text-xs font-bold text-slate-200 flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-4 mt-6 py-6 border-y border-white/5 bg-slate-950/50 -mx-6 px-6">
+          <div className="space-y-1.5 opacity-90">
+            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Vehicle Fleet</p>
+            <p className="text-xs font-black text-white flex items-center gap-2 uppercase italic tracking-tight">
               <Car size={14} className="text-brand-primary" /> 
               {customer.year} {customer.model}
             </p>
-            <p className="text-[10px] font-mono text-brand-secondary/70 uppercase">{customer.vinLast8}</p>
+            <div className="inline-flex px-2 py-0.5 bg-slate-900 rounded border border-white/5">
+              <p className="text-[9px] font-mono text-brand-secondary font-bold uppercase tracking-widest">{customer.vinLast8}</p>
+            </div>
           </div>
-          <div className="space-y-1 text-right">
-            <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Sold Date</p>
-            <p className="text-xs font-bold text-slate-300 flex items-center justify-end gap-2">
-              <Calendar size={14} className="text-slate-500" /> 
-              {customer.soldDate || 'N/A'}
-            </p>
-            {customer.mileage && <p className="text-[10px] font-bold text-slate-500">{customer.mileage} miles</p>}
+          <div className="space-y-1.5 text-right">
+            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Odometer (M)</p>
+            <div className="flex flex-col items-end">
+              <p className="text-xl font-black text-white leading-none tabular-nums tracking-tighter">
+                {parseInt(customer.mileage || '0').toLocaleString()}
+              </p>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Certified Miles</p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-b border-slate-800/30 pb-4">
+        <div className="mt-4 flex items-center justify-between border-b border-white/5 pb-4">
            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Last Contact</span>
+              <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Contact Records</span>
               <span className="text-[10px] font-bold text-slate-400">
                 {formatLastContact(customer.lastServiceContact)}
               </span>
            </div>
            <div className="flex flex-col text-right">
-              <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Next Alert</span>
-              <span className="text-[10px] font-bold text-brand-secondary/70">
+              <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">S2S Alert Range</span>
+              <span className="text-[10px] font-black text-brand-secondary uppercase italic">
                 {getNextServiceMilestone(customer.soldDate)}
               </span>
            </div>

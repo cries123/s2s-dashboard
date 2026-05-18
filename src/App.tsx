@@ -13,14 +13,14 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 // Components
-import CustomerForm from './components/dashboard/CustomerForm';
-import ServiceAlerts from './components/dashboard/ServiceAlerts';
-import Appointments from './components/dashboard/Appointments';
-import CustomerCard from './components/dashboard/CustomerCard';
-import AdminPanel from './components/dashboard/AdminPanel';
-import { VinLookup } from './components/dashboard/VinLookup';
-import { WeatherWidget } from './components/dashboard/WeatherWidget';
-import { PotOfGold } from './components/dashboard/PotOfGold';
+import CustomerForm from './components/dashboard/customers/CustomerForm';
+import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
+import Appointments from './components/dashboard/appointments/Appointments';
+import { CustomerDirectory } from './components/dashboard/customers/CustomerDirectory';
+import AdminPanel from './components/dashboard/admin/AdminPanel';
+import { VinLookup } from './components/dashboard/vin/VinLookup';
+import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
+import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
@@ -33,8 +33,6 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   
   const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [visibleCount, setVisibleCount] = useState(24);
   const [isDealershipDropdownOpen, setIsDealershipDropdownOpen] = useState(false);
   const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(null);
 
@@ -45,7 +43,7 @@ export default function App() {
     }
   }, [user, currentDealershipId]);
 
-  const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
+  const { customers } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
 
   const activeAlertsCount = customers.filter(isServiceAlertActive).length;
 
@@ -92,27 +90,6 @@ export default function App() {
       showNotification(err.message, true);
     }
   };
-
-  // Memoize filtered results to prevent lag during re-renders
-  const filteredCustomers = React.useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return customers;
-
-    return customers.filter(c => {
-      return (
-        c.firstName?.toLowerCase().includes(q) ||
-        c.lastName?.toLowerCase().includes(q) ||
-        c.vinLast8?.toLowerCase().includes(q) ||
-        c.phone?.includes(q) ||
-        c.email?.toLowerCase().includes(q) ||
-        c.model?.toLowerCase().includes(q)
-      );
-    });
-  }, [customers, searchQuery]);
-
-  const displayCustomers = React.useMemo(() => {
-    return filteredCustomers.slice(0, visibleCount);
-  }, [filteredCustomers, visibleCount]);
 
   if (authLoading) {
     return (
@@ -360,96 +337,13 @@ export default function App() {
           )}
 
           {activeTab === 'search' && (
-            <div className="space-y-10">
-              {/* Directory Header & Stats */}
-              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-6 border-b border-slate-800">
-                <div>
-                  <h2 className="text-4xl font-black text-white tracking-tight">Customer Directory</h2>
-                  <p className="text-slate-400 mt-1 font-medium italic">Comprehensive database of all customer relations.</p>
-                </div>
-
-                <div className="flex flex-wrap gap-4 w-full lg:w-auto">
-                   <div className="bg-slate-900 border border-slate-800 px-5 py-3 rounded-2xl flex flex-col min-w-[120px]">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Total Records</span>
-                      <span className="text-2xl font-black text-brand-primary">{customers.length}</span>
-                   </div>
-                   <div className="bg-slate-900 border border-slate-800 px-5 py-3 rounded-2xl flex flex-col min-w-[120px]">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Added This Month</span>
-                      <span className="text-2xl font-black text-brand-secondary">
-                        {customers.filter(c => {
-                          const date = c.createdAt?.toDate ? c.createdAt.toDate() : new Date();
-                          return date.getMonth() === new Date().getMonth();
-                        }).length}
-                      </span>
-                   </div>
-                </div>
-              </div>
-
-              {/* Toolbar */}
-              <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-900/50 p-6 rounded-3xl border border-slate-800 shadow-2xl">
-                <div className="relative flex-1 w-full">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Search name, phone, VIN (last 8) or vehicle model..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setVisibleCount(24); // Reset pagination on search
-                    }}
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl pl-12 pr-6 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-primary/50 transition-all font-medium"
-                  />
-                </div>
-                
-                <div className="flex items-center gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 w-full md:w-auto overflow-x-auto no-scrollbar">
-                   {['All', 'Hyundai', 'Other'].map(cat => (
-                     <button key={cat} className={cn(
-                       "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                       cat === 'All' ? "bg-slate-800 text-white shadow-xl" : "text-slate-500 hover:text-slate-300"
-                     )}>
-                       {cat}
-                     </button>
-                   ))}
-                </div>
-              </div>
-
-              {filteredCustomers.length === 0 ? (
-                <div className="card-base p-20 text-center border-dashed border-slate-700 bg-transparent">
-                  <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-600">
-                    <Search size={40} />
-                  </div>
-                  <h3 className="text-xl font-bold text-white">No results found</h3>
-                  <p className="text-slate-400 mt-2 max-w-sm mx-auto">We couldn't find any customers matching your search criteria.</p>
-                </div>
-              ) : (
-                <div className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
-                    {displayCustomers.map(c => (
-                      <CustomerCard 
-                        key={c.id} 
-                        customer={c} 
-                        currentUser={currentUser}
-                        onViewProfile={(cust: Customer) => setSelectedProfile(cust)}
-                        onViewLog={(cust: Customer) => setSelectedProfile(cust)}
-                        onRefresh={showNotification}
-                        isAlert={false}
-                      />
-                    ))}
-                  </div>
-
-                  {filteredCustomers.length > visibleCount && (
-                    <div className="flex justify-center pt-8 pb-12">
-                      <button 
-                        onClick={() => setVisibleCount(prev => prev + 24)}
-                        className="btn-primary bg-slate-800 hover:bg-slate-700 text-white px-10 py-4 shadow-xl border border-slate-700"
-                      >
-                        Load More Customers
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <CustomerDirectory 
+              customers={customers}
+              currentUser={currentUser}
+              onViewProfile={setSelectedProfile}
+              onViewLog={setSelectedProfile}
+              onRefresh={showNotification}
+            />
           )}
 
           {activeTab === 'alerts' && (
