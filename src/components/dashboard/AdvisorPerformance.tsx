@@ -291,8 +291,9 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
               <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
                 <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Gross Labor MTD</p>
                 <p className="text-2xl font-black text-white">${metrics.totalGross.toLocaleString()}</p>
-                <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500">
-                  <span className="uppercase italic">Avg: ${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
+                <div className="flex items-center gap-4 mt-2 text-[10px] font-bold text-slate-500">
+                  <span className="uppercase italic leading-none">Avg: ${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
+                  <span className="uppercase italic leading-none text-brand-secondary">GP: {Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}%</span>
                 </div>
               </div>
 
@@ -362,15 +363,15 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                        <div className="flex justify-between items-end">
                          <div className="flex items-center gap-1.5">
                             <Target size={12} className="text-slate-600" />
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Labor Efficiency</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Labor Gross Profit</p>
                          </div>
-                         <p className="text-sm font-black text-white">{advisor.gpPercent}% GP</p>
+                         <p className="text-sm font-black text-white">{Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}% GP</p>
                        </div>
                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                          <div className={cn(
                            "h-full transition-all duration-1000 shadow-[0_0_8px_rgba(var(--brand-primary-rgb),0.5)]",
-                           advisor.gpPercent > 80 ? "bg-emerald-500" : advisor.gpPercent > 60 ? "bg-brand-primary" : "bg-rose-500"
-                         )} style={{ width: `${advisor.gpPercent}%` }}></div>
+                           (advisor.grossLabor / (advisor.laborSold || 1)) > 0.8 ? "bg-emerald-500" : (advisor.grossLabor / (advisor.laborSold || 1)) > 0.7 ? "bg-brand-primary" : "bg-rose-500"
+                         )} style={{ width: `${Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}%` }}></div>
                        </div>
                     </div>
 
