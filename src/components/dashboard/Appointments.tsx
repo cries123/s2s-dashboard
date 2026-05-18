@@ -56,7 +56,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [laborTarget, setLaborTarget] = useState(500000);
   const [partsTarget, setPartsTarget] = useState(50000);
   const [mtdGross, setMtdGross] = useState(0);
-  const [mtdPartsGross, setMtdPartsGross] = useState(0);
+  const [mtdPartsSales, setMtdPartsSales] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
@@ -86,16 +86,16 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         // Use totals object if available (AI extracted), else fall back to sum
         if (data.totals) {
           setMtdGross(data.totals.totalGross || 0);
-          setMtdPartsGross(data.totals.totalGrossParts || 0);
+          setMtdPartsSales(data.totals.totalParts || 0);
           setMtdLaborSales(data.totals.totalLabor || 0);
         } else {
           const rawAdvisors = data.advisors || [];
           const totalGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.grossLabor || curr.laborGross || 0), 0);
           const totalLabor = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.laborSold || 0), 0);
-          const totalPartsGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.grossParts || 0), 0);
+          const totalPartsSales = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.partsSold || 0), 0);
           setMtdGross(totalGross);
           setMtdLaborSales(totalLabor);
-          setMtdPartsGross(totalPartsGross);
+          setMtdPartsSales(totalPartsSales);
         }
       }
     });
@@ -299,10 +299,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     const grossVariance = mtdGross - grossPaceTarget;
     
     // PARTS FORECAST
-    const partsDailyAvg = elapsedDays > 0 ? mtdPartsGross / elapsedDays : 0;
+    const partsDailyAvg = elapsedDays > 0 ? mtdPartsSales / elapsedDays : 0;
     const partsPaceTarget = Math.round((partsTarget / daysInMonth) * elapsedDays);
     const partsForecast = Math.round(partsDailyAvg * daysInMonth);
-    const partsVariance = mtdPartsGross - partsPaceTarget;
+    const partsVariance = mtdPartsSales - partsPaceTarget;
 
     return { 
       monthTotal, 
@@ -329,7 +329,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       laborDailyAvg,
       laborSalesDailyAvg,
       // Parts metrics
-      mtdPartsGross,
+      mtdPartsSales,
       partsForecast,
       partsPaceTarget,
       partsTarget,
@@ -438,8 +438,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 color: 'text-brand-secondary'
               },
               { 
-                label: 'Parts Gross', 
-                current: metrics.mtdPartsGross,
+                label: 'Parts Sales', 
+                current: metrics.mtdPartsSales,
                 daily: metrics.partsDailyAvg, 
                 forecast: metrics.partsForecast, 
                 target: metrics.partsTarget, 
@@ -685,7 +685,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
                 <div className="space-y-3">
                   {[
-                    { label: 'Diagnosis / Sputtering', value: showBreakdown.breakdown?.diagnosis || 0, color: 'bg-brand-secondary', icon: 'DIAG' },
+                    { label: 'Diagnosis', value: showBreakdown.breakdown?.diagnosis || 0, color: 'bg-brand-secondary', icon: 'DIAG' },
                     { label: 'Synthetic Oil Changes', value: showBreakdown.breakdown?.oilChange || 0, color: 'bg-emerald-500', icon: 'OIL' },
                     { label: 'Recalls & Campaigns', value: showBreakdown.breakdown?.recall || 0, color: 'bg-brand-primary', icon: 'RCL' },
                     { label: 'Miscellaneous / Other', value: showBreakdown.breakdown?.misc || 0, color: 'bg-slate-700', icon: 'MISC' },
@@ -747,14 +747,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
       {/* Advisor Performance Tracking */}
       <AdvisorPerformance currentDealershipId={currentDealershipId} />
-
-      <div className="card-base p-10 bg-slate-950 border-dashed border-slate-800 text-center">
-        <Target size={40} className="text-slate-700 mx-auto mb-6" />
-        <h3 className="text-xl font-bold text-slate-300">Operational Intelligence</h3>
-        <p className="text-slate-500 max-w-md mx-auto mt-2 italic text-sm">
-          Tracking daily appointment counts allows the S2S Dashboard to project shop capacity and retail throughput targets. 
-        </p>
-      </div>
     </div>
   );
 }

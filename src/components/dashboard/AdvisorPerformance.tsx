@@ -328,49 +328,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
               </div>
             </div>
 
-            {/* Projection Detail Box (Refined) */}
-            <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Gross Labor Goals & Projections</p>
-                    <div className="flex items-baseline gap-3">
-                       <p className="text-3xl font-black text-brand-secondary">${metrics.totalGross.toLocaleString()}</p>
-                       <div className="flex flex-col">
-                         <p className={cn(
-                           "text-[10px] font-black px-2 py-0.5 rounded-full border leading-none",
-                           metrics.totalGross >= metrics.grossPace 
-                             ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" 
-                             : "text-rose-500 border-rose-500/20 bg-rose-500/5"
-                         )}>
-                           {metrics.totalGross >= metrics.grossPace ? 'AHEAD' : 'BEHIND'}
-                         </p>
-                         <span className="text-[8px] text-slate-500 mt-1 font-bold">vs Pace: ${metrics.grossPace.toLocaleString()}</span>
-                       </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[9px] font-black text-slate-500 uppercase">Forecast</p>
-                    <p className="text-xs font-black text-white">${metrics.grossForecast.toLocaleString()}</p>
-                    <p className="text-[8px] font-bold text-slate-600 italic">Goal: ${laborTarget.toLocaleString()}</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[9px] font-black uppercase tracking-tighter">
-                    <span className="text-slate-500 italic">Pace vs Monthly Goal</span>
-                    <span className="text-brand-secondary">{Math.round((metrics.totalGross / laborTarget) * 100)}%</span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full transition-all duration-1000",
-                        metrics.totalGross >= metrics.grossPace ? "bg-emerald-500" : "bg-brand-secondary"
-                      )} 
-                      style={{ width: `${Math.min(100, (metrics.totalGross / laborTarget) * 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {advisors.map((advisor, idx) => (
