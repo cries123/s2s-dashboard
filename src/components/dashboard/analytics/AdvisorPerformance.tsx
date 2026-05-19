@@ -325,9 +325,9 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                 </div>
               </div>
 
-              {/* Gross Labor Box */}
+              {/* Labor Gross Box */}
               <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Gross Labor MTD</p>
+                <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Labor Gross MTD</p>
                 <p className="text-2xl font-black text-white">${metrics.totalGross.toLocaleString()}</p>
                 <div className="flex items-center gap-4 mt-2 text-[10px] font-bold text-slate-500">
                   <span className="uppercase italic leading-none">Avg: ${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
@@ -344,12 +344,13 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                 </div>
               </div>
 
-              {/* Gross Part Sales Box */}
+              {/* Parts Gross Box */}
               <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Gross Parts MTD</p>
+                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Parts Gross MTD</p>
                 <p className="text-2xl font-black text-white">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
-                <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500">
-                   <span className="uppercase italic">GP: {Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}%</span>
+                <div className="flex items-center gap-4 mt-2 text-[10px] font-bold text-slate-500">
+                   <span className="uppercase italic">Avg: ${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
+                   <span className="uppercase italic text-emerald-500">GP: {Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}%</span>
                 </div>
               </div>
 

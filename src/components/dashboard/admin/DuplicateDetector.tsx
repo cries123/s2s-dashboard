@@ -22,6 +22,7 @@ interface ScanStats {
 export function DuplicateDetector() {
   const [isScanning, setIsScanning] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
+  const [corruptedProfiles, setCorruptedProfiles] = useState<Customer[]>([]);
   const [scanStats, setScanStats] = useState<ScanStats>({ 
     total: 0, 
     duplicatesFound: 0, 
@@ -30,10 +31,13 @@ export function DuplicateDetector() {
     topVisitorCount: 0 
   });
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [isPurgeConfirm, setIsPurgeConfirm] = useState(false);
 
   const scanForDuplicates = async () => {
     setIsScanning(true);
     setDuplicateGroups([]);
+    setCorruptedProfiles([]);
     
     try {
       const q = query(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers'));
@@ -41,11 +45,23 @@ export function DuplicateDetector() {
       const allCustomers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Customer[];
       
       const vinMap = new Map<string, Customer[]>();
+      const corrupted: Customer[] = [];
       let totalROs = 0;
       let maxROs = 0;
       let topCustomer: Customer | null = null;
       
       allCustomers.forEach(customer => {
+        // Detect Corrupted (Binary junk or missing names)
+        const isCorrupted = 
+          !customer.lastName || 
+          customer.lastName.includes('\ufffd') || 
+          customer.firstName?.includes('\ufffd') ||
+          (customer.lastName.match(/[^\x20-\x7E]/g) || []).length > 5;
+
+        if (isCorrupted) {
+          corrupted.push(customer);
+        }
+
         // Track RO Count
         const visits = customer.recentVisits?.length || 0;
         totalROs += visits;
@@ -74,6 +90,7 @@ export function DuplicateDetector() {
       });
       
       setDuplicateGroups(groups);
+      setCorruptedProfiles(corrupted);
       setScanStats({
         total: allCustomers.length,
         duplicatesFound: duplicateCount,
@@ -83,39 +100,59 @@ export function DuplicateDetector() {
       });
     } catch (error) {
       console.error("Duplicate Scan Error:", error);
-      alert("Failed to complete system scan. Check console for details.");
     } finally {
       setIsScanning(false);
     }
   };
 
-  const deleteCustomer = async (customerId: string, vin: string) => {
-    if (!window.confirm("Confirm permanent removal of this duplicate profile? All associated data will be lost.")) return;
-    
+  const deleteCustomer = async (customerId: string, groupVin?: string) => {
     setIsDeleting(customerId);
     try {
       await deleteDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customerId));
       
       // Update UI state
-      setDuplicateGroups(prev => prev.map(group => {
-        if (group.vin === vin) {
-          return {
-            ...group,
-            customers: group.customers.filter(c => c.id !== customerId)
-          };
-        }
-        return group;
-      }).filter(group => group.customers.length > 1));
+      if (groupVin) {
+        setDuplicateGroups(prev => prev.map(group => {
+          if (group.vin === groupVin) {
+            return {
+              ...group,
+              customers: group.customers.filter(c => c.id !== customerId)
+            };
+          }
+          return group;
+        }).filter(group => group.customers.length > 1));
+      } else {
+        setCorruptedProfiles(prev => prev.filter(c => c.id !== customerId));
+      }
       
       setScanStats(prev => ({
         ...prev,
-        duplicatesFound: prev.duplicatesFound - 1
+        duplicatesFound: groupVin ? prev.duplicatesFound - 1 : prev.duplicatesFound
       }));
+      setConfirmDeleteId(null);
     } catch (error) {
       console.error("Delete Error:", error);
-      alert("Permission denied. Failed to remove record.");
     } finally {
       setIsDeleting(null);
+    }
+  };
+
+  const purgeAllCorrupted = async () => {
+    setIsScanning(true);
+    try {
+      const batch = writeBatch(db);
+      corruptedProfiles.forEach(c => {
+        const ref = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', c.id);
+        batch.delete(ref);
+      });
+      await batch.commit();
+      setCorruptedProfiles([]);
+      setScanStats(prev => ({ ...prev, total: prev.total - corruptedProfiles.length }));
+      setIsPurgeConfirm(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -186,8 +223,105 @@ export function DuplicateDetector() {
         )}
       </AnimatePresence>
 
-      <div className="space-y-6">
-        {duplicateGroups.length === 0 && !isScanning && scanStats.total > 0 && (
+      <div className="space-y-8">
+        {/* Corrupted Profiles Section */}
+        {corruptedProfiles.length > 0 && !isScanning && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-rose-500/5 rounded-3xl border border-rose-500/20 overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-6 py-4 bg-rose-500/10 border-b border-rose-500/20">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center font-black text-xs animate-pulse">
+                  {corruptedProfiles.length}
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">CORRUPTED RECORDS IDENTIFIED</p>
+                  <p className="text-lg font-black text-white italic leading-none uppercase">Binary Data Breach Detected</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {isPurgeConfirm ? (
+                  <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-300">
+                    <button
+                      onClick={() => setIsPurgeConfirm(false)}
+                      className="px-3 py-2 bg-slate-800 text-slate-400 text-[9px] font-black uppercase rounded-lg hover:bg-slate-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={purgeAllCorrupted}
+                      disabled={isScanning}
+                      className="px-4 py-2 bg-rose-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg hover:bg-rose-600 transition-colors shadow-lg shadow-rose-500/20"
+                    >
+                      {isScanning ? 'Purging...' : 'Confirm Purge'}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsPurgeConfirm(true)}
+                    disabled={isScanning}
+                    className="px-4 py-2 bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50 border border-rose-500/20"
+                  >
+                    Purge All Corrupted
+                  </button>
+                )}
+                <Ban className="text-rose-500" size={20} />
+              </div>
+            </div>
+
+            <div className="divide-y divide-rose-500/10">
+              {corruptedProfiles.map((customer) => (
+                <div key={customer.id} className="flex items-center justify-between px-6 py-4 hover:bg-rose-500/[0.02] transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center border border-white/5 text-rose-500/50">
+                      <AlertTriangle size={20} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white uppercase italic truncate max-w-[200px]">
+                        {customer.lastName || "UNNAMED"}
+                      </h4>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none">VIN: {customer.vinLast8 || 'UNKNOWN'}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-800" />
+                        <span className="text-[9px] font-bold text-rose-500/70 uppercase tracking-widest leading-none">Status: Corrupted</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {confirmDeleteId === customer.id ? (
+                    <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-300">
+                      <button 
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-[9px] font-black text-slate-500 uppercase hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => deleteCustomer(customer.id)}
+                        disabled={isDeleting === customer.id}
+                        className="px-3 py-2 bg-rose-500 text-white text-[9px] font-black uppercase rounded-lg shadow-lg shadow-rose-500/20"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(customer.id)}
+                      disabled={isDeleting === customer.id}
+                      className="group-hover:opacity-100 opacity-0 p-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all disabled:opacity-50"
+                    >
+                      {isDeleting === customer.id ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {duplicateGroups.length === 0 && corruptedProfiles.length === 0 && !isScanning && scanStats.total > 0 && (
           <div className="flex flex-col items-center justify-center py-20 bg-slate-950 rounded-3xl border border-white/5 border-dashed">
             <CheckCircle2 size={48} className="text-emerald-500 mb-4 opacity-50" />
             <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Database Integrity Verified. No duplicates detected.</p>
@@ -234,13 +368,31 @@ export function DuplicateDetector() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => deleteCustomer(customer.id, group.vin)}
-                    disabled={isDeleting === customer.id}
-                    className="p-3 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                  >
-                    {isDeleting === customer.id ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                  </button>
+                  {confirmDeleteId === customer.id ? (
+                    <div className="flex items-center gap-2 animate-in slide-in-from-right-2 duration-300">
+                      <button 
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-[9px] font-black text-slate-500 uppercase hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => deleteCustomer(customer.id, group.vin)}
+                        disabled={isDeleting === customer.id}
+                        className="px-3 py-2 bg-brand-secondary text-white text-[9px] font-black uppercase rounded-lg shadow-lg shadow-brand-secondary/20"
+                      >
+                        Confirm
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(customer.id)}
+                      disabled={isDeleting === customer.id}
+                      className="p-3 text-slate-600 hover:text-brand-secondary hover:bg-brand-secondary/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                    >
+                      {isDeleting === customer.id ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

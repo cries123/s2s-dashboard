@@ -7,9 +7,9 @@
   
   --color-brand-primary: #6366f1;
   --color-brand-secondary: #818cf8;
-  --color-surface-base: #0f172a; /* Slate 950 */
-  --color-surface-card: #1e293b; /* Slate 800 */
-  --color-surface-border: #334155; /* Slate 700 */
+  --color-surface-base: #020617; /* Deep Modern Navy */
+  --color-surface-card: #0c1120; /* Dark Card Surface */
+  --color-surface-border: rgba(255, 255, 255, 0.04);
 
   @keyframes fade-in {
     from { opacity: 0; }
@@ -32,17 +32,21 @@
 @layer base {
   body {
     @apply bg-surface-base text-slate-200 transition-colors duration-300 font-sans antialiased selection:bg-brand-primary selection:text-white;
+    background-image: 
+      radial-gradient(circle at 50% 10%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(129, 140, 248, 0.03) 0%, transparent 30%);
+    background-attachment: fixed;
   }
 }
 
 @layer components {
   /* Professional SaaS-style Card */
   .card-base {
-    @apply bg-surface-card border border-surface-border rounded-2xl shadow-sm transition-all duration-200;
+    @apply bg-surface-card/60 backdrop-blur-md border border-surface-border rounded-2xl shadow-xl shadow-black/40 transition-all duration-200 ring-1 ring-white/5;
   }
   
   .card-interactive {
-    @apply hover:border-slate-500 hover:shadow-md cursor-pointer;
+    @apply hover:border-brand-primary/30 hover:bg-surface-card/80 hover:shadow-brand-primary/10 cursor-pointer;
   }
 
   /* Refined Inputs */

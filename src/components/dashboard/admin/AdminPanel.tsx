@@ -140,20 +140,22 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
     return () => unsubscribe();
   }, [currentUser]);
 
+  const [confirmDeleteUid, setConfirmDeleteId] = useState<string | null>(null);
+
   const updateUserStatus = async (uid: string, status: UserStatus, userToUpdate?: User) => {
     try {
       if (!currentUser) return;
       
       // Managers cannot approve other managers
       if (currentUser.role !== 'admin' && userToUpdate?.isManager) {
-        alert("Permission denied. Only system admins can approve manager accounts.");
+        onError?.("Permission denied. Only system admins can approve manager accounts.");
         return;
       }
 
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
       await updateDoc(userRef, { status });
     } catch (error) {
-      alert("Permission denied. Ensure you have proper authority level.");
+      onError?.("Permission denied. Ensure you have proper authority level.");
       console.error("Error updating user status:", error);
     }
   };
@@ -164,25 +166,26 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
       
       // Safety check
       if (currentUser.role !== 'admin' && userToUpdate?.isManager) {
-        alert("Managers cannot modify other managers.");
+        onError?.("Managers cannot modify other managers.");
         return;
       }
 
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
       await updateDoc(userRef, { role, isManager: role === 'Manager' || role === 'admin' });
     } catch (error) {
-      alert("Permission denied. Insufficient administrative level.");
+      onError?.("Permission denied. Insufficient administrative level.");
       console.error("Error updating user role:", error);
     }
   };
 
   const deleteUser = async (uid: string) => {
-    if (!window.confirm("Permanently remove this user record? Authorization will be revoked.")) return;
     try {
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
       await deleteDoc(userRef);
+      setConfirmDeleteId(null);
+      onSuccess?.("User record permanently removed.");
     } catch (error) {
-      alert("Permission denied. You must be an authorized admin to delete users.");
+      onError?.("Permission denied. You must be an authorized admin to delete users.");
       console.error("Error deleting user:", error);
     }
   };
@@ -327,7 +330,7 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
                       {/* Parts Sales Target */}
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Parts Sales Goal</label>
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Monthly Parts Gross Goal</label>
                           <span className="text-brand-secondary font-black text-xs">${partsTarget.toLocaleString()}</span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -486,13 +489,30 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => deleteUser(user.uid)}
-                        className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-500/5 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        title="Revoke Permission"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {confirmDeleteUid === user.uid ? (
+                        <div className="flex items-center justify-end gap-2 animate-in slide-in-from-right-2 duration-300">
+                          <button 
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="text-[9px] font-black text-slate-500 uppercase hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={() => deleteUser(user.uid)}
+                            className="px-3 py-1.5 bg-rose-500 text-white text-[9px] font-black uppercase rounded shadow-lg shadow-rose-500/20"
+                          >
+                            Confirm
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setConfirmDeleteId(user.uid)}
+                          className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-500/5 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          title="Revoke Permission"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

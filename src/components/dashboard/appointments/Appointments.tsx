@@ -56,7 +56,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [laborTarget, setLaborTarget] = useState(500000);
   const [partsTarget, setPartsTarget] = useState(300000);
   const [mtdGross, setMtdGross] = useState(0);
-  const [mtdPartsSales, setMtdPartsSales] = useState(0);
+  const [mtdPartsGross, setMtdPartsGross] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
@@ -93,16 +93,16 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         // Use totals object if available (AI extracted), else fall back to sum
         if (data.totals) {
           setMtdGross(data.totals.totalGross || 0);
-          setMtdPartsSales(data.totals.totalParts || 0);
+          setMtdPartsGross(data.totals.totalGrossParts || data.totals.totalPartsGross || 0);
           setMtdLaborSales(data.totals.totalLabor || 0);
         } else {
           const rawAdvisors = data.advisors || [];
           const totalGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.grossLabor || curr.laborGross || 0), 0);
           const totalLabor = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.laborSold || 0), 0);
-          const totalPartsSales = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.partsSold || 0), 0);
+          const totalPartsGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (curr.grossParts || 0), 0);
           setMtdGross(totalGross);
           setMtdLaborSales(totalLabor);
-          setMtdPartsSales(totalPartsSales);
+          setMtdPartsGross(totalPartsGross);
         }
       }
     });
@@ -325,10 +325,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     const grossVariance = mtdGross - grossPaceTarget;
     
     // PARTS FORECAST
-    const partsDailyAvg = elapsedDays > 0 ? mtdPartsSales / elapsedDays : 0;
+    const partsDailyAvg = elapsedDays > 0 ? mtdPartsGross / elapsedDays : 0;
     const partsPaceTarget = Math.round((partsTarget / daysInMonth) * elapsedDays);
     const partsForecast = Math.round(partsDailyAvg * daysInMonth);
-    const partsVariance = mtdPartsSales - partsPaceTarget;
+    const partsVariance = mtdPartsGross - partsPaceTarget;
 
     return { 
       monthTotal, 
@@ -347,6 +347,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       // Sales metrics
       mtdGross,
       mtdLaborSales,
+      mtdPartsGross,
       laborTarget,
       grossForecast,
       laborSalesForecast,
@@ -355,7 +356,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       laborDailyAvg,
       laborSalesDailyAvg,
       // Parts metrics
-      mtdPartsSales,
       partsForecast,
       partsPaceTarget,
       partsTarget,
@@ -455,7 +455,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             {/* KPI MATRIX */}
             {[
               { 
-                label: 'Labor Gross', 
+                label: 'Labor Gross MTD', 
                 current: metrics.mtdGross,
                 daily: metrics.laborDailyAvg, 
                 forecast: metrics.grossForecast, 
@@ -464,8 +464,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 color: 'text-brand-secondary'
               },
               { 
-                label: 'Parts Sales', 
-                current: metrics.mtdPartsSales,
+                label: 'Parts Gross MTD', 
+                current: metrics.mtdPartsGross,
                 daily: metrics.partsDailyAvg, 
                 forecast: metrics.partsForecast, 
                 target: metrics.partsTarget, 

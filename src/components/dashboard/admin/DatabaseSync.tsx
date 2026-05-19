@@ -75,6 +75,12 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
     try {
       if (fileType === 'csv') {
         const text = await file.text();
+        
+        // Safety check: Does it look like binary? (Check for null bytes or lack of typical CSV markers)
+        if (text.includes('\0') || (text.slice(0, 4) === '%PDF')) {
+          throw new Error("Invalid CSV format. It appears you may have uploaded a binary file (like a PDF) with a .csv extension.");
+        }
+
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
@@ -159,13 +165,26 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
     setSyncLogs([]);
 
     for (const v of visits) {
-      if (!v.lastName || !v.vin || !v.soNumber) {
+      // 0. Sanitize input to prevent junk/binary data
+      const sanitize = (str: any) => {
+        if (!str || typeof str !== 'string') return '';
+        // Remove non-printable/control characters and truncate to reasonable length
+        let sanitized = str.replace(/[\x00-\x1F\x7F-\x9F]/g, "").trim();
+        // If it still looks like binary (lots of replacement chars), clear it
+        if ((sanitized.match(/\ufffd/g) || []).length > 3) return "Unknown";
+        return sanitized.slice(0, 50); // Cap name length
+      };
+
+      const finalLastName = sanitize(v.lastName);
+      const finalFirstName = sanitize(v.firstName);
+
+      if (!finalLastName || !v.vin || !v.soNumber || finalLastName === "Unknown") {
         syncResults.processed++;
         setSyncStats({ ...syncResults });
         continue;
       }
 
-      setCurrentAction(`Syncing: ${v.lastName}, ${v.firstName || ''} (${v.soNumber})`);
+      setCurrentAction(`Syncing: ${finalLastName}, ${finalFirstName} (${v.soNumber})`);
       
       try {
         // 1. Cross-reference customer by VIN
@@ -181,7 +200,7 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
           existingCustomer = { id: doc.id, ...doc.data() } as Customer;
           customerId = existingCustomer.id;
           syncResults.existingCustomers++;
-          setSyncLogs(prev => [{ msg: `Matched ${v.lastName} (${v.vin.slice(-8)})`, status: 'match' }, ...prev].slice(0, 50));
+          setSyncLogs(prev => [{ msg: `Matched ${finalLastName} (${v.vin.slice(-8)})`, status: 'match' }, ...prev].slice(0, 50));
         }
 
         // 2. Prepare Visit Object
@@ -189,17 +208,17 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
           id: Math.random().toString(36).substring(2, 9),
           soNumber: v.soNumber.toString(),
           date: v.date,
-          mileage: typeof v.mileage === 'number' ? v.mileage : parseInt(v.mileage || '0'),
-          advisor: v.advisor || 'System',
-          requests: v.requests || 'No request details provided.',
+          mileage: typeof v.mileage === 'number' ? v.mileage : parseInt((v.mileage || '0').toString().replace(/,/g, '')),
+          advisor: sanitize(v.advisor) || 'System',
+          requests: sanitize(v.requests).slice(0, 1000) || 'No request details provided.',
           createdAt: Timestamp.now()
         };
         
         if (!existingCustomer) {
           // Create new customer profile WITH initial visit
           const newCustomer = {
-            firstName: v.firstName || '',
-            lastName: v.lastName,
+            firstName: finalFirstName,
+            lastName: finalLastName,
             phone: v.phone || '',
             email: '',
             make: v.make || 'Hyundai',
@@ -222,7 +241,7 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
           await addDoc(customersRef, newCustomer);
           syncResults.newCustomers++;
           syncResults.visitsAdded++;
-          setSyncLogs(prev => [{ msg: `Created profile & logged SO #${v.soNumber} for ${v.lastName}`, status: 'new' }, ...prev].slice(0, 50));
+          setSyncLogs(prev => [{ msg: `Created profile & logged SO #${v.soNumber} for ${finalLastName}`, status: 'new' }, ...prev].slice(0, 50));
         } else {
           // Update existing customer
           const customerDocRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customerId);
@@ -234,8 +253,12 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
             updates.mileage = serviceVisit.mileage.toString();
           }
 
-          // Force update lastServiceDate
-          updates.lastServiceDate = v.date;
+          // Update lastServiceDate if more recent
+          const incomingTime = new Date(v.date).getTime();
+          const existingTime = new Date(existingCustomer.lastServiceDate || 0).getTime();
+          if (!isNaN(incomingTime) && (isNaN(existingTime) || incomingTime > existingTime)) {
+            updates.lastServiceDate = v.date;
+          }
           
           // Add to recentVisits if not duplicate
           let visitsArray = existingCustomer.recentVisits || [];

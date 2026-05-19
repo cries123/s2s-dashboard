@@ -23,11 +23,12 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(24);
   const [filterCategory, setFilterCategory] = useState<'All' | 'Hyundai' | 'Other'>('All');
+  const [sortBy, setSortBy] = useState<'Recent' | 'Visits'>('Recent');
 
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     
-    return customers.filter(c => {
+    let result = customers.filter(c => {
       const matchesSearch = !q || (
         c.firstName?.toLowerCase().includes(q) ||
         c.lastName?.toLowerCase().includes(q) ||
@@ -43,7 +44,40 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
 
       return matchesSearch && matchesCategory;
     });
-  }, [customers, searchQuery, filterCategory]);
+
+    // Helper for date parsing
+    const getTime = (d: string | undefined | any) => {
+      if (!d) return 0;
+      if (typeof d === 'object' && d?.toDate) return d.toDate().getTime(); // Handle Timestamp
+      const date = new Date(d);
+      return isNaN(date.getTime()) ? 0 : date.getTime();
+    };
+
+    // Apply Sorting
+    return result.sort((a, b) => {
+      if (sortBy === 'Recent') {
+        const timeA = getTime(a.lastServiceDate);
+        const timeB = getTime(b.lastServiceDate);
+        if (timeB !== timeA) return timeB - timeA; // Newest first
+        return a.lastName.localeCompare(b.lastName);
+      }
+      
+      if (sortBy === 'Visits') {
+        const countA = a.recentVisits?.length || 0;
+        const countB = b.recentVisits?.length || 0;
+        if (countB !== countA) return countB - countA; // Most visited first
+        
+        // Priority Tie-breaker: Who was here most recently?
+        const timeA = getTime(a.lastServiceDate);
+        const timeB = getTime(b.lastServiceDate);
+        if (timeB !== timeA) return timeB - timeA;
+
+        return a.lastName.localeCompare(b.lastName);
+      }
+
+      return a.lastName.localeCompare(b.lastName);
+    });
+  }, [customers, searchQuery, filterCategory, sortBy]);
 
   const displayCustomers = useMemo(() => {
     return filteredCustomers.slice(0, visibleCount);
@@ -54,10 +88,28 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     let maxROs = 0;
     let topCustomer: Customer | null = null;
     
+    // Helper for date parsing in stats
+    const getTime = (d: string | undefined | any) => {
+      if (!d) return 0;
+      if (typeof d === 'object' && d?.toDate) return d.toDate().getTime();
+      const date = new Date(d);
+      return isNaN(date.getTime()) ? 0 : date.getTime();
+    };
+
     customers.forEach(c => {
       const visits = c.recentVisits?.length || 0;
       totalROs += visits;
-      if (visits > maxROs) {
+      
+      // Better Top Visitor logic with tie-breakers
+      const isNewLeader = !topCustomer || 
+        visits > maxROs || 
+        (visits === maxROs && (
+          getTime(c.lastServiceDate) > getTime(topCustomer.lastServiceDate) ||
+          (getTime(c.lastServiceDate) === getTime(topCustomer.lastServiceDate) && 
+           c.lastName.localeCompare(topCustomer.lastName) < 0)
+        ));
+
+      if (isNewLeader) {
         maxROs = visits;
         topCustomer = c;
       }
@@ -143,13 +195,31 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                key={cat} 
                onClick={() => setFilterCategory(cat as any)}
                className={cn(
-                 "px-6 py-3 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                 "px-4 py-3 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
                  filterCategory === cat 
                    ? "bg-brand-primary text-white shadow-xl shadow-brand-primary/20" 
                    : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
                )}
              >
                {cat}
+             </button>
+           ))}
+           <div className="w-px h-6 bg-white/5 mx-1" />
+           {[
+             { id: 'Recent', label: 'Recently Visited' },
+             { id: 'Visits', label: 'Most Visited' }
+           ].map(sort => (
+             <button 
+               key={sort.id} 
+               onClick={() => setSortBy(sort.id as any)}
+               className={cn(
+                 "px-4 py-3 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                 sortBy === sort.id 
+                   ? "bg-brand-secondary text-white shadow-xl shadow-brand-secondary/20" 
+                   : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+               )}
+             >
+               {sort.label}
              </button>
            ))}
         </div>

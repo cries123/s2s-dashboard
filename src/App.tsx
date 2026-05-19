@@ -29,10 +29,19 @@ import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
 import { DEALERSHIPS } from './constants';
 
+import { LoadingScreen } from './components/ui/LoadingScreen';
+
 export default function App() {
   const { user, loading: authLoading } = useAuth();
+  const [minLoading, setMinLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
+
+  // Artificial delay for loading screen
+  React.useEffect(() => {
+    const timer = setTimeout(() => setMinLoading(false), 2500);
+    return () => clearTimeout(timer);
+  }, []);
   const [isDealershipDropdownOpen, setIsDealershipDropdownOpen] = useState(false);
   const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(null);
 
@@ -43,7 +52,9 @@ export default function App() {
     }
   }, [user, currentDealershipId]);
 
-  const { customers } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
+  const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
+
+  const isLoading = authLoading || (user && customersLoading) || minLoading;
 
   const activeAlertsCount = customers.filter(isServiceAlertActive).length;
 
@@ -91,13 +102,8 @@ export default function App() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="fixed inset-0 flex flex-col justify-center items-center bg-surface-base gap-4">
-        <Loader2 className="animate-spin text-brand-primary" size={48} />
-        <p className="text-slate-400 font-medium animate-pulse tracking-widest uppercase text-xs">Initializing S2S Dashboard...</p>
-      </div>
-    );
+  if (isLoading) {
+    return <LoadingScreen />;
   }
 
   if (!user) {
@@ -137,10 +143,17 @@ export default function App() {
   const currentUser = user;
 
   return (
-    <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white">
+    <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white relative overflow-x-hidden">
+      {/* Aesthetic Background Elements */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-primary/5 blur-[120px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-brand-secondary/5 blur-[100px] rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-[30%] right-[10%] w-[20%] h-[20%] bg-indigo-500/5 blur-[80px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
+
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5">
-        <div className="section-container !py-3 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 shadow-xl shadow-black/20">
+        <div className="section-container !py-3 flex items-center justify-between gap-4 relative">
           {/* Logo Section */}
           <div className="flex items-center gap-3 shrink-0 relative">
             <button 

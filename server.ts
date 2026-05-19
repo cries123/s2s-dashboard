@@ -123,8 +123,10 @@ async function startServer() {
               
               IF CSR PRODUCTIVITY ANALYSIS (PERFORMANCE):
               1. Extract MTD Totals from the bottom 'Total' row of the 'Sale Type' table (approx middle of last page).
-                 - 'totalLabor' = Sales value.
-                 - 'totalGross' = Gross Profit value.
+                 - 'totalLabor' = Sales value (Labor).
+                 - 'totalGross' = Gross Profit value (Labor Gross).
+                 - 'totalParts' = Parts Sales value.
+                 - 'totalGrossParts' = Parts Gross Profit value.
               2. For each Advisor (e.g., FRANK, JARYN): Extract name, soCount, laborSold (Sales), grossLabor (Gross), partsSold, grossParts, elr.
               
               IF OP CODE FREQUENCY - LABOR (UPSELL):
@@ -226,6 +228,12 @@ async function startServer() {
                 },
               },
               { text: `This is a high-volume Service History report. Extract EVERY unique customer visit found in the document.
+              
+              CRITICAL QUALITY RULES:
+              1. ENSURE extracted text is readable English. 
+              2. DO NOT include binary fragments, raw PDF artifacts, or character sequences like 'APWDW1[FQ)X'.
+              3. IF a value (like Name or Phone) contains nonsensical characters or symbols, set it to "Unknown" or an empty string.
+              4. Split names carefully.
               
               For each entry, capture:
               1. CUSTOMER INFO:
