@@ -20,6 +20,7 @@ import { cn } from '../../../lib/utils';
 import { DEALERSHIPS } from '../../../constants';
 import { useAuth } from '../../../hooks/useAuth';
 import { DatabaseSync } from './DatabaseSync';
+import { DuplicateDetector } from './DuplicateDetector';
 
 interface AdminPanelProps {
   currentDealershipId?: string;
@@ -367,12 +368,14 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
 
       {/* Database Sync - NEW */}
       {currentUser?.role === 'admin' && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
           <DatabaseSync 
             currentUser={currentUser} 
             onSuccess={onSuccess} 
             onError={onError} 
           />
+          
+          <DuplicateDetector />
         </div>
       )}
 

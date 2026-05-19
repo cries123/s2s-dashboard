@@ -49,11 +49,21 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     return filteredCustomers.slice(0, visibleCount);
   }, [filteredCustomers, visibleCount]);
 
-  const monthlyAddedCount = useMemo(() => {
-    return customers.filter(c => {
-      const date = c.createdAt?.toDate ? (c.createdAt as any).toDate() : new Date();
-      return date.getMonth() === new Date().getMonth();
-    }).length;
+  const stats = useMemo(() => {
+    let totalROs = 0;
+    let maxROs = 0;
+    let topCustomer: Customer | null = null;
+    
+    customers.forEach(c => {
+      const visits = c.recentVisits?.length || 0;
+      totalROs += visits;
+      if (visits > maxROs) {
+        maxROs = visits;
+        topCustomer = c;
+      }
+    });
+
+    return { totalROs, topCustomer, maxROs };
   }, [customers]);
 
   return (
@@ -65,7 +75,12 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
             <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center">
               <Users className="text-brand-primary" size={18} />
             </div>
-            <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Operational Database</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Operational Database</span>
+              <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[8px] font-black rounded border border-white/5 uppercase tracking-widest italic">
+                Archive: 2015 - 2026
+              </span>
+            </div>
           </div>
           <h2 className="text-5xl font-black text-white tracking-tighter uppercase italic">
             Customer <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-brand-secondary">Directory</span>
@@ -77,16 +92,32 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
 
         <div className="flex flex-wrap gap-4 w-full lg:w-auto">
           <div className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[140px] group hover:border-brand-primary/30 transition-all">
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-primary transition-colors">Historical Records</span>
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-primary transition-colors">Customers</span>
             <span className="text-3xl font-black text-white leading-none tracking-tight">{customers.length}</span>
           </div>
-          <div className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[140px] group hover:border-brand-secondary/30 transition-all">
-            <div className="flex items-center gap-2 mb-1">
-              <CalendarDays size={10} className="text-brand-secondary" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest group-hover:text-brand-secondary transition-colors">Fresh Intake</span>
-            </div>
-            <span className="text-3xl font-black text-white leading-none tracking-tight">{monthlyAddedCount}</span>
+          <div className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[140px] group hover:border-brand-primary/30 transition-all">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-primary transition-colors">RO Count</span>
+            <span className="text-3xl font-black text-white leading-none tracking-tight">{stats.totalROs}</span>
           </div>
+          <button 
+            onClick={() => stats.topCustomer && onViewProfile(stats.topCustomer)}
+            disabled={!stats.topCustomer}
+            className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[160px] group hover:border-brand-secondary/50 hover:bg-brand-secondary/5 transition-all cursor-pointer text-left disabled:cursor-not-allowed"
+          >
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-secondary transition-colors">Top Visitor</span>
+            {stats.topCustomer ? (
+              <div>
+                <span className="text-lg font-black text-white block truncate w-32 uppercase italic group-hover:text-brand-secondary transition-colors">
+                  {stats.topCustomer.lastName}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                  {stats.maxROs} Visits
+                </span>
+              </div>
+            ) : (
+              <span className="text-3xl font-black text-white italic">N/A</span>
+            )}
+          </button>
         </div>
       </div>
 
