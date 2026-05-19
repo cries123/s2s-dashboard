@@ -90,10 +90,13 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Appointments:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429;
-      res.status(isQuotaError ? 429 : 500).json({ 
-        error: error.message,
-        isQuotaError
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      
+      res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
+        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        isQuotaError,
+        isUnavailable
       });
     }
   });
@@ -202,10 +205,13 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Performance:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429;
-      res.status(isQuotaError ? 429 : 500).json({ 
-        error: error.message,
-        isQuotaError
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      
+      res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
+        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        isQuotaError,
+        isUnavailable
       });
     }
   });
@@ -290,10 +296,13 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Service History:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429;
-      res.status(isQuotaError ? 429 : 500).json({ 
-        error: error.message,
-        isQuotaError
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      
+      res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
+        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        isQuotaError,
+        isUnavailable
       });
     }
   });
@@ -366,10 +375,13 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Pot of Gold:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429;
-      res.status(isQuotaError ? 429 : 500).json({ 
-        error: error.message,
-        isQuotaError
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      
+      res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
+        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        isQuotaError,
+        isUnavailable
       });
     }
   });
@@ -420,10 +432,13 @@ async function startServer() {
       res.json(JSON.parse(text));
     } catch (error: any) {
       console.error("API Error Valuation:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429;
-      res.status(isQuotaError ? 429 : 500).json({ 
-        error: error.message,
-        isQuotaError
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      
+      res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
+        error: isUnavailable ? "AI systems are currently under high load. Please try your request again in a few moments." : error.message,
+        isQuotaError,
+        isUnavailable
       });
     }
   });
