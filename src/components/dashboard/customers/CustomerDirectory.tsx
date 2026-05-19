@@ -174,8 +174,8 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
       </div>
 
       {/* Toolbar - Search and Filtration */}
-      <div className="flex flex-col md:flex-row gap-4 items-center bg-white/[0.02] backdrop-blur-xl p-2 rounded-3xl border border-white/5 shadow-2xl">
-        <div className="relative flex-1 w-full">
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center bg-white/[0.02] backdrop-blur-xl p-2 rounded-[2rem] border border-white/5 shadow-2xl">
+        <div className="relative flex-1">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-brand-primary/50 group-focus-within:text-brand-primary transition-colors" size={20} />
           <input
             type="text"
@@ -189,39 +189,46 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
           />
         </div>
         
-        <div className="flex items-center gap-1 bg-slate-950 p-1.5 rounded-[1.25rem] border border-white/5 w-full md:w-auto">
-           {['All', 'Hyundai', 'Other'].map(cat => (
-             <button 
-               key={cat} 
-               onClick={() => setFilterCategory(cat as any)}
-               className={cn(
-                 "px-4 py-3 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                 filterCategory === cat 
-                   ? "bg-brand-primary text-white shadow-xl shadow-brand-primary/20" 
-                   : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-               )}
-             >
-               {cat}
-             </button>
-           ))}
-           <div className="w-px h-6 bg-white/5 mx-1" />
-           {[
-             { id: 'Recent', label: 'Recently Visited' },
-             { id: 'Visits', label: 'Most Visited' }
-           ].map(sort => (
-             <button 
-               key={sort.id} 
-               onClick={() => setSortBy(sort.id as any)}
-               className={cn(
-                 "px-4 py-3 rounded-[1rem] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                 sortBy === sort.id 
-                   ? "bg-brand-secondary text-white shadow-xl shadow-brand-secondary/20" 
-                   : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-               )}
-             >
-               {sort.label}
-             </button>
-           ))}
+        <div className="flex flex-wrap items-center gap-1 bg-slate-950 p-1.5 rounded-[1.5rem] border border-white/5 justify-center lg:justify-start">
+           <div className="flex items-center gap-1">
+             {['All', 'Hyundai', 'Other'].map(cat => (
+               <button 
+                 key={cat} 
+                 onClick={() => setFilterCategory(cat as any)}
+                 className={cn(
+                   "px-4 py-2.5 rounded-[1rem] text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                   filterCategory === cat 
+                     ? "bg-brand-primary text-white shadow-xl shadow-brand-primary/20" 
+                     : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                 )}
+               >
+                 {cat}
+               </button>
+             ))}
+           </div>
+
+           <div className="hidden lg:block w-px h-6 bg-white/5 mx-1" />
+           <div className="lg:hidden w-full h-px bg-white/5 my-0.5" />
+
+           <div className="flex items-center gap-1">
+             {[
+               { id: 'Recent', label: 'Recently Visited' },
+               { id: 'Visits', label: 'Most Visited' }
+             ].map(sort => (
+               <button 
+                 key={sort.id} 
+                 onClick={() => setSortBy(sort.id as any)}
+                 className={cn(
+                   "px-4 py-2.5 rounded-[1rem] text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                   sortBy === sort.id 
+                     ? "bg-brand-secondary text-white shadow-xl shadow-brand-secondary/20" 
+                     : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                 )}
+               >
+                 {sort.label}
+               </button>
+             ))}
+           </div>
         </div>
       </div>
 
