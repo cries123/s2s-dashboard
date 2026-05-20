@@ -7,6 +7,7 @@ import { cn } from '../../../lib/utils';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { logAIUsage } from '../../../services/loggingService';
 
 interface UpsellItem {
   code: string;
@@ -154,11 +155,38 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to analyze report');
+        let errorMessage = 'Failed to analyze report';
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = `Server Error (${response.status}): Malformed error response.`;
+          }
+        } else {
+          // Response is HTML or plain text
+          const text = await response.text();
+          console.error('Server returned non-JSON error:', text.substring(0, 200));
+          errorMessage = `Server Error (${response.status}): ${response.statusText}. The system may be overloaded or down.`;
+        }
+        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('Failed to parse successful response as JSON:', e);
+        throw new Error('Server returned an invalid data format. Please try again.');
+      }
+      
+      // Log usage if available
+      if (data._usage) {
+        logAIUsage('Parse Performance Report', data._usage, user?.email, user?.dealershipId);
+      }
+      
       await saveToFirestore(data);
       
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);

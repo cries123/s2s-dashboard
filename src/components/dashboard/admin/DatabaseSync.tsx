@@ -3,6 +3,7 @@ import { FileUp, Database, Loader2, CheckCircle2, AlertCircle, Users, HardDriveD
 import { collection, query, where, getDocs, updateDoc, doc, addDoc, serverTimestamp, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { User, ServiceVisit, Customer, ImportLog } from '../../../types';
+import { logAIUsage } from '../../../services/loggingService';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
@@ -125,13 +126,40 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          if (response.status === 429 || errorData.isQuotaError) {
-            throw new Error("QUOTA_EXHAUSTED");
+          let errorMessage = 'Failed to analyze report';
+          const contentType = response.headers.get('content-type');
+          
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              const errorData = await response.json();
+              if (response.status === 429 || errorData.isQuotaError) {
+                throw new Error("QUOTA_EXHAUSTED");
+              }
+              errorMessage = errorData.error || errorMessage;
+            } catch (e: any) {
+              if (e.message === "QUOTA_EXHAUSTED") throw e;
+              errorMessage = `Server Error (${response.status}): Malformed error response.`;
+            }
+          } else {
+            const text = await response.text();
+            console.error('Server returned non-JSON error:', text.substring(0, 200));
+            errorMessage = `Server Error (${response.status}): ${response.statusText}. The system may be overloaded.`;
           }
-          throw new Error(errorData.error || "Failed to parse document");
+          throw new Error(errorMessage);
         }
-        const data = await response.json();
+
+        let data;
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.error('Failed to parse successful response as JSON:', e);
+          throw new Error('Server returned an invalid data format. Please try again.');
+        }
+
+        // Log usage if available
+        if (data._usage) {
+          logAIUsage('Parse Service History Report', data._usage, currentUser.email, currentUser.dealershipId);
+        }
         
         if (data.visits) {
           await processVisits(data.visits);

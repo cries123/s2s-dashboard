@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
+import { useAuth } from '../../../hooks/useAuth';
+import { logAIUsage } from '../../../services/loggingService';
 
 interface VinData {
   Variable: string;
@@ -27,6 +29,7 @@ interface VinData {
 }
 
 export const VinLookup: React.FC = () => {
+  const { user } = useAuth();
   const [vin, setVin] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<VinData[] | null>(null);
@@ -62,6 +65,13 @@ export const VinLookup: React.FC = () => {
     try {
       // 1. Decode VIN
       const decodeRes = await fetch(`/api/nhtsa/decode/${cleanVin}`);
+      if (!decodeRes.ok) {
+        const text = await decodeRes.text();
+        console.error("VIN Decode Error:", text);
+        setError("Failed to decode VIN. The service might be temporarily unavailable.");
+        setLoading(false);
+        return;
+      }
       const decodeResult = await decodeRes.json();
       
       if (decodeResult.Results) {
@@ -86,15 +96,19 @@ export const VinLookup: React.FC = () => {
         // 2. Fetch Recalls
         try {
           const recallRes = await fetch(`/api/nhtsa/recallsByVin/${cleanVin}`);
-          const recallData = await recallRes.json();
-          const openRecalls = recallData.results || recallData.Results || [];
-          setRecalls(openRecalls);
+          if (recallRes.ok) {
+            const recallData = await recallRes.json();
+            const openRecalls = recallData.results || recallData.Results || [];
+            setRecalls(openRecalls);
+          }
 
           if (make && model && year) {
             const modelRecallRes = await fetch(`/api/nhtsa/recalls?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&year=${year}`);
-            const modelRecallData = await modelRecallRes.json();
-            const mRecalls = modelRecallData.results || modelRecallData.Results || [];
-            setModelRecalls(mRecalls);
+            if (modelRecallRes.ok) {
+              const modelRecallData = await modelRecallRes.json();
+              const mRecalls = modelRecallData.results || modelRecallData.Results || [];
+              setModelRecalls(mRecalls);
+            }
           }
         } catch (rErr) {
           console.error("Recall fetch failed", rErr);
@@ -136,17 +150,32 @@ export const VinLookup: React.FC = () => {
               })
             });
             
-            let valData: any;
-            try {
-              valData = await valRes.json();
-            } catch (jsonErr) {
-              valData = { error: "Failed to parse system response" };
-            }
-
             if (!valRes.ok) {
-              setValuationError(valData.error || "Valuation service unavailable");
+              let msg = 'Valuation service unavailable';
+              const contentType = valRes.headers.get('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                const errData = await valRes.json();
+                msg = errData.error || msg;
+              } else {
+                const text = await valRes.text();
+                console.error('Valuation service non-JSON error:', text.substring(0, 200));
+              }
+              setValuationError(msg);
             } else {
-              setMarketValue(valData);
+              let valData: any;
+              try {
+                valData = await valRes.json();
+                
+                // Log usage if available
+                if (valData._usage) {
+                  logAIUsage('Estimate Vehicle Value', valData._usage, user?.email, user?.dealershipId);
+                }
+                
+                setMarketValue(valData);
+              } catch (jsonErr) {
+                console.error('Failed to parse valuation JSON:', jsonErr);
+                setValuationError("Failed to parse system response");
+              }
             }
           } catch (vErr) {
             setValuationError("Unable to connect to valuation service");

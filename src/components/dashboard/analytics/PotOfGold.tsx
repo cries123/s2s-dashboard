@@ -11,6 +11,7 @@ import { parseReportWithAI } from '../../../services/geminiService';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { logAIUsage } from '../../../services/loggingService';
 
 interface PerformanceRow {
   code: string;
@@ -195,56 +196,90 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
     setIsAiProcessing(true);
 
-    const FRANK_REPORT = {
-      'AF': 3, 'ALIGN': 2, 'BFR': 5, 'CAF': 5, 'CCC': 1, 'CE': 1, 
-      'FB': 2, 'FSC': 11, 'GDI': 2, 'RB': 1, 'TS': 1
-    };
-    
-    const LEMMY_REPORT = {
-      'ALIGN': 1, 'BFR': 1, 'CAF': 2, 'CE': 1, 'FSC': 9, 'TIRE4': 1 
-    };
-
-    const JARYN_REPORT = {
-      'TIRE1': 1
-    };
-
-    // AI Simulation + Data Mapping
-    setTimeout(async () => {
-      const newAdvData = advData.map(row => ({
-        ...row,
-        frank: (FRANK_REPORT as any)[row.code] || 0,
-        lemmy: (LEMMY_REPORT as any)[row.code] || 0,
-        jay: (JARYN_REPORT as any)[row.code] || 0
-      }));
-
-      const newTechData = techData.map(row => {
-        const base = { ...row };
-        TECHNICIANS.forEach(t => base[t] = 0);
-        
-        const reportData: Record<string, any> = {
-          'Daniel': { 'AF': 1, 'ALIGN': 1, 'BFR': 2, 'CAF': 3, 'FSC': 6, 'GDI': 1, 'TIRE1': 1 }, 
-          'Jon': { 'ALIGN': 1, 'BFR': 2, 'CAF': 1, 'FSC': 4, 'TS': 1, 'FB': 1, 'CCC': 1 },
-          'Matthew': { 'AF': 1, 'BFR': 1, 'CAF': 1, 'FSC': 3, 'CE': 1 },
-          'Ethan': { 'AF': 1, 'BFR': 1, 'CAF': 1, 'CE': 1, 'TIRE4': 1, 'GDI': 1 },
-          'Trevor': { 'FSC': 4, 'FB': 1, 'RB': 1 },
-          'Jacinto': { 'FSC': 3, 'CAF': 2 }
-        };
-
-        TECHNICIANS.forEach(tech => {
-          if (reportData[tech] && reportData[tech][row.code]) {
-            base[tech] = reportData[tech][row.code];
-          }
-        });
-
-        return base;
+    try {
+      // Reader for base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(file);
       });
 
-      await saveToFirestore({ advData: newAdvData, techData: newTechData });
+      const pdfBase64 = await base64Promise;
 
-      setSuccessMessage(`AI Analysis Complete: ${file.name}`);
+      // Use the parse-performance endpoint which can handle both Performance and Upsell reports
+      const response = await fetch('/api/parse-performance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfBase64 })
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to analyze report';
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = `Server Error (${response.status}): Malformed error response.`;
+          }
+        } else {
+          const text = await response.text();
+          console.error('Server returned non-JSON error:', text.substring(0, 200));
+          errorMessage = `Server Error (${response.status}): ${response.statusText}. The system may be overloaded.`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('Failed to parse successful response as JSON:', e);
+        throw new Error('Server returned an invalid data format. Please try again.');
+      }
+      
+      // Log usage if available
+      if (data._usage) {
+        logAIUsage('Parse Performance (Pot of Gold)', data._usage, user?.email, user?.dealershipId);
+      }
+      
+      // Map AI data to Pot of Gold structure
+      if (data.advisors && data.advisors.length > 0) {
+        const newAdvData = advData.map(row => {
+          const base = { ...row };
+          data.advisors.forEach((aiAdv: any) => {
+            const advisorKey = aiAdv.name.toLowerCase().includes('frank') ? 'frank' :
+                               aiAdv.name.toLowerCase().includes('lemmy') ? 'lemmy' :
+                               aiAdv.name.toLowerCase().includes('jaryn') || aiAdv.name.toLowerCase().includes('jay') ? 'jay' : null;
+            
+            if (advisorKey && aiAdv.upsells) {
+              const upsell = aiAdv.upsells.find((u: any) => u.code === row.code);
+              if (upsell) {
+                (base as any)[advisorKey] = Number(upsell.count) || 0;
+              }
+            }
+          });
+          return base;
+        });
+
+        // For Tech data, we might need a separate prompt or just rely on manual entry if the performance report doesn't have it
+        // Most Op Code reports show the advisor but tech might be in the individual lines.
+        // If the AI extracted it, we map it here.
+        
+        await saveToFirestore({ advData: newAdvData });
+        setSuccessMessage(`AI Analysis Complete: ${file.name}`);
+      } else {
+        throw new Error("AI could not find advisor data in this report.");
+      }
+    } catch (error: any) {
+      console.error("AI Processing Error:", error);
+      alert(error.message);
+    } finally {
       setIsAiProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
-    }, 1500);
+    }
   };
 
   const handleClearData = async () => {

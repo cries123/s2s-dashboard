@@ -15,10 +15,13 @@ async function startServer() {
   
   // Logging Middleware
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-    }
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
+  });
+
+  // Health check endpoint
+  app.get("/api/ping", (req, res) => {
+    res.json({ status: "alive", timestamp: new Date().toISOString() });
   });
 
   // Gemini Initialization
@@ -50,6 +53,11 @@ async function startServer() {
   app.get("/api/nhtsa/decode/:vin", async (req, res) => {
     try {
       const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${req.params.vin}?format=json`);
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("NHTSA API Error:", text);
+        return res.status(response.status).json({ error: `NHTSA API reported ${response.status}: ${response.statusText}` });
+      }
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
@@ -62,6 +70,11 @@ async function startServer() {
     try {
       const { make, model, year } = req.query;
       const response = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${make}&model=${model}&modelYear=${year}`);
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("NHTSA Recalls API Error:", text);
+        return res.status(response.status).json({ error: `Recall service reported ${response.status}` });
+      }
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
@@ -73,6 +86,11 @@ async function startServer() {
   app.get("/api/nhtsa/recallsByVin/:vin", async (req, res) => {
     try {
       const response = await fetch(`https://api.nhtsa.gov/recalls/recallsByVin?vin=${req.params.vin}`);
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("NHTSA Recall by VIN Error:", text);
+        return res.status(response.status).json({ error: `Recall service reported ${response.status}` });
+      }
       const data = await response.json();
       res.json(data);
     } catch (error: any) {
@@ -101,14 +119,14 @@ async function startServer() {
               { text: `Extract appointment summary from this PDF. 
               
               RULES:
-              1. COUNT UNIQUE APPOINTMENTS: Count each customer entry as exactly ONE appointment. In this PDF, there should be exactly 8 unique appointments.
-              2. CATEGORIZATION PRIORITY (Assign ONLY ONE category per appointment in this order):
-                 - OIL CHANGE: If services mention "FULL SYNTHETIC OIL AND FILTER CHANGE" or "HYUNDAI COMPLIMENTARY MAINTENANCE". This takes top priority even if recalls are present.
-                 - RECALL: If services mention "Recall", "Campaign", "TSB", or "ECU Update".
-                 - DIAGNOSIS: If services mention "Check", "Noise", "Diagnosis", "Pulling", or "Inspection".
-                 - MISC: Anything else.
+              1. COUNT UNIQUE APPOINTMENTS: Analyze the document and count each unique appointment.
+              2. CATEGORIZATION:
+                 - OIL CHANGE: Priority if "OIL", "FILTER", or "MAINTENANCE" mentioned.
+                 - RECALL: If "Recall", "Campaign", or "Update" mentioned.
+                 - DIAGNOSIS: If "Check", "Noise", or "Inspection" mentioned.
+                 - MISC: Other items.
               
-              Return JSON with counts for each category.` }
+              Return JSON.` }
             ]
           }
         ],
@@ -130,16 +148,32 @@ async function startServer() {
 
       const text = response.text;
       if (!text) throw new Error("Empty response from AI");
-      res.json(JSON.parse(text));
+      
+      const result = JSON.parse(text);
+      if (response.usageMetadata) {
+        console.log(`[AI Usage] parse-appointments tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
+        result._usage = response.usageMetadata;
+      }
+      res.json(result);
     } catch (error: any) {
       console.error("API Error Appointments:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
-      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      const errStr = JSON.stringify(error).toLowerCase();
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429 || errStr.includes("429");
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE") || errStr.includes("unavailable");
+      const isCreditsError = errStr.includes("prepayment credits are depleted") || errStr.includes("resource_exhausted") || errStr.includes("billing");
       
+      let errorMessage = error.message;
+      if (isCreditsError) {
+        errorMessage = "Your Gemini API credits are depleted. Please top up your balance in Google AI Studio to continue using AI features.";
+      } else if (isUnavailable) {
+        errorMessage = "AI systems are currently under high load. Please try again in a moment.";
+      }
+
       res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
-        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        error: errorMessage,
         isQuotaError,
-        isUnavailable
+        isUnavailable,
+        isCreditsError
       });
     }
   });
@@ -245,16 +279,32 @@ async function startServer() {
 
       const text = response.text;
       if (!text) throw new Error("Empty response from AI");
-      res.json(JSON.parse(text));
+      
+      const result = JSON.parse(text);
+      if (response.usageMetadata) {
+        console.log(`[AI Usage] parse-performance tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
+        result._usage = response.usageMetadata;
+      }
+      res.json(result);
     } catch (error: any) {
       console.error("API Error Performance:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
-      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      const errStr = JSON.stringify(error).toLowerCase();
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429 || errStr.includes("429");
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE") || errStr.includes("unavailable");
+      const isCreditsError = errStr.includes("prepayment credits are depleted") || errStr.includes("resource_exhausted") || errStr.includes("billing");
+      
+      let errorMessage = error.message;
+      if (isCreditsError) {
+        errorMessage = "Your Gemini API credits are depleted. Please top up your balance in Google AI Studio to continue using AI features.";
+      } else if (isUnavailable) {
+        errorMessage = "AI systems are currently under high load. Please try again in a moment.";
+      }
       
       res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
-        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        error: errorMessage,
         isQuotaError,
-        isUnavailable
+        isUnavailable,
+        isCreditsError
       });
     }
   });
@@ -336,16 +386,32 @@ async function startServer() {
 
       const text = response.text;
       if (!text) throw new Error("Empty response from AI");
-      res.json(JSON.parse(text));
+      
+      const result = JSON.parse(text);
+      if (response.usageMetadata) {
+        console.log(`[AI Usage] parse-service-history tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
+        result._usage = response.usageMetadata;
+      }
+      res.json(result);
     } catch (error: any) {
       console.error("API Error Service History:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
-      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      const errStr = JSON.stringify(error).toLowerCase();
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429 || errStr.includes("429");
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE") || errStr.includes("unavailable");
+      const isCreditsError = errStr.includes("prepayment credits are depleted") || errStr.includes("resource_exhausted") || errStr.includes("billing");
+      
+      let errorMessage = error.message;
+      if (isCreditsError) {
+        errorMessage = "Your Gemini API credits are depleted. Please top up your balance in Google AI Studio to continue using AI features.";
+      } else if (isUnavailable) {
+        errorMessage = "AI systems are currently under high load. Please try again in a moment.";
+      }
       
       res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
-        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        error: errorMessage,
         isQuotaError,
-        isUnavailable
+        isUnavailable,
+        isCreditsError
       });
     }
   });
@@ -415,16 +481,32 @@ async function startServer() {
 
       const text = response.text;
       if (!text) throw new Error("Empty response from AI");
-      res.json(JSON.parse(text));
+      
+      const result = JSON.parse(text);
+      if (response.usageMetadata) {
+        console.log(`[AI Usage] parse-pot-of-gold tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
+        result._usage = response.usageMetadata;
+      }
+      res.json(result);
     } catch (error: any) {
       console.error("API Error Pot of Gold:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
-      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      const errStr = JSON.stringify(error).toLowerCase();
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429 || errStr.includes("429");
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE") || errStr.includes("unavailable");
+      const isCreditsError = errStr.includes("prepayment credits are depleted") || errStr.includes("resource_exhausted") || errStr.includes("billing");
+      
+      let errorMessage = error.message;
+      if (isCreditsError) {
+        errorMessage = "Your Gemini API credits are depleted. Please top up your balance in Google AI Studio to continue using AI features.";
+      } else if (isUnavailable) {
+        errorMessage = "AI systems are currently under high load. Please try again in a moment.";
+      }
       
       res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
-        error: isUnavailable ? "AI systems are currently under high load. Please try again in a moment." : error.message,
+        error: errorMessage,
         isQuotaError,
-        isUnavailable
+        isUnavailable,
+        isCreditsError
       });
     }
   });
@@ -472,16 +554,32 @@ async function startServer() {
 
       const text = response.text;
       if (!text) throw new Error("Empty response from AI");
-      res.json(JSON.parse(text));
+      
+      const result = JSON.parse(text);
+      if (response.usageMetadata) {
+        console.log(`[AI Usage] estimate-value tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
+        result._usage = response.usageMetadata;
+      }
+      res.json(result);
     } catch (error: any) {
       console.error("API Error Valuation:", error);
-      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429;
-      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE");
+      const errStr = JSON.stringify(error).toLowerCase();
+      const isQuotaError = error.message?.includes("429") || error.status === 429 || error.code === 429 || errStr.includes("429");
+      const isUnavailable = error.message?.includes("503") || error.status === 503 || error.code === 503 || error.message?.includes("UNAVAILABLE") || errStr.includes("unavailable");
+      const isCreditsError = errStr.includes("prepayment credits are depleted") || errStr.includes("resource_exhausted") || errStr.includes("billing");
+      
+      let errorMessage = error.message;
+      if (isCreditsError) {
+        errorMessage = "Your Gemini API credits are depleted. Please top up your balance in Google AI Studio to continue using AI features.";
+      } else if (isUnavailable) {
+        errorMessage = "AI systems are currently under high load. Please try your request again in a few moments.";
+      }
       
       res.status(isQuotaError ? 429 : isUnavailable ? 503 : 500).json({ 
-        error: isUnavailable ? "AI systems are currently under high load. Please try your request again in a few moments." : error.message,
+        error: errorMessage,
         isQuotaError,
-        isUnavailable
+        isUnavailable,
+        isCreditsError
       });
     }
   });
@@ -509,6 +607,10 @@ async function startServer() {
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
+    const routes = app._router.stack
+      .filter((r: any) => r.route)
+      .map((r: any) => `${Object.keys(r.route.methods).join(',').toUpperCase()} ${r.route.path}`);
+    console.log('Registered Routes:', routes);
   });
 }
 

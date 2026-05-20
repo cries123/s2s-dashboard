@@ -21,6 +21,7 @@ import { DEALERSHIPS } from '../../../constants';
 import { useAuth } from '../../../hooks/useAuth';
 import { DatabaseSync } from './DatabaseSync';
 import { DuplicateDetector } from './DuplicateDetector';
+import { TokenUsageLog } from './TokenUsageLog';
 
 interface AdminPanelProps {
   currentDealershipId?: string;
@@ -377,6 +378,8 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
             onSuccess={onSuccess} 
             onError={onError} 
           />
+          
+          <TokenUsageLog />
           
           <DuplicateDetector />
         </div>

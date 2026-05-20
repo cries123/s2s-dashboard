@@ -4,6 +4,7 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
+import { logAIUsage } from '../../../services/loggingService';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
   BarChart3, Target, Clock, FileUp, X, PieChart
@@ -235,11 +236,36 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to parse report');
+        let errorMessage = 'Failed to analyze report';
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = `Server Error (${response.status}): Malformed error response.`;
+          }
+        } else {
+          const text = await response.text();
+          console.error('Server returned non-JSON error:', text.substring(0, 200));
+          errorMessage = `Server Error (${response.status}): ${response.statusText}. The system may be overloaded.`;
+        }
+        throw new Error(errorMessage);
       }
 
-      const rawData = await response.json();
+      let rawData;
+      try {
+        rawData = await response.json();
+      } catch (e) {
+        console.error('Failed to parse successful response as JSON:', e);
+        throw new Error('Server returned an invalid data format. Please try again.');
+      }
+      
+      // Log usage if available
+      if (rawData._usage) {
+        logAIUsage('Parse Appointments Report', rawData._usage, currentUser.email, currentDealershipId);
+      }
       
       const breakdown = {
         diagnosis: rawData.diagnosis || 0,
