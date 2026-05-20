@@ -12,6 +12,14 @@ async function startServer() {
 
   // Middleware
   app.use(express.json({ limit: '50mb' }));
+  
+  // Logging Middleware
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    }
+    next();
+  });
 
   // Gemini Initialization
   // Initialize lazily to avoid crashing on startup if key is missing
@@ -36,6 +44,41 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", env: process.env.NODE_ENV, hasKey: !!process.env.GEMINI_API_KEY });
+  });
+
+  // NHTSA Proxies to avoid CORS/403 issues
+  app.get("/api/nhtsa/decode/:vin", async (req, res) => {
+    try {
+      const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${req.params.vin}?format=json`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("NHTSA Decode Error:", error);
+      res.status(500).json({ error: "Failed to connect to NHTSA decoding service" });
+    }
+  });
+
+  app.get("/api/nhtsa/recalls", async (req, res) => {
+    try {
+      const { make, model, year } = req.query;
+      const response = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${make}&model=${model}&modelYear=${year}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("NHTSA Recalls Error:", error);
+      res.status(500).json({ error: "Failed to connect to NHTSA recall service" });
+    }
+  });
+
+  app.get("/api/nhtsa/recallsByVin/:vin", async (req, res) => {
+    try {
+      const response = await fetch(`https://api.nhtsa.gov/recalls/recallsByVin?vin=${req.params.vin}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("NHTSA Recall by VIN Error:", error);
+      res.status(500).json({ error: "Failed to connect to NHTSA recall service" });
+    }
   });
 
   app.post("/api/parse-appointments", async (req, res) => {
@@ -441,6 +484,12 @@ async function startServer() {
         isUnavailable
       });
     }
+  });
+
+  // API 404 Fallback
+  app.all("/api/*", (req, res) => {
+    console.warn(`404 - API Route Not Found: ${req.method} ${req.path}`);
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
   });
 
   // Serve static files / Vite

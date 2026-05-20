@@ -61,7 +61,7 @@ export const VinLookup: React.FC = () => {
     setValuationError(null);
     try {
       // 1. Decode VIN
-      const decodeRes = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${cleanVin}?format=json`);
+      const decodeRes = await fetch(`/api/nhtsa/decode/${cleanVin}`);
       const decodeResult = await decodeRes.json();
       
       if (decodeResult.Results) {
@@ -85,13 +85,13 @@ export const VinLookup: React.FC = () => {
 
         // 2. Fetch Recalls
         try {
-          const recallRes = await fetch(`https://api.nhtsa.gov/recalls/recallsByVin?vin=${cleanVin}`);
+          const recallRes = await fetch(`/api/nhtsa/recallsByVin/${cleanVin}`);
           const recallData = await recallRes.json();
           const openRecalls = recallData.results || recallData.Results || [];
           setRecalls(openRecalls);
 
           if (make && model && year) {
-            const modelRecallRes = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${make}&model=${model}&modelYear=${year}`);
+            const modelRecallRes = await fetch(`/api/nhtsa/recalls?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&year=${year}`);
             const modelRecallData = await modelRecallRes.json();
             const mRecalls = modelRecallData.results || modelRecallData.Results || [];
             setModelRecalls(mRecalls);
