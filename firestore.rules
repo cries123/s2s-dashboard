@@ -8,14 +8,14 @@ service cloud.firestore {
     }
 
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.uid != null;
     }
 
     function incoming() {
       return request.resource.data;
     }
 
-    // Robust role/status checks with case-insensitive email whitelist fallback
+    // Role checks with master email override
     function isAdmin() {
       let email = request.auth.token.email.lower();
       return isSignedIn() && (
@@ -40,7 +40,8 @@ service cloud.firestore {
     match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow list, update, delete: if isAdmin();
+      allow list: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // --- Settings & Metadata ---
@@ -67,10 +68,16 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin();
     }
 
-    // --- Audit Logs ---
+    // --- AI Usage Logs ---
+    match /artifacts/hyundai-sales-to-service/public/data/aiUsageLogs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    // --- Audit Logs (Import History) ---
     match /artifacts/hyundai-sales-to-service/public/audit/imports/{docId} {
-      // Temporarily looser check to diagnose Permission Denied errors
-      allow read, write: if isSignedIn();
+      allow read: if isApproved() || isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

@@ -103,6 +103,9 @@
     "artifacts/hyundai-sales-to-service/public/audit/imports": {
       "schema": "ImportLog",
       "description": "History of data import operations"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/aiUsageLogs": {
+      "description": "AI Token usage and cost tracking logs"
     }
   }
 }

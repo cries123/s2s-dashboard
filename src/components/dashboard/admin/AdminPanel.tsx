@@ -360,9 +360,6 @@ export default function AdminPanel({ currentDealershipId, onSuccess, onError }: 
                     </div>
                   </div>
 
-                  <p className="text-[9px] text-slate-500 leading-relaxed italic">
-                    These targets affect visual indicators and performance forecasting in the Operations and Sales tracking modules. Drag sliders or type to adjust.
-                  </p>
                 </div>
               </div>
             );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X 
+  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X, Keyboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
@@ -8,6 +8,7 @@ import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { logAIUsage } from '../../../services/loggingService';
+import { ManualPerformanceEntry } from './ManualPerformanceEntry';
 
 interface UpsellItem {
   code: string;
@@ -37,6 +38,7 @@ interface AdvisorPerformanceProps {
 export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
@@ -215,13 +217,16 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     // If totals object is missing but we have advisors, compute it
     if (!baseTotals && advisors.length > 0) {
       baseTotals = {
-        totalGross: advisors.reduce((a, b) => a + (b.grossLabor || 0), 0),
-        totalLabor: advisors.reduce((a, b) => a + (b.laborSold || 0), 0),
-        totalParts: advisors.reduce((a, b) => a + (b.partsSold || 0), 0),
-        totalGrossParts: advisors.reduce((a, b) => a + (b.grossParts || 0), 0),
-        totalSales: advisors.reduce((a, b) => a + (b.totalSales || 0), 0),
-        totalHrs: advisors.reduce((a, b) => a + (b.hrsSold || 0), 0),
+        totalGross: advisors.reduce((a, b) => a + (Number(b.grossLabor) || 0), 0),
+        totalLabor: advisors.reduce((a, b) => a + (Number(b.laborSold) || 0), 0),
+        totalParts: advisors.reduce((a, b) => a + (Number(b.partsSold) || 0), 0),
+        totalGrossParts: advisors.reduce((a, b) => a + (Number(b.grossParts) || 0), 0),
+        totalSales: advisors.reduce((a, b) => a + (Number(b.laborSold) || 0) + (Number(b.partsSold) || 0), 0),
+        totalHrs: advisors.reduce((a, b) => a + (Number(b.hrsSold) || 0), 0),
       };
+    } else if (baseTotals) {
+      // Even if baseTotals exists, verify totalSales is indeed Labor + Parts
+      baseTotals.totalSales = (Number(baseTotals.totalLabor) || 0) + (Number(baseTotals.totalParts) || 0);
     }
 
     if (!baseTotals) return null;
@@ -230,33 +235,25 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     const elapsedDays = today.getDate();
     
-    // Pace calculation
+    // Pace/Forecast calculation
     const avgDailyGross = (baseTotals.totalGross || 0) / Math.max(1, elapsedDays);
     const grossForecast = Math.round(avgDailyGross * daysInMonth);
-    const grossPace = Math.round(avgDailyGross * elapsedDays);
     
     const avgDailySales = (baseTotals.totalSales || 0) / Math.max(1, elapsedDays);
     const salesForecast = Math.round(avgDailySales * daysInMonth);
-    const salesPace = Math.round(avgDailySales * elapsedDays);
 
     const avgDailyParts = (baseTotals.totalParts || 0) / Math.max(1, elapsedDays);
     const partsForecast = Math.round(avgDailyParts * daysInMonth);
-    const partsPace = Math.round(avgDailyParts * elapsedDays);
 
     const avgDailyGrossParts = (baseTotals.totalGrossParts || 0) / Math.max(1, elapsedDays);
     const grossPartsForecast = Math.round(avgDailyGrossParts * daysInMonth);
-    const grossPartsPace = Math.round(avgDailyGrossParts * elapsedDays);
 
     return {
       ...baseTotals,
       grossForecast,
-      grossPace,
       salesForecast,
-      salesPace,
       partsForecast,
-      partsPace,
       grossPartsForecast,
-      grossPartsPace,
       daysInMonth,
       elapsedDays,
       daysRemaining: daysInMonth - elapsedDays
@@ -292,15 +289,35 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           </h3>
         </div>
         
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isImporting}
-          className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50"
-        >
-          {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-          Import PDF Productivity Report
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsManualEntryOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg"
+          >
+            <Keyboard size={14} />
+            Manual Entry
+          </button>
+          
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50"
+          >
+            {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
+            Import PDF Productivity Report
+          </button>
+        </div>
       </div>
+
+      <ManualPerformanceEntry 
+        isOpen={isManualEntryOpen}
+        onClose={() => setIsManualEntryOpen(false)}
+        initialAdvisors={advisors}
+        onSave={async (data) => {
+          await saveToFirestore(data);
+          setImportStatus({ type: 'success', message: 'Manual productivity data saved successfully!' });
+        }}
+      />
 
       <AnimatePresence>
         {importStatus && (
@@ -388,8 +405,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                 <p className="text-2xl font-black text-white">${metrics.totalSales.toLocaleString()}</p>
                 <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-brand-primary/60">
                    <div className="flex items-center gap-1">
-                     <TrendingUp size={10} className={metrics.totalSales >= metrics.salesPace ? "text-emerald-500" : "text-rose-500"} />
-                     <span className="uppercase">Pace: ${metrics.salesPace.toLocaleString()}</span>
+                     <TrendingUp size={10} className="text-emerald-500" />
+                     <span className="uppercase">Pace: ${metrics.salesForecast.toLocaleString()}</span>
                    </div>
                    <span className="uppercase italic">Avg: ${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/Day</span>
                 </div>

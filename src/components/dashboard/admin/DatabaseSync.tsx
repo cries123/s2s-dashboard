@@ -355,9 +355,6 @@ export const DatabaseSync: React.FC<DatabaseSyncProps> = ({ currentUser, onSucce
           <p className="text-slate-400 font-medium max-w-lg mx-auto leading-relaxed italic">
             "We aren't just selling cars, we're building a legacy of service history."
           </p>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-950/50 px-4 py-2 rounded-lg border border-white/5 inline-block">
-             No AI assistance? Upload .CSV files for high-volume, free processing.
-          </p>
         </div>
 
         {!isProcessing && !isUploading ? (

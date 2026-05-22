@@ -153,6 +153,8 @@ async function startServer() {
       if (response.usageMetadata) {
         console.log(`[AI Usage] parse-appointments tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
         result._usage = response.usageMetadata;
+      } else {
+        console.warn("[AI Usage] parse-appointments: No usageMetadata returned from Gemini");
       }
       res.json(result);
     } catch (error: any) {
@@ -284,6 +286,8 @@ async function startServer() {
       if (response.usageMetadata) {
         console.log(`[AI Usage] parse-performance tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
         result._usage = response.usageMetadata;
+      } else {
+        console.warn("[AI Usage] parse-performance: No usageMetadata returned from Gemini");
       }
       res.json(result);
     } catch (error: any) {
@@ -391,6 +395,8 @@ async function startServer() {
       if (response.usageMetadata) {
         console.log(`[AI Usage] parse-service-history tokens: prompt=${response.usageMetadata.promptTokenCount}, candidates=${response.usageMetadata.candidatesTokenCount}, total=${response.usageMetadata.totalTokenCount}`);
         result._usage = response.usageMetadata;
+      } else {
+        console.warn("[AI Usage] parse-service-history: No usageMetadata returned from Gemini");
       }
       res.json(result);
     } catch (error: any) {
