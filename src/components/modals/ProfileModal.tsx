@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, Save, Edit2, Trash2, User as UserIcon, Phone, Mail, MapPin, Car, Calendar, Gauge, History, Database, Wrench
+  X, Save, Edit2, Trash2, User as UserIcon, Phone, Mail, MapPin, Car, Calendar, Gauge, History, Database, Wrench, Droplet, Activity
 } from 'lucide-react';
 import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -24,6 +24,116 @@ export default function ProfileModal({ customer, onClose, onDelete }: ProfileMod
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const calculateOilChangeInterval = () => {
+    const visits = customer.recentVisits || [];
+    if (visits.length === 0) return null;
+
+    const isOilChangeText = (text: string) => {
+      if (!text) return false;
+      const lower = text.toLowerCase();
+      return (
+        lower.includes("oil change") ||
+        lower.includes("oil & filter") ||
+        lower.includes("oil/filter") ||
+        lower.includes(" lof") ||
+        lower.startsWith("lof ") ||
+        lower === "lof" ||
+        lower.includes("lube, oil") ||
+        lower.includes("lube oil") ||
+        lower.includes("synthetic oil") ||
+        lower.includes("engine oil") ||
+        lower.includes("0w-20") ||
+        lower.includes("5w-20") ||
+        lower.includes("5w-30")
+      );
+    };
+
+    const oilVisits = [...visits]
+      .filter(v => isOilChangeText(v.requests))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (oilVisits.length === 0) {
+      return {
+        hasData: false,
+        message: "No recorded oil changes found in service history."
+      };
+    }
+
+    if (oilVisits.length === 1) {
+      return {
+        hasData: false,
+        count: 1,
+        lastDate: oilVisits[0].date,
+        lastMileage: oilVisits[0].mileage,
+        message: "Only 1 oil change recorded. (Need at least 2 visits to compute average interval)"
+      };
+    }
+
+    let totalDays = 0;
+    let totalMiles = 0;
+    let calculationCount = 0;
+
+    for (let i = 1; i < oilVisits.length; i++) {
+      const prev = oilVisits[i - 1];
+      const curr = oilVisits[i];
+
+      const prevTime = new Date(prev.date).getTime();
+      const currTime = new Date(curr.date).getTime();
+
+      if (!isNaN(prevTime) && !isNaN(currTime)) {
+        const daysDiff = (currTime - prevTime) / (1000 * 60 * 60 * 24);
+        if (daysDiff > 0) {
+          totalDays += daysDiff;
+          totalMiles += Math.abs(curr.mileage - prev.mileage);
+          calculationCount++;
+        }
+      }
+    }
+
+    if (calculationCount === 0) {
+      return {
+        hasData: false,
+        count: oilVisits.length,
+        lastDate: oilVisits[oilVisits.length - 1].date,
+        lastMileage: oilVisits[oilVisits.length - 1].mileage,
+        message: "Duplicate or invalid dates in oil change records."
+      };
+    }
+
+    const avgDays = totalDays / calculationCount;
+    const avgMiles = Math.round(totalMiles / calculationCount);
+    const avgMonths = Number((avgDays / 30.4375).toFixed(1));
+
+    const lastOilVisit = oilVisits[oilVisits.length - 1];
+    const lastDateObj = new Date(lastOilVisit.date);
+    
+    let nextDateStr = "N/A";
+    if (!isNaN(lastDateObj.getTime())) {
+      const nextDateObj = new Date(lastDateObj.getTime() + avgDays * 24 * 60 * 60 * 1000);
+      nextDateStr = nextDateObj.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      });
+    }
+
+    const nextMileage = lastOilVisit.mileage + avgMiles;
+
+    return {
+      hasData: true,
+      count: oilVisits.length,
+      avgDays: Math.round(avgDays),
+      avgMonths,
+      avgMiles,
+      lastDate: lastOilVisit.date,
+      lastMileage: lastOilVisit.mileage,
+      nextDate: nextDateStr,
+      nextMileage
+    };
+  };
+
+  const oilAnalysis = calculateOilChangeInterval();
 
   const handleSave = async () => {
     try {
@@ -216,6 +326,63 @@ export default function ProfileModal({ customer, onClose, onDelete }: ProfileMod
                     <p className="text-sm font-bold text-slate-200">{customer.soldByUsername || 'Direct Enrollment'}</p>
                   </div>
                 </div>
+              </section>
+
+              <section className="bg-slate-900 border border-slate-700/50 rounded-2xl p-6">
+                <h4 className="input-label mb-6 flex items-center gap-2 text-slate-100 uppercase tracking-widest text-[11px] font-black">
+                  <Droplet size={16} className="text-brand-secondary" /> 
+                  Oil Change Interval Analysis
+                </h4>
+                
+                {oilAnalysis ? (
+                  oilAnalysis.hasData ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 bg-slate-950/40 border border-white/5 rounded-xl">
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Avg Calendar Interval</p>
+                          <p className="text-sm font-black text-white">
+                            {oilAnalysis.avgMonths} Months <span className="text-[10px] text-slate-500 font-medium">({oilAnalysis.avgDays} Days)</span>
+                          </p>
+                        </div>
+                        <div className="p-3 bg-slate-950/40 border border-white/5 rounded-xl">
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Avg Mileage Interval</p>
+                          <p className="text-sm font-black text-white">
+                            {oilAnalysis.avgMiles?.toLocaleString()} mi
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-brand-primary/5 border border-brand-primary/25 rounded-xl">
+                        <p className="text-[9px] font-black text-brand-primary uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                          <Activity size={10} /> Predictive Next Oil Change
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <span className="text-[9px] text-slate-500 uppercase font-bold block">Estimated Due Date</span>
+                            <span className="font-extrabold text-white">{oilAnalysis.nextDate}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-slate-500 uppercase font-bold block">Estimated Due Mileage</span>
+                            <span className="font-extrabold text-white">{oilAnalysis.nextMileage?.toLocaleString()} mi</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <p className="text-[8px] text-slate-500 italic text-center">
+                        Calculated from {oilAnalysis.count} historical oil change service {oilAnalysis.count === 1 ? 'record' : 'records'}.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-slate-950/20 border border-dashed border-slate-800 rounded-xl text-center space-y-1">
+                      <p className="text-xs font-bold text-slate-400">Unable to Calculate Frequency</p>
+                      <p className="text-[9px] text-slate-500 font-medium leading-relaxed">
+                        {oilAnalysis.message}
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <p className="text-xs text-slate-500 font-medium italic">No service history records found to parse.</p>
+                )}
               </section>
             </div>
 

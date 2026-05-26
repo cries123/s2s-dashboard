@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight
+  Settings, Loader2, Shield, Trophy, ChevronRight, Monitor
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -21,6 +21,7 @@ import AdminPanel from './components/dashboard/admin/AdminPanel';
 import { VinLookup } from './components/dashboard/vin/VinLookup';
 import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
 import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
+import { RemoteControl } from './components/dashboard/remote/RemoteControl';
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
@@ -35,7 +36,7 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'remote-control'>('add');
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -68,6 +69,7 @@ export default function App() {
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
     { id: 'vin-search', label: 'VIN Search', icon: Search },
+    { id: 'remote-control', label: 'Remote RDP', icon: Monitor },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
@@ -387,6 +389,10 @@ export default function App() {
 
           {activeTab === 'pot-of-gold' && (
             <PotOfGold currentDealershipId={currentDealershipId || 'hyundai'} />
+          )}
+
+          {activeTab === 'remote-control' && (
+            <RemoteControl />
           )}
 
           {activeTab === 'admin' && (
