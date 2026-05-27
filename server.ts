@@ -644,6 +644,101 @@ async function startServer() {
     });
   });
 
+  // --- WebRTC Signaling Tunnel for Alternative 3 (P2P Firewall Bypass) ---
+  const webrtcRooms: Record<string, { offer?: any; answer?: any; iceCandidates: any[] }> = {};
+
+  app.post("/api/remote/signal/join", (req, res) => {
+    try {
+      const { roomId } = req.body;
+      if (!roomId) return res.status(400).json({ error: "Missing roomId parameters" });
+      if (!webrtcRooms[roomId]) {
+        webrtcRooms[roomId] = { iceCandidates: [] };
+      }
+      res.json({ status: "success", room: webrtcRooms[roomId] });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to join WebRTC signal pool" });
+    }
+  });
+
+  app.post("/api/remote/signal/send", (req, res) => {
+    try {
+      const { roomId, type, data } = req.body;
+      if (!roomId || !type) return res.status(400).json({ error: "Missing signaling parameters" });
+      if (!webrtcRooms[roomId]) {
+        webrtcRooms[roomId] = { iceCandidates: [] };
+      }
+
+      if (type === "offer") {
+        webrtcRooms[roomId].offer = data;
+      } else if (type === "answer") {
+        webrtcRooms[roomId].answer = data;
+      } else if (type === "ice-candidate") {
+        webrtcRooms[roomId].iceCandidates.push(data);
+      }
+      res.json({ status: "success" });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to store signal payload" });
+    }
+  });
+
+  app.get("/api/remote/signal/get", (req, res) => {
+    try {
+      const { roomId } = req.query;
+      if (!roomId) return res.status(400).json({ error: "Missing roomId query parameter" });
+      const rId = String(roomId);
+      res.json(webrtcRooms[rId] || { error: "Room not active" });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to pull signal stream" });
+    }
+  });
+
+  app.post("/api/remote/signal/clear", (req, res) => {
+    try {
+      const { roomId } = req.body;
+      if (roomId && webrtcRooms[roomId]) {
+        delete webrtcRooms[roomId];
+      }
+      res.json({ status: "success" });
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to purge signal state" });
+    }
+  });
+
+  // --- HTTP Reverse Fallback Agent Sync Broker (No WebRTC/VNC required) ---
+  const activeAgentSessions: Record<string, { frame?: string; commands: any[]; lastActive: number }> = {};
+
+  app.post("/api/remote/agent/sync", (req, res) => {
+    try {
+      const { roomId, frame, role, command } = req.body; // role = 'host' or 'controller'
+      if (!roomId) return res.status(400).json({ error: "Missing roomId parameters" });
+
+      if (!activeAgentSessions[roomId]) {
+        activeAgentSessions[roomId] = { commands: [], lastActive: Date.now() };
+      }
+      
+      const session = activeAgentSessions[roomId];
+      session.lastActive = Date.now();
+
+      if (role === "host") {
+        // Host uploading screen frame and fetching queued input commands
+        if (frame) {
+          session.frame = frame;
+        }
+        const queuedCommands = [...session.commands];
+        session.commands = []; // clear queue
+        return res.json({ status: "ok", commands: queuedCommands });
+      } else {
+        // Controller posting a keyboard/mouse action and fetching current frame
+        if (command) {
+          session.commands.push(command);
+        }
+        return res.json({ status: "ok", frame: session.frame });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: "Failed to synchronize remote frame buffer" });
+    }
+  });
+
   // API 404 Fallback
   app.all("/api/*", (req, res) => {
     console.warn(`404 - API Route Not Found: ${req.method} ${req.path}`);

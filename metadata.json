@@ -2,7 +2,8 @@
   "name": "S2S Dashboard",
   "description": "Multi-dealership operations dashboard with secure enrollment, manager approval workflows, and intelligent customer tracking.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "display-capture"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
