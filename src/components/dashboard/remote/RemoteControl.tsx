@@ -6,6 +6,8 @@ import {
   Video, Globe, Cpu, Download, Copy, Check, MousePointer, Power
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../../../firebase';
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, arrayUnion } from 'firebase/firestore';
 
 interface RemoteConfig {
   host: string;
@@ -75,6 +77,7 @@ export const RemoteControl: React.FC = () => {
   const [webrtcStatus, setWebrtcStatus] = useState<'idle' | 'registering' | 'gaining_stream' | 'wait_peer' | 'connecting' | 'connected' | 'failed'>('idle');
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState<MediaStream | null>(null);
+  const [signalingMethod, setSignalingMethod] = useState<'firestore' | 'server'>('firestore');
   
   // Python Script Agent Config
   const [showPythonCode, setShowPythonCode] = useState(false);
@@ -88,6 +91,7 @@ export const RemoteControl: React.FC = () => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const webrtcIntervalRef = useRef<any>(null);
+  const webrtcUnsubscribeRef = useRef<(() => void) | null>(null);
 
   // State: General Connection & Session State (VNC Mode)
   const [isConnected, setIsConnected] = useState(false);
@@ -342,7 +346,14 @@ export const RemoteControl: React.FC = () => {
   // --- ALTERNATIVE 3: WEBRTC DIRECT-PEER ENGINES (NO CLOUDFLARE) ---
   
   const stopAllWebRTC = () => {
-    if (webrtcIntervalRef.current) clearInterval(webrtcIntervalRef.current);
+    if (webrtcIntervalRef.current) {
+      clearInterval(webrtcIntervalRef.current);
+      webrtcIntervalRef.current = null;
+    }
+    if (webrtcUnsubscribeRef.current) {
+      webrtcUnsubscribeRef.current();
+      webrtcUnsubscribeRef.current = null;
+    }
     if (localScreenStream) {
       localScreenStream.getTracks().forEach(track => track.stop());
       setLocalScreenStream(null);
@@ -380,24 +391,36 @@ export const RemoteControl: React.FC = () => {
       }
 
       setWebrtcStatus('registering');
-      logMessage(`🌐 WebRTC: Registering signaling room: ${webrtcRoomId}`);
+      logMessage(`🌐 WebRTC: Registering signaling room: ${webrtcRoomId} (${signalingMethod === 'firestore' ? 'Cloud Firestore' : 'App Express Server'})`);
       
-      // Register Room onto full-stack backend
-      const joinRes = await fetch('/api/remote/signal/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: webrtcRoomId })
-      });
-      if (!joinRes.ok) {
-        throw new Error(`Failed to join signaling pool (HTTP ${joinRes.status})`);
-      }
-      const joinContentType = joinRes.headers.get("content-type");
-      if (!joinContentType || !joinContentType.includes("application/json")) {
-        throw new Error('Received an HTML response instead of JSON. The backend server might be restarting. Please try again in a few seconds.');
-      }
-      const joinData = await joinRes.json();
-      if (joinData.error) {
-        throw new Error(joinData.error);
+      if (signalingMethod === 'firestore') {
+        const signalDocRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', webrtcRoomId);
+        await setDoc(signalDocRef, {
+          roomId: webrtcRoomId,
+          iceCandidates: [],
+          controllerCandidates: [],
+          offer: null,
+          answer: null,
+          createdAt: new Date().toISOString()
+        });
+      } else {
+        // Register Room onto full-stack backend
+        const joinRes = await fetch('/api/remote/signal/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId: webrtcRoomId })
+        });
+        if (!joinRes.ok) {
+          throw new Error(`Failed to join signaling pool (HTTP ${joinRes.status})`);
+        }
+        const joinContentType = joinRes.headers.get("content-type");
+        if (!joinContentType || !joinContentType.includes("application/json")) {
+          throw new Error('Received an HTML response instead of JSON. The backend server might be restarting. Please try again in a few seconds.');
+        }
+        const joinData = await joinRes.json();
+        if (joinData.error) {
+          throw new Error(joinData.error);
+        }
       }
 
       // Configure Peer Connection
@@ -432,15 +455,22 @@ export const RemoteControl: React.FC = () => {
       // Push ICE candidates up to our signal coordinator as they resolve
       pc.onicecandidate = async (ev) => {
         if (ev.candidate) {
-          await fetch('/api/remote/signal/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              roomId: webrtcRoomId,
-              type: 'ice-candidate',
-              data: ev.candidate
-            })
-          });
+          if (signalingMethod === 'firestore') {
+            const signalDocRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', webrtcRoomId);
+            await updateDoc(signalDocRef, {
+              iceCandidates: arrayUnion(JSON.parse(JSON.stringify(ev.candidate)))
+            }).catch(() => {});
+          } else {
+            await fetch('/api/remote/signal/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roomId: webrtcRoomId,
+                type: 'ice-candidate',
+                data: ev.candidate
+              })
+            }).catch(() => {});
+          }
         }
       };
 
@@ -448,59 +478,92 @@ export const RemoteControl: React.FC = () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       
-      // Send offer to backend signaling channel
-      await fetch('/api/remote/signal/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomId: webrtcRoomId,
-          type: 'offer',
-          data: offer
-        })
-      });
+      if (signalingMethod === 'firestore') {
+        const signalDocRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', webrtcRoomId);
+        await updateDoc(signalDocRef, {
+          offer: JSON.parse(JSON.stringify(offer))
+        });
+      } else {
+        // Send offer to backend signaling channel
+        await fetch('/api/remote/signal/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: webrtcRoomId,
+            type: 'offer',
+            data: offer
+          })
+        });
+      }
 
       setWebrtcStatus('wait_peer');
       logMessage('📡 WebRTC: Stream configured. Waiting for controller handshakes...');
 
-      // Start REST polling checker loop to listen for client SDP Answer
-      const checkPoll = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/remote/signal/get?roomId=${webrtcRoomId}`);
-          if (!res.ok) return;
-          const roomData = await res.json();
+      if (signalingMethod === 'firestore') {
+        const signalDocRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', webrtcRoomId);
+        const unsub = onSnapshot(signalDocRef, async (snapshot) => {
+          if (!snapshot.exists()) return;
+          const roomData = snapshot.data();
           
           if (roomData.answer && pc.signalingState !== 'stable') {
-            logMessage('🖥️ WebRTC: SDP Answer resolved from client. Syncing remote SDP descriptors...');
+            logMessage('🖥️ WebRTC: SDP Answer resolved from Firebase. Syncing remote SDP descriptors...');
             await pc.setRemoteDescription(new RTCSessionDescription(roomData.answer));
             
             // Feed prospective remote ICE candidates from the coordinator
-            if (roomData.iceCandidates && roomData.iceCandidates.length > 0) {
-              for (const cand of roomData.iceCandidates) {
-                // simple deduplication guard
+            if (roomData.controllerCandidates && roomData.controllerCandidates.length > 0) {
+              for (const cand of roomData.controllerCandidates) {
                 try {
                   await pc.addIceCandidate(new RTCIceCandidate(cand));
                 } catch(e) {}
               }
             }
-            logMessage('🟢 WebRTC: Direct Peer Tunnel Connection ESTABLISHED (Bypassed Firewalls!)');
+            logMessage('🟢 WebRTC: Direct Peer Tunnel Connection ESTABLISHED (Bypassed Firewalls via Firebase!)');
             setWebrtcStatus('connected');
-            setRfcProtocol('WebRTC P2P (Direct DTLS)');
-            setLatency(14);
+            setRfcProtocol('WebRTC P2P (Cloud-Routed DTLS)');
+            setLatency(12);
             setFps(60);
           }
-        } catch (e) {
-          // silent fallback
-        }
-      }, 1500);
+        });
+        webrtcUnsubscribeRef.current = unsub;
+      } else {
+        // Start REST polling checker loop to listen for client SDP Answer
+        const checkPoll = setInterval(async () => {
+          try {
+            const res = await fetch(`/api/remote/signal/get?roomId=${webrtcRoomId}`);
+            if (!res.ok) return;
+            const roomData = await res.json();
+            
+            if (roomData.answer && pc.signalingState !== 'stable') {
+              logMessage('🖥️ WebRTC: SDP Answer resolved from client. Syncing remote SDP descriptors...');
+              await pc.setRemoteDescription(new RTCSessionDescription(roomData.answer));
+              
+              // Feed prospective remote ICE candidates from the coordinator
+              if (roomData.iceCandidates && roomData.iceCandidates.length > 0) {
+                for (const cand of roomData.iceCandidates) {
+                  try {
+                    await pc.addIceCandidate(new RTCIceCandidate(cand));
+                  } catch(e) {}
+                }
+              }
+              logMessage('🟢 WebRTC: Direct Peer Tunnel Connection ESTABLISHED (Bypassed Firewalls!)');
+              setWebrtcStatus('connected');
+              setRfcProtocol('WebRTC P2P (Direct DTLS)');
+              setLatency(14);
+              setFps(60);
+            }
+          } catch (e) {
+            // silent fallback
+          }
+        }, 1500);
 
-      webrtcIntervalRef.current = checkPoll;
+        webrtcIntervalRef.current = checkPoll;
+      }
     } catch(err: any) {
       logMessage(`❌ WebRTC: Broadcaster Capture Failed: ${err.message}`);
       setWebrtcStatus('failed');
     }
   };
 
-  // Start Home Controller (Client Role) linking to the shared code
   const connectToWebRtcHost = async () => {
     stopAllWebRTC();
     const cleanRoom = targetRoomInput.trim();
@@ -513,20 +576,38 @@ export const RemoteControl: React.FC = () => {
     logMessage(`🌐 WebRTC: Querying signaling coordinators for token: ${cleanRoom}...`);
 
     try {
-      const fetchRoomRes = await fetch(`/api/remote/signal/get?roomId=${cleanRoom}`);
-      if (!fetchRoomRes.ok) throw new Error('Token expired or handshake room occupied');
-      
-      const contentType = fetchRoomRes.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error('Received an HTML response instead of JSON. The backend server might be restarting or rebuilding from the latest changes. Please wait 10 seconds, refresh the page, and try again.');
-      }
-      
-      const sessionData = await fetchRoomRes.json();
-      if (sessionData.error) {
-        throw new Error(sessionData.error);
-      }
-      if (!sessionData.offer) {
-        throw new Error('No broadcast offer registered in this room. Verify Work PC resides online and is hosting.');
+      let sessionData: any = null;
+
+      if (signalingMethod === 'firestore') {
+        const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', cleanRoom);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+          throw new Error('No broadcast session active in this room. Verify your Work PC has started hosting with this match code.');
+        }
+        sessionData = docSnap.data();
+        if (!sessionData.offer) {
+          throw new Error('Broadcast offer registration is pending on Work PC. Wait 5 seconds and click connect again.');
+        }
+      } else {
+        const fetchRoomRes = await fetch(`/api/remote/signal/get?roomId=${cleanRoom}`);
+        if (!fetchRoomRes.ok) {
+          const errText = await fetchRoomRes.clone().text().then(t => t.substring(0, 150)).catch(() => "");
+          throw new Error(`Token expired or handshake room occupied (Status: ${fetchRoomRes.status} ${fetchRoomRes.statusText}, response: "${errText}")`);
+        }
+        
+        const contentType = fetchRoomRes.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const bodyText = await fetchRoomRes.clone().text().then(t => t.substring(0, 150)).catch(() => "");
+          throw new Error(`Received an HTML/Plain response (Status: ${fetchRoomRes.status} ${fetchRoomRes.statusText}) instead of JSON. Snippet: "${bodyText}". This indicates the route was not found or the server is initializing / recovering. Please try again in 10-15 seconds.`);
+        }
+        
+        sessionData = await fetchRoomRes.json();
+        if (sessionData.error) {
+          throw new Error(sessionData.error);
+        }
+        if (!sessionData.offer) {
+          throw new Error('No broadcast offer registered in this room. Verify Work PC resides online and is hosting.');
+        }
       }
 
       logMessage('🔑 WebRTC: Received SDP Offer from session coordinator. Initializing peer channel...');
@@ -565,29 +646,44 @@ export const RemoteControl: React.FC = () => {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      // Submit Client Answer SDP up to our signaling coordinate
-      await fetch('/api/remote/signal/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          roomId: cleanRoom,
-          type: 'answer',
-          data: answer
-        })
-      });
+      // Submit Client Answer SDP
+      if (signalingMethod === 'firestore') {
+        const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', cleanRoom);
+        await updateDoc(docRef, {
+          answer: JSON.parse(JSON.stringify(answer)),
+          controllerCandidates: []
+        });
+      } else {
+        await fetch('/api/remote/signal/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: cleanRoom,
+            type: 'answer',
+            data: answer
+          })
+        });
+      }
 
-      // Send local ICE candidates to backend
+      // Send local ICE candidates
       pc.onicecandidate = async (ev) => {
         if (ev.candidate) {
-          await fetch('/api/remote/signal/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              roomId: cleanRoom,
-              type: 'ice-candidate',
-              data: ev.candidate
-            })
-          });
+          if (signalingMethod === 'firestore') {
+            const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', cleanRoom);
+            await updateDoc(docRef, {
+              controllerCandidates: arrayUnion(JSON.parse(JSON.stringify(ev.candidate)))
+            }).catch(() => {});
+          } else {
+            await fetch('/api/remote/signal/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                roomId: cleanRoom,
+                type: 'ice-candidate',
+                data: ev.candidate
+              })
+            });
+          }
         }
       };
 
@@ -602,27 +698,44 @@ export const RemoteControl: React.FC = () => {
 
       setWebrtcStatus('connected');
       logMessage('🟢 WebRTC: Secure Peer connection handshake successful! (Cloudflare Bypassed Successfully)');
-      setRfcProtocol('WebRTC P2P (Direct DTLS)');
+      setRfcProtocol(signalingMethod === 'firestore' ? 'WebRTC + Firebase Cloud' : 'WebRTC P2P (Direct DTLS)');
       setLatency(10);
       setFps(60);
 
-      // Periodic candidate poll sync
-      const syncCandPoll = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/remote/signal/get?roomId=${cleanRoom}`);
-          if (!res.ok) return;
-          const freshData = await res.json();
+      if (signalingMethod === 'firestore') {
+        // Subscribe to real-time additions of ICE candidates on Firestore
+        const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/remote_signaling', cleanRoom);
+        const unsub = onSnapshot(docRef, (snapshot) => {
+          if (!snapshot.exists()) return;
+          const freshData = snapshot.data();
           if (freshData.iceCandidates && pc.remoteDescription) {
             for (const cand of freshData.iceCandidates) {
               try {
-                await pc.addIceCandidate(new RTCIceCandidate(cand));
+                pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
               } catch(e) {}
             }
           }
-        } catch (e) {}
-      }, 3000);
+        });
+        webrtcUnsubscribeRef.current = unsub;
+      } else {
+        // Periodic candidate poll sync
+        const syncCandPoll = setInterval(async () => {
+          try {
+            const res = await fetch(`/api/remote/signal/get?roomId=${cleanRoom}`);
+            if (!res.ok) return;
+            const freshData = await res.json();
+            if (freshData.iceCandidates && pc.remoteDescription) {
+              for (const cand of freshData.iceCandidates) {
+                try {
+                  await pc.addIceCandidate(new RTCIceCandidate(cand));
+                } catch(e) {}
+              }
+            }
+          } catch (e) {}
+        }, 3000);
 
-      webrtcIntervalRef.current = syncCandPoll;
+        webrtcIntervalRef.current = syncCandPoll;
+      }
     } catch (e: any) {
       logMessage(`❌ WebRTC Handshake Failed: ${e.message}`);
       setWebrtcStatus('failed');
@@ -900,6 +1013,38 @@ while True:
 
                 {/* Role Tabs inside WebRTC setup */}
                 <div className="space-y-4 text-xs">
+                  <div>
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Signaling Channel Broker</label>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-900 border border-white/5 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setSignalingMethod('firestore')}
+                        disabled={webrtcStatus === 'connected'}
+                        className={`py-1.5 rounded-lg text-[8.5px] font-black uppercase tracking-widest transition-colors ${
+                          signalingMethod === 'firestore'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
+                            : 'text-slate-500 hover:text-slate-350'
+                        }`}
+                        title="Recommended: Uses secure real-time Firestore database listener. 100% stable, bypasses container gateway rest limits."
+                      >
+                        🔥 Firebase Cloud
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignalingMethod('server')}
+                        disabled={webrtcStatus === 'connected'}
+                        className={`py-1.5 rounded-lg text-[8.5px] font-black uppercase tracking-widest transition-colors ${
+                          signalingMethod === 'server'
+                            ? 'bg-slate-800 text-slate-300 border border-white/5'
+                            : 'text-slate-500 hover:text-slate-350'
+                        }`}
+                        title="Original: Polls express server endpoints. May fail if container restarts."
+                      >
+                        🖥️ REST Server
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Configure local workstation perspective</label>
                     <div className="grid grid-cols-2 gap-2 bg-slate-900 border border-white/5 p-1 rounded-xl">

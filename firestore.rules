@@ -79,6 +79,11 @@ service cloud.firestore {
       allow read: if isApproved() || isAdmin();
       allow write: if isAdmin();
     }
+
+    // --- WebRTC Remote Desktop Signaling ---
+    match /artifacts/hyundai-sales-to-service/public/data/remote_signaling/{roomId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }
 
