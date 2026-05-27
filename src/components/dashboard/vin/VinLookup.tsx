@@ -21,7 +21,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
-import { logAIUsage } from '../../../services/loggingService';
 
 interface VinData {
   Variable: string;
@@ -165,12 +164,6 @@ export const VinLookup: React.FC = () => {
               let valData: any;
               try {
                 valData = await valRes.json();
-                
-                // Log usage if available
-                if (valData._usage) {
-                  logAIUsage('Estimate Vehicle Value', valData._usage, user?.email, user?.dealershipId);
-                }
-                
                 setMarketValue(valData);
               } catch (jsonErr) {
                 console.error('Failed to parse valuation JSON:', jsonErr);
@@ -402,7 +395,7 @@ export const VinLookup: React.FC = () => {
               
               <div className="mt-8 flex items-center gap-2 text-slate-700">
                 <Info size={12} />
-                <span className="text-[8px] font-black uppercase tracking-widest">AI Market Mapping Enabled</span>
+                <span className="text-[8px] font-black uppercase tracking-widest">Regional Market Mapping Enabled</span>
               </div>
             </div>
           </div>
@@ -589,7 +582,7 @@ export const VinLookup: React.FC = () => {
              </div>
              <div className="flex items-center gap-2">
                <Sparkles size={16} />
-               <span className="text-[9px] font-black uppercase tracking-widest">AI Market Pulse</span>
+               <span className="text-[9px] font-black uppercase tracking-widest">Regional Market Pulse</span>
              </div>
           </div>
         </motion.div>

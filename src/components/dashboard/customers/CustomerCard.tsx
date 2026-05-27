@@ -193,7 +193,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
            <div className="flex flex-col text-right">
               <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">S2S Alert Range</span>
               <span className="text-[10px] font-black text-brand-secondary uppercase italic">
-                {getNextServiceMilestone(customer.soldDate)}
+                {getNextServiceMilestone(customer)}
               </span>
            </div>
         </div>

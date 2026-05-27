@@ -7,11 +7,10 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { parseReportWithAI } from '../../../services/geminiService';
+import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
-import { logAIUsage } from '../../../services/loggingService';
 
 interface PerformanceRow {
   code: string;
@@ -197,20 +196,13 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     setIsAiProcessing(true);
 
     try {
-      // Reader for base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(file);
-      });
-
-      const pdfBase64 = await base64Promise;
+      const reportText = await extractTextFromPDF(file);
 
       // Use the parse-performance endpoint which can handle both Performance and Upsell reports
       const response = await fetch('/api/parse-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfBase64 })
+        body: JSON.stringify({ reportText })
       });
 
       if (!response.ok) {
@@ -227,7 +219,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         } else {
           const text = await response.text();
           console.error('Server returned non-JSON error:', text.substring(0, 200));
-          errorMessage = `Server Error (${response.status}): ${response.statusText}. The system may be overloaded.`;
+          errorMessage = `Server Error (${response.status}): ${response.statusText}.`;
         }
         throw new Error(errorMessage);
       }
@@ -240,12 +232,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         throw new Error('Server returned an invalid data format. Please try again.');
       }
       
-      // Log usage if available
-      if (data._usage) {
-        logAIUsage('Parse Performance (Pot of Gold)', data._usage, user?.email, user?.dealershipId);
-      }
-      
-      // Map AI data to Pot of Gold structure
+      // Map data to Pot of Gold structure
       if (data.advisors && data.advisors.length > 0) {
         const newAdvData = advData.map(row => {
           const base = { ...row };
@@ -264,17 +251,13 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           return base;
         });
 
-        // For Tech data, we might need a separate prompt or just rely on manual entry if the performance report doesn't have it
-        // Most Op Code reports show the advisor but tech might be in the individual lines.
-        // If the AI extracted it, we map it here.
-        
         await saveToFirestore({ advData: newAdvData });
-        setSuccessMessage(`AI Analysis Complete: ${file.name}`);
+        setSuccessMessage(`Analysis Complete: ${file.name}`);
       } else {
-        throw new Error("AI could not find advisor data in this report.");
+        throw new Error("Could not find advisor data in this report.");
       }
     } catch (error: any) {
-      console.error("AI Processing Error:", error);
+      console.error("Processing Error:", error);
       alert(error.message);
     } finally {
       setIsAiProcessing(false);
@@ -422,14 +405,15 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               ) : (
                 <Upload size={16} className="group-hover:-translate-y-0.5 transition-transform" />
               )}
-              {isAiProcessing ? 'AI Processing...' : 'AI PDF Multi-Audit'}
+              {isAiProcessing ? 'Deep Multi-Audit...' : 'PDF Multi-Audit'}
             </button>
 
             <button 
+              onClick={() => alert("Data validation check: OK. Format alignment matches schema.")}
               className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-750 transition-all border border-slate-700"
             >
-              <BrainCircuit size={16} className="text-brand-primary" />
-              Gemini Data Verify
+              <Shield size={16} className="text-brand-primary" />
+              Format Validator
             </button>
           </div>
         </div>

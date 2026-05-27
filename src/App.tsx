@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight, Monitor
+  Settings, Loader2, Shield, Trophy, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -21,7 +21,6 @@ import AdminPanel from './components/dashboard/admin/AdminPanel';
 import { VinLookup } from './components/dashboard/vin/VinLookup';
 import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
 import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
-import { RemoteControl } from './components/dashboard/remote/RemoteControl';
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
@@ -36,7 +35,8 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'remote-control'>('add');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
+  const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs' | 'eod'>('operations');
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -69,7 +69,6 @@ export default function App() {
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
     { id: 'vin-search', label: 'VIN Search', icon: Search },
-    { id: 'remote-control', label: 'Remote RDP', icon: Monitor },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
@@ -224,12 +223,17 @@ export default function App() {
             {availableTabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (tab.id === 'admin') {
+                    setAdminSubTab('operations');
+                  }
+                }}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative shrink-0",
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative border shrink-0",
                   activeTab === tab.id 
                     ? "bg-white/10 text-white shadow-inner border border-white/10" 
-                    : "text-slate-500 hover:text-slate-200 hover:bg-white/5"
+                    : "text-slate-500 hover:text-slate-200 border-transparent hover:bg-white/5"
                 )}
               >
                 <tab.icon size={13} className={cn("shrink-0", activeTab === tab.id ? "text-brand-primary" : "")} />
@@ -257,7 +261,10 @@ export default function App() {
                     {availableTabs.find(t => t.id === activeTab)?.icon && React.createElement(availableTabs.find(t => t.id === activeTab)!.icon, { size: 12, className: "text-brand-primary" })}
                   </div>
                   <span className="min-w-[80px] text-left">
-                    {availableTabs.find(t => t.id === activeTab)?.label}
+                    {activeTab === 'admin' 
+                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : adminSubTab === 'logs' ? 'Logs' : 'EOD'}`
+                      : availableTabs.find(t => t.id === activeTab)?.label
+                    }
                   </span>
                 </div>
                 <ChevronRight size={14} className={cn("transition-transform duration-300 text-brand-primary", isMobileNavOpen ? "-rotate-90" : "rotate-90")} />
@@ -274,7 +281,7 @@ export default function App() {
                       initial={{ opacity: 0, scale: 0.95, y: -10 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 bg-slate-900 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden z-[100]"
+                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-slate-900 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden z-[100] max-h-[80vh] overflow-y-auto"
                     >
                       <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
@@ -284,6 +291,9 @@ export default function App() {
                           key={tab.id}
                           onClick={() => {
                             setActiveTab(tab.id as any);
+                            if (tab.id === 'admin') {
+                              setAdminSubTab('operations');
+                            }
                             setIsMobileNavOpen(false);
                           }}
                           className={cn(
@@ -292,7 +302,7 @@ export default function App() {
                           )}
                         >
                           <div className="flex items-center gap-2">
-                            <tab.icon size={14} />
+                            <tab.icon size={14} className={activeTab === tab.id ? "text-brand-primary" : "text-slate-500"} />
                             {tab.label}
                           </div>
                           {tab.badge !== undefined && tab.badge > 0 && (
@@ -391,15 +401,13 @@ export default function App() {
             <PotOfGold currentDealershipId={currentDealershipId || 'hyundai'} />
           )}
 
-          {activeTab === 'remote-control' && (
-            <RemoteControl />
-          )}
-
           {activeTab === 'admin' && (
             <AdminPanel 
               currentDealershipId={currentDealershipId || 'hyundai'} 
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
+              activeSubTab={adminSubTab}
+              onChangeSubTab={setAdminSubTab}
             />
           )}
         </div>
@@ -409,6 +417,7 @@ export default function App() {
       {selectedProfile && (
         <ProfileModal 
           customer={selectedProfile} 
+          currentUser={currentUser}
           onClose={() => setSelectedProfile(null)} 
           onDelete={handleDeleteCustomer}
         />

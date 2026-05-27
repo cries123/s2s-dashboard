@@ -15,25 +15,23 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    // Role checks with master email override
+    // Role checks with master decimal/string override
     function isAdmin() {
-      let email = request.auth.token.email.lower();
-      return isSignedIn() && (
-        email == 'jaryn.b.healey@gmail.com' ||
-        email == 'jaryn.healey@hyundaigp.com' ||
-        (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.role == 'admin')
-      );
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             (request.auth.token.email.lower() == 'jaryn.b.healey@gmail.com' ||
+              request.auth.token.email.lower() == 'jaryn.healey@hyundaigp.com' ||
+              (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
     function isApproved() {
-      let email = request.auth.token.email.lower();
-      return isSignedIn() && (
-        email == 'jaryn.b.healey@gmail.com' ||
-        email == 'jaryn.healey@hyundaigp.com' ||
-        (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.status == 'approved')
-      );
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             (request.auth.token.email.lower() == 'jaryn.b.healey@gmail.com' ||
+              request.auth.token.email.lower() == 'jaryn.healey@hyundaigp.com' ||
+              (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.status == 'approved'));
     }
 
     // --- Users Collection ---
@@ -80,10 +78,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // --- WebRTC Remote Desktop Signaling ---
-    match /artifacts/hyundai-sales-to-service/public/data/remote_signaling/{roomId} {
-      allow read, write: if isSignedIn();
+    // --- System Activity Logs ---
+    match /artifacts/hyundai-sales-to-service/public/audit/systemLogs/{logId} {
+      allow read: if isApproved() || isAdmin();
+      allow write: if isSignedIn();
     }
+
   }
 }
 

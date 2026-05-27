@@ -7,7 +7,7 @@ import { cn } from '../../../lib/utils';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
-import { logAIUsage } from '../../../services/loggingService';
+import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
 
 interface UpsellItem {
@@ -148,12 +148,12 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     setImportStatus(null);
     
     try {
-      const pdfBase64 = await fileToBase64(file);
+      const reportText = await extractTextFromPDF(file);
       
       const response = await fetch('/api/parse-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfBase64 })
+        body: JSON.stringify({ reportText })
       });
 
       if (!response.ok) {
@@ -171,7 +171,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           // Response is HTML or plain text
           const text = await response.text();
           console.error('Server returned non-JSON error:', text.substring(0, 200));
-          errorMessage = `Server Error (${response.status}): ${response.statusText}. The system may be overloaded or down.`;
+          errorMessage = `Server Error (${response.status}): ${response.statusText}.`;
         }
         throw new Error(errorMessage);
       }
@@ -182,11 +182,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       } catch (e) {
         console.error('Failed to parse successful response as JSON:', e);
         throw new Error('Server returned an invalid data format. Please try again.');
-      }
-      
-      // Log usage if available
-      if (data._usage) {
-        logAIUsage('Parse Performance Report', data._usage, user?.email, user?.dealershipId);
       }
       
       await saveToFirestore(data);

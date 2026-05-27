@@ -7,7 +7,7 @@ export interface TokenUsage {
   totalTokenCount: number;
 }
 
-enum OperationType {
+export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
   DELETE = 'delete',
@@ -27,7 +27,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -56,5 +56,31 @@ export const logAIUsage = async (action: string, usage: TokenUsage, userEmail?: 
     console.log(`[AI Logging Service] Successfully logged usage for: ${action}`);
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
+  }
+};
+
+export const logSystemAction = async (
+  action: string,
+  details: string,
+  category: 'demographics' | 'scanner' | 'appointments' | 'settings' | 'sync' | 'auth',
+  userEmail?: string,
+  username?: string,
+  dealershipId?: string
+) => {
+  const path = 'artifacts/hyundai-sales-to-service/public/audit/systemLogs';
+  try {
+    const logsRef = collection(db, path);
+    await addDoc(logsRef, {
+      action,
+      details,
+      category,
+      userEmail: userEmail || auth.currentUser?.email || 'unknown',
+      username: username || 'System/Guest',
+      dealershipId: dealershipId || 'hyundai',
+      timestamp: serverTimestamp()
+    });
+    console.log(`[System Logging Service] Successfully logged: ${action} - ${details}`);
+  } catch (error) {
+    console.error('[System Logging Service] Failed to log activity:', error);
   }
 };
