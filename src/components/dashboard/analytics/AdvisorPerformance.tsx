@@ -355,67 +355,70 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
             className="space-y-8"
           >
             {/* Global Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {/* Labor Sales MTD Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
                 <div>
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Labor Sales MTD</p>
-                  <p className="text-2xl font-black text-white">${metrics.totalLabor.toLocaleString()}</p>
+                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalLabor.toLocaleString()}</p>
                 </div>
-                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg</p>
-                  <p className="text-xs font-black text-slate-300">${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
+                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Daily Avg</span>
+                  <span className="text-xs font-black text-slate-200">${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
                 </div>
               </div>
 
               {/* Labor Gross Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
                 <div>
                   <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Labor Gross MTD</p>
-                  <p className="text-2xl font-black text-white">${metrics.totalGross.toLocaleString()}</p>
+                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalGross.toLocaleString()}</p>
                 </div>
-                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg / GP</p>
-                  <p className="text-xs font-black text-slate-300">${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
-                  <span className="text-[9px] font-black text-brand-secondary uppercase tracking-wider mt-0.5">{Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}% GP</span>
+                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
+                  <span className="text-[9px] font-black text-brand-secondary uppercase tracking-widest">{Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}% GP</span>
+                  <span className="text-xs font-black text-slate-200">${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
                 </div>
               </div>
 
               {/* Part Sales Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
                 <div>
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Part Sales MTD</p>
-                  <p className="text-2xl font-black text-white">${(metrics.totalParts || 0).toLocaleString()}</p>
+                  <p className="text-2xl font-black text-white leading-none tracking-tight">${(metrics.totalParts || 0).toLocaleString()}</p>
                 </div>
-                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg</p>
-                  <p className="text-xs font-black text-slate-300">${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
+                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Daily Avg</span>
+                  <span className="text-xs font-black text-slate-200">${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
                 </div>
               </div>
 
               {/* Parts Gross Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
                 <div>
-                  <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Parts Gross MTD</p>
-                  <p className="text-2xl font-black text-white">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
+                  <p className="text-[10px] font-black text-emerald-550 uppercase tracking-widest mb-1">Parts Gross MTD</p>
+                  <p className="text-2xl font-black text-white leading-none tracking-tight">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
                 </div>
-                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg / GP</p>
-                  <p className="text-xs font-black text-slate-300">${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
-                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">{Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}% GP</span>
+                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
+                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">{Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}% GP</span>
+                  <span className="text-xs font-black text-emerald-400">${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
                 </div>
               </div>
 
               {/* Store Throughput Box */}
-              <div className="p-5 bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/30 rounded-3xl flex items-center justify-between gap-4">
+              <div className="p-5 bg-gradient-to-br from-brand-primary/15 to-brand-primary/5 border border-brand-primary/20 hover:border-brand-primary/30 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg shadow-brand-primary/5">
                 <div>
                   <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Store Throughput</p>
-                  <p className="text-2xl font-black text-white">${metrics.totalSales.toLocaleString()}</p>
+                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalSales.toLocaleString()}</p>
                 </div>
-                <div className="text-right border-l border-brand-primary/10 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
-                  <p className="text-[8px] font-black text-brand-primary/70 uppercase tracking-widest mb-0.5">Daily Avg / Pace</p>
-                  <p className="text-xs font-black text-slate-300">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider mt-0.5">Pace: ${metrics.salesForecast.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                <div className="mt-3 pt-2.5 border-brand-primary/10 border-t flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between text-[9px] font-black uppercase text-brand-primary/80">
+                    <span>Pace</span>
+                    <span className="text-emerald-450">${metrics.salesForecast.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-black">
+                    <span className="text-[9px] text-slate-500 uppercase tracking-widest">Daily Avg</span>
+                    <span className="text-slate-200">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
+                  </div>
                 </div>
               </div>
             </div>
