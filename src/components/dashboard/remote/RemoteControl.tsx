@@ -383,11 +383,22 @@ export const RemoteControl: React.FC = () => {
       logMessage(`🌐 WebRTC: Registering signaling room: ${webrtcRoomId}`);
       
       // Register Room onto full-stack backend
-      await fetch('/api/remote/signal/join', {
+      const joinRes = await fetch('/api/remote/signal/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId: webrtcRoomId })
       });
+      if (!joinRes.ok) {
+        throw new Error(`Failed to join signaling pool (HTTP ${joinRes.status})`);
+      }
+      const joinContentType = joinRes.headers.get("content-type");
+      if (!joinContentType || !joinContentType.includes("application/json")) {
+        throw new Error('Received an HTML response instead of JSON. The backend server might be restarting. Please try again in a few seconds.');
+      }
+      const joinData = await joinRes.json();
+      if (joinData.error) {
+        throw new Error(joinData.error);
+      }
 
       // Configure Peer Connection
       const pc = new RTCPeerConnection({
@@ -505,9 +516,17 @@ export const RemoteControl: React.FC = () => {
       const fetchRoomRes = await fetch(`/api/remote/signal/get?roomId=${cleanRoom}`);
       if (!fetchRoomRes.ok) throw new Error('Token expired or handshake room occupied');
       
+      const contentType = fetchRoomRes.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error('Received an HTML response instead of JSON. The backend server might be restarting or rebuilding from the latest changes. Please wait 10 seconds, refresh the page, and try again.');
+      }
+      
       const sessionData = await fetchRoomRes.json();
+      if (sessionData.error) {
+        throw new Error(sessionData.error);
+      }
       if (!sessionData.offer) {
-        throw new Error('No broadcast offer registered in this room. Verify Work PC is streaming.');
+        throw new Error('No broadcast offer registered in this room. Verify Work PC resides online and is hosting.');
       }
 
       logMessage('🔑 WebRTC: Received SDP Offer from session coordinator. Initializing peer channel...');
