@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { OpenAI } from "openai";
 
 dotenv.config();
 
@@ -508,6 +510,250 @@ async function startServer() {
     } catch (error: any) {
       console.error("Valuation Error (Deterministic):", error);
       res.status(500).json({ error: "Failed to calculate vehicle value" });
+    }
+  });
+
+  // Lazy initialize using the free tier project key from Google AI Studio and recommended httpOptions
+  let aiClient: GoogleGenAI | null = null;
+  function getAIClient() {
+    if (!aiClient) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("GEMINI_API_KEY environment variable is required.");
+      }
+      aiClient = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+    }
+    return aiClient;
+  }
+
+  // Schema for Gemini Structured Outputs
+  const dmsTelemetrySchema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      grossLaborSales: { type: Type.NUMBER, description: "Total Labor Sales from Sale Type row" },
+      laborGrossProfit: { type: Type.NUMBER, description: "Total Labor Gross Profit from Sale Type row" },
+      hoursBilled: { type: Type.NUMBER, description: "Total Hours Sold from top summary matrix" },
+      repairOrdersWritten: { type: Type.INTEGER, description: "Total physical SO# / RO volume written" },
+      effectiveLaborRate: { type: Type.NUMBER, description: "Blended total shop ELR calculation" },
+      
+      // Segment allocations to calculate exact shop operational mix
+      cpHours: { type: Type.NUMBER, description: "Customer pay hours sold" },
+      cpELR: { type: Type.NUMBER, description: "Customer pay Effective Labor Rate" },
+      cpLaborGPPercent: { type: Type.NUMBER, description: "Labor C or Customer Labor GP% margin" },
+      
+      warrHours: { type: Type.NUMBER, description: "Warranty pay hours sold" },
+      warrELR: { type: Type.NUMBER, description: "Warranty Effective Labor Rate" },
+      warrLaborGPPercent: { type: Type.NUMBER, description: "Labor W or Warranty Labor GP% margin" },
+      
+      internalHours: { type: Type.NUMBER, description: "Internal / Recon pay hours sold" },
+      internalELR: { type: Type.NUMBER, description: "Internal Effective Labor Rate" },
+      internalLaborGPPercent: { type: Type.NUMBER, description: "Labor I or Internal Labor GP% margin" },
+      
+      // Ancillary additions
+      subletSales: { type: Type.NUMBER, description: "Total Sublet Sales amount" },
+      subletGrossProfit: { type: Type.NUMBER, description: "Total Sublet Gross profit yield" },
+      miscSales: { type: Type.NUMBER, description: "Total Miscellaneous Sales" },
+      miscGrossProfit: { type: Type.NUMBER, description: "Total Miscellaneous Gross Profit" }
+    },
+    required: [
+      "grossLaborSales", "laborGrossProfit", "hoursBilled", "repairOrdersWritten", "effectiveLaborRate",
+      "cpHours", "cpELR", "cpLaborGPPercent", "warrHours", "warrELR", "warrLaborGPPercent",
+      "internalHours", "internalELR", "internalLaborGPPercent", "subletSales", "subletGrossProfit"
+    ],
+  };
+
+  // Lazy initialize OpenAI client
+  let openaiClient: OpenAI | null = null;
+  function getOpenAIClient() {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY environment variable is required.");
+    }
+    if (!openaiClient) {
+      openaiClient = new OpenAI({ apiKey });
+    }
+    return openaiClient;
+  }
+
+  app.post("/api/gemini-parse-dms", async (req, res) => {
+    let openaiFailureReason: 'openai_auth_failed' | 'openai_quota_exhausted' | 'openai_api_failed' | 'openai_key_masked' | null = null;
+    let openaiFailureError: string | null = null;
+
+    try {
+      const { rawReportText } = req.body;
+      if (!rawReportText) {
+        return res.status(400).json({ error: "Missing rawReportText in post request body" });
+      }
+
+      const openaiKey = process.env.OPENAI_API_KEY;
+      const isMaskedKey = !!(openaiKey && openaiKey.includes("*"));
+      const hasOpenAI = !!(openaiKey && openaiKey.trim() !== "" && !openaiKey.includes("YOUR_") && !isMaskedKey);
+
+      if (openaiKey && isMaskedKey) {
+        console.log("[OpenAI] API Key format check: The key contains asterisks (*), indicating a masked key copied by mistake.");
+        openaiFailureReason = "openai_key_masked";
+        openaiFailureError = "The provided OpenAI API Key contains asterisks (*). You may have copied a masked key preview from the OpenAI platform dashboard by mistake. Please generate a new key and copy the full unmasked key immediate upon creation.";
+      }
+
+      // Try ChatGPT (OpenAI) first as explicitly requested
+      if (hasOpenAI) {
+        try {
+          console.log("[OpenAI DMS Parser] Extracting report text using gpt-4o-mini...");
+          const openai = getOpenAIClient();
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert automotive Dealer Management System (DMS) parsing assistant. Extract financial and operational metrics from raw text outputs exactly. Maintain 100% precision with numbers."
+              },
+              {
+                role: "user",
+                content: `Please parse this DMS raw report payload and return structured JSON matching the database requirements:\n\n${rawReportText}`
+              }
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "dms_telemetry",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    grossLaborSales: { type: "number", description: "Total Labor Sales from Sale Type row" },
+                    laborGrossProfit: { type: "number", description: "Total Labor Gross Profit from Sale Type row" },
+                    hoursBilled: { type: "number", description: "Total Hours Sold from top summary matrix" },
+                    repairOrdersWritten: { type: "integer", description: "Total physical SO# / RO volume written" },
+                    effectiveLaborRate: { type: "number", description: "Blended total shop ELR calculation" },
+                    
+                    cpHours: { type: "number", description: "Customer pay hours sold" },
+                    cpELR: { type: "number", description: "Customer pay Effective Labor Rate" },
+                    cpLaborGPPercent: { type: "number", description: "Labor C or Customer Labor GP% margin" },
+                    
+                    warrHours: { type: "number", description: "Warranty pay hours sold" },
+                    warrELR: { type: "number", description: "Warranty Effective Labor Rate" },
+                    warrLaborGPPercent: { type: "number", description: "Labor W or Warranty Labor GP% margin" },
+                    
+                    internalHours: { type: "number", description: "Internal / Recon pay hours sold" },
+                    internalELR: { type: "number", description: "Internal Effective Labor Rate" },
+                    internalLaborGPPercent: { type: "number", description: "Labor I or Internal Labor GP% margin" },
+                    
+                    subletSales: { type: "number", description: "Total Sublet Sales amount" },
+                    subletGrossProfit: { type: "number", description: "Total Sublet Gross profit yield" },
+                    miscSales: { type: "number", description: "Total Miscellaneous Sales" },
+                    miscGrossProfit: { type: "number", description: "Total Miscellaneous Gross Profit" }
+                  },
+                  required: [
+                    "grossLaborSales", "laborGrossProfit", "hoursBilled", "repairOrdersWritten", "effectiveLaborRate",
+                    "cpHours", "cpELR", "cpLaborGPPercent", "warrHours", "warrELR", "warrLaborGPPercent",
+                    "internalHours", "internalELR", "internalLaborGPPercent", "subletSales", "subletGrossProfit",
+                    "miscSales", "miscGrossProfit"
+                  ],
+                  additionalProperties: false
+                }
+              }
+            },
+            temperature: 0.0
+          });
+
+          const resContent = completion.choices[0]?.message?.content;
+          if (resContent) {
+            console.log("[OpenAI DMS Parser] Successfully fetched structured JSON.");
+            const parsedData = JSON.parse(resContent);
+            return res.json({ success: true, data: parsedData, isChatGPT: true });
+          }
+        } catch (openaiErr: any) {
+          const errStatus = openaiErr?.status || openaiErr?.statusCode;
+          const errMsg = openaiErr?.message || String(openaiErr);
+          
+          const isAuthError = errStatus === 401 || errMsg.toLowerCase().includes("incorrect api key") || errMsg.toLowerCase().includes("authentication") || errMsg.toLowerCase().includes("invalid_api_key");
+          const isQuotaError = errStatus === 429 || errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("prepayment") || errMsg.toLowerCase().includes("credits") || errMsg.toLowerCase().includes("billing");
+
+          if (isAuthError) {
+            console.log("[OpenAI DMS Parser] API authentication failed. Preparing for fallback...");
+            openaiFailureReason = "openai_auth_failed";
+            openaiFailureError = "OpenAI Authentication failed. The provided API key is incorrect or invalid.";
+          } else if (isQuotaError) {
+            console.log("[OpenAI DMS Parser] Quota limit exceeded. Preparing for fallback...");
+            openaiFailureReason = "openai_quota_exhausted";
+            openaiFailureError = "OpenAI API quota exceeded or prepay credits depleted.";
+          } else {
+            console.log(`[OpenAI DMS Parser] Non-fatal API error: ${errMsg}. Preparing for fallback...`);
+            openaiFailureReason = "openai_api_failed";
+            openaiFailureError = `OpenAI API failed: ${errMsg}`;
+          }
+        }
+      }
+
+      // Gemini Fallback
+      const geminiKey = process.env.GEMINI_API_KEY;
+      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
+      const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
+
+      if (hasGemini) {
+        console.log("[Gemini DMS Parser Fallback] Sending raw data payload of length:", rawReportText.length);
+        try {
+          const client = getAIClient();
+          const response = await client.models.generateContent({
+            model: "gemini-2.0-flash", // Utilizes the high-speed, free tier model requested by user
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: "Extract all specific mechanical operations, labor metrics, rates, and financial row allocations from this raw text report chunk precisely according to the required schema map." },
+                  { text: rawReportText }
+                ]
+              }
+            ],
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: dmsTelemetrySchema,
+              temperature: 0.0 // Locks randomness down to guarantee static precision extraction
+            }
+          });
+
+          if (response.text) {
+            console.log("[Gemini DMS Parser] Successfully fetched structured JSON.");
+            const parsedData = JSON.parse(response.text);
+            return res.json({ success: true, data: parsedData, isChatGPT: false });
+          }
+          throw new Error("Empty extraction string payload returned from AI node context.");
+        } catch (geminiErr: any) {
+          console.log("[Gemini DMS Parser Fallback] Encountered error during generation, handling cleanly.");
+          throw geminiErr;
+        }
+      } else {
+        console.log("[Gemini DMS Parser Fallback] Gemini API key not configured or has been removed. Skipping Gemini fallback...");
+        throw new Error("GEMINI_API_KEY is not configured or has been removed.");
+      }
+
+    } catch (error: any) {
+      const errorMsg = error?.message || String(error);
+      const isQuotaOrCredits = errorMsg.includes("RESOURCE_EXHAUSTED") || 
+                               errorMsg.includes("prepayment") || 
+                               errorMsg.includes("credits") || 
+                               errorMsg.includes("429") ||
+                               errorMsg.includes("quota");
+
+      // Concise single line status logging to keep container outputs readable and pristine
+      console.log(`[AI Engine Status] OpenAI: ${openaiFailureReason || 'skipped'}, Gemini: ${isQuotaOrCredits ? 'quota_exhausted' : 'failed'}`);
+
+      const reason = openaiFailureReason || (isQuotaOrCredits ? "quota_exhausted" : "api_failed");
+      const combinedError = openaiFailureError ? `${openaiFailureError} (Fallback Gemini failed too: ${errorMsg})` : errorMsg;
+
+      return res.json({ 
+        success: false, 
+        isGeminiError: true,
+        reason: reason,
+        error: combinedError 
+      });
     }
   });
 

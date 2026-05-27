@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { cn } from '../../../lib/utils';
+import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { 
   TrendingUp, 
   Printer, 
@@ -198,11 +199,73 @@ interface ExtractedData {
   miscSales: number;
   miscGross: number;
   unappliedTime: number;
+  // Live MTD fields extracted from report
+  mtdTotalLaborSales?: number;
+  mtdLaborGrossProfit?: number;
+  mtdHoursSold?: number;
+  mtdRepairOrdersWritten?: number;
+  mtdEffectiveLaborRate?: number;
+  mtdLaborGPPercent?: number;
 }
+
+const calculateBillingDaysForNextMonth = (): number => {
+  const currentDate = new Date();
+  let year = currentDate.getUTCFullYear();
+  let nextMonth = currentDate.getUTCMonth() + 1; // 0-indexed, so +1 gives next month
+  if (nextMonth > 11) {
+    nextMonth = 0;
+    year += 1;
+  }
+  
+  const d = new Date(Date.UTC(year, nextMonth, 1));
+  let count = 0;
+  
+  const isFederalHoliday = (date: Date): boolean => {
+    const m = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const dayOfWeek = date.getUTCDay();
+    
+    // New Year's Day (Jan 1)
+    if (m === 0 && day === 1) return true;
+    // MLK Day (3rd Monday in Jan)
+    if (m === 0 && dayOfWeek === 1 && day >= 15 && day <= 21) return true;
+    // Washington's Birthday / Presidents Day (3rd Monday in Feb)
+    if (m === 1 && dayOfWeek === 1 && day >= 15 && day <= 21) return true;
+    // Memorial Day (last Monday in May)
+    if (m === 4 && dayOfWeek === 1 && day >= 25 && day <= 31) return true;
+    // Juneteenth (June 19)
+    if (m === 5 && day === 19) return true;
+    // Independence Day (July 4)
+    if (m === 6 && day === 4) return true;
+    // Labor Day (1st Monday in Sept)
+    if (m === 8 && dayOfWeek === 1 && day >= 1 && day <= 7) return true;
+    // Columbus Day (2nd Monday in Oct)
+    if (m === 9 && dayOfWeek === 1 && day >= 8 && day <= 14) return true;
+    // Veterans Day (Nov 11)
+    if (m === 10 && day === 11) return true;
+    // Thanksgiving (4th Thursday in Nov)
+    if (m === 10 && dayOfWeek === 4 && day >= 22 && day <= 28) return true;
+    // Christmas Day (Dec 25)
+    if (m === 11 && day === 25) return true;
+    
+    return false;
+  };
+
+  while (d.getUTCMonth() === nextMonth) {
+    const dayOfWeek = d.getUTCDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      if (!isFederalHoliday(d)) {
+        count++;
+      }
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return count;
+};
 
 const performDeterministicExtraction = (text: string): ExtractedData => {
   const data: ExtractedData = {
-    techs: 7,
+    techs: 6,
     cpMix: 49,
     cpRate: 185,
     cpGp: 75,
@@ -231,6 +294,8 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
     let customerFirstRow: number[] = [];
     let warrantyFirstRow: number[] = [];
     let internalFirstRow: number[] = [];
+    let totalRow: number[] = [];
+    let laborRow: number[] = [];
 
     const getNumbersFromLine = (line: string): number[] => {
       const regex = /-?[\d,]+(?:\.\d+)?/g;
@@ -258,6 +323,18 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
         const nums = getNumbersFromLine(trimmed);
         if (nums.length >= 10 && internalFirstRow.length === 0) {
           internalFirstRow = nums;
+        }
+      }
+      if (lowercaseLine.startsWith('total')) {
+        const nums = getNumbersFromLine(trimmed);
+        if (nums.length >= 10 && totalRow.length === 0) {
+          totalRow = nums;
+        }
+      }
+      if (lowercaseLine.startsWith('labor ') || lowercaseLine === 'labor') {
+        const nums = getNumbersFromLine(trimmed);
+        if (nums.length >= 4 && nums.length <= 6 && laborRow.length === 0) {
+          laborRow = nums;
         }
       }
     }
@@ -324,6 +401,34 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
       }
     }
 
+    // Determine actual totals for dynamic MTD dashboard live panel
+    let mtdTotalLaborSales = 58849.43;
+    let mtdLaborGrossProfit = 49036.39;
+    let mtdHoursSold = 393.30;
+    let mtdRepairOrdersWritten = 333;
+    let mtdEffectiveLaborRate = 149.63;
+    let mtdLaborGPPercent = 83.3;
+
+    if (totalRow.length >= 7) {
+      mtdRepairOrdersWritten = totalRow[0] || mtdRepairOrdersWritten;
+      mtdHoursSold = totalRow[2] || mtdHoursSold;
+      mtdTotalLaborSales = totalRow[4] || mtdTotalLaborSales;
+      mtdEffectiveLaborRate = totalRow[6] || mtdEffectiveLaborRate;
+    }
+
+    if (laborRow.length >= 2) {
+      const sales = laborRow[0] || 0;
+      const cost = laborRow[1] || 0;
+      if (sales > 0 && cost > 0) {
+        mtdTotalLaborSales = sales;
+        mtdLaborGrossProfit = sales - cost;
+        mtdLaborGPPercent = Math.round((mtdLaborGrossProfit / sales) * 1000) / 10;
+      }
+    } else if (totalRow.length >= 7) {
+      mtdLaborGPPercent = 83.3;
+      mtdLaborGrossProfit = mtdTotalLaborSales * (mtdLaborGPPercent / 100);
+    }
+
     return {
       techs: data.techs, // Keep default technicians staffing level
       cpMix,
@@ -339,7 +444,13 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
       subletGross,
       miscSales: 0,
       miscGross: 0,
-      unappliedTime: 0
+      unappliedTime: 0,
+      mtdTotalLaborSales,
+      mtdLaborGrossProfit,
+      mtdHoursSold,
+      mtdRepairOrdersWritten,
+      mtdEffectiveLaborRate,
+      mtdLaborGPPercent
     };
   }
 
@@ -433,13 +544,43 @@ export default function FixedOpsForecast({
   // Preset Active state ('conservative' | 'balanced' | 'aggressive')
   const [activePreset, setActivePreset] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced');
 
+  const [mtdTelemetry, setMtdTelemetry] = useState({
+    grossLaborSales: 58847.00,
+    laborGrossProfit: 49035.00,
+    hoursSold: 392.8,
+    repairOrdersWritten: 0,
+    effectiveLaborRate: 149.81,
+    laborGPPercent: 83.3,
+    mix: {
+      cp: 0.467,
+      warr: 0.350,
+      internal: 0.183,
+    },
+    elr: {
+      cp: 142.35,
+      warr: 166.10,
+      internal: 136.64
+    },
+    gpPercent: {
+      cp: 81.9,
+      warr: 86.7,
+      internal: 79.7
+    },
+    ancillary: {
+      subletSales: 8327.33,
+      subletGross: 219.40,
+      miscSales: 1000.00,
+      miscGross: 1000.00
+    }
+  });
+
   // Input states aligned exactly with spreadsheet layout in mockup
   const [inputs, setInputs] = useState({
-    billingDays: 22,
-    techsAvailable: 7,
+    billingDays: calculateBillingDaysForNextMonth(),
+    techsAvailable: 6,
     hoursPerDay: 8,
-    absenteeismRate: 5,        // absenteeism factor: 5%
-    efficiencyForecast: 100,    // shop efficiency: 100%
+    absenteeismRate: 10,        // absenteeism factor: 10%
+    efficiencyForecast: 80,    // shop efficiency: 80%
     cpMix: 49,                  // customer pay mix (mapped to 0.49 of mix)
     cpRate: 185,                // CP target ELR
     cpGp: 75,                   // CP target labor GP margin %
@@ -461,6 +602,8 @@ export default function FixedOpsForecast({
   const [fileExtracting, setFileExtracting] = useState<boolean>(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [reportRawText, setReportRawText] = useState<string>('');
+  const [parseEngine, setParseEngine] = useState<'none' | 'gemini' | 'chatgpt' | 'local'>('none');
+  const [parserLog, setParserLog] = useState<string>('');
   const [selectedSample, setSelectedSample] = useState<string>('');
   const [pdfActiveTab, setPdfActiveTab] = useState<'upload' | 'sample'>('upload');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -468,13 +611,14 @@ export default function FixedOpsForecast({
   // Apply Preset Values
   const applyPreset = (presetName: 'conservative' | 'balanced' | 'aggressive') => {
     setActivePreset(presetName);
+    const billingDaysVal = calculateBillingDaysForNextMonth();
     if (presetName === 'conservative') {
       setInputs({
-        billingDays: 22,
+        billingDays: billingDaysVal,
         techsAvailable: 6,
         hoursPerDay: 8,
-        absenteeismRate: 8,
-        efficiencyForecast: 90,
+        absenteeismRate: 12,
+        efficiencyForecast: 75,
         cpMix: 45,
         cpRate: 175,
         cpGp: 70,
@@ -493,11 +637,11 @@ export default function FixedOpsForecast({
       onSuccess?.("Applied Conservative capacity forecasting parameters!");
     } else if (presetName === 'balanced') {
       setInputs({
-        billingDays: 22,
-        techsAvailable: 7,
+        billingDays: billingDaysVal,
+        techsAvailable: 6,
         hoursPerDay: 8,
-        absenteeismRate: 5,
-        efficiencyForecast: 100,
+        absenteeismRate: 10,
+        efficiencyForecast: 80,
         cpMix: 49,
         cpRate: 185,
         cpGp: 75,
@@ -516,11 +660,11 @@ export default function FixedOpsForecast({
       onSuccess?.("Applied Balanced baseline capacity forecasting parameters!");
     } else if (presetName === 'aggressive') {
       setInputs({
-        billingDays: 22,
-        techsAvailable: 8,
+        billingDays: billingDaysVal,
+        techsAvailable: 6,
         hoursPerDay: 8,
-        absenteeismRate: 3,
-        efficiencyForecast: 110,
+        absenteeismRate: 8,
+        efficiencyForecast: 90,
         cpMix: 52,
         cpRate: 195, // target ELR
         cpGp: 78,
@@ -640,36 +784,135 @@ export default function FixedOpsForecast({
       miscGross: extractedData.miscGross,
       unappliedTime: extractedData.unappliedTime
     });
+
+    if (extractedData.mtdTotalLaborSales !== undefined) {
+      setMtdTelemetry({
+        grossLaborSales: extractedData.mtdTotalLaborSales,
+        laborGrossProfit: extractedData.mtdLaborGrossProfit ?? 0,
+        hoursSold: extractedData.mtdHoursSold ?? 0,
+        repairOrdersWritten: extractedData.mtdRepairOrdersWritten ?? 0,
+        effectiveLaborRate: extractedData.mtdEffectiveLaborRate ?? 0,
+        laborGPPercent: extractedData.mtdLaborGPPercent ?? 0,
+        mix: {
+          cp: extractedData.cpMix / 100,
+          warr: extractedData.warrMix / 100,
+          internal: extractedData.internalMix / 100,
+        },
+        elr: {
+          cp: extractedData.cpRate,
+          warr: extractedData.warrRate,
+          internal: extractedData.internalRate
+        },
+        gpPercent: {
+          cp: extractedData.cpGp,
+          warr: extractedData.warrGp,
+          internal: extractedData.internalGp
+        },
+        ancillary: {
+          subletSales: extractedData.subletSales,
+          subletGross: extractedData.subletGross,
+          miscSales: extractedData.miscSales,
+          miscGross: extractedData.miscGross
+        }
+      });
+    }
+
     setIsPdfModalOpen(false);
     onSuccess?.("Loaded audited variables from report successfully!");
+  };
+
+  const runExtraction = async (text: string) => {
+    setParserLog('');
+    try {
+      const response = await fetch('/api/gemini-parse-dms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rawReportText: text }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          const g = result.data;
+          
+          const totalHours = (g.cpHours || 0) + (g.warrHours || 0) + (g.internalHours || 0);
+          const cpMixVal = totalHours > 0 ? Math.round((g.cpHours / totalHours) * 100) : 49;
+          const warrMixVal = totalHours > 0 ? Math.round((g.warrHours / totalHours) * 100) : 31;
+          const internalMixVal = totalHours > 0 ? Math.round((g.internalHours / totalHours) * 100) : 20;
+
+          const mapped: ExtractedData = {
+            techs: 6,
+            cpMix: cpMixVal,
+            cpRate: g.cpELR || 185,
+            cpGp: g.cpLaborGPPercent || 75,
+            warrMix: warrMixVal,
+            warrRate: g.warrELR || 165,
+            warrGp: g.warrLaborGPPercent || 72,
+            internalMix: internalMixVal,
+            internalRate: g.internalELR || 145,
+            internalGp: g.internalLaborGPPercent || 70,
+            subletSales: g.subletSales || 0,
+            subletGross: g.subletGrossProfit || 0,
+            miscSales: g.miscSales || 0,
+            miscGross: g.miscGrossProfit || 0,
+            unappliedTime: 0,
+            
+            mtdTotalLaborSales: g.grossLaborSales,
+            mtdLaborGrossProfit: g.laborGrossProfit,
+            mtdHoursSold: g.hoursBilled,
+            mtdRepairOrdersWritten: g.repairOrdersWritten,
+            mtdEffectiveLaborRate: g.effectiveLaborRate,
+            mtdLaborGPPercent: g.grossLaborSales > 0 ? Math.round((g.laborGrossProfit / g.grossLaborSales) * 100) : undefined,
+          };
+
+          setExtractedData(mapped);
+          setParseEngine(result.isChatGPT ? 'chatgpt' : 'gemini');
+          return;
+        } else if (result.isGeminiError) {
+          console.log("AI service returned an error info payload:", result.error);
+          const deterministicParsed = performDeterministicExtraction(text);
+          setExtractedData(deterministicParsed);
+          setParseEngine('local');
+          if (result.reason === "quota_exhausted") {
+            setParserLog("Gemini prepayment credits depleted / rate limited (429). Local rule-based parsing loaded as placeholder fallback!");
+          } else if (result.reason === "openai_quota_exhausted") {
+            setParserLog("OpenAI quota exceeded or prepayment credits depleted. Local rule-based parsing loaded as fallback!");
+          } else if (result.reason === "openai_auth_failed") {
+            setParserLog("OpenAI Key Authentication Failed (401 invalid key). Local rule-based offline parsing loaded as fallback!");
+          } else if (result.reason === "openai_key_masked") {
+            setParserLog("OpenAI API Key format error (copied with asterisks * from dashboard by mistake). Please configure a new, full unmasked key in settings.");
+          } else {
+            setParserLog(`AI extraction offline (${result.error}). Local rule-based parsing loaded as a fallback.`);
+          }
+          return;
+        }
+      }
+      
+      console.log("AI service unavailable. Falling back to rule-based parser.");
+      const deterministicParsed = performDeterministicExtraction(text);
+      setExtractedData(deterministicParsed);
+      setParseEngine('local');
+      setParserLog("AI API Key missing or model offline. Local pattern matching was loaded as a fallback safely!");
+    } catch (err) {
+      console.log("AI route handling exception occurred:", err);
+      const deterministicParsed = performDeterministicExtraction(text);
+      setExtractedData(deterministicParsed);
+      setParseEngine('local');
+      setParserLog("Connection error occurred. Rule-based offline parser loaded as a fallback.");
+    }
   };
 
   const handlePdfUpload = async (file: File) => {
     setFileExtracting(true);
     setValidationError(null);
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfjs = await import('pdfjs-dist');
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version || '5.7.284'}/build/pdf.worker.min.mjs`;
-      
-      const loadingTask = pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) });
-      const pdf = await loadingTask.promise;
-      let text = "";
-      
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(" ");
-        text += pageText + "\n";
-      }
-
+      const text = await extractTextFromPDF(file);
       setReportRawText(text);
-      const parsed = performDeterministicExtraction(text);
-      setExtractedData(parsed);
+      await runExtraction(text);
       setSelectedSample('');
-      onSuccess?.(`Successfully pulled text from PDF: ${file.name}`);
+      onSuccess?.(`Successfully processed PDF MTD data: ${file.name}`);
     } catch (err: any) {
       console.error(err);
       setValidationError("Failed to extract legible text from PDF. Ensure PDF is a plain-text digital document, or copy and paste raw report text directly!");
@@ -678,17 +921,25 @@ export default function FixedOpsForecast({
     }
   };
 
-  const handleSampleSelected = (sampleId: string) => {
+  const handleSampleSelected = async (sampleId: string) => {
     setSelectedSample(sampleId);
     const found = SAMPLE_DMS_REPORTS.find(s => s.id === sampleId);
     if (found) {
       setReportRawText(found.text);
-      const parsed = performDeterministicExtraction(found.text);
-      setExtractedData(parsed);
-      onSuccess?.(`Loaded sample DMS record: ${found.name}`);
+      setFileExtracting(true);
+      try {
+        await runExtraction(found.text);
+        onSuccess?.(`Successfully processed sample record: ${found.name}`);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setFileExtracting(false);
+      }
     } else {
       setReportRawText('');
       setExtractedData(null);
+      setParseEngine('none');
+      setParserLog('');
     }
   };
 
@@ -696,12 +947,12 @@ export default function FixedOpsForecast({
   const barChartData = [
     {
       name: 'Labor Sales',
-      current: LIVE_MTD_TELEMETRY.grossLaborSales,
+      current: mtdTelemetry.grossLaborSales,
       projected: calculations.totalLaborSales,
     },
     {
       name: 'Labor Gross',
-      current: LIVE_MTD_TELEMETRY.laborGrossProfit,
+      current: mtdTelemetry.laborGrossProfit,
       projected: calculations.totalLaborGrossProfit,
     },
   ];
@@ -925,15 +1176,15 @@ export default function FixedOpsForecast({
             <div>
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">MTD Gross Labor Sales</span>
               <span className="text-3xl font-mono font-black mt-1.5 block text-white select-all">
-                ${LIVE_MTD_TELEMETRY.grossLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                ${mtdTelemetry.grossLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
               </span>
             </div>
 
             <div>
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">MTD Labor Gross Profit</span>
               <span className="text-lg font-mono font-black text-indigo-400 mt-1 block select-all">
-                ${LIVE_MTD_TELEMETRY.laborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                <span className="text-[10px] text-slate-400 font-bold ml-1.5 select-none">({LIVE_MTD_TELEMETRY.laborGPPercent}%)</span>
+                ${mtdTelemetry.laborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                <span className="text-[10px] text-slate-400 font-bold ml-1.5 select-none">({mtdTelemetry.laborGPPercent}%)</span>
               </span>
             </div>
 
@@ -941,13 +1192,13 @@ export default function FixedOpsForecast({
               <div>
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Hours Sold</span>
                 <span className="text-sm font-mono font-black text-white mt-1 block font-mono">
-                  {LIVE_MTD_TELEMETRY.hoursSold.toFixed(1)} hrs
+                  {mtdTelemetry.hoursSold.toFixed(1)} hrs
                 </span>
               </div>
               <div>
                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Repair Orders</span>
                 <span className="text-sm font-mono font-black text-white mt-1 block font-mono">
-                  {LIVE_MTD_TELEMETRY.repairOrdersWritten} ROs
+                  {mtdTelemetry.repairOrdersWritten} ROs
                 </span>
               </div>
             </div>
@@ -956,7 +1207,7 @@ export default function FixedOpsForecast({
               <div>
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Effective Labor Rate (ELR)</span>
                 <span className="text-xl font-mono font-black text-indigo-400 mt-0.5 block">
-                  ${LIVE_MTD_TELEMETRY.effectiveLaborRate.toFixed(2)}
+                  ${mtdTelemetry.effectiveLaborRate.toFixed(2)}
                 </span>
               </div>
               <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] font-extrabold rounded uppercase font-mono tracking-widest">
@@ -1360,7 +1611,7 @@ export default function FixedOpsForecast({
               ${calculations.totalELR.toFixed(2)}
             </span>
             <span className="text-[9.5px] text-slate-500 font-mono font-bold block mt-0.5">
-              Live baseline comparison: ${LIVE_MTD_TELEMETRY.effectiveLaborRate.toFixed(2)}
+              Live baseline comparison: ${mtdTelemetry.effectiveLaborRate.toFixed(2)}
             </span>
           </div>
         </div>
@@ -1506,7 +1757,11 @@ export default function FixedOpsForecast({
                   <UploadCloud size={16} className="text-indigo-400" />
                   DMS Report Parser & Forecast Generator
                 </h3>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5 font-mono">Rule-Based Extraction Panel • 100% Client-Side</p>
+                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5 font-mono flex items-center gap-2">
+                  <span>ChatGPT-4o-mini / Gemini Engine</span>
+                  <span className="w-1 h-1 bg-white/30 rounded-full"></span>
+                  <span>Auto-Structured DMS Parsing</span>
+                </p>
               </div>
               <button 
                 type="button" 
@@ -1613,9 +1868,28 @@ export default function FixedOpsForecast({
                 {extractedData && (
                   <div className="p-4 bg-emerald-500/5 border border-emerald-500/15 rounded-2xl animate-fade-in relative space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest block">✔ Audit Parser Extracted Successfully</span>
-                      <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase font-mono">DMS Matched</span>
+                      <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest block flex items-center gap-1.5">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        {parseEngine === 'chatgpt' ? "✔ ChatGPT-4o-mini AI Extraction Successful" : parseEngine === 'gemini' ? "✔ Gemini 3.5 Flash AI Extraction Successful" : "✔ Local Pattern extraction loaded"}
+                      </span>
+                      <span className={cn(
+                        "text-[8.5px] px-2 py-0.5 rounded font-black uppercase font-mono tracking-wider border",
+                        parseEngine === 'chatgpt' || parseEngine === 'gemini'
+                          ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/25" 
+                          : "bg-amber-500/10 text-amber-400 border-amber-500/25"
+                      )}>
+                        {parseEngine === 'chatgpt' ? "ChatGPT-Structured" : parseEngine === 'gemini' ? "Gemini-Structured" : "Local Fallback"}
+                      </span>
                     </div>
+
+                    {parserLog && (
+                      <div className="p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-xl text-[9px] text-amber-350 font-mono leading-relaxed">
+                        ★ {parserLog}
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] text-slate-400">
                       <div className="flex justify-between"><span>Workforce:</span> <span className="text-white font-bold">{extractedData.techs} Techs</span></div>
