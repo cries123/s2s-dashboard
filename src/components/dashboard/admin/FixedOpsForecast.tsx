@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { cn } from '../../../lib/utils';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { 
@@ -199,6 +199,9 @@ interface ExtractedData {
   miscSales: number;
   miscGross: number;
   unappliedTime: number;
+  cpCount?: number;
+  warrCount?: number;
+  internalCount?: number;
   // Live MTD fields extracted from report
   mtdTotalLaborSales?: number;
   mtdLaborGrossProfit?: number;
@@ -279,7 +282,10 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
     subletGross: 3125,
     miscSales: 5880,
     miscGross: 1420,
-    unappliedTime: 0
+    unappliedTime: 0,
+    cpCount: 147,
+    warrCount: 102,
+    internalCount: 51
   };
 
   const lowercaseText = text.toLowerCase();
@@ -429,6 +435,10 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
       mtdLaborGrossProfit = mtdTotalLaborSales * (mtdLaborGPPercent / 100);
     }
 
+    const cpCount = customerFirstRow.length > 0 ? customerFirstRow[0] : 147;
+    const warrCount = warrantyFirstRow.length > 0 ? warrantyFirstRow[0] : 102;
+    const internalCount = internalFirstRow.length > 0 ? internalFirstRow[0] : 51;
+
     return {
       techs: data.techs, // Keep default technicians staffing level
       cpMix,
@@ -445,6 +455,9 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
       miscSales: 0,
       miscGross: 0,
       unappliedTime: 0,
+      cpCount,
+      warrCount,
+      internalCount,
       mtdTotalLaborSales,
       mtdLaborGrossProfit,
       mtdHoursSold,
@@ -527,6 +540,25 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
     data.unappliedTime = parseFloat(unappliedMatch[1].replace(/,/g, ''));
   }
 
+  // Extract raw CP, Warrant, and Internal RO counts from other custom plain texts
+  const genCpRoMatch = text.match(/(?:customer\s*pay|cp|cust\s*pay)\s*(?:ro\s*|repair\s*order\s*)?(?:count|instances|qty|quantity|orders|volume|written|total)\s*[:=-]?\s*(\d+)/i) ||
+                       text.match(/(?:customer\s*pay|cp|cust\s*pay)\s*[:=-]?\s*(\d+)\s*(?:ro|repair\s*orders|orders|written)/i);
+  if (genCpRoMatch) {
+    data.cpCount = parseInt(genCpRoMatch[1]);
+  }
+
+  const genWarrRoMatch = text.match(/(?:warranty|warr|war)\s*(?:ro\s*|repair\s*order\s*)?(?:count|instances|qty|quantity|orders|volume|written|total)\s*[:=-]?\s*(\d+)/i) ||
+                        text.match(/(?:warranty|warr|war)\s*[:=-]?\s*(\d+)\s*(?:ro|repair\s*orders|orders|written)/i);
+  if (genWarrRoMatch) {
+    data.warrCount = parseInt(genWarrRoMatch[1]);
+  }
+
+  const genInternalRoMatch = text.match(/(?:internal|int)\s*(?:ro\s*|repair\s*order\s*)?(?:count|instances|qty|quantity|orders|volume|written|total)\s*[:=-]?\s*(\d+)/i) ||
+                            text.match(/(?:internal|int)\s*[:=-]?\s*(\d+)\s*(?:ro|repair\s*orders|orders|written)/i);
+  if (genInternalRoMatch) {
+    data.internalCount = parseInt(genInternalRoMatch[1]);
+  }
+
   return data;
 };
 
@@ -597,8 +629,50 @@ export default function FixedOpsForecast({
     unappliedTime: 0
   });
 
+  // Derived or input raw Counts for CP, Warr, and Internal
+  const [rawCounts, setRawCounts] = useState({
+    cpCount: 147,
+    warrCount: 102,
+    internalCount: 51
+  });
+
+  const calculateScaledProportionalMix = useCallback((counts: { cpCount: number; warrCount: number; internalCount: number }) => {
+    const total = counts.cpCount + counts.warrCount + counts.internalCount;
+    if (total === 0) {
+      return { cpMix: 0, warrMix: 0, internalMix: 0 };
+    }
+    const cpMix = (counts.cpCount / total) * 100;
+    const warrMix = (counts.warrCount / total) * 100;
+    const internalMix = 100 - cpMix - warrMix;
+    return { cpMix, warrMix, internalMix };
+  }, []);
+
+  const derivedMix = useMemo(() => {
+    return calculateScaledProportionalMix(rawCounts);
+  }, [rawCounts, calculateScaledProportionalMix]);
+
+  const handleCountChange = (key: 'cpCount' | 'warrCount' | 'internalCount', val: number) => {
+    const nextCounts = { ...rawCounts, [key]: Math.max(0, val) };
+    setRawCounts(nextCounts);
+    
+    // Auto-calculate the mix percent and update inputs state
+    const mix = calculateScaledProportionalMix(nextCounts);
+    
+    // Check if total is 0 to avoid zero-division issues
+    const total = nextCounts.cpCount + nextCounts.warrCount + nextCounts.internalCount;
+    if (total > 0) {
+      setInputs(prev => ({
+        ...prev,
+        cpMix: Number(mix.cpMix.toFixed(1)),
+        warrMix: Number(mix.warrMix.toFixed(1)),
+        internalMix: Number(mix.internalMix.toFixed(1))
+      }));
+    }
+  };
+
   // Modal toggle state for DMS PDF data upload
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [fileExtracting, setFileExtracting] = useState<boolean>(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [reportRawText, setReportRawText] = useState<string>('');
@@ -634,6 +708,11 @@ export default function FixedOpsForecast({
         miscGross: 1000,
         unappliedTime: 0
       });
+      setRawCounts({
+        cpCount: 135,
+        warrCount: 105,
+        internalCount: 60
+      });
       onSuccess?.("Applied Conservative capacity forecasting parameters!");
     } else if (presetName === 'balanced') {
       setInputs({
@@ -657,6 +736,11 @@ export default function FixedOpsForecast({
         miscGross: 1420,
         unappliedTime: 0
       });
+      setRawCounts({
+        cpCount: 147,
+        warrCount: 102,
+        internalCount: 51
+      });
       onSuccess?.("Applied Balanced baseline capacity forecasting parameters!");
     } else if (presetName === 'aggressive') {
       setInputs({
@@ -676,9 +760,14 @@ export default function FixedOpsForecast({
         internalGp: 82,
         subletSales: 15000,
         subletGross: 4000,
-        miscSales: 8000,
-        miscGross: 2000,
+        miscSales: 8005,
+        miscGross: 1420,
         unappliedTime: 0
+      });
+      setRawCounts({
+        cpCount: 156,
+        warrCount: 96,
+        internalCount: 48
       });
       onSuccess?.("Applied Aggressive department growth parameters!");
     }
@@ -785,6 +874,16 @@ export default function FixedOpsForecast({
       unappliedTime: extractedData.unappliedTime
     });
 
+    const totalROs = extractedData.mtdRepairOrdersWritten || 300;
+    const cpC = extractedData.cpCount !== undefined ? extractedData.cpCount : Math.round(totalROs * (extractedData.cpMix / 100));
+    const warrC = extractedData.warrCount !== undefined ? extractedData.warrCount : Math.round(totalROs * (extractedData.warrMix / 100));
+    const intC = extractedData.internalCount !== undefined ? extractedData.internalCount : Math.max(0, totalROs - cpC - warrC);
+    setRawCounts({
+      cpCount: cpC,
+      warrCount: warrC,
+      internalCount: intC
+    });
+
     if (extractedData.mtdTotalLaborSales !== undefined) {
       setMtdTelemetry({
         grossLaborSales: extractedData.mtdTotalLaborSales,
@@ -858,6 +957,9 @@ export default function FixedOpsForecast({
             miscSales: g.miscSales || 0,
             miscGross: g.miscGrossProfit || 0,
             unappliedTime: 0,
+            cpCount: g.cpCount,
+            warrCount: g.warrCount,
+            internalCount: g.internalCount,
             
             mtdTotalLaborSales: g.grossLaborSales,
             mtdLaborGrossProfit: g.laborGrossProfit,
@@ -965,7 +1067,7 @@ export default function FixedOpsForecast({
 
   const PIE_COLORS = ['#3b82f6', '#4f46e5', '#a855f7'];
 
-  // Elegant Print Handler
+  // Elegant Print Handler (Breathtaking Modern Spacious Executive Layout)
   const handlePrint = () => {
     const printWindow = window.open('', '_blank', 'width=1100,height=900,resizable=yes,scrollbars=yes');
     if (!printWindow) {
@@ -993,119 +1095,212 @@ export default function FixedOpsForecast({
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
             body {
               font-family: 'Inter', sans-serif;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
+            .paper {
+              box-shadow: none;
+              border: none;
+            }
+            @media screen {
+              body {
+                background-color: #f1f5f9;
+                padding: 40px 20px;
+              }
+              .paper {
+                box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+                border: 1px solid #e2e8f0;
+                background-color: white;
+                border-radius: 24px;
+              }
+            }
+            @media print {
+              body {
+                padding: 0px !important;
+                background-color: white !important;
+              }
+              .paper {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0px !important;
+              }
+            }
           </style>
         </head>
-        <body class="bg-white text-slate-900 p-8">
-          <div class="max-w-4xl mx-auto space-y-6">
-            <div class="border-b border-slate-300 pb-4 flex justify-between items-center">
-              <div>
-                <span class="text-[10px] font-black text-[#4f46e5] uppercase tracking-wider block">Fixed Operations Capacity Model</span>
-                <h1 class="text-2xl font-black uppercase text-slate-900 leading-none mt-1">Capacity & Projections Forecast</h1>
-                <p class="text-xs font-mono text-slate-500 uppercase mt-1">Hyundai of Santa Maria</p>
+        <body class="bg-[#f8fafc] text-slate-900">
+          <div class="paper max-w-4xl mx-auto space-y-8 p-10 bg-white">
+            
+            <!-- HEADER BLOCK: Spacious, aligned corporate look -->
+            <div class="border-b border-slate-200 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div class="space-y-1">
+                <span class="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations Capacity Model</span>
+                <h1 class="text-3xl font-extrabold uppercase text-slate-900 leading-none tracking-tight">Capacity & Projections Forecast</h1>
+                <p class="text-xs font-mono text-slate-500 uppercase flex items-center gap-2">
+                  <span class="font-bold text-slate-700">Hyundai of Santa Maria</span>
+                  <span class="text-slate-350">•</span>
+                  <span>Internal Operational Audit Ledger</span>
+                </p>
               </div>
-              <div class="text-right font-mono text-[10px] text-slate-600">
-                <div>Dealer Group Workspace Ledger</div>
-                <div>Generated: ${dateStr}</div>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-4 gap-4 py-4">
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <span class="text-[9px] uppercase text-slate-500 font-bold block">Projected Net Hours</span>
-                <span class="text-lg font-mono font-black mt-1 block">${calculations.totalNetProjectedHours.toFixed(1)} hrs</span>
-              </div>
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <span class="text-[9px] uppercase text-slate-500 font-bold block">Projected Labor Sales</span>
-                <span class="text-lg font-mono font-black mt-1 block">$${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
-              </div>
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <span class="text-[9px] uppercase text-slate-500 font-bold block">Adjusted Profit GP</span>
-                <span class="text-lg font-mono font-black text-emerald-700 mt-1 block block">$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
-              </div>
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <span class="text-[9px] uppercase text-slate-500 font-bold block">Blended ELR Baseline</span>
-                <span class="text-lg font-mono font-black mt-1 block">$${calculations.totalELR.toFixed(2)}</span>
+              <div class="text-right font-mono text-[10px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div class="font-bold text-slate-700">Dealer Group Workspace Ledger</div>
+                <div class="text-slate-400">Generated on ${dateStr}</div>
               </div>
             </div>
 
-            <table class="w-full text-left font-mono text-xs border border-slate-300">
-              <thead>
-                <tr class="bg-slate-100 border-b border-slate-300 font-bold text-slate-700 uppercase">
-                  <th class="py-2.5 px-3">Revenue Block</th>
-                  <th class="py-2.5 px-3 text-center">Mix %</th>
-                  <th class="py-2.5 px-3 text-right">Hours</th>
-                  <th class="py-2.5 px-3 text-right">Target ELR</th>
-                  <th class="py-2.5 px-3 text-right">Labor Sales</th>
-                  <th class="py-2.5 px-3 text-center">GP %</th>
-                  <th class="py-2.5 px-3 text-right">Gross Profit</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-200">
-                <tr>
-                  <td class="py-2 px-3 font-bold">Customer Pay (CP)</td>
-                  <td class="py-2 px-3 text-center">${inputs.cpMix}%</td>
-                  <td class="py-2 px-3 text-right">${calculations.cpHours.toFixed(1)}</td>
-                  <td class="py-2 px-3 text-right">$${inputs.cpRate.toFixed(2)}</td>
-                  <td class="py-2 px-3 text-right">$${calculations.cpSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                  <td class="py-2 px-3 text-center">${inputs.cpGp}%</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-800">$${calculations.cpGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                </tr>
-                <tr>
-                  <td class="py-2 px-3 font-bold">Warranty Pay (WARR)</td>
-                  <td class="py-2 px-3 text-center">${inputs.warrMix}%</td>
-                  <td class="py-2 px-3 text-right">${calculations.warrHours.toFixed(1)}</td>
-                  <td class="py-2 px-3 text-right">$${inputs.warrRate.toFixed(2)}</td>
-                  <td class="py-2 px-3 text-right">$${calculations.warrSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                  <td class="py-2 px-3 text-center">${inputs.warrGp}%</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-800">$${calculations.warrGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                </tr>
-                <tr>
-                  <td class="py-2 px-3 font-bold">Internal Pay (INT)</td>
-                  <td class="py-2 px-3 text-center">${inputs.internalMix}%</td>
-                  <td class="py-2 px-3 text-right">${calculations.internalHours.toFixed(1)}</td>
-                  <td class="py-2 px-3 text-right">$${inputs.internalRate.toFixed(2)}</td>
-                  <td class="py-2 px-3 text-right">$${calculations.internalSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                  <td class="py-2 px-3 text-center">${inputs.internalGp}%</td>
-                  <td class="py-2 px-3 text-right font-bold text-emerald-800">$${calculations.internalGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                </tr>
-                <tr class="bg-slate-50 font-bold border-t-2 border-slate-400">
-                  <td class="py-2.5 px-3 uppercase">Totals / Blended</td>
-                  <td class="py-2.5 px-3 text-center">100.0%</td>
-                  <td class="py-2.5 px-3 text-right">${calculations.totalNetProjectedHours.toFixed(1)}</td>
-                  <td class="py-2.5 px-3 text-right">$${calculations.totalELR.toFixed(2)}</td>
-                  <td class="py-2.5 px-3 text-right">$${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                  <td class="py-2.5 px-3 text-center">${calculations.blendedGPPercent.toFixed(1)}%</td>
-                  <td class="py-2.5 px-3 text-right font-bold text-slate-900">$${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="grid grid-cols-2 gap-6 pt-4 border-t border-slate-300">
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                <span class="text-[10px] font-black uppercase text-slate-500 block">Calendar Capacity Constants</span>
-                <div class="flex justify-between"><span>Billing Days:</span> <span class="font-bold">${inputs.billingDays} days</span></div>
-                <div class="flex justify-between"><span>Staffed Workforce:</span> <span class="font-bold">${inputs.techsAvailable} Techs</span></div>
-                <div class="flex justify-between"><span>Standard Shift:</span> <span class="font-bold">${inputs.hoursPerDay} hrs/day</span></div>
-                <div class="flex justify-between text-rose-600"><span>Absenteeism Lost Ratio:</span> <span class="font-bold">-${calculations.lostHours.toFixed(1)} hrs (${inputs.absenteeismRate}%)</span></div>
-                <div class="flex justify-between"><span>Shop Applied Efficiency:</span> <span class="font-bold">${inputs.efficiencyForecast}%</span></div>
+            <!-- KEY PERFORMANCE INDICATORS (KPIs): Elevated Bento Box Style -->
+            <div class="grid grid-cols-4 gap-5 py-2">
+              <div class="p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span class="text-[10px] uppercase text-slate-500 font-extrabold tracking-wider block">Projected Net Hours</span>
+                <div class="mt-2 text-xl font-mono font-black text-slate-900 whitespace-nowrap">${calculations.totalNetProjectedHours.toFixed(1)} <span class="text-xs text-slate-400 font-normal">hrs</span></div>
+                <span class="text-[9px] text-slate-400 font-semibold block mt-1">Derived Capacity Hours</span>
               </div>
-              <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                <span class="text-[10px] font-black uppercase text-slate-500 block">Department Ledger Consolidation</span>
-                <div class="flex justify-between"><span>Calculated Labor Gross Yield:</span> <span class="font-bold">$${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span></div>
-                <div class="flex justify-between"><span>Sublet Operations Profit (Sales: $${inputs.subletSales}):</span> <span class="font-bold">$${inputs.subletGross}</span></div>
-                <div class="flex justify-between"><span>Miscellaneous Operations Profit (Sales: $${inputs.miscSales}):</span> <span class="font-bold">$${inputs.miscGross}</span></div>
-                <div class="flex justify-between text-xs font-black border-t pt-1.5 mt-1.5 text-emerald-800">
-                  <span>Adjusted Department GP Yield:</span>
-                  <span>$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+              
+              <div class="p-5 bg-indigo-50/20 border border-indigo-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span class="text-[10px] uppercase text-indigo-600 font-extrabold tracking-wider block">Projected Labor Sales</span>
+                <div class="mt-2 text-xl font-mono font-black text-indigo-700">$${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <span class="text-[9px] text-indigo-400 font-semibold block mt-1">Projected Service Volume</span>
+              </div>
+              
+              <div class="p-5 bg-emerald-50/20 border border-emerald-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span class="text-[10px] uppercase text-emerald-600 font-extrabold tracking-wider block">Adjusted Profit GP</span>
+                <div class="mt-2 text-xl font-mono font-black text-emerald-700">$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <span class="text-[9px] text-emerald-400 font-semibold block mt-1">Net Services GP Yield</span>
+              </div>
+
+              <div class="p-5 bg-amber-50/20 border border-amber-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span class="text-[10px] uppercase text-amber-700 font-extrabold tracking-wider block">Blended ELR Baseline</span>
+                <div class="mt-2 text-xl font-mono font-black text-amber-800">$${calculations.totalELR.toFixed(2)}</div>
+                <span class="text-[9px] text-amber-500 font-semibold block mt-1">Rate Strategy Objective</span>
+              </div>
+            </div>
+
+            <!-- MAIN STRATEGY MIX TABLE: Double-spaced elegant table -->
+            <div class="border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+              <table class="w-full text-left font-mono text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase text-[9.5px] tracking-wider">
+                    <th class="py-3 px-4 font-bold">Revenue Block</th>
+                    <th class="py-3 px-4 text-center font-bold">Mix %</th>
+                    <th class="py-3 px-4 text-right font-bold">Hours</th>
+                    <th class="py-3 px-4 text-right font-bold">Target ELR</th>
+                    <th class="py-3 px-4 text-right font-bold">Labor Sales</th>
+                    <th class="py-3 px-4 text-center font-bold">GP %</th>
+                    <th class="py-3 px-4 text-right font-bold">Gross Profit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-medium">
+                  <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="py-3.5 px-4 font-bold text-slate-900">Customer Pay (CP)</td>
+                    <td class="py-3.5 px-4 text-center text-slate-600 font-semibold">${inputs.cpMix}%</td>
+                    <td class="py-3.5 px-4 text-right text-slate-800">${calculations.cpHours.toFixed(1)}</td>
+                    <td class="py-3.5 px-4 text-right text-slate-800">$${inputs.cpRate.toFixed(2)}</td>
+                    <td class="py-3.5 px-4 text-right text-slate-900">$${calculations.cpSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td class="py-3.5 px-4 text-center text-slate-600">${inputs.cpGp}%</td>
+                    <td class="py-3.5 px-4 text-right font-bold text-emerald-700">$${calculations.cpGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                  <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="py-3.5 px-4 font-bold text-slate-900">Warranty Pay (WARR)</td>
+                    <td class="py-3.5 px-4 text-center text-slate-600 font-semibold">${inputs.warrMix}%</td>
+                    <td class="py-3.5 px-4 text-right text-slate-800">${calculations.warrHours.toFixed(1)}</td>
+                    <td class="py-3.5 px-4 text-right text-slate-800">$${inputs.warrRate.toFixed(2)}</td>
+                    <td class="py-3.5 px-4 text-right text-slate-900">$${calculations.warrSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td class="py-3.5 px-4 text-center text-slate-600">${inputs.warrGp}%</td>
+                    <td class="py-3.5 px-4 text-right font-bold text-emerald-700">$${calculations.warrGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                  <tr class="hover:bg-slate-50/50 transition-colors">
+                    <td class="py-3.5 px-4 font-bold text-slate-900">Internal Pay (INT)</td>
+                    <td class="py-3.5 px-4 text-center text-slate-600 font-semibold">${inputs.internalMix}%</td>
+                    <td class="py-3.5 px-4 text-right text-slate-800">${calculations.internalHours.toFixed(1)}</td>
+                    <td class="py-3.5 px-4 text-right text-slate-800">$${inputs.internalRate.toFixed(2)}</td>
+                    <td class="py-3.5 px-4 text-right text-slate-900">$${calculations.internalSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td class="py-3.5 px-4 text-center text-slate-600">${inputs.internalGp}%</td>
+                    <td class="py-3.5 px-4 text-right font-bold text-emerald-700">$${calculations.internalGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                  <tr class="bg-slate-900 font-black text-white">
+                    <td class="py-4 px-4 uppercase text-[10px]">Totals / Blended</td>
+                    <td class="py-4 px-4 text-center">100.0%</td>
+                    <td class="py-4 px-4 text-right">${calculations.totalNetProjectedHours.toFixed(1)}</td>
+                    <td class="py-4 px-4 text-right">$${calculations.totalELR.toFixed(2)}</td>
+                    <td class="py-4 px-4 text-right">$${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td class="py-4 px-4 text-center">${calculations.blendedGPPercent.toFixed(1)}%</td>
+                    <td class="py-4 px-4 text-right text-emerald-400 font-extrabold">$${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- BOTTOM COLUMNS SUMMARY: Roomy, aligned metrics -->
+            <div class="grid grid-cols-2 gap-8 pt-4 border-t border-slate-200">
+              
+              <!-- Left Column: CAPACITY METRICS -->
+              <div class="space-y-4">
+                <div class="border-l-3 border-indigo-600 pl-3">
+                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar Capacity Constants</span>
+                </div>
+                <div class="space-y-2.5 font-medium text-xs">
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Billing Days:</span>
+                    <span class="font-bold font-mono text-slate-900">${inputs.billingDays} days</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Staffed Workforce:</span>
+                    <span class="font-bold font-mono text-slate-900">${inputs.techsAvailable} Techs</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Standard Shift:</span>
+                    <span class="font-bold font-mono text-slate-900">${inputs.hoursPerDay} hrs/day</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center text-rose-600 font-semibold bg-rose-50/50 px-2 rounded-lg py-1.5">
+                    <span>Absenteeism Lost Ratio:</span>
+                    <span class="font-black font-mono">-${calculations.lostHours.toFixed(1)} hrs (${inputs.absenteeismRate}%)</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 items-center">
+                    <span class="text-slate-500">Shop Applied Efficiency:</span>
+                    <span class="font-bold font-mono text-slate-900">${inputs.efficiencyForecast}%</span>
+                  </div>
                 </div>
               </div>
+
+              <!-- Right Column: DEPARTMENT LEDGER -->
+              <div class="space-y-4">
+                <div class="border-l-3 border-indigo-600 pl-3">
+                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Ledger Consolidation</span>
+                </div>
+                <div class="space-y-2.5 font-medium text-xs">
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Calculated Labor Gross Yield:</span>
+                    <span class="font-bold font-mono text-slate-900">$${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Sublet Profit (Sales: $${inputs.subletSales.toLocaleString()}):</span>
+                    <span class="font-bold font-mono text-slate-900">$${inputs.subletGross.toLocaleString(undefined, {minimumFractionDigits: 0})}</span>
+                  </div>
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Miscellaneous Profit (Sales: $${inputs.miscSales.toLocaleString()}):</span>
+                    <span class="font-bold font-mono text-slate-900">$${inputs.miscGross.toLocaleString(undefined, {minimumFractionDigits: 0})}</span>
+                  </div>
+                  
+                  <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 mt-3 flex justify-between items-center text-emerald-900 select-all font-bold transition-all">
+                    <div class="flex items-center gap-1.5">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      <span class="text-[10px] uppercase tracking-wider text-emerald-800">Adjusted GP Yield:</span>
+                    </div>
+                    <span class="font-mono font-black text-base">$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                  </div>
+                </div>
+              </div>
+
             </div>
+            
+            <!-- FOOTER BAR: Clean branding -->
+            <div class="pt-8 border-t border-slate-200 flex justify-between items-center text-[9px] text-slate-400 font-mono">
+              <div>HYUNDAI OF SANTA MARIA • FINANCIAL REPORTING</div>
+              <div>CLASSIFICATION: CONFIDENTIAL</div>
+            </div>
+
           </div>
           <script>
             window.addEventListener('load', () => {
@@ -1145,7 +1340,7 @@ export default function FixedOpsForecast({
           
           <button 
             type="button"
-            onClick={handlePrint}
+            onClick={() => setIsPreviewOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all duration-300 flex items-center gap-2 shadow-lg shadow-emerald-600/15 cursor-pointer"
           >
             <Printer size={14} />
@@ -1333,161 +1528,167 @@ export default function FixedOpsForecast({
                   />
                 </div>
               </div>
-            </div>
-
-            {/* PORTFOLIO YIELD & MIX */}
+            </div>            {/* PORTFOLIO YIELD & MIX */}
             <div className="space-y-4 pt-2 border-t border-white/5">
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest block font-mono select-none">☇ Portfolio Yield & Mix</span>
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-black text-indigo-400 uppercase tracking-widest block font-mono select-none">☇ Revenue Mix Strategy Targets</span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider font-mono",
+                  totalMixAllocationValue >= 99.9 && totalMixAllocationValue <= 100.1
+                    ? "bg-emerald-500/10 text-emerald-400" 
+                    : "bg-red-500/10 text-red-500"
+                )}>
+                  {totalMixAllocationValue.toFixed(1)}% / 100% Mix Allocation
+                </span>
+              </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Mix allocations */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Labor Portfolio Mix Allocation</span>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider font-mono",
-                      totalMixAllocationValue === 100 
-                        ? "bg-emerald-500/10 text-emerald-400" 
-                        : "bg-red-500/10 text-red-500"
-                    )}>
-                      {totalMixAllocationValue}% / 100%
-                    </span>
+              <div className="bg-[#050811] border border-white/[0.03] p-4 rounded-2xl space-y-4 font-mono">
+                {/* Customer Pay Row */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center border-b border-slate-800/60 pb-3">
+                  <span className="text-xs font-bold uppercase text-slate-300">Customer Pay</span>
+                  
+                  {/* STEP A: The Raw Count Field */}
+                  <div>
+                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Raw RO Count</label>
+                    <input 
+                      type="number" 
+                      value={rawCounts.cpCount === 0 ? '' : rawCounts.cpCount}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-indigo-500 outline-none"
+                      onChange={e => handleCountChange('cpCount', Number(e.target.value))}
+                    />
                   </div>
 
-                  <div className="space-y-2 font-mono">
-                    <div className="flex justify-between items-center bg-[#050811] p-1.5 rounded-xl border border-white/5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase ml-2">Customer Pay (CP)</span>
-                      <div className="flex items-center gap-1.5 mr-2">
-                        <input 
-                          type="number"
-                          step="1"
-                          min="0"
-                          max="100"
-                          value={inputs.cpMix}
-                          onChange={(e) => {
-                            const val = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-                            setInputs({...inputs, cpMix: val});
-                          }}
-                          className="w-16 bg-[#050811] border border-slate-800 rounded px-1.5 py-0.5 text-center font-black text-xs text-white"
-                        />
-                        <span className="text-[10px] text-slate-500 font-black">%</span>
-                      </div>
-                    </div>
+                  {/* STEP B: The Auto-Calculated Proportional Mix Output */}
+                  <div>
+                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Derived Mix %</label>
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={`${derivedMix.cpMix.toFixed(1)}%`}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-indigo-400 font-bold text-center text-xs"
+                    />
+                  </div>
 
-                    <div className="flex justify-between items-center bg-[#050811] p-1.5 rounded-xl border border-white/5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase ml-2">Warranty (Warr)</span>
-                      <div className="flex items-center gap-1.5 mr-2">
-                        <input 
-                          type="number"
-                          step="1"
-                          min="0"
-                          max="100"
-                          value={inputs.warrMix}
-                          onChange={(e) => {
-                            const val = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-                            setInputs({...inputs, warrMix: val});
-                          }}
-                          className="w-16 bg-[#050811] border border-slate-800 rounded px-1.5 py-0.5 text-center font-black text-xs text-white"
-                        />
-                        <span className="text-[10px] text-slate-500 font-black">%</span>
-                      </div>
+                  {/* STEP C: Standard Strategy Benchmarks */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target ELR ($)</label>
+                      <input 
+                        type="number" 
+                        value={inputs.cpRate === 0 ? '' : inputs.cpRate}
+                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
+                        onChange={e => setInputs({ ...inputs, cpRate: parseFloat(e.target.value) || 0 })}
+                      />
                     </div>
-
-                    <div className="flex justify-between items-center bg-[#050811] p-1.5 rounded-xl border border-white/5">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase ml-2">Internal</span>
-                      <div className="flex items-center gap-1.5 mr-2">
-                        <input 
-                          type="number"
-                          step="1"
-                          min="0"
-                          max="100"
-                          value={inputs.internalMix}
-                          onChange={(e) => {
-                            const val = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
-                            setInputs({...inputs, internalMix: val});
-                          }}
-                          className="w-16 bg-[#050811] border border-slate-800 rounded px-1.5 py-0.5 text-center font-black text-xs text-white"
-                        />
-                        <span className="text-[10px] text-slate-500 font-black pr-2">%</span>
-                      </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target GP %</label>
+                      <input 
+                        type="number" 
+                        value={inputs.cpGp === 0 ? '' : inputs.cpGp}
+                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
+                        onChange={e => setInputs({...inputs, cpGp: parseFloat(e.target.value) || 0})}
+                      />
                     </div>
                   </div>
                 </div>
 
-                {/* Targets (ELR & GP Margin) Column */}
-                <div className="space-y-4 font-mono">
+                {/* Warranty Row */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center border-b border-slate-800/60 pb-3">
+                  <span className="text-xs font-bold uppercase text-slate-300">Warranty</span>
+                  
+                  {/* STEP A: The Raw Count Field */}
                   <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Hourly Target ELR ($)</span>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">CP</label>
-                        <input 
-                          type="number"
-                          value={inputs.cpRate}
-                          onChange={(e) => setInputs({...inputs, cpRate: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-[#050811] border border-white/5 focus:border-indigo-500 rounded-lg p-2 text-center text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Warranty</label>
-                        <input 
-                          type="number"
-                          value={inputs.warrRate}
-                          onChange={(e) => setInputs({...inputs, warrRate: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-[#050811] border border-white/5 focus:border-indigo-500 rounded-lg p-2 text-center text-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Internal</label>
-                        <input 
-                          type="number"
-                          value={inputs.internalRate}
-                          onChange={(e) => setInputs({...inputs, internalRate: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-[#050811] border border-white/5 focus:border-indigo-500 rounded-lg p-2 text-center text-white"
-                        />
-                      </div>
-                    </div>
+                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Raw RO Count</label>
+                    <input 
+                      type="number" 
+                      value={rawCounts.warrCount === 0 ? '' : rawCounts.warrCount}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-indigo-500 outline-none"
+                      onChange={e => handleCountChange('warrCount', Number(e.target.value))}
+                    />
                   </div>
 
+                  {/* STEP B: The Auto-Calculated Proportional Mix Output */}
                   <div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Target GP Margin (%)</span>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">CP</label>
-                        <input 
-                          type="number"
-                          max="100"
-                          value={inputs.cpGp}
-                          onChange={(e) => setInputs({...inputs, cpGp: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-[#050811] border border-white/5 focus:border-indigo-500 rounded-lg p-2 text-center text-white animate-in"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Warranty</label>
-                        <input 
-                          type="number"
-                          max="100"
-                          value={inputs.warrGp}
-                          onChange={(e) => setInputs({...inputs, warrGp: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-[#050811] border border-white/5 focus:border-indigo-500 rounded-lg p-2 text-center text-white font-mono text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Internal</label>
-                        <input 
-                          type="number"
-                          max="100"
-                          value={inputs.internalGp}
-                          onChange={(e) => setInputs({...inputs, internalGp: parseFloat(e.target.value) || 0})}
-                          className="w-full bg-[#050811] border border-white/5 focus:border-indigo-500 rounded-lg p-2 text-center text-white"
-                        />
-                      </div>
-                    </div>
+                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Derived Mix %</label>
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={`${derivedMix.warrMix.toFixed(1)}%`}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-indigo-400 font-bold text-center text-xs"
+                    />
                   </div>
 
+                  {/* STEP C: Standard Strategy Benchmarks */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target ELR ($)</label>
+                      <input 
+                        type="number" 
+                        value={inputs.warrRate === 0 ? '' : inputs.warrRate}
+                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
+                        onChange={e => setInputs({ ...inputs, warrRate: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target GP %</label>
+                      <input 
+                        type="number" 
+                        value={inputs.warrGp === 0 ? '' : inputs.warrGp}
+                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
+                        onChange={e => setInputs({...inputs, warrGp: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
                 </div>
 
+                {/* Internal Row */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center pb-1">
+                  <span className="text-xs font-bold uppercase text-slate-300">Internal</span>
+                  
+                  {/* STEP A: The Raw Count Field */}
+                  <div>
+                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Raw RO Count</label>
+                    <input 
+                      type="number" 
+                      value={rawCounts.internalCount === 0 ? '' : rawCounts.internalCount}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-indigo-500 outline-none"
+                      onChange={e => handleCountChange('internalCount', Number(e.target.value))}
+                    />
+                  </div>
+
+                  {/* STEP B: The Auto-Calculated Proportional Mix Output */}
+                  <div>
+                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Derived Mix %</label>
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={`${derivedMix.internalMix.toFixed(1)}%`}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-indigo-400 font-bold text-center text-xs"
+                    />
+                  </div>
+
+                  {/* STEP C: Standard Strategy Benchmarks */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target ELR ($)</label>
+                      <input 
+                        type="number" 
+                        value={inputs.internalRate === 0 ? '' : inputs.internalRate}
+                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
+                        onChange={e => setInputs({ ...inputs, internalRate: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target GP %</label>
+                      <input 
+                        type="number" 
+                        value={inputs.internalGp === 0 ? '' : inputs.internalGp}
+                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
+                        onChange={e => setInputs({...inputs, internalGp: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1873,7 +2074,7 @@ export default function FixedOpsForecast({
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
-                        {parseEngine === 'chatgpt' ? "✔ ChatGPT-4o-mini AI Extraction Successful" : parseEngine === 'gemini' ? "✔ Gemini 3.5 Flash AI Extraction Successful" : "✔ Local Pattern extraction loaded"}
+                        {parseEngine === 'chatgpt' ? "✔ ChatGPT-4o-mini AI Extraction Successful" : parseEngine === 'gemini' ? "✔ Gemini 2.0 Flash AI Extraction Successful" : "✔ Local Pattern extraction loaded"}
                       </span>
                       <span className={cn(
                         "text-[8.5px] px-2 py-0.5 rounded font-black uppercase font-mono tracking-wider border",
@@ -1914,17 +2115,212 @@ export default function FixedOpsForecast({
               </div>
             )}
 
-            <div className="flex justify-end pt-3 border-t border-white/5 gap-3">
+      {/* 7. PREEMINENT PRINT PREVIEW MODAL */}
+      {isPreviewOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-start p-4 md:p-8 z-50 overflow-y-auto animate-fade-in no-print">
+          
+          {/* Sticky Toolbar at the top */}
+          <div className="bg-slate-900 border border-white/10 p-4 rounded-2xl w-full max-w-4xl flex items-center justify-between gap-4 shadow-2xl mb-6 select-none sticky top-0 z-50">
+            <div>
+              <span className="text-xxs font-black text-indigo-400 uppercase tracking-widest block mb-0.5">Report Distribution Preview</span>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Printer size={15} className="text-emerald-450 animate-pulse" />
+                Capacity & Projections Forecast Report Preview
+              </h3>
+            </div>
+            
+            <div className="flex items-center gap-3">
               <button 
                 type="button" 
-                onClick={() => setIsPdfModalOpen(false)}
-                className="px-4 py-2 text-xs font-black uppercase text-slate-400 hover:text-white bg-transparent hover:bg-white/5 rounded-xl transition-all cursor-pointer"
+                onClick={handlePrint}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider py-2 px-4 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/10"
               >
-                Cancel
+                <Printer size={13} />
+                Send to Printer / PDF
               </button>
+              <button 
+                type="button" 
+                onClick={() => setIsPreviewOpen(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-black uppercase tracking-wider py-2 px-4 rounded-xl transition-all cursor-pointer border border-white/5"
+              >
+                ✕ Close
+              </button>
+            </div>
+          </div>
+
+          {/* Paper sheet representation on-screen (Exactly identical to print dimensions & stylish layout) */}
+          <div className="bg-white text-slate-900 w-full max-w-4xl p-8 md:p-12 rounded-3xl shadow-2xl border border-slate-200/80 mb-12 space-y-8 select-all self-center animate-scale-in">
+            
+            {/* HEADER BLOCK */}
+            <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="space-y-1">
+                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations Capacity Model</span>
+                <h1 className="text-3xl font-extrabold uppercase text-slate-900 leading-none tracking-tight">Capacity & Projections Forecast</h1>
+                <p className="text-xs font-mono text-slate-500 uppercase flex items-center gap-2">
+                  <span className="font-bold text-slate-700">Hyundai of Santa Maria</span>
+                  <span className="text-slate-300">•</span>
+                  <span>Internal Operational Audit Ledger</span>
+                </p>
+              </div>
+              <div className="text-right font-mono text-[10px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div className="font-bold text-slate-700">Dealer Group Workspace Ledger</div>
+                <div className="text-slate-400">Generated on {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              </div>
+            </div>
+
+            {/* KEY PERFORMANCE INDICATORS (KPIs): Bento Boxes */}
+            <div className="grid grid-cols-4 gap-5 py-2">
+              <div className="p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] uppercase text-slate-500 font-extrabold tracking-wider block">Projected Net Hours</span>
+                <div className="mt-2 text-xl font-mono font-black text-slate-900 whitespace-nowrap">{calculations.totalNetProjectedHours.toFixed(1)} <span className="text-xs text-slate-400 font-normal">hrs</span></div>
+                <span className="text-[9px] text-slate-400 font-semibold block mt-1">Derived Capacity Hours</span>
+              </div>
+              
+              <div className="p-5 bg-indigo-50/20 border border-indigo-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] uppercase text-indigo-600 font-extrabold tracking-wider block">Projected Labor Sales</span>
+                <div className="mt-2 text-xl font-mono font-black text-indigo-700">${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <span className="text-[9px] text-indigo-400 font-semibold block mt-1">Projected Service Volume</span>
+              </div>
+              
+              <div className="p-5 bg-emerald-50/20 border border-emerald-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] uppercase text-emerald-600 font-extrabold tracking-wider block">Adjusted Profit GP</span>
+                <div className="mt-2 text-xl font-mono font-black text-emerald-700">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <span className="text-[9px] text-emerald-400 font-semibold block mt-1">Net Services GP Yield</span>
+              </div>
+
+              <div className="p-5 bg-amber-50/20 border border-amber-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
+                <span className="text-[10px] uppercase text-amber-700 font-extrabold tracking-wider block">Blended ELR Baseline</span>
+                <div className="mt-2 text-xl font-mono font-black text-amber-800">${calculations.totalELR.toFixed(2)}</div>
+                <span className="text-[9px] text-amber-500 font-semibold block mt-1 font-sans">Rate Strategy Objective</span>
+              </div>
+            </div>
+
+            {/* REVENUE STRATEGY MIX TABLE */}
+            <div className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
+              <table className="w-full text-left font-mono text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase text-[9.5px] tracking-wider">
+                    <th className="py-3.5 px-4 font-bold">Revenue Block</th>
+                    <th className="py-3.5 px-4 text-center font-bold">Mix %</th>
+                    <th className="py-3.5 px-4 text-right font-bold">Hours</th>
+                    <th className="py-3.5 px-4 text-right font-bold">Target ELR</th>
+                    <th className="py-3.5 px-4 text-right font-bold">Labor Sales</th>
+                    <th className="py-3.5 px-4 text-center font-bold">GP %</th>
+                    <th className="py-3.5 px-4 text-right font-bold">Gross Profit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  <tr className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-slate-900">Customer Pay (CP)</td>
+                    <td className="py-3.5 px-4 text-center text-slate-600 font-semibold">{inputs.cpMix}%</td>
+                    <td className="py-3.5 px-4 text-right text-slate-800">{calculations.cpHours.toFixed(1)}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-800">${inputs.cpRate.toFixed(2)}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-900">${calculations.cpSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-3.5 px-4 text-center text-slate-600">{inputs.cpGp}%</td>
+                    <td className="py-3.5 px-4 text-right font-bold text-emerald-700">${calculations.cpGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-slate-900">Warranty Pay (WARR)</td>
+                    <td className="py-3.5 px-4 text-center text-slate-600 font-semibold">{inputs.warrMix}%</td>
+                    <td className="py-3.5 px-4 text-right text-slate-800">{calculations.warrHours.toFixed(1)}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-800">${inputs.warrRate.toFixed(2)}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-900">${calculations.warrSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-3.5 px-4 text-center text-slate-600">{inputs.warrGp}%</td>
+                    <td className="py-3.5 px-4 text-right font-bold text-emerald-700">${calculations.warrGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                  <tr className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-slate-900">Internal Pay (INT)</td>
+                    <td className="py-3.5 px-4 text-center text-slate-600 font-semibold">{inputs.internalMix}%</td>
+                    <td className="py-3.5 px-4 text-right text-slate-800">{calculations.internalHours.toFixed(1)}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-800">${inputs.internalRate.toFixed(2)}</td>
+                    <td className="py-3.5 px-4 text-right text-slate-950">${calculations.internalSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-3.5 px-4 text-center text-slate-600">{inputs.internalGp}%</td>
+                    <td className="py-3.5 px-4 text-right font-bold text-emerald-700">${calculations.internalGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                  <tr className="bg-slate-900 font-black text-white">
+                    <td className="py-4 px-4 uppercase text-[10px]">Totals / Blended</td>
+                    <td className="py-4 px-4 text-center">100.0%</td>
+                    <td className="py-4 px-4 text-right">{calculations.totalNetProjectedHours.toFixed(1)}</td>
+                    <td className="py-4 px-4 text-right">${calculations.totalELR.toFixed(2)}</td>
+                    <td className="py-4 px-4 text-right">${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-4 px-4 text-center">{calculations.blendedGPPercent.toFixed(1)}%</td>
+                    <td className="py-4 px-4 text-right text-emerald-400 font-extrabold">${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* COLUMN SECTIONS: Constant Values & Ledger Adjustments */}
+            <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-200">
+              
+              {/* Capacity block */}
+              <div className="space-y-4">
+                <div className="border-l-3 border-indigo-600 pl-3">
+                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar Capacity Constants</span>
+                </div>
+                <div className="space-y-2.5 font-medium text-xs">
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Billing Days:</span>
+                    <span className="font-bold font-mono text-slate-900">{inputs.billingDays} days</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Staffed Workforce:</span>
+                    <span className="font-bold font-mono text-slate-900">{inputs.techsAvailable} Techs</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Standard Shift:</span>
+                    <span className="font-bold font-mono text-slate-900">{inputs.hoursPerDay} hrs/day</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center text-rose-600 font-semibold bg-rose-50/50 px-2 rounded-lg py-1.5">
+                    <span>Absenteeism Lost Ratio:</span>
+                    <span className="font-black font-mono">-{calculations.lostHours.toFixed(1)} hrs ({inputs.absenteeismRate}%)</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 items-center">
+                    <span className="text-slate-500">Shop Applied Efficiency:</span>
+                    <span className="font-bold font-mono text-slate-900">{inputs.efficiencyForecast}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ledger Consolidated and yield display */}
+              <div className="space-y-4">
+                <div className="border-l-3 border-indigo-600 pl-3">
+                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Ledger Consolidation</span>
+                </div>
+                <div className="space-y-2.5 font-medium text-xs font-sans">
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Calculated Labor Gross Yield:</span>
+                    <span className="font-bold font-mono text-slate-900">${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Sublet Profit (Sales: ${inputs.subletSales.toLocaleString()}):</span>
+                    <span className="font-bold font-mono text-slate-900">${inputs.subletGross.toLocaleString(undefined, {minimumFractionDigits: 0})}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Miscellaneous Profit (Sales: ${inputs.miscSales.toLocaleString()}):</span>
+                    <span className="font-bold font-mono text-slate-900">${inputs.miscGross.toLocaleString(undefined, {minimumFractionDigits: 0})}</span>
+                  </div>
+                  
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 mt-3 flex justify-between items-center text-emerald-950 select-all font-bold transition-all">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      <span className="text-[10px] uppercase tracking-wider text-emerald-800">Adjusted GP Yield:</span>
+                    </div>
+                    <span className="font-mono font-black text-base">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* FOOTER BRANDING */}
+            <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-[9px] text-slate-400 font-mono select-none">
+              <div>HYUNDAI OF SANTA MARIA • FINANCIAL REPORTING</div>
+              <div>CLASSIFICATION: CONFIDENTIAL</div>
             </div>
 
           </div>
+
         </div>
       )}
 

@@ -547,14 +547,17 @@ async function startServer() {
       cpHours: { type: Type.NUMBER, description: "Customer pay hours sold" },
       cpELR: { type: Type.NUMBER, description: "Customer pay Effective Labor Rate" },
       cpLaborGPPercent: { type: Type.NUMBER, description: "Labor C or Customer Labor GP% margin" },
+      cpCount: { type: Type.INTEGER, description: "Customer pay repair orders written count (#SO in Pay Type Customer row)" },
       
       warrHours: { type: Type.NUMBER, description: "Warranty pay hours sold" },
       warrELR: { type: Type.NUMBER, description: "Warranty Effective Labor Rate" },
       warrLaborGPPercent: { type: Type.NUMBER, description: "Labor W or Warranty Labor GP% margin" },
+      warrCount: { type: Type.INTEGER, description: "Warranty repair orders written count (#SO in Pay Type Warranty row)" },
       
       internalHours: { type: Type.NUMBER, description: "Internal / Recon pay hours sold" },
       internalELR: { type: Type.NUMBER, description: "Internal Effective Labor Rate" },
       internalLaborGPPercent: { type: Type.NUMBER, description: "Labor I or Internal Labor GP% margin" },
+      internalCount: { type: Type.INTEGER, description: "Internal / Recon repair orders written count (#SO in Pay Type Internal row)" },
       
       // Ancillary additions
       subletSales: { type: Type.NUMBER, description: "Total Sublet Sales amount" },
@@ -565,7 +568,8 @@ async function startServer() {
     required: [
       "grossLaborSales", "laborGrossProfit", "hoursBilled", "repairOrdersWritten", "effectiveLaborRate",
       "cpHours", "cpELR", "cpLaborGPPercent", "warrHours", "warrELR", "warrLaborGPPercent",
-      "internalHours", "internalELR", "internalLaborGPPercent", "subletSales", "subletGrossProfit"
+      "internalHours", "internalELR", "internalLaborGPPercent", "subletSales", "subletGrossProfit",
+      "cpCount", "warrCount", "internalCount"
     ],
   };
 
@@ -636,14 +640,17 @@ async function startServer() {
                     cpHours: { type: "number", description: "Customer pay hours sold" },
                     cpELR: { type: "number", description: "Customer pay Effective Labor Rate" },
                     cpLaborGPPercent: { type: "number", description: "Labor C or Customer Labor GP% margin" },
+                    cpCount: { type: "integer", description: "Customer pay repair orders written count (#SO in Pay Type Customer row)" },
                     
                     warrHours: { type: "number", description: "Warranty pay hours sold" },
                     warrELR: { type: "number", description: "Warranty Effective Labor Rate" },
                     warrLaborGPPercent: { type: "number", description: "Labor W or Warranty Labor GP% margin" },
+                    warrCount: { type: "integer", description: "Warranty repair orders written count (#SO in Pay Type Warranty row)" },
                     
                     internalHours: { type: "number", description: "Internal / Recon pay hours sold" },
                     internalELR: { type: "number", description: "Internal Effective Labor Rate" },
                     internalLaborGPPercent: { type: "number", description: "Labor I or Internal Labor GP% margin" },
+                    internalCount: { type: "integer", description: "Internal / Recon repair orders written count (#SO in Pay Type Internal row)" },
                     
                     subletSales: { type: "number", description: "Total Sublet Sales amount" },
                     subletGrossProfit: { type: "number", description: "Total Sublet Gross profit yield" },
@@ -654,7 +661,7 @@ async function startServer() {
                     "grossLaborSales", "laborGrossProfit", "hoursBilled", "repairOrdersWritten", "effectiveLaborRate",
                     "cpHours", "cpELR", "cpLaborGPPercent", "warrHours", "warrELR", "warrLaborGPPercent",
                     "internalHours", "internalELR", "internalLaborGPPercent", "subletSales", "subletGrossProfit",
-                    "miscSales", "miscGrossProfit"
+                    "miscSales", "miscGrossProfit", "cpCount", "warrCount", "internalCount"
                   ],
                   additionalProperties: false
                 }
