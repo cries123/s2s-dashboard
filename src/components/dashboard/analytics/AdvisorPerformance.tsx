@@ -276,7 +276,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         className="hidden"
       />
       
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Users size={20} className="text-brand-secondary" />
@@ -284,10 +284,10 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           </h3>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <button 
             onClick={() => setIsManualEntryOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
           >
             <Keyboard size={14} />
             Manual Entry
@@ -296,7 +296,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           <button 
             onClick={() => fileInputRef.current?.click()}
             disabled={isImporting}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer"
           >
             {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
             Import PDF Productivity Report
@@ -357,53 +357,65 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
             {/* Global Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {/* Labor Sales MTD Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Labor Sales MTD</p>
-                <p className="text-2xl font-black text-white">${metrics.totalLabor.toLocaleString()}</p>
-                <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500">
-                  <span className="uppercase italic">Avg: ${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
+              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Labor Sales MTD</p>
+                  <p className="text-2xl font-black text-white">${metrics.totalLabor.toLocaleString()}</p>
+                </div>
+                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg</p>
+                  <p className="text-xs font-black text-slate-300">${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
                 </div>
               </div>
 
               {/* Labor Gross Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Labor Gross MTD</p>
-                <p className="text-2xl font-black text-white">${metrics.totalGross.toLocaleString()}</p>
-                <div className="flex items-center gap-4 mt-2 text-[10px] font-bold text-slate-500">
-                  <span className="uppercase italic leading-none">Avg: ${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
-                  <span className="uppercase italic leading-none text-brand-secondary">GP: {Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}%</span>
+              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Labor Gross MTD</p>
+                  <p className="text-2xl font-black text-white">${metrics.totalGross.toLocaleString()}</p>
+                </div>
+                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg / GP</p>
+                  <p className="text-xs font-black text-slate-300">${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
+                  <span className="text-[9px] font-black text-brand-secondary uppercase tracking-wider mt-0.5">{Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}% GP</span>
                 </div>
               </div>
 
               {/* Part Sales Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Part Sales MTD</p>
-                <p className="text-2xl font-black text-white">${(metrics.totalParts || 0).toLocaleString()}</p>
-                <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500">
-                  <span className="uppercase italic">Avg: ${(metrics.totalParts / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
+              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Part Sales MTD</p>
+                  <p className="text-2xl font-black text-white">${(metrics.totalParts || 0).toLocaleString()}</p>
+                </div>
+                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg</p>
+                  <p className="text-xs font-black text-slate-300">${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
                 </div>
               </div>
 
               {/* Parts Gross Box */}
-              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl">
-                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Parts Gross MTD</p>
-                <p className="text-2xl font-black text-white">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
-                <div className="flex items-center gap-4 mt-2 text-[10px] font-bold text-slate-500">
-                   <span className="uppercase italic">Avg: ${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/Day</span>
-                   <span className="uppercase italic text-emerald-500">GP: {Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}%</span>
+              <div className="p-5 bg-slate-900/50 border border-slate-800 rounded-3xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Parts Gross MTD</p>
+                  <p className="text-2xl font-black text-white">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
+                </div>
+                <div className="text-right border-l border-white/5 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Daily Avg / GP</p>
+                  <p className="text-xs font-black text-slate-300">${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
+                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-wider mt-0.5">{Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}% GP</span>
                 </div>
               </div>
 
-              {/* Department Total Box */}
-              <div className="p-5 bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/30 rounded-3xl">
-                <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Store Throughput</p>
-                <p className="text-2xl font-black text-white">${metrics.totalSales.toLocaleString()}</p>
-                <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-brand-primary/60">
-                   <div className="flex items-center gap-1">
-                     <TrendingUp size={10} className="text-emerald-500" />
-                     <span className="uppercase">Pace: ${metrics.salesForecast.toLocaleString()}</span>
-                   </div>
-                   <span className="uppercase italic">Avg: ${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/Day</span>
+              {/* Store Throughput Box */}
+              <div className="p-5 bg-gradient-to-br from-brand-primary/20 to-brand-primary/5 border border-brand-primary/30 rounded-3xl flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Store Throughput</p>
+                  <p className="text-2xl font-black text-white">${metrics.totalSales.toLocaleString()}</p>
+                </div>
+                <div className="text-right border-l border-brand-primary/10 pl-4 flex flex-col justify-center min-h-[50px] shrink-0">
+                  <p className="text-[8px] font-black text-brand-primary/70 uppercase tracking-widest mb-0.5">Daily Avg / Pace</p>
+                  <p className="text-xs font-black text-slate-300">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</p>
+                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider mt-0.5">Pace: ${metrics.salesForecast.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
                 </div>
               </div>
             </div>

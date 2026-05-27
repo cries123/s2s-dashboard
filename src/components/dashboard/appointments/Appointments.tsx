@@ -476,6 +476,17 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
   return (
     <div className="space-y-10 animate-fade-in">
+      {/* Hiding Chrome & Safari native calendar indicator to center date text perfectly */}
+      <style>{`
+        .custom-centered-date-input::-webkit-calendar-picker-indicator {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        .custom-centered-date-input::-moz-calendar-picker-indicator {
+          display: none !important;
+        }
+      `}</style>
+
       {/* Forecasting Hero Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
         <div>
@@ -504,7 +515,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               </div>
               <div>
                 <h2 className="text-xl font-black text-white tracking-wider uppercase">Month-End Projections</h2>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Real-time forecasting based on remaining working days velocity.</p>
               </div>
             </div>
             <div className="self-start sm:self-auto">
@@ -585,11 +595,11 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                     </div>
 
                     {/* RIGHT: STATS STRIP */}
-                    <div className="flex-1 grid grid-cols-3 gap-4 items-center border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
+                    <div className="flex-1 grid grid-cols-3 gap-2 sm:gap-4 items-center border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                       {/* CURRENT MTD */}
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Current MTD</span>
-                        <span className="text-base font-black text-white">
+                        <span className="text-sm sm:text-base font-black text-white whitespace-nowrap">
                           {kpi.isCurrency ? `$${Math.round(kpi.current).toLocaleString()}` : Math.round(kpi.current).toLocaleString()}
                         </span>
                       </div>
@@ -597,15 +607,15 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                       {/* DAILY PACE */}
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Pace Velocity</span>
-                        <span className="text-base font-black text-white">
-                          {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)} <span className="text-[9px] text-slate-500 font-bold">/D</span>
+                        <span className="text-sm sm:text-base font-black text-white whitespace-nowrap">
+                          {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}<span className="text-[9px] text-slate-550 font-bold ml-1">/D</span>
                         </span>
                       </div>
 
                       {/* GOAL */}
                       <div className="flex flex-col text-right">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Monthly Goal</span>
-                        <span className="text-base font-black text-slate-300">
+                        <span className="text-sm sm:text-base font-black text-slate-300 whitespace-nowrap">
                           {kpi.isCurrency ? `$${Math.round(kpi.target).toLocaleString()}` : Math.round(kpi.target).toLocaleString()}
                         </span>
                       </div>
@@ -658,7 +668,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                     type="date" 
                     value={selectedDate} 
                     onChange={e => setSelectedDate(e.target.value)}
-                    className="bg-transparent border-none text-white text-sm font-black w-full text-center focus:ring-0 cursor-pointer outline-none select-none tracking-wide"
+                    onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err) {} }}
+                    className="bg-transparent border-none text-white text-sm font-black w-full text-center focus:ring-0 cursor-pointer outline-none select-none tracking-wide custom-centered-date-input"
                   />
                   <button 
                     onClick={handleNextDay} 
