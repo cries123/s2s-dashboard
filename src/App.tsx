@@ -3,12 +3,12 @@ import { useAuth } from './hooks/useAuth';
 import { useCustomers } from './hooks/useCustomers';
 import { signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight
+  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -21,6 +21,8 @@ import AdminPanel from './components/dashboard/admin/AdminPanel';
 import { VinLookup } from './components/dashboard/vin/VinLookup';
 import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
 import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
+import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
+import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
@@ -31,12 +33,112 @@ import { DEALERSHIPS } from './constants';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 
+interface NavDropdownProps {
+  label: string;
+  isActive: boolean;
+  children: React.ReactNode;
+}
+
+function NavDropdown({ label, isActive, children }: NavDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div 
+      className="relative inline-block"
+      ref={containerRef}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 rounded-xl text-[9.5px] font-black uppercase tracking-wider transition-all relative border shrink-0",
+          isActive 
+            ? "bg-white/10 text-white shadow-inner border-white/10" 
+            : "text-slate-400 hover:text-slate-200 border-transparent hover:bg-white/5"
+        )}
+      >
+        <span>{label}</span>
+        <svg
+          className={cn("w-3 h-3 transition-transform duration-200 text-slate-500", isOpen ? "rotate-180" : "rotate-0")}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.95 }}
+            transition={{ duration: 0.12 }}
+            className="absolute left-0 mt-1 w-48 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-50 py-1.5 p-1 flex flex-col gap-0.5"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+interface NavLinkProps {
+  href: string;
+  onClick: () => void;
+  isActive: boolean;
+  children: React.ReactNode;
+  badge?: number;
+}
+
+function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
+      className={cn(
+        "flex items-center justify-between px-3 py-2 text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all",
+        isActive 
+          ? "bg-brand-primary/20 text-brand-primary" 
+          : "text-slate-300 hover:bg-white/5 hover:text-white"
+      )}
+    >
+      <span>{children}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded-full ring-2 ring-slate-950 ml-2">
+          {badge}
+        </span>
+      )}
+    </a>
+  );
+}
+
 export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold'>('add');
-  const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs' | 'eod'>('operations');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch'>('add');
+  const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs'>('operations');
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -53,6 +155,26 @@ export default function App() {
     }
   }, [user, currentDealershipId]);
 
+  const [dealershipSettings, setDealershipSettings] = useState<any>(null);
+
+  // Synchronize dealership settings in real-time (such as enabling/disabling the Dispatch tab)
+  React.useEffect(() => {
+    if (!currentDealershipId) return;
+
+    const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
+    const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setDealershipSettings(snapshot.data());
+      } else {
+        setDealershipSettings(null);
+      }
+    }, (error) => {
+      console.error("[App] Error listening to dealership settings:", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentDealershipId]);
+
   const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
 
   const isLoading = authLoading || (user && customersLoading) || minLoading;
@@ -67,8 +189,10 @@ export default function App() {
     { id: 'search', label: 'Directory', icon: Search },
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
+    ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
     ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
     { id: 'vin-search', label: 'VIN Search', icon: Search },
+    { id: 'forecast', label: 'Forecast', icon: TrendingUp },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
@@ -154,7 +278,7 @@ export default function App() {
 
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 shadow-xl shadow-black/20">
-        <div className="section-container !py-3 flex items-center justify-between gap-4 relative">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-3 flex items-center justify-between gap-4 relative">
           {/* Logo Section */}
           <div className="flex items-center gap-3 shrink-0 relative">
             <button 
@@ -214,39 +338,141 @@ export default function App() {
               <h1 className="text-base font-black text-white leading-none tracking-tighter uppercase whitespace-nowrap">
                 S2S <span className="text-brand-primary">Dashboard</span>
               </h1>
-              <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-1">{currentDealership.name}</p>
+              <p className="text-[7.5px] lg:text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1 max-w-[124px] xl:max-w-none truncate">{currentDealership.name}</p>
             </div>
           </div>
 
           {/* Navigation Section */}
-          <nav className="flex-1 hidden md:flex items-center justify-center gap-1 overflow-x-auto no-scrollbar scroll-smooth px-2">
-            {availableTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id as any);
-                  if (tab.id === 'admin') {
-                    setAdminSubTab('operations');
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all relative border shrink-0",
-                  activeTab === tab.id 
-                    ? "bg-white/10 text-white shadow-inner border border-white/10" 
-                    : "text-slate-500 hover:text-slate-200 border-transparent hover:bg-white/5"
-                )}
+          <nav className="flex-1 hidden md:flex items-center justify-center gap-1.5 px-2">
+            
+            {/* 1. SALES DROPDOWN */}
+            <NavDropdown 
+              label="Sales" 
+              isActive={activeTab === 'add' || activeTab === 'vin-search'}
+            >
+              <NavLink 
+                href="/sales/onboard" 
+                onClick={() => setActiveTab('add')}
+                isActive={activeTab === 'add'}
               >
-                <tab.icon size={13} className={cn("shrink-0", activeTab === tab.id ? "text-brand-primary" : "")} />
-                <span className={cn(activeTab === tab.id ? "block" : "hidden sm:block")}>
-                  {tab.label}
-                </span>
-                {tab.badge !== undefined && tab.badge > 0 && (
-                  <span className="absolute -top-1 -right-0.5 text-[8px] font-black bg-rose-500 text-white px-1 py-0.5 rounded-full ring-2 ring-slate-950">
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            ))}
+                Onboard
+              </NavLink>
+              <NavLink 
+                href="/sales/vin-search" 
+                onClick={() => setActiveTab('vin-search')}
+                isActive={activeTab === 'vin-search'}
+              >
+                VIN Search
+              </NavLink>
+            </NavDropdown>
+
+            {/* 2. SERVICE DROPDOWN */}
+            <NavDropdown 
+              label="Service" 
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
+            >
+              <NavLink 
+                href="/service/directory" 
+                onClick={() => setActiveTab('search')}
+                isActive={activeTab === 'search'}
+              >
+                Directory
+              </NavLink>
+              <NavLink 
+                href="/service/alerts" 
+                onClick={() => setActiveTab('alerts')}
+                isActive={activeTab === 'alerts'}
+                badge={activeAlertsCount}
+              >
+                Alerts
+              </NavLink>
+              {dealershipSettings?.enableDispatchTab !== false && (
+                <NavLink 
+                  href="/service/dispatch" 
+                  onClick={() => setActiveTab('dispatch')}
+                  isActive={activeTab === 'dispatch'}
+                >
+                  Dispatch
+                </NavLink>
+              )}
+            </NavDropdown>
+
+            {/* 3. COMPETITIONS DROPDOWN */}
+            {currentDealershipId === 'hyundai' && (
+              <NavDropdown 
+                label="Competitions" 
+                isActive={activeTab === 'pot-of-gold'}
+              >
+                <NavLink 
+                  href="/competitions/pot-of-gold" 
+                  onClick={() => setActiveTab('pot-of-gold')}
+                  isActive={activeTab === 'pot-of-gold'}
+                >
+                  Pot of Gold
+                </NavLink>
+              </NavDropdown>
+            )}
+
+            {/* 4. REPORTS DROPDOWN */}
+            <NavDropdown 
+              label="Reports" 
+              isActive={activeTab === 'appointments' || activeTab === 'forecast'}
+            >
+              <NavLink 
+                href="/reports/operations" 
+                onClick={() => setActiveTab('appointments')}
+                isActive={activeTab === 'appointments'}
+              >
+                Operations
+              </NavLink>
+              <NavLink 
+                href="/reports/forecast" 
+                onClick={() => setActiveTab('forecast')}
+                isActive={activeTab === 'forecast'}
+              >
+                Forecast
+              </NavLink>
+            </NavDropdown>
+
+            {/* 5. ADMIN DROPDOWN */}
+            {user && user.role === 'admin' && (
+              <NavDropdown 
+                label="Admin" 
+                isActive={activeTab === 'admin'}
+              >
+                <NavLink 
+                  href="/admin/operation-settings" 
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('operations');
+                  }}
+                  isActive={activeTab === 'admin' && adminSubTab === 'operations'}
+                >
+                  Operation Settings
+                </NavLink>
+                <NavLink 
+                  href="/admin/user-settings" 
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('users');
+                  }}
+                  isActive={activeTab === 'admin' && adminSubTab === 'users'}
+                >
+                  User Settings
+                </NavLink>
+                <NavLink 
+                  href="/admin/logs" 
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('logs');
+                  }}
+                  isActive={activeTab === 'admin' && adminSubTab === 'logs'}
+                >
+                  Logs
+                </NavLink>
+              </NavDropdown>
+            )}
+
           </nav>
 
           {/* Mobile Navigation Dropdown */}
@@ -262,7 +488,7 @@ export default function App() {
                   </div>
                   <span className="min-w-[80px] text-left">
                     {activeTab === 'admin' 
-                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : adminSubTab === 'logs' ? 'Logs' : 'EOD'}`
+                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -393,16 +619,34 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'dispatch' && (
+            <DispatchBoard 
+              key={currentDealershipId || 'hyundai'}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              showNotification={(msg, isError) => showNotification(msg, isError)}
+            />
+          )}
+
           {activeTab === 'vin-search' && (
             <VinLookup />
           )}
 
           {activeTab === 'pot-of-gold' && (
-            <PotOfGold currentDealershipId={currentDealershipId || 'hyundai'} />
+            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />
+          )}
+
+          {activeTab === 'forecast' && (
+            <FixedOpsForecast 
+              key={currentDealershipId || 'hyundai'} 
+              currentDealershipId={currentDealershipId || 'hyundai'} 
+              onSuccess={(msg) => showNotification(msg)}
+              onError={(msg) => showNotification(msg, true)}
+            />
           )}
 
           {activeTab === 'admin' && (
             <AdminPanel 
+              key={currentDealershipId || 'hyundai'} 
               currentDealershipId={currentDealershipId || 'hyundai'} 
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}

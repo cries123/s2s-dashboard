@@ -17,7 +17,6 @@ interface PerformanceRow {
   desc: string;
   frank: number;
   lemmy: number;
-  jay: number;
 }
 
 interface TechPerformanceRow {
@@ -27,25 +26,25 @@ interface TechPerformanceRow {
 }
 
 const TECHNICIANS = ['Daniel', 'Jon', 'Matthew', 'Jacinto', 'Ethan', 'Trevor'];
-const ADVISORS = ['frank', 'lemmy', 'jay'];
+const ADVISORS = ['frank', 'lemmy'];
 
 const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
-  { code: 'AF', desc: 'ENGINE AIR FILTER', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'ALIGN', desc: 'PERFORM 2/4 WHEEL ALIGNMENT', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'BAT', desc: 'BATTERY REPLACEMENT', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'BFR', desc: 'BRAKE FLUID SERVICE', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'CAF', desc: 'CABIN AIR FILTER', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'CE', desc: 'COOLING SYSTEM EXCHANGE', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'FB', desc: 'FRONT BRAKE PAD/RESURFACE', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'FSC', desc: 'MOC ENHANCE FUEL SYSTEM', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'GDI', desc: 'GDI FUEL/AIR INDUCTION', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'RB', desc: 'REAR BRAKE PAD/SERVICE', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'TIRE1', desc: 'MOUNT AND BALANCE 1 TIRE', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'TIRE2', desc: 'MOUNT AND BALANCE 2 TIRES', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'TIRE3', desc: 'MOUNT AND BALANCE 3 TIRES', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'TIRE4', desc: 'MOUNT AND BALANCE 4 TIRES', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'TS', desc: 'TRANSMISSION SERVICE', frank: 0, lemmy: 0, jay: 0 },
-  { code: 'CCC', desc: 'COMBUSTION CHAMBER CLEANING', frank: 0, lemmy: 0, jay: 0 }
+  { code: 'AF', desc: 'ENGINE AIR FILTER', frank: 0, lemmy: 0 },
+  { code: 'ALIGN', desc: 'PERFORM 2/4 WHEEL ALIGNMENT', frank: 0, lemmy: 0 },
+  { code: 'BAT', desc: 'BATTERY REPLACEMENT', frank: 0, lemmy: 0 },
+  { code: 'BFR', desc: 'BRAKE FLUID SERVICE', frank: 0, lemmy: 0 },
+  { code: 'CAF', desc: 'CABIN AIR FILTER', frank: 0, lemmy: 0 },
+  { code: 'CE', desc: 'COOLING SYSTEM EXCHANGE', frank: 0, lemmy: 0 },
+  { code: 'FB', desc: 'FRONT BRAKE PAD/RESURFACE', frank: 0, lemmy: 0 },
+  { code: 'FSC', desc: 'MOC ENHANCE FUEL SYSTEM', frank: 0, lemmy: 0 },
+  { code: 'GDI', desc: 'GDI FUEL/AIR INDUCTION', frank: 0, lemmy: 0 },
+  { code: 'RB', desc: 'REAR BRAKE PAD/SERVICE', frank: 0, lemmy: 0 },
+  { code: 'TIRE1', desc: 'MOUNT AND BALANCE 1 TIRE', frank: 0, lemmy: 0 },
+  { code: 'TIRE2', desc: 'MOUNT AND BALANCE 2 TIRES', frank: 0, lemmy: 0 },
+  { code: 'TIRE3', desc: 'MOUNT AND BALANCE 3 TIRES', frank: 0, lemmy: 0 },
+  { code: 'TIRE4', desc: 'MOUNT AND BALANCE 4 TIRES', frank: 0, lemmy: 0 },
+  { code: 'TS', desc: 'TRANSMISSION SERVICE', frank: 0, lemmy: 0 },
+  { code: 'CCC', desc: 'COMBUSTION CHAMBER CLEANING', frank: 0, lemmy: 0 }
 ];
 
 interface PotOfGoldProps {
@@ -130,26 +129,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
   // Calculations
   const calculateAdvisorTotals = () => {
-    let frank = 0, lemmy = 0, jay = 0, grand = 0;
+    let frank = 0, lemmy = 0, grand = 0;
     advData.forEach(row => {
       frank += row.frank;
       lemmy += row.lemmy;
-      jay += row.jay;
-      grand += row.frank + row.lemmy + row.jay;
+      grand += row.frank + row.lemmy;
     });
-    return { frank, lemmy, jay, grand };
+    return { frank, lemmy, grand };
   };
 
   const calculateAdvisorEarnings = () => {
-    let frank = 0, lemmy = 0, jay = 0, grand = 0;
+    let frank = 0, lemmy = 0, grand = 0;
     advData.forEach(row => {
       const price = prices[row.code] || 0;
       frank += row.frank * price;
       lemmy += row.lemmy * price;
-      jay += row.jay * price;
-      grand += (row.frank + row.lemmy + row.jay) * price;
+      grand += (row.frank + row.lemmy) * price;
     });
-    return { frank, lemmy, jay, grand };
+    return { frank, lemmy, grand };
   };
 
   const calculateTechTotals = () => {
@@ -238,8 +235,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           const base = { ...row };
           data.advisors.forEach((aiAdv: any) => {
             const advisorKey = aiAdv.name.toLowerCase().includes('frank') ? 'frank' :
-                               aiAdv.name.toLowerCase().includes('lemmy') ? 'lemmy' :
-                               aiAdv.name.toLowerCase().includes('jaryn') || aiAdv.name.toLowerCase().includes('jay') ? 'jay' : null;
+                               aiAdv.name.toLowerCase().includes('lemmy') ? 'lemmy' : null;
             
             if (advisorKey && aiAdv.upsells) {
               const upsell = aiAdv.upsells.find((u: any) => u.code === row.code);
@@ -281,8 +277,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   const chartData = advData.map(d => ({
     name: d.code,
     Frank: d.frank,
-    Lemmy: d.lemmy,
-    Jaryn: d.jay
+    Lemmy: d.lemmy
   }));
 
   if (isLoading) {
@@ -419,12 +414,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         </div>
 
         {/* Global Summary Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-10">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
           {[
             { label: 'Shop Upsells', value: advTotals.grand, icon: Zap, color: 'text-brand-primary' },
             { label: 'Frank Total', value: advTotals.frank, icon: Users, color: 'text-slate-200' },
             { label: 'Lemmy Total', value: advTotals.lemmy, icon: Users, color: 'text-slate-200' },
-            { label: 'Jay Total', value: advTotals.jay, icon: Users, color: 'text-slate-200' },
             { label: 'Pot of Gold', value: `$${advEarnings.grand.toLocaleString()}`, icon: DollarSign, color: 'text-emerald-400', highlight: true },
           ].map((stat, i) => (
             <div key={i} className={cn(
@@ -554,7 +548,6 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Frank</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Lemmy</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Jaryn</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Total</th>
                     </tr>
                   </thead>
@@ -597,23 +590,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                             className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
                           />
                         </td>
-                        <td className="px-6 py-2 text-center">
-                          <input 
-                            type="number"
-                            value={row.jay}
-                            onChange={(e) => {
-                              const val = Number(e.target.value) || 0;
-                              const newData = advData.map((d, index) => 
-                                index === i ? { ...d, jay: val } : d
-                              );
-                              setAdvData(newData);
-                              saveToFirestore({ advData: newData });
-                            }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
-                          />
-                        </td>
                         <td className="px-6 py-4 text-center">
-                          <span className="text-sm font-black text-brand-secondary">{row.frank + row.lemmy + row.jay}</span>
+                          <span className="text-sm font-black text-brand-secondary">{row.frank + row.lemmy}</span>
                         </td>
                       </tr>
                     ))}
@@ -623,7 +601,6 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                       <td colSpan={2} className="px-6 py-6 text-[10px] font-black text-white uppercase tracking-widest italic">Advisor Grand Totals</td>
                       <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.frank}</td>
                       <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.lemmy}</td>
-                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.jay}</td>
                       <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{advTotals.grand}</td>
                     </tr>
                   </tfoot>
@@ -631,11 +608,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               </div>
 
               {/* Advisor Earnings Card */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {[
                    { name: 'Frank', val: advEarnings.frank },
                    { name: 'Lemmy', val: advEarnings.lemmy },
-                   { name: 'Jaryn', val: advEarnings.jay },
                    { name: 'Total Payout', val: advEarnings.grand, primary: true }
                  ].map((earn, idx) => (
                    <div key={idx} className={cn(

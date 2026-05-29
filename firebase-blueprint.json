@@ -81,9 +81,44 @@
         "updatedAt": { "type": "string", "format": "date-time" },
         "updatedBy": { "type": "string" }
       }
+    },
+    "FixedOpsForecastReport": {
+      "title": "Fixed Ops Forecast Report",
+      "description": "Persisted forecaster parameters, inputs, rawCounts, and telemetry data",
+      "type": "object",
+      "properties": {
+        "inputs": { "type": "object" },
+        "rawCounts": { "type": "object" },
+        "mtdTelemetry": { "type": "object" },
+        "activePreset": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
+    },
+    "DispatchRepairOrder": {
+      "title": "Dispatch Repair Order",
+      "description": "Custom Departmental Dispatch Board repair order record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roNumber": { "type": "string" },
+        "techNumber": { "type": "string" },
+        "vinLastEight": { "type": "string" },
+        "department": { "type": "string", "enum": ["lube", "quick_service", "ac_electrical", "heavyline", "diesel", "trans", "mobile_repair", "unassigned"] },
+        "status": { "type": "string", "enum": ["WIP", "DIS", "POO", "WFA"] },
+        "isCompleted": { "type": "boolean" },
+        "dateCreated": { "type": "string" },
+        "lastUpdated": { "type": "string" },
+        "dealershipId": { "type": "string" }
+      },
+      "required": ["id", "roNumber", "techNumber", "vinLastEight", "department", "status", "isCompleted", "dateCreated", "lastUpdated", "dealershipId"]
     }
   },
   "firestore": {
+    "artifacts/hyundai-sales-to-service/public/data/dispatchOrders": {
+      "schema": "DispatchRepairOrder",
+      "description": "Repair orders tracked in the Departmental Dispatch Board"
+    },
     "artifacts/hyundai-sales-to-service/public/data/appointmentTracker": {
       "schema": "DailyStat",
       "description": "Daily appointment aggregations"
@@ -99,6 +134,10 @@
     "artifacts/hyundai-sales-to-service/public/data/performance/advisorReports": {
       "schema": "AdvisorPerformanceReport",
       "description": "Advisor performance tracking data"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/performance/forecastReport": {
+      "schema": "FixedOpsForecastReport",
+      "description": "Fixed Ops financial forecasting inputs and telemetry data"
     },
     "artifacts/hyundai-sales-to-service/public/audit/imports": {
       "schema": "ImportLog",

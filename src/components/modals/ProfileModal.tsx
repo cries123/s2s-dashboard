@@ -3,7 +3,7 @@ import {
   X, Save, Edit2, Trash2, User as UserIcon, Phone, Mail, MapPin, Car, Calendar, 
   Gauge, History, Database, Wrench, Droplet, Activity, Copy, Check, ChevronRight, 
   AlertTriangle, ShieldCheck, MessageSquare, Info, Shield, HelpCircle, ArrowRight,
-  Sparkles, CheckCircle2, Languages, Clock
+  Sparkles, CheckCircle2, Languages, Clock, Loader2
 } from 'lucide-react';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -27,10 +27,30 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   const [formData, setFormData] = useState({ ...customer });
   const [isCopied, setIsCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [customerNotes, setCustomerNotes] = useState(customer.notes || '');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
 
   useEffect(() => {
     setFormData({ ...customer });
+    setCustomerNotes(customer.notes || '');
   }, [customer]);
+
+  const handleSaveNotesInline = async () => {
+    setIsSavingNotes(true);
+    try {
+      const customerRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id);
+      await updateDoc(customerRef, {
+        notes: customerNotes
+      });
+      customer.notes = customerNotes;
+      setFormData(prev => ({ ...prev, notes: customerNotes }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save customer notes. Please try again.");
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
 
   useEffect(() => {
     // Lock background body and document Element scroll behaviors when profile modal is open
@@ -614,6 +634,39 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         </div>
                       )}
                     </div>
+
+                    {/* Customer Notes Bento Block */}
+                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 mt-4 sm:mt-6">
+                      <p className="text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <MessageSquare size={13} className="text-amber-400" /> Executive Service & Account Notes
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <textarea
+                          value={customerNotes}
+                          onChange={(e) => setCustomerNotes(e.target.value)}
+                          className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary h-28 resize-none placeholder:text-slate-600 focus:border-transparent transition-all"
+                          placeholder="Record client preferences, custom alerts or special context here..."
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            onClick={handleSaveNotesInline}
+                            disabled={isSavingNotes}
+                            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-black text-[10px] uppercase tracking-widest px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          >
+                            {isSavingNotes ? (
+                              <>
+                                <Loader2 className="animate-spin" size={12} /> Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save size={12} /> Save Notes
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Right side contact pane */}
@@ -1161,6 +1214,21 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                             <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary" />
                           </label>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Part 6: Profile Notes */}
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.15em]">Part F: Account Notes</p>
+                      <div className="space-y-1.5">
+                        <label className="input-label">Customer Profile Notes</label>
+                        <textarea
+                          name="notes"
+                          value={formData.notes || ''}
+                          onChange={handleChange}
+                          className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all h-28 resize-none"
+                          placeholder="Persistent notes about this customer (will be displayed on alerts and profile)..."
+                        />
                       </div>
                     </div>
                   </div>

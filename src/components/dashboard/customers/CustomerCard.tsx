@@ -152,12 +152,21 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         </div>
         
         {isAlert && (
-          <div className="mt-6 px-5 py-4 bg-rose-500/10 border border-rose-500/20 rounded-[1.25rem] flex items-center gap-3 shadow-lg shadow-rose-950/20">
-            <div className="relative shrink-0">
-              <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
-              <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
+          <div className="mt-6 space-y-3">
+            <div className="px-5 py-4 bg-rose-500/10 border border-rose-500/20 rounded-[1.25rem] flex items-center gap-3 shadow-lg shadow-rose-950/20">
+              <div className="relative shrink-0">
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+                <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
+              </div>
+              <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] leading-none">Maintenance Opportunity</span>
             </div>
-            <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] leading-none">Maintenance Opportunity</span>
+
+            {customer.notes && (
+              <div className="px-5 py-4 bg-slate-950/40 border border-slate-800/50 rounded-[1.25rem] space-y-1">
+                <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.15em]">Internal Account Notes</p>
+                <p className="text-[11px] font-medium text-slate-300 italic">"{customer.notes}"</p>
+              </div>
+            )}
           </div>
         )}
         

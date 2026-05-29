@@ -41,7 +41,8 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
     soldDate: '',
     language: 'English',
     enableServiceAlert: true,
-    soldByUserId: ''
+    soldByUserId: '',
+    notes: ''
   });
 
   const [salespeople, setSalespeople] = useState<any[]>([]);
@@ -67,7 +68,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
     }
   }, [currentUser.dealershipId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { id, value, type } = e.target as HTMLInputElement;
     const val = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
     setFormData(prev => ({ ...prev, [id]: val }));
@@ -254,7 +255,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
       setFormData({
         firstName: '', lastName: '', phone: '', email: '',
         make: 'Hyundai', model: '', vinLast8: '', soldDate: '',
-        language: 'English', enableServiceAlert: true, soldByUserId: ''
+        language: 'English', enableServiceAlert: true, soldByUserId: '', notes: ''
       });
     } catch (err: any) {
       onError(`Error: ${err.message}`);
@@ -528,6 +529,25 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">▼</div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Subsection 4: Profile Notes */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
+              <ChevronRight className="text-amber-500" size={14} />
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment & Profile Notes</h3>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="notes">Onboarding Notes</label>
+              <textarea
+                id="notes"
+                value={formData.notes || ''}
+                onChange={handleChange}
+                className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 h-24 resize-none"
+                placeholder="Write any personal notes, service histories, or client preferences here..."
+              />
             </div>
           </div>
 

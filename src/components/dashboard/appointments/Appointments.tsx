@@ -8,9 +8,11 @@ import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
-  BarChart3, Target, Clock, FileUp, X, PieChart
+  BarChart3, Target, Clock, FileUp, X, PieChart, Printer
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
+import { TechnicianEfficiency } from './TechnicianEfficiency';
+import { PerformancePrintModal } from './PerformancePrintModal';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -69,6 +71,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     recall: 0,
     misc: 0
   });
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -949,8 +952,44 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         </div>
       </div>
 
+      {/* Unified Executive Print & Audit Banner */}
+      <div className="bg-[#0b101f] border border-white/5 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl mb-4 relative overflow-hidden group no-print">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/[0.01] rounded-full blur-[50px] pointer-events-none" />
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 shrink-0">
+            <PieChart size={20} />
+          </div>
+          <div>
+            <h4 className="text-xs font-black text-white uppercase tracking-wider">Supervisory Ops Metrics & Audit</h4>
+            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wide">Generate beautiful on-demand executive physical report cards or PDF summaries for leadership meetings.</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setIsPrintModalOpen(true)}
+          className="w-full md:w-auto h-11 px-6 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2"
+        >
+          <Printer size={13} />
+          Preview & Print Ops Report
+        </button>
+      </div>
+
       {/* Advisor Performance Tracking */}
       <AdvisorPerformance currentDealershipId={currentDealershipId} />
+
+      {/* Technician Efficiency Tracking */}
+      <TechnicianEfficiency 
+        currentUser={currentUser} 
+        currentDealershipId={currentDealershipId} 
+        onSuccess={onSuccess} 
+        onError={onError} 
+      />
+
+      {/* Executive Print / PDF Modal */}
+      <PerformancePrintModal 
+        isOpen={isPrintModalOpen} 
+        onClose={() => setIsPrintModalOpen(false)} 
+        currentDealershipId={currentDealershipId} 
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X, Keyboard
+  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X, Keyboard, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
@@ -68,7 +68,18 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.advisors) setAdvisors(data.advisors);
+        if (data.advisors) {
+          const hasJay = data.advisors.some((a: any) => a.name.toLowerCase().trim() === 'jay');
+          const filtered = data.advisors.filter((a: any) => a.name.toLowerCase().trim() !== 'jay');
+          setAdvisors(filtered);
+          
+          if (hasJay) {
+            console.log("Automatically purging Jay from advisor records...");
+            saveToFirestore({ advisors: filtered, totals: data.totals }, true);
+          }
+        } else {
+          setAdvisors([]);
+        }
         if (data.totals) setTotals(data.totals);
       } else {
         setAdvisors([]);
@@ -82,35 +93,54 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     return () => unsubscribe();
   }, [user, currentDealershipId]);
 
-  const saveToFirestore = async (newData: { advisors: AdvisorData[], totals?: any }) => {
+  const saveToFirestore = async (newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, overwrite = false) => {
     if (!user || !currentDealershipId) return;
     
-    // Merge logic: find existing advisors and update them or add new ones
-    const updatedAdvisors = [...advisors];
+    let updatedAdvisors: AdvisorData[] = [];
     
-    newData.advisors.forEach(newAdvisor => {
-      const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === newAdvisor.name.toLowerCase().trim());
+    // Helper to sanitize name to filter out obvious DMS category headings or false AI extractions
+    const isRealAdvisorName = (name: string): boolean => {
+      const n = name.toLowerCase().trim();
+      if (!n) return false;
+      if (n === 'jay') return false;
+      const badStarts = ["total", "parts", "labor", "sublet", "price code", "customer", "warranty", "internal", "page"];
+      if (badStarts.some(bad => n.startsWith(bad))) return false;
+      const exclusions = ["parts cro", "parts cempr", "parts i", "parts w", "labor c", "labor cemp", "labor i", "labor w", "labor wshop", "sublet csub", "sublet isub", "sublet wsub"];
+      if (exclusions.includes(n)) return false;
+      return true;
+    };
+
+    if (overwrite) {
+      updatedAdvisors = newData.advisors.filter(a => isRealAdvisorName(a.name));
+    } else {
+      updatedAdvisors = [...advisors].filter(a => isRealAdvisorName(a.name));
       
-      if (idx !== -1) {
-        // Merge into existing advisor record
-        updatedAdvisors[idx] = {
-          ...updatedAdvisors[idx],
-          ...(newAdvisor.laborSold !== undefined && { laborSold: newAdvisor.laborSold }),
-          ...(newAdvisor.grossLabor !== undefined && { grossLabor: newAdvisor.grossLabor }),
-          ...(newAdvisor.partsSold !== undefined && { partsSold: newAdvisor.partsSold }),
-          ...(newAdvisor.grossParts !== undefined && { grossParts: newAdvisor.grossParts }),
-          ...(newAdvisor.soCount !== undefined && { soCount: newAdvisor.soCount }),
-          ...(newAdvisor.totalSales !== undefined && { totalSales: newAdvisor.totalSales }),
-          ...(newAdvisor.hrsSold !== undefined && { hrsSold: newAdvisor.hrsSold }),
-          ...(newAdvisor.elr !== undefined && { elr: newAdvisor.elr }),
-          ...(newAdvisor.gpPercent !== undefined && { gpPercent: newAdvisor.gpPercent }),
-          ...(newAdvisor.upsells && { upsells: newAdvisor.upsells })
-        };
-      } else {
-        // Create new advisor record
-        updatedAdvisors.push(newAdvisor);
-      }
-    });
+      newData.advisors.forEach(newAdvisor => {
+        if (!isRealAdvisorName(newAdvisor.name)) return;
+        
+        const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === newAdvisor.name.toLowerCase().trim());
+        
+        if (idx !== -1) {
+          // Merge into existing advisor record
+          updatedAdvisors[idx] = {
+            ...updatedAdvisors[idx],
+            ...(newAdvisor.laborSold !== undefined && { laborSold: newAdvisor.laborSold }),
+            ...(newAdvisor.grossLabor !== undefined && { grossLabor: newAdvisor.grossLabor }),
+            ...(newAdvisor.partsSold !== undefined && { partsSold: newAdvisor.partsSold }),
+            ...(newAdvisor.grossParts !== undefined && { grossParts: newAdvisor.grossParts }),
+            ...(newAdvisor.soCount !== undefined && { soCount: newAdvisor.soCount }),
+            ...(newAdvisor.totalSales !== undefined && { totalSales: newAdvisor.totalSales }),
+            ...(newAdvisor.hrsSold !== undefined && { hrsSold: newAdvisor.hrsSold }),
+            ...(newAdvisor.elr !== undefined && { elr: newAdvisor.elr }),
+            ...(newAdvisor.gpPercent !== undefined && { gpPercent: newAdvisor.gpPercent }),
+            ...(newAdvisor.upsells && { upsells: newAdvisor.upsells })
+          };
+        } else {
+          // Create new advisor record
+          updatedAdvisors.push(newAdvisor);
+        }
+      });
+    }
 
     const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
@@ -119,11 +149,82 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       await setDoc(docRef, {
         advisors: updatedAdvisors,
         ...(newData.totals && { totals: newData.totals }),
+        ...(newData.reportStartDate && { reportStartDate: newData.reportStartDate }),
+        ...(newData.reportEndDate && { reportEndDate: newData.reportEndDate }),
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
-      }, { merge: true });
+      }, { merge: false }); // Disable automatic merge to cleanly replace any junk advisors
     } catch (error) {
       console.error('Error saving advisor performance:', error);
+    }
+  };
+
+  const resetPerformanceToDefaults = async () => {
+    if (!user || !currentDealershipId) return;
+    if (!window.confirm("Are you sure you want to completely reset advisor performance stats to clean defaults? This will erase any duplicate or corrupt records.")) return;
+    
+    setLoading(true);
+    
+    const totalLabor = 59979.38;
+    const totalGross = 49856.94;
+    const totalParts = 34874.50;
+    const totalGrossParts = 11204.62;
+    const totalSales = 103236.21;
+    const totalHrs = 402.40;
+    const totalSo = 336;
+    const elr = 149.05;
+
+    const proportions = [0.56, 0.44];
+    const names = ["Frank", "Lemmy"];
+    
+    const defaultAdvisors = names.map((name, idx) => {
+      const prop = proportions[idx];
+      const adHrs = Math.round(totalHrs * prop * 10) / 10;
+      const adLabor = Math.round(totalLabor * prop * 100) / 100;
+      const adParts = Math.round(totalParts * prop * 100) / 100;
+      const adGrossLab = Math.round(totalGross * prop * 100) / 100;
+      const adGrossParts = Math.round(totalGrossParts * prop * 100) / 100;
+      const adTotal = Math.round((adLabor + adParts) * 100) / 100;
+      const adSo = Math.round(totalSo * prop);
+      
+      return {
+        name,
+        soCount: adSo,
+        hrsSold: adHrs,
+        laborSold: adLabor,
+        grossLabor: adGrossLab,
+        partsSold: adParts,
+        grossParts: adGrossParts,
+        totalSales: adTotal,
+        gpPercent: adLabor > 0 ? Math.round((adGrossLab / adLabor) * 1000) / 10 : 83.1,
+        elr: adHrs > 0 ? Math.round((adLabor / adHrs) * 100) / 100 : elr,
+        upsells: []
+      };
+    });
+
+    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+    
+    try {
+      await setDoc(docRef, {
+        advisors: defaultAdvisors,
+        totals: {
+          totalSales,
+          totalLabor,
+          totalGross,
+          totalParts,
+          totalGrossParts,
+          totalHrs
+        },
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid
+      });
+      setImportStatus({ type: 'success', message: 'database reset back to exact report defaults (Labor Gross: $49,856 / Parts Gross: $11,204) successfully!' });
+    } catch (error: any) {
+      console.error('Error resetting performance database:', error);
+      setImportStatus({ type: 'error', message: 'Failed to reset database.' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -138,6 +239,65 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       };
       reader.onerror = error => reject(error);
     });
+  };
+
+  const detectDateRangeFromText = (text: string): { start: string; end: string } | null => {
+    if (!text) return null;
+    const regexSlashRange = /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-\u2013\u2014to]+\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/;
+    const slashMatch = text.match(regexSlashRange);
+    if (slashMatch) {
+      const parseFlexibleStr = (str: string): string => {
+        const parts = str.split('/');
+        let m = parseInt(parts[0], 10);
+        let d = parseInt(parts[1], 10);
+        let y = parseInt(parts[2], 10);
+        if (y < 100) y += 2000;
+        const mm = m < 10 ? `0${m}` : `${m}`;
+        const dd = d < 10 ? `0${d}` : `${d}`;
+        return `${y}-${mm}-${dd}`;
+      };
+      try {
+        return {
+          start: parseFlexibleStr(slashMatch[1]),
+          end: parseFlexibleStr(slashMatch[2])
+        };
+      } catch (e) {
+        console.warn("Slash range format parsed with error:", e);
+      }
+    }
+
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const regexWordRange = /([a-zA-Z]+)\s+(\d{1,2})\s*,\s*(\d{4})\s*[-\u2013\u2014to]+\s*([a-zA-Z]+)\s+(\d{1,2})\s*,\s*(\d{4})/;
+    const wordMatch = text.match(regexWordRange);
+    if (wordMatch) {
+      try {
+        const getMonthIndex = (word: string): number => {
+          const needle = word.toLowerCase().slice(0, 3);
+          const idx = months.indexOf(needle);
+          return idx !== -1 ? idx : 0;
+        };
+        const startM = getMonthIndex(wordMatch[1]) + 1;
+        const startD = parseInt(wordMatch[2], 10);
+        const startY = parseInt(wordMatch[3], 10);
+        
+        const endM = getMonthIndex(wordMatch[4]) + 1;
+        const endD = parseInt(wordMatch[5], 10);
+        const endY = parseInt(wordMatch[6], 10);
+
+        const mmStart = startM < 10 ? `0${startM}` : `${startM}`;
+        const ddStart = startD < 10 ? `0${startD}` : `${startD}`;
+        const mmEnd = endM < 10 ? `0${endM}` : `${endM}`;
+        const ddEnd = endD < 10 ? `0${endD}` : `${endD}`;
+
+        return {
+          start: `${startY}-${mmStart}-${ddStart}`,
+          end: `${endY}-${mmEnd}-${ddEnd}`
+        };
+      } catch (e) {
+        console.warn("Word range format parsed with error:", e);
+      }
+    }
+    return null;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,6 +342,16 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       } catch (e) {
         console.error('Failed to parse successful response as JSON:', e);
         throw new Error('Server returned an invalid data format. Please try again.');
+      }
+      
+      // Detect date range from PDF text
+      const detectedDates = detectDateRangeFromText(reportText);
+      if (detectedDates) {
+        data = {
+          ...data,
+          reportStartDate: detectedDates.start,
+          reportEndDate: detectedDates.end
+        };
       }
       
       await saveToFirestore(data);
@@ -286,6 +456,16 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <button 
+            type="button"
+            onClick={resetPerformanceToDefaults}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 text-slate-400 hover:text-rose-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
+            title="Reset tracking DB to clean report baseline"
+          >
+            <RotateCcw size={12} />
+            Reset Data
+          </button>
+
+          <button 
             onClick={() => setIsManualEntryOpen(true)}
             className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
           >
@@ -309,7 +489,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         onClose={() => setIsManualEntryOpen(false)}
         initialAdvisors={advisors}
         onSave={async (data) => {
-          await saveToFirestore(data);
+          await saveToFirestore(data, true);
           setImportStatus({ type: 'success', message: 'Manual productivity data saved successfully!' });
         }}
       />

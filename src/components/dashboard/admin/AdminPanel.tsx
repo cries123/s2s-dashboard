@@ -21,15 +21,15 @@ import { cn } from '../../../lib/utils';
 import { DEALERSHIPS } from '../../../constants';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
-import FixedOpsForecast from './FixedOpsForecast';
 import { logSystemAction } from '../../../services/loggingService';
 
 interface AdminPanelProps {
+  key?: string;
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs' | 'eod';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'eod') => void;
+  activeSubTab?: 'operations' | 'users' | 'logs';
+  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs') => void;
 }
 
 export default function AdminPanel({ 
@@ -275,7 +275,6 @@ export default function AdminPanel({
               {subTab === 'operations' && "Configure dealership daily throughput, gross parts & labor dollar targets."}
               {subTab === 'users' && "Manage system permission tiers, account access, & registration flows."}
               {subTab === 'logs' && "Real-time forensic audit logs of user actions on the app."}
-              {subTab === 'eod' && "EOM Forecast Generator. Model operational capacity targets, flat-rate yields, and segment mixes."}
             </p>
           </div>
         </div>
@@ -284,12 +283,11 @@ export default function AdminPanel({
       {/* 2. Sleek Segmented glass navigation bar */}
       <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
         <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {[
             { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
             { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
-            { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
-            { id: 'eod', label: 'EOM FORECAST', icon: Clock, desc: 'Forecast Generator' }
+            { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' }
           ].map(tab => {
             const Icon = tab.icon;
             const isSelected = subTab === tab.id;
@@ -452,6 +450,35 @@ export default function AdminPanel({
                               onKeyDown={(e) => e.key === 'Enter' && commitPartsTargetChange(d.id)}
                               className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-black text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
                             />
+                          </div>
+                        </div>
+
+                        {/* Dispatch Toggle Feature Switch */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Feature Switches</label>
+                          <div className="flex items-center justify-between p-3.5 bg-slate-950/80 rounded-xl border border-white/5 shadow-inner">
+                            <div className="space-y-0.5 pr-2">
+                              <span className="text-xs font-black text-white uppercase tracking-wide block">Departmental Dispatch Board</span>
+                              <span className="text-[10px] text-slate-400 font-medium leading-normal block">Show or hide the Dispatch tab in the header navigation menu.</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentVal = dealershipSettings[d.id]?.enableDispatchTab !== false;
+                                updateSetting(d.id, { enableDispatchTab: !currentVal });
+                              }}
+                              className={cn(
+                                "w-11 h-6 rounded-full transition-colors relative focus:outline-none shrink-0",
+                                (dealershipSettings[d.id]?.enableDispatchTab !== false) ? "bg-brand-primary" : "bg-slate-800"
+                              )}
+                            >
+                              <span 
+                                className={cn(
+                                  "absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md",
+                                  (dealershipSettings[d.id]?.enableDispatchTab !== false) ? "translate-x-5" : "translate-x-0"
+                                )}
+                              />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -633,17 +660,6 @@ export default function AdminPanel({
       {subTab === 'logs' && (
         <div className="animate-in fade-in duration-300">
           <SystemLogs />
-        </div>
-      )}
-
-      {/* FIXED OPERATIONS CAPACITY & FINANCIAL PROJECTIONS MODULE */}
-      {subTab === 'eod' && (
-        <div className="animate-in fade-in duration-300">
-          <FixedOpsForecast 
-            currentDealershipId={currentDealershipId}
-            onSuccess={onSuccess}
-            onError={onError}
-          />
         </div>
       )}
 

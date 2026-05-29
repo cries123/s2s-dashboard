@@ -1,6 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { cn } from '../../../lib/utils';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../firebase';
+import { useAuth } from '../../../hooks/useAuth';
+import { DEALERSHIPS } from '../../../constants';
 import { 
   TrendingUp, 
   Printer, 
@@ -266,6 +270,43 @@ const calculateBillingDaysForNextMonth = (): number => {
   return count;
 };
 
+const extractLaborGpFromLine = (line: string): number | null => {
+  // Try to find a percentage sign first
+  const percentMatch = line.match(/(\d+(?:\.\d+)?)\s*%/);
+  if (percentMatch) {
+    return parseFloat(percentMatch[1]);
+  }
+  
+  // No percent sign, parse all numbers
+  const regex = /[\d,]+(?:\.\d+)?/g;
+  const matches = line.match(regex) || [];
+  const nums = matches.map(m => parseFloat(m.replace(/,/g, '')));
+  
+  for (const num of nums) {
+    if (num >= 10 && num <= 100) {
+      for (let i = 0; i < nums.length; i++) {
+        for (let j = 0; j < nums.length; j++) {
+          if (i !== j && nums[j] > 0) {
+            const ratio = (nums[i] / nums[j]) * 100;
+            if (Math.abs(ratio - num) < 1.0) {
+              return num;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  for (let i = nums.length - 1; i >= 0; i--) {
+    const val = nums[i];
+    if (val >= 30 && val <= 99) {
+      return val;
+    }
+  }
+  
+  return null;
+};
+
 const performDeterministicExtraction = (text: string): ExtractedData => {
   const data: ExtractedData = {
     techs: 6,
@@ -376,18 +417,18 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
       internalRate = internalFirstRow[6] || internalRate;
     }
 
-    // Extract precise GP% from Price Code categories
+    // Extract precise GP% from Price Code categories (Labor C, Labor W, Labor I, which represents real labor GP%)
     for (const line of lines) {
       const lowercaseLine = line.toLowerCase();
-      if (lowercaseLine.includes('labor c') && !lowercaseLine.includes('labor cemp')) {
-        const gpMatch = line.match(/(\d+(?:\.\d+)?)\s*%/);
-        if (gpMatch) cpGp = parseFloat(gpMatch[1]);
-      } else if (lowercaseLine.includes('labor w') && !lowercaseLine.includes('wshop')) {
-        const gpMatch = line.match(/(\d+(?:\.\d+)?)\s*%/);
-        if (gpMatch) warrGp = parseFloat(gpMatch[1]);
-      } else if (lowercaseLine.includes('labor i') && !lowercaseLine.includes('labor cemp') && !lowercaseLine.includes('labor w')) {
-        const gpMatch = line.match(/(\d+(?:\.\d+)?)\s*%/);
-        if (gpMatch) internalGp = parseFloat(gpMatch[1]);
+      if (lowercaseLine.includes('labor c') && !lowercaseLine.includes('labor cemp') && !lowercaseLine.includes('labor wshop')) {
+        const gpVal = extractLaborGpFromLine(line);
+        if (gpVal !== null) cpGp = gpVal;
+      } else if (lowercaseLine.includes('labor w') && !lowercaseLine.includes('labor wshop') && !lowercaseLine.includes('wsub') && !lowercaseLine.includes('warr sub')) {
+        const gpVal = extractLaborGpFromLine(line);
+        if (gpVal !== null) warrGp = gpVal;
+      } else if (lowercaseLine.includes('labor i') && !lowercaseLine.includes('labor cemp') && !lowercaseLine.includes('labor w') && !lowercaseLine.includes('isub') && !lowercaseLine.includes('int sub')) {
+        const gpVal = extractLaborGpFromLine(line);
+        if (gpVal !== null) internalGp = gpVal;
       }
     }
 
@@ -562,7 +603,68 @@ const performDeterministicExtraction = (text: string): ExtractedData => {
   return data;
 };
 
+const INITIAL_PRESET = 'balanced';
+
+const INITIAL_MTD_TELEMETRY = {
+  grossLaborSales: 59979.38,
+  laborGrossProfit: 49856.94,
+  hoursSold: 402.4,
+  repairOrdersWritten: 336,
+  effectiveLaborRate: 149.05,
+  laborGPPercent: 83.1,
+  mix: {
+    cp: 0.467,
+    warr: 0.350,
+    internal: 0.183,
+  },
+  elr: {
+    cp: 142.35,
+    warr: 166.10,
+    internal: 136.64
+  },
+  gpPercent: {
+    cp: 81.9,
+    warr: 86.7,
+    internal: 79.7
+  },
+  ancillary: {
+    subletSales: 8327.33,
+    subletGross: 219.40,
+    miscSales: 1000.00,
+    miscGross: 1000.00
+  }
+};
+
+const getInitialInputs = () => ({
+  billingDays: calculateBillingDaysForNextMonth(),
+  techsAvailable: 6,
+  hoursPerDay: 8,
+  absenteeismRate: 10,        // absenteeism factor: 10%
+  efficiencyForecast: 80,    // shop efficiency: 80%
+  cpMix: 49,                  // customer pay mix (mapped to 0.49 of mix)
+  cpRate: 185,                // CP target ELR
+  cpGp: 75,                   // CP target labor GP margin %
+  warrMix: 34,                // warranty mix (mapped to 0.34 of mix)
+  warrRate: 175,              // Warranty target ELR
+  warrGp: 70,                 // Warranty target GP %
+  internalMix: 17,            // internal mix (0.17 mix)
+  internalRate: 160,          // Internal target ELR
+  internalGp: 80,             // Internal target GP %
+  subletSales: 12500,
+  subletGross: 3125,
+  miscSales: 5880,
+  miscGross: 1420,
+  unappliedTime: 0
+});
+
+const INITIAL_RAW_COUNTS = {
+  cpCount: 147,
+  warrCount: 102,
+  internalCount: 51
+};
+
 interface FixedOpsForecastProps {
+  key?: string;
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
@@ -573,68 +675,74 @@ export default function FixedOpsForecast({
   onSuccess, 
   onError 
 }: FixedOpsForecastProps) {
+  const { user } = useAuth();
+  const currentDealershipName = DEALERSHIPS.find(d => d.id === currentDealershipId)?.name || 'Hyundai of Santa Maria';
+  
   // Preset Active state ('conservative' | 'balanced' | 'aggressive')
-  const [activePreset, setActivePreset] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced');
+  const [activePreset, setActivePreset] = useState<'conservative' | 'balanced' | 'aggressive'>(INITIAL_PRESET);
 
-  const [mtdTelemetry, setMtdTelemetry] = useState({
-    grossLaborSales: 58847.00,
-    laborGrossProfit: 49035.00,
-    hoursSold: 392.8,
-    repairOrdersWritten: 0,
-    effectiveLaborRate: 149.81,
-    laborGPPercent: 83.3,
-    mix: {
-      cp: 0.467,
-      warr: 0.350,
-      internal: 0.183,
-    },
-    elr: {
-      cp: 142.35,
-      warr: 166.10,
-      internal: 136.64
-    },
-    gpPercent: {
-      cp: 81.9,
-      warr: 86.7,
-      internal: 79.7
-    },
-    ancillary: {
-      subletSales: 8327.33,
-      subletGross: 219.40,
-      miscSales: 1000.00,
-      miscGross: 1000.00
-    }
-  });
+  const [mtdTelemetry, setMtdTelemetry] = useState(INITIAL_MTD_TELEMETRY);
 
   // Input states aligned exactly with spreadsheet layout in mockup
-  const [inputs, setInputs] = useState({
-    billingDays: calculateBillingDaysForNextMonth(),
-    techsAvailable: 6,
-    hoursPerDay: 8,
-    absenteeismRate: 10,        // absenteeism factor: 10%
-    efficiencyForecast: 80,    // shop efficiency: 80%
-    cpMix: 49,                  // customer pay mix (mapped to 0.49 of mix)
-    cpRate: 185,                // CP target ELR
-    cpGp: 75,                   // CP target labor GP margin %
-    warrMix: 34,                // warranty mix (mapped to 0.34 of mix)
-    warrRate: 175,              // Warranty target ELR
-    warrGp: 70,                 // Warranty target GP %
-    internalMix: 17,            // internal mix (0.17 mix)
-    internalRate: 160,          // Internal target ELR
-    internalGp: 80,             // Internal target GP %
-    subletSales: 12500,
-    subletGross: 3125,
-    miscSales: 5880,
-    miscGross: 1420,
-    unappliedTime: 0
-  });
+  const [inputs, setInputs] = useState(getInitialInputs());
 
   // Derived or input raw Counts for CP, Warr, and Internal
-  const [rawCounts, setRawCounts] = useState({
-    cpCount: 147,
-    warrCount: 102,
-    internalCount: 51
-  });
+  const [rawCounts, setRawCounts] = useState(INITIAL_RAW_COUNTS);
+
+  // Load from Firestore on mount or context changes
+  useEffect(() => {
+    if (!user || !currentDealershipId) return;
+
+    const docId = currentDealershipId === 'hyundai' ? 'forecastReport' : `forecastReport_${currentDealershipId}`;
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.inputs) setInputs(data.inputs);
+        if (data.rawCounts) setRawCounts(data.rawCounts);
+        if (data.mtdTelemetry) setMtdTelemetry(data.mtdTelemetry);
+        if (data.activePreset) setActivePreset(data.activePreset);
+      } else {
+        // Switch to separate clean default states if no saved database report exists yet for this dealership
+        setInputs(getInitialInputs());
+        setRawCounts(INITIAL_RAW_COUNTS);
+        setMtdTelemetry(INITIAL_MTD_TELEMETRY);
+        setActivePreset(INITIAL_PRESET);
+      }
+    }, (error) => {
+      console.error("[Forecast] Error syncing from Firestore:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user, currentDealershipId]);
+
+  // Firestore Save Helper
+  const saveForecastToFirestore = async (
+    nextInputs: typeof inputs,
+    nextCounts: typeof rawCounts,
+    nextTelemetry: typeof mtdTelemetry,
+    nextPreset: typeof activePreset
+  ) => {
+    if (!user || !currentDealershipId) return;
+
+    try {
+      const docId = currentDealershipId === 'hyundai' ? 'forecastReport' : `forecastReport_${currentDealershipId}`;
+      const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+
+      await setDoc(docRef, {
+        inputs: nextInputs,
+        rawCounts: nextCounts,
+        mtdTelemetry: nextTelemetry,
+        activePreset: nextPreset,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid
+      });
+      console.log("[Forecast] Saved successfully to Firestore.");
+    } catch (err) {
+      console.error("[Forecast] Failed to save forecast to Firestore:", err);
+    }
+  };
 
   const calculateScaledProportionalMix = useCallback((counts: { cpCount: number; warrCount: number; internalCount: number }) => {
     const total = counts.cpCount + counts.warrCount + counts.internalCount;
@@ -852,7 +960,7 @@ export default function FixedOpsForecast({
   // PDF Extract Variable Trigger
   const applyExtractedNumbers = () => {
     if (!extractedData) return;
-    setInputs({
+    const nextInputs = {
       billingDays: inputs.billingDays,
       techsAvailable: extractedData.techs,
       hoursPerDay: inputs.hoursPerDay,
@@ -872,20 +980,22 @@ export default function FixedOpsForecast({
       miscSales: extractedData.miscSales,
       miscGross: extractedData.miscGross,
       unappliedTime: extractedData.unappliedTime
-    });
+    };
 
     const totalROs = extractedData.mtdRepairOrdersWritten || 300;
     const cpC = extractedData.cpCount !== undefined ? extractedData.cpCount : Math.round(totalROs * (extractedData.cpMix / 100));
     const warrC = extractedData.warrCount !== undefined ? extractedData.warrCount : Math.round(totalROs * (extractedData.warrMix / 100));
     const intC = extractedData.internalCount !== undefined ? extractedData.internalCount : Math.max(0, totalROs - cpC - warrC);
-    setRawCounts({
+    
+    const nextCounts = {
       cpCount: cpC,
       warrCount: warrC,
       internalCount: intC
-    });
+    };
 
+    let nextTelemetry = mtdTelemetry;
     if (extractedData.mtdTotalLaborSales !== undefined) {
-      setMtdTelemetry({
+      nextTelemetry = {
         grossLaborSales: extractedData.mtdTotalLaborSales,
         laborGrossProfit: extractedData.mtdLaborGrossProfit ?? 0,
         hoursSold: extractedData.mtdHoursSold ?? 0,
@@ -913,11 +1023,18 @@ export default function FixedOpsForecast({
           miscSales: extractedData.miscSales,
           miscGross: extractedData.miscGross
         }
-      });
+      };
     }
 
+    setInputs(nextInputs);
+    setRawCounts(nextCounts);
+    setMtdTelemetry(nextTelemetry);
+
+    // Persist loaded parameters directly to Firestore db
+    saveForecastToFirestore(nextInputs, nextCounts, nextTelemetry, activePreset);
+
     setIsPdfModalOpen(false);
-    onSuccess?.("Loaded audited variables from report successfully!");
+    onSuccess?.("Loaded audited variables from report successfully and saved to database!");
   };
 
   const runExtraction = async (text: string) => {
@@ -1090,7 +1207,7 @@ export default function FixedOpsForecast({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Fixed Ops Capacity & Forecast Summary - HYUNDAI OF SANTA MARIA</title>
+          <title>Fixed Ops Capacity & Forecast Summary - ${currentDealershipName.toUpperCase()}</title>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
@@ -1136,16 +1253,13 @@ export default function FixedOpsForecast({
             <!-- HEADER BLOCK: Spacious, aligned corporate look -->
             <div class="border-b border-slate-200 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div class="space-y-1">
-                <span class="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations Capacity Model</span>
+                <span class="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations</span>
                 <h1 class="text-3xl font-extrabold uppercase text-slate-900 leading-none tracking-tight">Capacity & Projections Forecast</h1>
                 <p class="text-xs font-mono text-slate-500 uppercase flex items-center gap-2">
-                  <span class="font-bold text-slate-700">Hyundai of Santa Maria</span>
-                  <span class="text-slate-350">•</span>
-                  <span>Internal Operational Audit Ledger</span>
+                  <span class="font-bold text-slate-700">${currentDealershipName}</span>
                 </p>
               </div>
               <div class="text-right font-mono text-[10px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <div class="font-bold text-slate-700">Dealer Group Workspace Ledger</div>
                 <div class="text-slate-400">Generated on ${dateStr}</div>
               </div>
             </div>
@@ -1238,7 +1352,7 @@ export default function FixedOpsForecast({
               <!-- Left Column: CAPACITY METRICS -->
               <div class="space-y-4">
                 <div class="border-l-3 border-indigo-600 pl-3">
-                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar Capacity Constants</span>
+                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calender capacity</span>
                 </div>
                 <div class="space-y-2.5 font-medium text-xs">
                   <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -1267,11 +1381,11 @@ export default function FixedOpsForecast({
               <!-- Right Column: DEPARTMENT LEDGER -->
               <div class="space-y-4">
                 <div class="border-l-3 border-indigo-600 pl-3">
-                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Ledger Consolidation</span>
+                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Consolidation</span>
                 </div>
                 <div class="space-y-2.5 font-medium text-xs">
                   <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
-                    <span class="text-slate-500">Calculated Labor Gross Yield:</span>
+                    <span class="text-slate-500">Labor Gross:</span>
                     <span class="font-bold font-mono text-slate-900">$${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                   </div>
                   <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -1297,7 +1411,7 @@ export default function FixedOpsForecast({
             
             <!-- FOOTER BAR: Clean branding -->
             <div class="pt-8 border-t border-slate-200 flex justify-between items-center text-[9px] text-slate-400 font-mono">
-              <div>HYUNDAI OF SANTA MARIA • FINANCIAL REPORTING</div>
+              <div>${currentDealershipName.toUpperCase()} • FINANCIAL REPORTING</div>
               <div>CLASSIFICATION: CONFIDENTIAL</div>
             </div>
 
@@ -2115,6 +2229,20 @@ export default function FixedOpsForecast({
               </div>
             )}
 
+            <div className="flex justify-end pt-3 border-t border-white/5 gap-3">
+              <button 
+                type="button" 
+                onClick={() => setIsPdfModalOpen(false)}
+                className="px-4 py-2 text-xs font-black uppercase text-slate-400 hover:text-white bg-transparent hover:bg-white/5 rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* 7. PREEMINENT PRINT PREVIEW MODAL */}
       {isPreviewOpen && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-start p-4 md:p-8 z-50 overflow-y-auto animate-fade-in no-print">
@@ -2154,16 +2282,13 @@ export default function FixedOpsForecast({
             {/* HEADER BLOCK */}
             <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="space-y-1">
-                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations Capacity Model</span>
+                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations</span>
                 <h1 className="text-3xl font-extrabold uppercase text-slate-900 leading-none tracking-tight">Capacity & Projections Forecast</h1>
                 <p className="text-xs font-mono text-slate-500 uppercase flex items-center gap-2">
-                  <span className="font-bold text-slate-700">Hyundai of Santa Maria</span>
-                  <span className="text-slate-300">•</span>
-                  <span>Internal Operational Audit Ledger</span>
+                  <span className="font-bold text-slate-700">{currentDealershipName}</span>
                 </p>
               </div>
               <div className="text-right font-mono text-[10px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <div className="font-bold text-slate-700">Dealer Group Workspace Ledger</div>
                 <div className="text-slate-400">Generated on {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
               </div>
             </div>
@@ -2256,7 +2381,7 @@ export default function FixedOpsForecast({
               {/* Capacity block */}
               <div className="space-y-4">
                 <div className="border-l-3 border-indigo-600 pl-3">
-                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar Capacity Constants</span>
+                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calender capacity</span>
                 </div>
                 <div className="space-y-2.5 font-medium text-xs">
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -2285,11 +2410,11 @@ export default function FixedOpsForecast({
               {/* Ledger Consolidated and yield display */}
               <div className="space-y-4">
                 <div className="border-l-3 border-indigo-600 pl-3">
-                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Ledger Consolidation</span>
+                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Consolidation</span>
                 </div>
-                <div className="space-y-2.5 font-medium text-xs font-sans">
-                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
-                    <span className="text-slate-500">Calculated Labor Gross Yield:</span>
+                <div class="space-y-2.5 font-medium text-xs font-sans">
+                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span class="text-slate-500">Labor Gross:</span>
                     <span className="font-bold font-mono text-slate-900">${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -2315,7 +2440,7 @@ export default function FixedOpsForecast({
 
             {/* FOOTER BRANDING */}
             <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-[9px] text-slate-400 font-mono select-none">
-              <div>HYUNDAI OF SANTA MARIA • FINANCIAL REPORTING</div>
+              <div>{currentDealershipName.toUpperCase()} • FINANCIAL REPORTING</div>
               <div>CLASSIFICATION: CONFIDENTIAL</div>
             </div>
 

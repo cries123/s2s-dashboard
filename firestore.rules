@@ -61,6 +61,10 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin();
     }
 
+    match /artifacts/hyundai-sales-to-service/public/data/dispatchOrders/{orderId} {
+      allow read, write: if isApproved() || isAdmin();
+    }
+
     // --- Performance Tracking ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
       allow read, write: if isApproved() || isAdmin();

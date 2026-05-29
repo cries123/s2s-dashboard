@@ -91,6 +91,7 @@ export interface Customer {
   addedBy: string;
   addedByUsername: string;
   dealershipId?: string;
+  notes?: string;
 }
 
 export interface ContactLog {
@@ -127,3 +128,36 @@ export interface DailyStat {
     misc: number;
   };
 }
+
+export type DepartmentColumnId = 
+  | 'lube' 
+  | 'quick_service' 
+  | 'ac_electrical' 
+  | 'heavyline' 
+  | 'diesel' 
+  | 'trans' 
+  | 'mobile_repair' 
+  | 'unassigned';
+
+export interface DispatchRepairOrder {
+  id: string;
+  roNumber: string;
+  techNumber: string;
+  vinLastEight: string;
+  department: DepartmentColumnId;
+  status: 'WIP' | 'DIS' | 'POO' | 'WFA';
+  isCompleted: boolean;
+  dateCreated: string;
+  lastUpdated: string;
+  dealershipId: string;
+  customerName?: string;
+  phoneNumber?: string;
+  accountName?: string;
+  isInternal?: boolean;
+  stockNumber?: string;
+  tagNumber?: string;
+  year?: string;
+  model?: string;
+  departmentName?: string;
+}
+
