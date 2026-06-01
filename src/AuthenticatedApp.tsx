@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers, ShieldAlert,
-  BarChart2, SlidersHorizontal
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -29,8 +29,6 @@ import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
 import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
-import { ServiceDriveCockpit } from './components/dashboard/service-drive/ServiceDriveCockpit';
-import { useServiceDriveQueue } from './hooks/useServiceDriveQueue';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -39,7 +37,6 @@ import { DEALERSHIPS } from './constants';
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { usePreferences } from './context/PreferencesContext';
-import { SettingsPage } from './components/settings/SettingsPage';
 
 interface NavDropdownProps {
   label: string;
@@ -143,8 +140,8 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 
 export function AuthenticatedApp() {
   const { user } = useAuth();
-const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance' | 'service-drive' | 'settings'>('service-drive');
-  const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs'>('operations');
+const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('appointments');
+  const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs' | 'preferences'>('operations');
   const { preferences, loading: prefsLoading } = usePreferences();
   const [landingApplied, setLandingApplied] = useState(false);
 
@@ -181,24 +178,12 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
   const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
 
   const activeAlertsCount = customers.filter(isServiceAlertActive).length;
-  const queueOptions = {
-    followUpDays: preferences.contactWorkflow.followUpDays,
-    queuePriority: preferences.serviceDrive.queuePriority,
-  };
-  const { stats: serviceDriveStats } = useServiceDriveQueue(
-    customers,
-    currentDealershipId || undefined,
-    queueOptions
-  );
-  const serviceDriveQueueCount = serviceDriveStats.queueTotal;
-
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
   // Filter tabs - Pot of Gold (Competition) only for Hyundai
   const modules = preferences.dashboardModules;
 
   const availableTabs = [
-    { id: 'service-drive', label: 'Service Drive', icon: LayoutDashboard, badge: serviceDriveQueueCount },
     { id: 'add', label: 'Onboard', icon: UserPlus },
     { id: 'search', label: 'Directory', icon: Search },
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
@@ -214,21 +199,21 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
       : []),
     ...(modules.showRecallsTab ? [{ id: 'recalls', label: 'Recalls', icon: ShieldAlert }] : []),
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
-    { id: 'settings', label: 'Preferences', icon: SlidersHorizontal },
   ];
 
   // If current activeTab is hidden, fallback to first available
   React.useEffect(() => {
     if (!availableTabs.find(t => t.id === activeTab)) {
-      setActiveTab('service-drive');
+      setActiveTab('appointments');
     }
   }, [currentDealershipId, activeTab, availableTabs]);
 
   React.useEffect(() => {
     if (prefsLoading || landingApplied) return;
-    const preferredTab = preferences.serviceDrive.openOnLogin
-      ? 'service-drive'
-      : preferences.serviceDrive.defaultLandingTab;
+    let preferredTab = preferences.serviceDrive.defaultLandingTab;
+    if (preferredTab === 'service-drive' || preferredTab === 'settings') {
+      preferredTab = 'appointments';
+    }
     if (availableTabs.find(t => t.id === preferredTab)) {
       setActiveTab(preferredTab as typeof activeTab);
     }
@@ -369,16 +354,8 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'service-drive' || activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
             >
-              <NavLink 
-                href="/service/drive" 
-                onClick={() => setActiveTab('service-drive')}
-                isActive={activeTab === 'service-drive'}
-                badge={serviceDriveQueueCount}
-              >
-                Service Drive
-              </NavLink>
               <NavLink 
                 href="/service/directory" 
                 onClick={() => setActiveTab('search')}
@@ -498,6 +475,16 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                 >
                   Logs
                 </NavLink>
+                <NavLink 
+                  href="/admin/preferences" 
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('preferences');
+                  }}
+                  isActive={activeTab === 'admin' && adminSubTab === 'preferences'}
+                >
+                  Preferences
+                </NavLink>
               </NavDropdown>
             )}
 
@@ -506,8 +493,8 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
           {/* Mobile: current page label (nav via bottom bar) */}
           <div className="flex-1 md:hidden flex justify-center items-center min-w-0 px-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate text-center">
-              {activeTab === 'settings' ? 'Preferences' : activeTab === 'admin'
-                ? `Admin · ${adminSubTab === 'operations' ? 'Settings' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+              {activeTab === 'admin'
+                ? `Admin · ${adminSubTab === 'preferences' ? 'Preferences' : adminSubTab === 'operations' ? 'Settings' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                 : availableTabs.find(t => t.id === activeTab)?.label ?? 'S2S'}
             </p>
           </div>
@@ -575,18 +562,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                </div>
              </div>
              
-             <button
-               onClick={() => setActiveTab('settings')}
-               className={cn(
-                 "w-9 h-9 flex items-center justify-center border rounded-lg transition-all shadow-sm",
-                 activeTab === 'settings'
-                   ? "bg-brand-primary/20 border-brand-primary/40 text-brand-primary"
-                   : "bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10"
-               )}
-               title="Preferences"
-             >
-               <SlidersHorizontal size={16} />
-             </button>
 
              <button 
                onClick={handleSignOut}
@@ -612,17 +587,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
         )}
 
         <div className="space-y-10">
-          {activeTab === 'service-drive' && (
-            <ServiceDriveCockpit
-              customers={customers}
-              currentUser={currentUser}
-              currentDealershipId={currentDealershipId || 'hyundai'}
-              dealershipName={currentDealership.name}
-              onViewProfile={setSelectedProfile}
-              onRefresh={(msg, isError) => showNotification(msg, isError)}
-            />
-          )}
-
           {activeTab === 'add' && (
             <CustomerForm 
               currentUser={currentUser} 
@@ -701,7 +665,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             />
           )}
 
-          {activeTab === 'settings' ? 'Preferences' : activeTab === 'admin' && (
+          {activeTab === 'admin' && (
             <AdminPanel 
               key={currentDealershipId || 'hyundai'} 
               currentDealershipId={currentDealershipId || 'hyundai'} 
@@ -709,6 +673,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
               onError={(msg) => showNotification(msg, true)}
               activeSubTab={adminSubTab}
               onChangeSubTab={setAdminSubTab}
+              onNavigateTab={(tab) => setActiveTab(tab as typeof activeTab)}
             />
           )}
         </div>

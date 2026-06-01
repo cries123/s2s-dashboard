@@ -9,8 +9,8 @@ import {
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   serviceDrive: {
-    openOnLogin: true,
-    defaultLandingTab: 'service-drive',
+    openOnLogin: false,
+    defaultLandingTab: 'appointments',
     defaultFilter: 'all',
     queuePriority: 'balanced',
   },
@@ -52,11 +52,18 @@ export function getRoleAwareDefaults(role?: Role): UserPreferences {
   };
 }
 
+function normalizeLandingTab(tab: LandingTab): LandingTab {
+  if (tab === 'service-drive' || tab === 'settings') return 'appointments';
+  return tab;
+}
+
 function mergeServiceDrive(
   base: UserPreferences['serviceDrive'],
   patch?: Partial<UserPreferences['serviceDrive']>
 ): UserPreferences['serviceDrive'] {
-  return { ...base, ...patch };
+  const merged = { ...base, ...patch };
+  merged.defaultLandingTab = normalizeLandingTab(merged.defaultLandingTab);
+  return merged;
 }
 
 function mergeContact(

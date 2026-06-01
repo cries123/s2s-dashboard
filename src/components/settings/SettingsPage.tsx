@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard,
-  Bell,
-  Clock,
   Phone,
   Monitor,
   Users,
@@ -14,8 +11,6 @@ import {
 import { usePreferences } from '../../context/PreferencesContext';
 import {
   LandingTab,
-  QueuePriorityProfile,
-  ServiceDriveFilter,
   LanguageFilter,
   CrmDensity,
 } from '../../types';
@@ -133,37 +128,10 @@ function SelectField({
   );
 }
 
-const LANDING_TABS: { value: LandingTab; label: string }[] = [
-  { value: 'service-drive', label: 'Service Drive' },
-  { value: 'appointments', label: 'Operations' },
-  { value: 'alerts', label: 'Alerts' },
-  { value: 'search', label: 'Directory' },
-  { value: 'add', label: 'Onboard' },
-  { value: 'dispatch', label: 'Dispatch' },
-  { value: 'recalls', label: 'Recalls' },
-  { value: 'forecast', label: 'Forecast' },
-  { value: 'sales-performance', label: 'Sales Performance' },
-  { value: 'pot-of-gold', label: 'Pot of Gold' },
-  { value: 'vin-search', label: 'VIN Search' },
-];
-
-const FILTER_OPTIONS: { value: ServiceDriveFilter; label: string }[] = [
-  { value: 'all', label: 'All queue items' },
-  { value: 'service_due', label: 'Service due only' },
-  { value: 'stale_followup', label: 'Follow-up only' },
-];
-
-const QUEUE_PRIORITY_OPTIONS: { value: QueuePriorityProfile; label: string; hint: string }[] = [
-  { value: 'balanced', label: 'Balanced', hint: 'Score-based ranking (default)' },
-  { value: 'overdue_first', label: 'Overdue first', hint: 'Prioritize longest overdue service' },
-  { value: 'never_contacted_first', label: 'Never contacted', hint: 'Customers with no contact log first' },
-];
-
 export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
   const {
     preferences,
     saving,
-    updateServiceDrive,
     updateContactWorkflow,
     updateDashboardModules,
     updateCrmDisplay,
@@ -200,7 +168,7 @@ export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
               Preferences
             </h1>
             <p className="text-sm text-slate-400 mt-2">
-              Tune Service Drive, contact logging, and what you see across the dashboard. Saved to your profile.
+              Tune contact logging, dashboard modules, and CRM display. Saved to your profile.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -226,73 +194,6 @@ export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
           </div>
         </div>
       </div>
-
-      <Section
-        title="Service Drive"
-        description="Where you land when you sign in and how the work queue is sorted."
-        icon={LayoutDashboard}
-      >
-        <ToggleRow
-          label="Open Service Drive on login"
-          description="When off, you'll land on your chosen default tab instead."
-          checked={preferences.serviceDrive.openOnLogin}
-          onChange={(v) => wrapSave(() => updateServiceDrive({ openOnLogin: v }))}
-          disabled={saving}
-        />
-        <SelectField
-          label="Default landing tab"
-          value={preferences.serviceDrive.defaultLandingTab}
-          onChange={(v) =>
-            wrapSave(() =>
-              updateServiceDrive({ defaultLandingTab: v as LandingTab })
-            )
-          }
-          options={LANDING_TABS.map((t) => ({ value: t.value, label: t.label }))}
-          disabled={saving}
-        />
-        <SelectField
-          label="Default queue filter"
-          value={preferences.serviceDrive.defaultFilter}
-          onChange={(v) =>
-            wrapSave(() =>
-              updateServiceDrive({ defaultFilter: v as ServiceDriveFilter })
-            )
-          }
-          options={FILTER_OPTIONS.map((f) => ({ value: f.value, label: f.label }))}
-          disabled={saving}
-        />
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
-            Queue priority
-          </p>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {QUEUE_PRIORITY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                disabled={saving}
-                onClick={() => wrapSave(() => updateServiceDrive({ queuePriority: opt.value }))}
-                className={cn(
-                  'text-left p-3 rounded-xl border transition-all',
-                  preferences.serviceDrive.queuePriority === opt.value
-                    ? 'border-brand-primary/50 bg-brand-primary/10'
-                    : 'border-white/5 bg-slate-950/50 hover:border-white/15'
-                )}
-              >
-                <p className="text-[10px] font-black uppercase text-white">{opt.label}</p>
-                <p className="text-[9px] text-slate-500 mt-1">{opt.hint}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => onNavigate('service-drive')}
-          className="text-[10px] font-black uppercase tracking-wider text-brand-primary hover:underline"
-        >
-          Go to Service Drive →
-        </button>
-      </Section>
 
       <Section
         title="Contact workflow"
@@ -325,7 +226,7 @@ export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
               Apply
             </button>
           </div>
-          <p className="text-[9px] text-slate-600 mt-1">1–14 days. Drives follow-up badges on Service Drive.</p>
+          <p className="text-[9px] text-slate-600 mt-1">1–14 days. Used for stale follow-up detection in alerts and CRM.</p>
         </div>
         <SelectField
           label="Default contact outcome"

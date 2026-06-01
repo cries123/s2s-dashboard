@@ -10,9 +10,8 @@ interface MobileBottomNavProps {
 }
 
 const TABS: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: 'service-drive', label: 'Drive', icon: LayoutDashboard },
-  { id: 'appointments', label: 'Ops', icon: Calendar },
   { id: 'alerts', label: 'Alerts', icon: Bell },
+  { id: 'appointments', label: 'Ops', icon: Calendar },
   { id: 'search', label: 'CRM', icon: Search },
 ];
 
@@ -28,7 +27,7 @@ export function MobileBottomNav({
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Primary navigation"
     >
-      <div className="grid grid-cols-5 h-[4.25rem] max-w-lg mx-auto px-1">
+      <div className="grid grid-cols-4 h-[4.25rem] max-w-lg mx-auto px-1">
         {TABS.map(({ id, label, icon: Icon }) => {
           const isActive = activeTab === id;
           const showBadge = id === 'alerts' && alertBadge > 0;

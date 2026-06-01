@@ -21,13 +21,16 @@ import {
   Check,
   Loader2,
   Database,
-  RefreshCw
+  RefreshCw,
+  SlidersHorizontal
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
 import { DEALERSHIPS } from '../../../constants';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
+import { SettingsPage } from '../../settings/SettingsPage';
+import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 
 interface AdminPanelProps {
@@ -35,8 +38,9 @@ interface AdminPanelProps {
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs') => void;
+  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences';
+  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences') => void;
+  onNavigateTab?: (tab: LandingTab) => void;
 }
 
 export default function AdminPanel({ 
@@ -44,7 +48,8 @@ export default function AdminPanel({
   onSuccess, 
   onError, 
   activeSubTab, 
-  onChangeSubTab 
+  onChangeSubTab,
+  onNavigateTab
 }: AdminPanelProps) {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -642,6 +647,7 @@ export default function AdminPanel({
               {subTab === 'operations' && "Configure dealership daily throughput, gross parts & labor dollar targets."}
               {subTab === 'users' && "Manage system permission tiers, account access, & registration flows."}
               {subTab === 'logs' && "Real-time forensic audit logs of user actions on the app."}
+              {subTab === 'preferences' && "Personal workspace settings for contact workflow, modules, and CRM display."}
             </p>
           </div>
         </div>
@@ -650,11 +656,12 @@ export default function AdminPanel({
       {/* 2. Sleek Segmented glass navigation bar */}
       <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
         <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {[
             { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
             { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
-            { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' }
+            { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
+            { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
           ].map(tab => {
             const Icon = tab.icon;
             const isSelected = subTab === tab.id;
@@ -1191,6 +1198,13 @@ export default function AdminPanel({
       )}
 
       {/* SYSTEM TRAILS / LOGS */}
+      {subTab === 'preferences' && (
+        <SettingsPage
+          onNavigate={(tab) => onNavigateTab?.(tab)}
+          onNotify={(msg, isError) => (isError ? onError?.(msg) : onSuccess?.(msg))}
+        />
+      )}
+
       {subTab === 'logs' && (
         <div className="animate-in fade-in duration-300">
           <SystemLogs />
