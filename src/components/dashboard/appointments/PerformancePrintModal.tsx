@@ -104,12 +104,14 @@ interface PerformancePrintModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentDealershipId: string;
+  selectedMonth?: string;
 }
 
 export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
   isOpen,
   onClose,
   currentDealershipId,
+  selectedMonth = 'active',
 }) => {
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [advisorTotals, setAdvisorTotals] = useState<any>(null);
@@ -134,7 +136,8 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
     setLoadingTechs(true);
 
     // 1. Subscribe to Advisors
-    const advDocId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const baseAdvId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const advDocId = selectedMonth === 'active' ? baseAdvId : `${baseAdvId}_archive_${selectedMonth}`;
     const advRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', advDocId);
     
     const unsubAdvisors = onSnapshot(advRef, (docSnap) => {
@@ -156,7 +159,8 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
     });
 
     // 2. Subscribe to Technicians
-    const techDocId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+    const baseTechId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+    const techDocId = selectedMonth === 'active' ? baseTechId : `${baseTechId}_archive_${selectedMonth}`;
     const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', techDocId);
     
     const unsubTechs = onSnapshot(techRef, (docSnap) => {
@@ -195,7 +199,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
       unsubTechs();
       unsubAppts();
     };
-  }, [isOpen, currentDealershipId]);
+  }, [isOpen, currentDealershipId, selectedMonth]);
 
   // Handle direct command to trigger print
   const handlePrint = () => {
@@ -260,8 +264,8 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
       return `
         <tr class="border-b border-gray-200 text-[11px] text-gray-800">
           <td class="py-3 px-3 font-bold text-gray-900">${advisor.name}</td>
-          <td class="py-3 px-2 text-right">$${(advisor.grossLabor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td class="py-3 px-2 text-right">$${(advisor.laborSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          <td class="py-3 px-2 text-right">$${(advisor.grossLabor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td class="py-3 px-2 text-right">$${(advisor.partsSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td class="py-3 px-2 text-right">$${(advisor.grossParts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td class="py-3 px-2 text-center font-bold text-gray-950">$${((advisor.elr || elrVal || 0)).toFixed(2)}</td>
@@ -383,8 +387,8 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                   <thead>
                     <tr class="bg-slate-900 text-white uppercase text-[8px] tracking-widest font-black">
                       <th class="py-2.5 px-3">Advisor Name</th>
-                      <th class="py-2.5 px-2 text-right">Labor Gross</th>
                       <th class="py-2.5 px-2 text-right">Labor Sales</th>
+                      <th class="py-2.5 px-2 text-right">Labor Gross</th>
                       <th class="py-2.5 px-2 text-right">Part Sales</th>
                       <th class="py-2.5 px-2 text-right">Parts Gross</th>
                       <th class="py-2.5 px-2 text-center">ELR</th>
@@ -397,8 +401,8 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                     ${advisorRows}
                     <tr class="bg-slate-100 border-t-2 border-slate-900 text-[10px] uppercase font-black text-slate-950">
                       <td class="py-3 px-3">Department Totals</td>
-                      <td class="py-3 px-2 text-right">$${dLaborGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td class="py-3 px-2 text-right">$${dLabor.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td class="py-3 px-2 text-right">$${dLaborGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td class="py-3 px-2 text-right">$${dParts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td class="py-3 px-2 text-right">$${dPartsGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td class="py-3 px-2 text-center">$${dElr.toFixed(2)}</td>
@@ -696,8 +700,8 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                       <thead>
                         <tr className="bg-slate-900 text-white uppercase text-[8px] tracking-widest font-black">
                           <th className="py-2.5 px-3">Advisor Name</th>
-                          <th className="py-2.5 px-2 text-right">Labor Gross</th>
                           <th className="py-2.5 px-2 text-right">Labor Sales</th>
+                          <th className="py-2.5 px-2 text-right">Labor Gross</th>
                           <th className="py-2.5 px-2 text-right">Part Sales</th>
                           <th className="py-2.5 px-2 text-right">Parts Gross</th>
                           <th className="py-2.5 px-2 text-center">ELR</th>
@@ -714,10 +718,10 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                             <tr key={i} className="border-b border-slate-100 text-[11px] text-slate-800 last:border-b-0">
                               <td className="py-3 px-3 font-black text-slate-900">{advisor.name}</td>
                               <td className="py-3 px-2 text-right font-medium text-slate-700">
-                                ${(advisor.grossLabor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${(advisor.laborSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="py-3 px-2 text-right font-medium text-slate-700">
-                                ${(advisor.laborSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${(advisor.grossLabor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="py-3 px-2 text-right font-medium text-slate-700">
                                 ${(advisor.partsSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -744,10 +748,10 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                         <tr className="bg-slate-100 border-t-2 border-slate-900 text-[10px] uppercase font-black text-slate-900">
                           <td className="py-3 px-3">Department Totals</td>
                           <td className="py-3 px-2 text-right text-slate-950">
-                            ${totalLaborGrossStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ${totalLaborStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="py-3 px-2 text-right text-slate-950">
-                            ${totalLaborStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ${totalLaborGrossStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="py-3 px-2 text-right text-slate-950">
                             ${totalPartsStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

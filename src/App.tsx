@@ -8,12 +8,14 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers
+  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers, ShieldAlert,
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Components
 import CustomerForm from './components/dashboard/customers/CustomerForm';
+import SalesPerformance from './components/dashboard/analytics/SalesPerformance';
 import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
 import Appointments from './components/dashboard/appointments/Appointments';
 import { CustomerDirectory } from './components/dashboard/customers/CustomerDirectory';
@@ -26,6 +28,7 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
+import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -137,7 +140,7 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch'>('add');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('add');
   const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs'>('operations');
 
   // Artificial delay for loading screen
@@ -193,6 +196,8 @@ export default function App() {
     ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
     { id: 'vin-search', label: 'VIN Search', icon: Search },
     { id: 'forecast', label: 'Forecast', icon: TrendingUp },
+    { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
+    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
@@ -369,7 +374,7 @@ export default function App() {
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
             >
               <NavLink 
                 href="/service/directory" 
@@ -395,6 +400,13 @@ export default function App() {
                   Dispatch
                 </NavLink>
               )}
+              <NavLink 
+                href="/service/recalls" 
+                onClick={() => setActiveTab('recalls')}
+                isActive={activeTab === 'recalls'}
+              >
+                Recalls
+              </NavLink>
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
@@ -416,7 +428,7 @@ export default function App() {
             {/* 4. REPORTS DROPDOWN */}
             <NavDropdown 
               label="Reports" 
-              isActive={activeTab === 'appointments' || activeTab === 'forecast'}
+              isActive={activeTab === 'appointments' || activeTab === 'forecast' || activeTab === 'sales-performance'}
             >
               <NavLink 
                 href="/reports/operations" 
@@ -424,6 +436,13 @@ export default function App() {
                 isActive={activeTab === 'appointments'}
               >
                 Operations
+              </NavLink>
+              <NavLink 
+                href="/reports/sales-performance" 
+                onClick={() => setActiveTab('sales-performance')}
+                isActive={activeTab === 'sales-performance'}
+              >
+                Sales Performance
               </NavLink>
               <NavLink 
                 href="/reports/forecast" 
@@ -631,6 +650,10 @@ export default function App() {
             <VinLookup />
           )}
 
+          {activeTab === 'recalls' && (
+            <VehicleRecalls onViewProfile={setSelectedProfile} />
+          )}
+
           {activeTab === 'pot-of-gold' && (
             <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />
           )}
@@ -641,6 +664,14 @@ export default function App() {
               currentDealershipId={currentDealershipId || 'hyundai'} 
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
+            />
+          )}
+
+          {activeTab === 'sales-performance' && (
+            <SalesPerformance 
+              customers={customers} 
+              currentUser={currentUser} 
+              currentDealershipId={currentDealershipId || 'ford'} 
             />
           )}
 

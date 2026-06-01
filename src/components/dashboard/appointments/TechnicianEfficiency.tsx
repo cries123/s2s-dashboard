@@ -24,13 +24,17 @@ interface TechnicianEfficiencyProps {
   currentDealershipId: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
+  selectedMonth?: string;
+  allowArchiveEditing?: boolean;
 }
 
 export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   currentUser,
   currentDealershipId,
   onSuccess,
-  onError
+  onError,
+  selectedMonth = 'active',
+  allowArchiveEditing = false
 }) => {
   const [technicians, setTechnicians] = useState<TechnicianData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +138,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   useEffect(() => {
     if (!currentDealershipId) return;
 
-    const docId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+    const baseId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+    const docId = selectedMonth === 'active' ? baseId : `${baseId}_archive_${selectedMonth}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -162,12 +167,14 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     });
 
     return () => unsubscribe();
-  }, [currentDealershipId, onError]);
+  }, [currentDealershipId, onError, selectedMonth]);
 
   // Save changes back to Firestore helper
-  const saveToFirestore = async (updatedTechs: TechnicianData[], CustomStart?: string, CustomEnd?: string) => {
+  const saveToFirestore = async (updatedTechs: TechnicianData[], CustomStart?: string, CustomEnd?: string, targetMonthOverride?: string) => {
     try {
-      const docId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+      const targetMonth = targetMonthOverride || selectedMonth;
+      const baseId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+      const docId = targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
       const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
       
       const newStart = CustomStart || reportStartDate;
@@ -247,15 +254,26 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       const detectedDates = detectDateRangeFromText(extractedText);
       let loadedStart = reportStartDate;
       let loadedEnd = reportEndDate;
+      let targetMonth = selectedMonth;
+
       if (detectedDates) {
         loadedStart = detectedDates.start;
         loadedEnd = detectedDates.end;
         setReportStartDate(detectedDates.start);
         setReportEndDate(detectedDates.end);
+
+        // Auto-route to May archive if dates fall in May
+        if (detectedDates.start.startsWith('2026-05')) {
+          targetMonth = '2026-05';
+        }
       }
 
-      await saveToFirestore(mergedTechs, loadedStart, loadedEnd);
-      onSuccess?.(`Successfully imported & merged ${parsedTechs.length} technicians.`);
+      await saveToFirestore(mergedTechs, loadedStart, loadedEnd, targetMonth);
+      if (targetMonth === '2026-05' && selectedMonth === 'active') {
+        onSuccess?.(`Detected May dates! Saved ${parsedTechs.length} technicians directly to May 2026 Saved Archive. June active tracker kept clean.`);
+      } else {
+        onSuccess?.(`Successfully imported & merged ${parsedTechs.length} technicians.`);
+      }
       setParsing(false);
 
     } catch (err: any) {
@@ -406,45 +424,59 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setShowAddForm(prev => !prev)}
-            className="h-10 px-4 flex items-center gap-2 bg-white/5 hover:bg-white/10 active:scale-95 text-white border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
-          >
-            <UserPlus size={14} className="text-brand-primary" />
-            {showAddForm ? "Hide Form" : "Add Technician"}
-          </button>
-          
-          {technicians.length > 0 && (
-            <div className="relative flex items-center">
-              {showResetConfirm ? (
-                <div className="flex items-center gap-2 bg-rose-950/20 border border-rose-500/30 p-1 rounded-xl">
-                  <span className="text-[9px] text-rose-400 font-bold uppercase px-2">Clear all?</span>
+        {selectedMonth !== 'active' && !allowArchiveEditing ? (
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+              🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            {selectedMonth !== 'active' && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse">
+                <span>⚠️ ARCHIVE EDIT MODE ({selectedMonth})</span>
+              </div>
+            )}
+            <button
+              onClick={() => setShowAddForm(prev => !prev)}
+              className="h-10 px-4 flex items-center gap-2 bg-white/5 hover:bg-white/10 active:scale-95 text-white border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+            >
+              <UserPlus size={14} className="text-brand-primary" />
+              {showAddForm ? "Hide Form" : "Add Technician"}
+            </button>
+            
+            {technicians.length > 0 && (
+              <div className="relative flex items-center">
+                {showResetConfirm ? (
+                  <div className="flex items-center gap-2 bg-rose-950/20 border border-rose-500/30 p-1 rounded-xl">
+                    <span className="text-[9px] text-rose-400 font-bold uppercase px-2">Clear all?</span>
+                    <button
+                      onClick={handleResetTracks}
+                      className="h-8 px-3 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setShowResetConfirm(false)}
+                      className="h-8 px-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all cursor-pointer"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={handleResetTracks}
-                    className="h-8 px-3 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                    onClick={() => setShowResetConfirm(true)}
+                    className="h-10 px-4 flex items-center gap-2 bg-rose-500/10 hover:bg-rose-500/15 text-rose-400 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
                   >
-                    Yes
+                    <RotateCcw size={14} />
+                    Reset
                   </button>
-                  <button
-                    onClick={() => setShowResetConfirm(false)}
-                    className="h-8 px-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all cursor-pointer"
-                  >
-                    No
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowResetConfirm(true)}
-                  className="h-10 px-4 flex items-center gap-2 bg-rose-500/10 hover:bg-rose-500/15 text-rose-400 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
-                >
-                  <RotateCcw size={14} />
-                  Reset
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Manual Add Form Trigger */}
@@ -529,7 +561,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start relative z-10">
         {/* DRAG-AND-DROP FILE UPLOADER */}
-        <div className="col-span-1 xl:col-span-1">
+        {(selectedMonth === 'active' || allowArchiveEditing) && (
+          <div className="col-span-1 xl:col-span-1">
           <div
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -594,10 +627,14 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               </div>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* PERFORMANCE LIST SECTION */}
-        <div className="col-span-1 xl:col-span-2 space-y-4">
+        <div className={cn(
+          "col-span-1 xl:col-span-2 space-y-4",
+          (selectedMonth !== 'active' && !allowArchiveEditing) && "xl:col-span-3 col-span-full"
+        )}>
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-slate-500">
               <Loader2 className="animate-spin text-brand-primary mb-3" size={28} />
@@ -621,7 +658,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                       <th className="px-6 py-4 text-center">Clocked Hrs</th>
                       <th className="px-6 py-4 text-center">Flagged Hrs</th>
                       <th className="px-6 py-4">Efficiency</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
+                      {(selectedMonth === 'active' || allowArchiveEditing) && <th className="px-6 py-4 text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -708,7 +745,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                           </td>
 
                           {/* INLINE ACTIONS */}
-                          <td className="px-6 py-4 text-right">
+                          {(selectedMonth === 'active' || allowArchiveEditing) ? (
+                            <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2.5">
                               {isEditing ? (
                                 <>
@@ -749,7 +787,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                                 </>
                               )}
                             </div>
-                          </td>
+                            </td>
+                          ) : null}
                         </tr>
                       );
                     })}

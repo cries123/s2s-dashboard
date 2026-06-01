@@ -112,9 +112,36 @@
         "dealershipId": { "type": "string" }
       },
       "required": ["id", "roNumber", "techNumber", "vinLastEight", "department", "status", "isCompleted", "dateCreated", "lastUpdated", "dealershipId"]
+    },
+    "VehicleRecall": {
+      "title": "Vehicle Recall",
+      "description": "NHTSA safety recalls cached for a vehicle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "advisorName": { "type": "string" },
+        "vin": { "type": "string" },
+        "vinLast8": { "type": "string" },
+        "year": { "type": "string" },
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "campaignNumber": { "type": "string" },
+        "component": { "type": "string" },
+        "summary": { "type": "string" },
+        "remedy": { "type": "string" },
+        "checkedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["Remedy Available", "Remedy Not Available"] }
+      },
+      "required": ["id", "customerId", "vin", "campaignNumber", "summary"]
     }
   },
   "firestore": {
+    "artifacts/hyundai-sales-to-service/public/data/vehicleRecalls": {
+      "schema": "VehicleRecall",
+      "description": "Cached safety campaigns and recalls from NHTSA API"
+    },
     "artifacts/hyundai-sales-to-service/public/data/dispatchOrders": {
       "schema": "DispatchRepairOrder",
       "description": "Repair orders tracked in the Departmental Dispatch Board"

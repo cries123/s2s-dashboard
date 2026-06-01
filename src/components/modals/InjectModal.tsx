@@ -81,6 +81,7 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
             appointments.push({
               firstName: "Customer",
               lastName: "Name",
+              vin: vin,
               vinLast8: vin.slice(-8),
               mileage: 45000,
               reason,
@@ -147,6 +148,7 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
             firstName: item.firstName || "Unknown",
             lastName: item.lastName || "Customer",
             email: "", phone: "",
+            vin: item.vin || "",
             vinLast8: vin,
             createdAt: Timestamp.now(),
             addedBy: currentUser.uid,

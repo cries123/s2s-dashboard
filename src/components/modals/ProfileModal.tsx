@@ -286,6 +286,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
     try {
       const { id, ...updates } = formData;
       await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', id), updates as any);
+      Object.assign(customer, updates);
       setIsEditing(false);
     } catch (err) {
       console.error(err);
@@ -346,8 +347,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   Acquired {new Date(customer.createdAt.toMillis()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
                 <span className="hidden sm:inline text-slate-700">•</span>
-                <span className="flex items-center gap-1 font-mono text-[10px] sm:text-[11px] bg-slate-900 border border-white/5 px-1.5 sm:px-2 py-0.5 rounded text-brand-secondary">
-                  VIN: {customer.vinLast8}
+                <span className="flex items-center gap-1 font-mono text-[10px] sm:text-[11px] bg-slate-900 border border-white/5 px-1.5 sm:px-2 py-0.5 rounded text-brand-secondary" title={customer.vin ? `Full VIN: ${customer.vin}` : `VIN Last 8: ${customer.vinLast8}`}>
+                  VIN: {customer.vin || customer.vinLast8}
                 </span>
               </div>
             </div>
@@ -526,19 +527,45 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           </p>
                         </div>
 
-                        <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl relative">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Chassis VIN (Last 8)</p>
-                          <div className="flex items-center justify-between mt-1 gap-2">
-                            <span className="font-mono text-sm sm:text-base font-black text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap uppercase">
-                              {formData.vinLast8}
-                            </span>
-                            <button 
-                              onClick={handleCopyVin}
-                              className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors border border-white/5"
-                              title="Copy VIN to clipboard"
-                            >
-                              {isCopied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                            </button>
+                        <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl col-span-1 sm:col-span-2 relative">
+                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Chassis VIN Profile</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                            <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Full VIN (17 Characters)</p>
+                              <div className="flex items-center justify-between mt-1 gap-2">
+                                <span className="font-mono text-xs sm:text-sm font-black text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap uppercase">
+                                  {formData.vin || 'Not Set'}
+                                </span>
+                                {formData.vin && (
+                                  <button 
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(formData.vin || '');
+                                      setIsCopied(true);
+                                      setTimeout(() => setIsCopied(false), 2000);
+                                    }}
+                                    className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors"
+                                    title="Copy Full VIN"
+                                  >
+                                    {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">VIN Last 8</p>
+                              <div className="flex items-center justify-between mt-1 gap-2">
+                                <span className="font-mono text-xs sm:text-sm font-black text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap uppercase">
+                                  {formData.vinLast8}
+                                </span>
+                                <button 
+                                  onClick={handleCopyVin}
+                                  className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors"
+                                  title="Copy VIN Last 8"
+                                >
+                                  {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -1148,17 +1175,38 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="input-label">Full Chassis VIN (17 Characters)</label>
+                          <input 
+                            name="vin" 
+                            value={formData.vin || ''} 
+                            onChange={(e) => {
+                              const val = e.target.value.toUpperCase();
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                vin: val, 
+                                vinLast8: val.length >= 8 ? val.slice(-8) : prev.vinLast8 
+                              }));
+                            }} 
+                            className="input-field font-mono text-brand-secondary uppercase tracking-widest" 
+                            placeholder="Full 17-character VIN" 
+                            maxLength={17} 
+                          />
+                        </div>
+                        <div className="space-y-1.5 col-span-1">
                           <label className="input-label">Global VIN (Last 8)</label>
                           <input name="vinLast8" value={formData.vinLast8} onChange={handleChange} className="input-field font-mono text-brand-secondary" placeholder="Last 8 alphanumeric" maxLength={8} />
                         </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 col-span-1">
                           <label className="input-label">Current Odometer (Miles)</label>
                           <input name="mileage" value={formData.mileage || ''} onChange={handleChange} className="input-field font-mono" placeholder="Mileage integer" />
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="input-label">Delivery Date</label>
+                          <label className="input-label font-bold text-slate-300">Delivery Date</label>
                           <input name="soldDate" type="date" value={formData.soldDate} onChange={handleChange} className="input-field" />
                         </div>
                       </div>

@@ -91,9 +91,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const maintenanceTasks = getRecommendedServices(monthsOwned);
 
   return (
-    <div className="card-base card-interactive p-0 overflow-hidden border-slate-800/50 group bg-slate-900/40 backdrop-blur-sm shadow-2xl">
-      <div className="p-6">
-        <div className="flex justify-between items-start gap-4">
+    <div className="card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-100 dark:bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl">
+      <div className="p-5">
+        <div className="flex justify-between items-start gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
                <span className={cn(
@@ -110,22 +110,22 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
             </div>
             <button 
               onClick={() => onViewProfile(customer)}
-              className="text-2xl font-black text-white hover:text-brand-primary transition-colors text-left leading-none tracking-tight uppercase italic"
+              className="text-xl font-black text-white hover:text-brand-primary transition-colors text-left leading-none tracking-tight uppercase italic"
             >
               {customer.firstName} {customer.lastName}
             </button>
             
-            <div className="flex flex-col gap-2 mt-4">
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2.5 text-[11px] font-bold text-slate-400 hover:text-brand-secondary transition-colors group/link">
-                <div className="w-7 h-7 rounded-xl bg-slate-950 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors border border-white/5 shadow-inner">
-                  <Phone size={13} className="text-slate-600 group-hover/link:text-brand-secondary" />
+            <div className="flex flex-col gap-1.5 mt-3">
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-[10px] font-bold text-slate-400 hover:text-brand-secondary transition-colors group/link">
+                <div className="w-6 h-6 rounded-lg bg-slate-950 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors border border-white/5 shadow-inner">
+                  <Phone size={11} className="text-slate-600 group-hover/link:text-brand-secondary" />
                 </div>
                 {customer.phone || 'No Phone Entry'}
               </a>
               {lastVisit && (
-                <div className="flex items-center gap-2.5 text-[10px] font-black text-brand-primary uppercase tracking-widest mt-1">
-                   <div className="w-7 h-7 rounded-xl bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
-                     <CheckCircle2 size={13} />
+                <div className="flex items-center gap-2 text-[10px] font-black text-brand-primary uppercase tracking-widest">
+                   <div className="w-6 h-6 rounded-lg bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
+                     <CheckCircle2 size={11} />
                    </div>
                    Last Visit: {lastVisit.date}
                 </div>
@@ -133,90 +133,88 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
             <button 
               onClick={() => onViewLog(customer)}
-              className="w-11 h-11 flex items-center justify-center bg-slate-950 text-slate-500 hover:text-brand-primary hover:bg-brand-primary/10 rounded-2xl transition-all border border-white/5 shadow-inner hover:scale-105 active:scale-95"
+              className="w-9 h-9 flex items-center justify-center bg-slate-950 text-slate-500 hover:text-brand-primary hover:bg-brand-primary/10 rounded-xl transition-all border border-white/5 shadow-inner hover:scale-105 active:scale-95"
               title="View Interaction Log"
             >
-              <History size={20} />
+              <History size={16} />
             </button>
             <button 
               onClick={() => onViewProfile(customer)}
-              className="w-11 h-11 flex items-center justify-center bg-slate-950 text-slate-600 hover:text-white hover:bg-slate-800 rounded-2xl transition-all border border-white/5 shadow-inner hover:scale-105 active:scale-95"
+              className="w-9 h-9 flex items-center justify-center bg-slate-950 text-slate-600 hover:text-white hover:bg-slate-800 rounded-xl transition-all border border-white/5 shadow-inner hover:scale-105 active:scale-95"
               title="Edit Profile"
             >
-              <Edit2 size={18} />
+              <Edit2 size={14} />
             </button>
           </div>
         </div>
         
         {isAlert && (
-          <div className="mt-6 space-y-3">
-            <div className="px-5 py-4 bg-rose-500/10 border border-rose-500/20 rounded-[1.25rem] flex items-center gap-3 shadow-lg shadow-rose-950/20">
-              <div className="relative shrink-0">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
-                <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
+          <div className="mt-4 space-y-2.5">
+            <div className="px-4 py-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2 shadow-lg shadow-rose-950/20">
+              <div className="relative shrink-0 w-2 h-2">
+                <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                <div className="absolute inset-0 w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
               </div>
-              <span className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] leading-none">Maintenance Opportunity</span>
+              <span className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em] leading-none">Maintenance Opportunity</span>
             </div>
 
             {customer.notes && (
-              <div className="px-5 py-4 bg-slate-950/40 border border-slate-800/50 rounded-[1.25rem] space-y-1">
+              <div className="px-4 py-3 bg-slate-950/40 border border-slate-800/50 rounded-xl space-y-0.5">
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.15em]">Internal Account Notes</p>
-                <p className="text-[11px] font-medium text-slate-300 italic">"{customer.notes}"</p>
+                <p className="text-[10px] font-medium text-slate-300 italic">"{customer.notes}"</p>
               </div>
             )}
           </div>
         )}
         
-        <div className="grid grid-cols-2 gap-4 mt-6 py-6 border-y border-white/5 bg-slate-950/50 -mx-6 px-6">
-          <div className="space-y-1.5 opacity-90">
-            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Vehicle Fleet</p>
-            <p className="text-xs font-black text-white flex items-center gap-2 uppercase italic tracking-tight">
-              <Car size={14} className="text-brand-primary" /> 
-              {customer.year} {customer.model}
-            </p>
-            <div className="inline-flex px-2 py-0.5 bg-slate-900 rounded border border-white/5">
-              <p className="text-[9px] font-mono text-brand-secondary font-bold uppercase tracking-widest">{customer.vinLast8}</p>
+        <div className="flex items-center justify-between mt-4 py-3 bg-slate-950/30 px-5 -mx-5 border-y border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center text-brand-primary border border-brand-primary/20">
+              <Car size={14} />
             </div>
-          </div>
-          <div className="space-y-1.5 text-right">
-            <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Odometer (M)</p>
-            <div className="flex flex-col items-end">
-              <p className="text-xl font-black text-white leading-none tabular-nums tracking-tighter">
-                {parseInt(customer.mileage || '0').toLocaleString()}
+            <div>
+              <p className="text-[11px] font-black text-white uppercase italic tracking-tight leading-tight">
+                {customer.year} {customer.model}
               </p>
-              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">Certified Miles</p>
+              <span className="inline-block text-[8px] font-mono text-brand-secondary font-black tracking-widest mt-0.5">{customer.vinLast8}</span>
             </div>
+          </div>
+          <div className="text-right">
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Odometer</p>
+            <p className="text-sm font-black text-white tabular-nums tracking-tighter mt-0.5">
+              {parseInt(customer.mileage || '0').toLocaleString()} <span className="text-[9px] font-normal text-slate-400 font-sans uppercase">M</span>
+            </p>
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between border-b border-white/5 pb-4">
-           <div className="flex flex-col">
-              <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Contact Records</span>
-              <span className="text-[10px] font-bold text-slate-400">
-                {formatLastContact(customer.lastServiceContact)}
-              </span>
-           </div>
-           <div className="flex flex-col text-right">
-              <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">S2S Alert Range</span>
-              <span className="text-[10px] font-black text-brand-secondary uppercase italic">
-                {getNextServiceMilestone(customer)}
-              </span>
-           </div>
+        <div className="mt-3 flex items-center justify-between text-[11px]">
+          <div className="flex flex-col">
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Contact Records</span>
+            <span className="text-[10px] font-bold text-slate-300">
+              {formatLastContact(customer.lastServiceContact)}
+            </span>
+          </div>
+          <div className="flex flex-col text-right">
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">S2S Alert Range</span>
+            <span className="text-[10px] font-black text-brand-secondary uppercase italic">
+              {getNextServiceMilestone(customer)}
+            </span>
+          </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-3.5">
           <button 
             onClick={() => setShowMaintenance(!showMaintenance)}
-            className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-900 rounded-xl border border-slate-800/50 transition-colors"
+            className="w-full flex items-center justify-between p-2.5 bg-slate-950/20 hover:bg-slate-950/40 rounded-xl border border-slate-800/30 transition-all text-[10px]"
           >
             <div className="flex items-center gap-2">
-              <Wrench size={14} className="text-brand-secondary" />
-              <span className="text-[10px] font-black text-white uppercase tracking-widest">View Maintenance Roadmap</span>
+              <Wrench size={12} className="text-brand-secondary" />
+              <span className="text-[9px] font-black text-white uppercase tracking-widest">View Maintenance Roadmap</span>
             </div>
-            {showMaintenance ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+            {showMaintenance ? <ChevronUp size={12} className="text-slate-500" /> : <ChevronDown size={12} className="text-slate-500" />}
           </button>
 
           {showMaintenance && (

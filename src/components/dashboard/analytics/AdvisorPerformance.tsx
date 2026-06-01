@@ -33,9 +33,11 @@ interface AdvisorData {
 
 interface AdvisorPerformanceProps {
   currentDealershipId: string;
+  selectedMonth?: string;
+  allowArchiveEditing?: boolean;
 }
 
-export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentDealershipId }) => {
+export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentDealershipId, selectedMonth = 'active', allowArchiveEditing = false }) => {
   const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
@@ -45,6 +47,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch Dealership Settings (for target)
@@ -63,7 +66,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   useEffect(() => {
     if (!user || !currentDealershipId) return;
 
-    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const baseId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const docId = selectedMonth === 'active' ? baseId : `${baseId}_archive_${selectedMonth}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -91,9 +95,13 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [user, currentDealershipId]);
+  }, [user, currentDealershipId, selectedMonth]);
 
-  const saveToFirestore = async (newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, overwrite = false) => {
+  const saveToFirestore = async (
+    newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
+    overwrite = false,
+    targetMonthOverride?: string
+  ) => {
     if (!user || !currentDealershipId) return;
     
     let updatedAdvisors: AdvisorData[] = [];
@@ -110,20 +118,46 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       return true;
     };
 
+    // Helper to beautifully normalize/canonicalize advisor names
+    const cleanAdvisorName = (rawName: string): string => {
+      let name = rawName.toUpperCase().trim();
+      
+      // Handle the standard 3 active advisors for perfect matching
+      if (name.includes("FRANK")) return "Frank";
+      if (name.includes("LEMMY")) return "Lemmy";
+      if (name.includes("JARYN")) return "Jaryn";
+      
+      // Look for "Advisor <id> - <name>" pattern and extract <name>
+      const match = name.match(/Advisor\s+(?:\w+\s*-\s*)?([A-Z]+)/i);
+      if (match) {
+        const extracted = match[1].trim();
+        return extracted.charAt(0).toUpperCase() + extracted.slice(1).toLowerCase();
+      }
+      
+      const cleanWord = name.split(/[\s-]+/)[0] || '';
+      return cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();
+    };
+
     if (overwrite) {
-      updatedAdvisors = newData.advisors.filter(a => isRealAdvisorName(a.name));
+      updatedAdvisors = newData.advisors
+        .filter(a => isRealAdvisorName(a.name))
+        .map(a => ({ ...a, name: cleanAdvisorName(a.name) }));
     } else {
-      updatedAdvisors = [...advisors].filter(a => isRealAdvisorName(a.name));
+      updatedAdvisors = [...advisors]
+        .filter(a => isRealAdvisorName(a.name))
+        .map(a => ({ ...a, name: cleanAdvisorName(a.name) }));
       
       newData.advisors.forEach(newAdvisor => {
         if (!isRealAdvisorName(newAdvisor.name)) return;
+        const normalizedName = cleanAdvisorName(newAdvisor.name);
         
-        const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === newAdvisor.name.toLowerCase().trim());
+        const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === normalizedName.toLowerCase().trim());
         
         if (idx !== -1) {
           // Merge into existing advisor record
           updatedAdvisors[idx] = {
             ...updatedAdvisors[idx],
+            name: normalizedName,
             ...(newAdvisor.laborSold !== undefined && { laborSold: newAdvisor.laborSold }),
             ...(newAdvisor.grossLabor !== undefined && { grossLabor: newAdvisor.grossLabor }),
             ...(newAdvisor.partsSold !== undefined && { partsSold: newAdvisor.partsSold }),
@@ -137,12 +171,17 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           };
         } else {
           // Create new advisor record
-          updatedAdvisors.push(newAdvisor);
+          updatedAdvisors.push({
+            ...newAdvisor,
+            name: normalizedName
+          });
         }
       });
     }
 
-    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const targetMonth = targetMonthOverride || selectedMonth;
+    const baseId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const docId = targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     
     try {
@@ -161,7 +200,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
   const resetPerformanceToDefaults = async () => {
     if (!user || !currentDealershipId) return;
-    if (!window.confirm("Are you sure you want to completely reset advisor performance stats to clean defaults? This will erase any duplicate or corrupt records.")) return;
     
     setLoading(true);
     
@@ -346,21 +384,31 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       
       // Detect date range from PDF text
       const detectedDates = detectDateRangeFromText(reportText);
+      let targetMonth = selectedMonth;
       if (detectedDates) {
         data = {
           ...data,
           reportStartDate: detectedDates.start,
           reportEndDate: detectedDates.end
         };
+        // Auto-route to May archive if dates fall in May
+        if (detectedDates.start.startsWith('2026-05')) {
+          targetMonth = '2026-05';
+        }
       }
       
-      await saveToFirestore(data);
+      // If this is a main productivity report (contains totals object), overwrite the advisor records completely 
+      // rather than merging as a delta, to cleanly eliminate any stale or corrupt duplicates in the database.
+      const shouldOverwrite = !!data.totals;
+      await saveToFirestore(data, shouldOverwrite, targetMonth);
       
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
       
       let message = 'Report imported successfully!';
-      if (hasUpsells && hasTotals) message = 'Productivity and Upsell data imported and merged!';
+      if (targetMonth === '2026-05' && selectedMonth === 'active') {
+        message = 'Detected May dates! Saved directly to May 2026 Saved Archive. June active tracker kept clean!';
+      } else if (hasUpsells && hasTotals) message = 'Productivity and Upsell data imported and merged!';
       else if (hasUpsells) message = 'Upsell data imported and merged!';
       else if (hasTotals) message = 'Productivity data imported!';
 
@@ -379,19 +427,29 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const getPerformanceMetrics = () => {
     let baseTotals = totals;
     
-    // If totals object is missing but we have advisors, compute it
-    if (!baseTotals && advisors.length > 0) {
-      baseTotals = {
-        totalGross: advisors.reduce((a, b) => a + (Number(b.grossLabor) || 0), 0),
-        totalLabor: advisors.reduce((a, b) => a + (Number(b.laborSold) || 0), 0),
-        totalParts: advisors.reduce((a, b) => a + (Number(b.partsSold) || 0), 0),
-        totalGrossParts: advisors.reduce((a, b) => a + (Number(b.grossParts) || 0), 0),
-        totalSales: advisors.reduce((a, b) => a + (Number(b.laborSold) || 0) + (Number(b.partsSold) || 0), 0),
-        totalHrs: advisors.reduce((a, b) => a + (Number(b.hrsSold) || 0), 0),
-      };
-    } else if (baseTotals) {
-      // Even if baseTotals exists, verify totalSales is indeed Labor + Parts
-      baseTotals.totalSales = (Number(baseTotals.totalLabor) || 0) + (Number(baseTotals.totalParts) || 0);
+    // Always compute or check based on the sum of advisors if advisors exist
+    if (advisors.length > 0) {
+      const computedGross = advisors.reduce((a, b) => a + (Number(b.grossLabor) || 0), 0);
+      const computedLabor = advisors.reduce((a, b) => a + (Number(b.laborSold) || 0), 0);
+      const computedParts = advisors.reduce((a, b) => a + (Number(b.partsSold) || 0), 0);
+      const computedGrossParts = advisors.reduce((a, b) => a + (Number(b.grossParts) || 0), 0);
+      const computedSales = computedLabor + computedParts;
+      const computedHrs = advisors.reduce((a, b) => a + (Number(b.hrsSold) || 0), 0);
+
+      // Reconcile and override baseTotals if missing, or if sum of advisors is higher or different due to partial category extraction (e.g. Customer Labor C instead of Total)
+      if (!baseTotals || Math.abs(baseTotals.totalGross - computedGross) > 10.0 || Math.abs(baseTotals.totalLabor - computedLabor) > 10.0 || computedGross > baseTotals.totalGross) {
+        baseTotals = {
+          totalGross: computedGross,
+          totalLabor: computedLabor,
+          totalParts: computedParts,
+          totalGrossParts: computedGrossParts,
+          totalSales: computedSales,
+          totalHrs: computedHrs,
+        };
+      } else {
+        // Even if baseTotals exists, verify totalSales is indeed Labor + Parts
+        baseTotals.totalSales = (Number(baseTotals.totalLabor) || 0) + (Number(baseTotals.totalParts) || 0);
+      }
     }
 
     if (!baseTotals) return null;
@@ -454,34 +512,62 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           </h3>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-          <button 
-            type="button"
-            onClick={resetPerformanceToDefaults}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 text-slate-400 hover:text-rose-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
-            title="Reset tracking DB to clean report baseline"
-          >
-            <RotateCcw size={12} />
-            Reset Data
-          </button>
+        {selectedMonth !== 'active' && !allowArchiveEditing ? (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+              🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+            {selectedMonth !== 'active' && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse">
+                <span>⚠️ ARCHIVE EDIT MODE ({selectedMonth})</span>
+              </div>
+            )}
 
-          <button 
-            onClick={() => setIsManualEntryOpen(true)}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
-          >
-            <Keyboard size={14} />
-            Manual Entry
-          </button>
-          
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer"
-          >
-            {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-            Import PDF Productivity Report
-          </button>
-        </div>
+            <button 
+              type="button"
+              onClick={() => {
+                if (!showResetConfirm) {
+                  setShowResetConfirm(true);
+                  setTimeout(() => setShowResetConfirm(false), 4000);
+                } else {
+                  resetPerformanceToDefaults();
+                  setShowResetConfirm(false);
+                }
+              }}
+              className={cn(
+                "flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-lg cursor-pointer",
+                showResetConfirm 
+                  ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse" 
+                  : "bg-slate-800 text-slate-400 hover:text-rose-400 border-white/5"
+              )}
+              title="Reset tracking DB to clean report baseline"
+            >
+              <RotateCcw size={12} className={showResetConfirm ? "animate-spin" : ""} />
+              {showResetConfirm ? "Confirm Reset?" : "Reset Data"}
+            </button>
+
+            <button 
+              onClick={() => setIsManualEntryOpen(true)}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
+            >
+              <Keyboard size={14} />
+              Manual Entry
+            </button>
+            
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer"
+            >
+              {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
+              Import PDF Productivity Report
+            </button>
+          </div>
+        )}
       </div>
 
       <ManualPerformanceEntry 

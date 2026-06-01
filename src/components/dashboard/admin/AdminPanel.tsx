@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, where, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, where, setDoc, serverTimestamp, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { User, Role, UserStatus } from '../../../types';
 import { 
@@ -14,7 +14,14 @@ import {
   UserCheck,
   UserX,
   Target,
-  FileText
+  FileText,
+  Upload,
+  FileSpreadsheet,
+  Play,
+  Check,
+  Loader2,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
@@ -44,6 +51,15 @@ export default function AdminPanel({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [dealershipSettings, setDealershipSettings] = useState<Record<string, any>>({});
+
+  // CRM CSV Importer states
+  const [csvText, setCsvText] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [parsedRows, setParsedRows] = useState<any[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importLogs, setImportLogs] = useState<string[]>([]);
+  const [importProgress, setImportProgress] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -136,6 +152,357 @@ export default function AdminPanel({
   const commitPartsTargetChange = (id: string) => {
     const value = localPartsTargets[id] ?? (dealershipSettings[id]?.partsSalesTarget || 300000);
     updateSetting(id, { partsSalesTarget: value });
+  };
+
+  const parseVehicle = (vehicleStr: string) => {
+    const clean = (vehicleStr || "").trim().toUpperCase();
+    const parts = clean.split(/\s+/);
+    let year = "2026";
+    let make = "FORD";
+    let model = clean;
+
+    if (parts.length > 0 && /^\d{4}$/.test(parts[0])) {
+      year = parts[0];
+      parts.shift();
+    }
+
+    const rest = parts.join(" ");
+    if (rest.startsWith("FORD ")) {
+      make = "FORD";
+      model = rest.substring(5);
+    } else if (rest.startsWith("LINCOLN ")) {
+      make = "LINCOLN";
+      model = rest.substring(8);
+    } else if (rest.startsWith("TOYOTA ")) {
+      make = "TOYOTA";
+      model = rest.substring(7);
+    } else if (rest.startsWith("HONDA ")) {
+      make = "HONDA";
+      model = rest.substring(6);
+    } else if (rest.startsWith("CHEVY ") || rest.startsWith("CHEVROLET ")) {
+      make = "CHEVROLET";
+      model = rest.substring(rest.startsWith("CHEVY ") ? 6 : 10);
+    } else if (rest.startsWith("JEEP ")) {
+      make = "JEEP";
+      model = rest.substring(5);
+    } else if (rest.startsWith("MAZDA ")) {
+      make = "MAZDA";
+      model = rest.substring(6);
+    } else if (rest.startsWith("NISSAN ")) {
+      make = "NISSAN";
+      model = rest.substring(7);
+    } else if (rest.startsWith("HYUNDAI ")) {
+      make = "HYUNDAI";
+      model = rest.substring(8);
+    } else if (rest.startsWith("KIA ")) {
+      make = "KIA";
+      model = rest.substring(4);
+    } else {
+      if (clean.includes("WRANGLER")) {
+        make = "JEEP";
+        model = rest || "WRANGLER";
+      } else if (clean.includes("MUSTANG")) {
+        make = "FORD";
+        model = rest || "MUSTANG";
+      } else if (clean.includes("MAVERICK")) {
+        make = "FORD";
+        model = rest || "MAVERICK";
+      } else if (clean.includes("EXPLORER")) {
+        make = "FORD";
+        model = rest || "EXPLORER";
+      } else if (clean.includes("F150") || clean.includes("F-150") || clean.includes("RAPTOR")) {
+        make = "FORD";
+        model = rest || "F150";
+      } else if (clean.includes("EXPEDITION")) {
+        make = "FORD";
+        model = rest || "EXPEDITION";
+      } else if (clean.includes("ESCAPE")) {
+        make = "FORD";
+        model = rest || "ESCAPE";
+      } else if (clean.includes("RANGER")) {
+        make = "FORD";
+        model = rest || "RANGER";
+      } else if (clean.includes("NAUTILUS") || clean.includes("NAVIGATOR") || clean.includes("AVIATOR") || clean.includes("CORSAIR")) {
+        make = "LINCOLN";
+        model = rest || clean;
+      } else if (clean.includes("F350") || clean.includes("F250") || clean.includes("F550") || clean.includes("BRONCO")) {
+        make = "FORD";
+        model = rest || clean;
+      } else {
+        make = "FORD";
+        model = rest || clean;
+      }
+    }
+
+    return { 
+      year, 
+      make: make.charAt(0).toUpperCase() + make.slice(1).toLowerCase(), 
+      model: model.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') 
+    };
+  };
+
+  const parseCSVData = (text: string) => {
+    try {
+      const lines = text.split(/\r?\n/);
+      if (lines.length === 0) return [];
+
+      const firstLine = lines[0];
+      if (!firstLine) return [];
+      
+      const headers = firstLine.split(',').map(h => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
+      
+      const results: any[] = [];
+      
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        let cells: string[] = [];
+        let insideQuote = false;
+        let currentCell = '';
+        
+        for (let charIndex = 0; charIndex < line.length; charIndex++) {
+          const char = line[charIndex];
+          if (char === '"' || char === "'") {
+            insideQuote = !insideQuote;
+          } else if (char === ',' && !insideQuote) {
+            cells.push(currentCell.trim().replace(/^["']|["']$/g, ''));
+            currentCell = '';
+          } else {
+            currentCell += char;
+          }
+        }
+        cells.push(currentCell.trim().replace(/^["']|["']$/g, ''));
+
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = cells[index] || '';
+        });
+        
+        results.push(row);
+      }
+
+      const mapped = results.map(item => {
+        const getVal = (keys: string[]) => {
+          const foundKey = Object.keys(item).find(k => keys.some(key => k.toLowerCase().includes(key.toLowerCase())));
+          return foundKey ? item[foundKey].trim() : '';
+        };
+
+        const firstName = getVal(['first', 'fn']);
+        const lastName = getVal(['last', 'ln']);
+        const phone = getVal(['phone', 'tel']);
+        const email = getVal(['email', 'mail']);
+        const vehicle = getVal(['vehicle', 'model', 'car']);
+        const vin = getVal(['vin']);
+        const salesman = getVal(['salesman', 'salesperson', 'rep', 'soldby']);
+        const notes = getVal(['notes', 'note']);
+        const serviceDate = getVal(['servicedate', 'date', 'solddate']);
+
+        return {
+          firstName,
+          lastName,
+          phone,
+          email,
+          vehicle,
+          vin,
+          salesman,
+          notes,
+          serviceDate
+        };
+      }).filter(row => row.firstName || row.lastName || row.vin);
+
+      setParsedRows(mapped);
+      setImportLogs([`Parsed ${mapped.length} customer records. File ready to import.`]);
+      return mapped;
+    } catch (e: any) {
+      console.error(e);
+      setImportLogs(prev => [...prev, `Error parsing CSV: ${e.message}`]);
+      return [];
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setCsvText(text);
+      parseCSVData(text);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        setCsvText(text);
+        parseCSVData(text);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const executeCRMImport = async () => {
+    if (parsedRows.length === 0) return;
+    if (!currentUser) return;
+    setIsImporting(true);
+    setImportProgress(0);
+    setImportLogs(prev => [...prev, "Initiating Cloud sync...", "Checking existing customers for duplicate checks..."]);
+
+    try {
+      const dbDealershipId = currentDealershipId || 'ford';
+      const customersRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers');
+      const q = query(customersRef, where('dealershipId', '==', dbDealershipId));
+      const querySnapshot = await getDocs(q);
+      
+      const existingMap = new Map();
+      querySnapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const vin = (data.vin || '').trim().toUpperCase();
+        if (vin) {
+          existingMap.set(vin, { id: docSnap.id, ...data });
+        }
+      });
+
+      setImportLogs(prev => [...prev, `Preloaded ${existingMap.size} existing dealership clients for matching.`]);
+
+      let newCount = 0;
+      let updateCount = 0;
+
+      for (let i = 0; i < parsedRows.length; i++) {
+        const row = parsedRows[i];
+        const vinfo = parseVehicle(row.vehicle);
+        const uppercaseVin = (row.vin || '').trim().toUpperCase();
+        const vin8 = uppercaseVin.length >= 8 ? uppercaseVin.slice(-8) : uppercaseVin;
+
+        let soldDate = `${vinfo.year}-01-01`;
+        if (row.serviceDate) {
+          const sDate = new Date(row.serviceDate);
+          if (!isNaN(sDate.getTime()) && sDate.getFullYear() < parseInt(vinfo.year)) {
+            soldDate = `${sDate.getFullYear()}-01-01`;
+          }
+        }
+
+        const recentVisitsToSave = [];
+        if (row.serviceDate) {
+          recentVisitsToSave.push({
+            id: Math.random().toString(36).substring(7),
+            soNumber: `IMPORT-${Math.floor(1000 + Math.random() * 9000)}`,
+            date: row.serviceDate,
+            mileage: 15000,
+            advisor: "DATABASE IMPORT",
+            requests: "Imported Historic Service Reminder record",
+            createdAt: new Date().toISOString()
+          });
+        }
+
+        const customerPayload: any = {
+          firstName: row.firstName || 'Unknown',
+          lastName: row.lastName || 'Customer',
+          phone: row.phone || '',
+          email: row.email || '',
+          make: vinfo.make,
+          model: vinfo.model,
+          year: vinfo.year,
+          vin: uppercaseVin,
+          vinLast8: vin8,
+          soldDate: soldDate,
+          language: 'English',
+          enableServiceAlert: true,
+          serviceAlertTriggered: false,
+          notes: row.notes || '',
+          salesman: row.salesman || '',
+          dealershipId: dbDealershipId,
+          recentVisits: recentVisitsToSave
+        };
+
+        const existingRecord = uppercaseVin ? existingMap.get(uppercaseVin) : null;
+        
+        if (existingRecord) {
+          const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', existingRecord.id);
+          const mergedVisits = [...customerPayload.recentVisits];
+          if (existingRecord.recentVisits && Array.isArray(existingRecord.recentVisits)) {
+            existingRecord.recentVisits.forEach((v: any) => {
+              if (!mergedVisits.some(mv => mv.date === v.date)) {
+                mergedVisits.push(v);
+              }
+            });
+          }
+          
+          await updateDoc(docRef, {
+            ...customerPayload,
+            recentVisits: mergedVisits,
+            notes: row.notes || existingRecord.notes || '',
+            lastServiceContact: existingRecord.lastServiceContact || null,
+            lastContactOutcome: existingRecord.lastContactOutcome || '',
+            serviceAlertTriggered: existingRecord.serviceAlertTriggered !== undefined ? existingRecord.serviceAlertTriggered : false
+          });
+          
+          updateCount++;
+          setImportLogs(prev => [...prev, `• Combined: ${customerPayload.firstName} ${customerPayload.lastName} (${customerPayload.year} ${customerPayload.model}) linked dynamically.`]);
+        } else {
+          const docRef = doc(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers'));
+          const finalNewRecord = {
+            ...customerPayload,
+            createdAt: serverTimestamp(),
+            addedBy: currentUser.uid,
+            addedByUsername: currentUser.username
+          };
+          
+          await setDoc(docRef, finalNewRecord);
+          newCount++;
+          setImportLogs(prev => [...prev, `• Added CRM: ${customerPayload.firstName} ${customerPayload.lastName} (${customerPayload.year} ${customerPayload.model}) - Sold by: ${customerPayload.salesman || 'None'}`]);
+        }
+
+        setImportProgress(i + 1);
+        await new Promise(resolve => setTimeout(resolve, 8));
+      }
+
+      setImportLogs(prev => [...prev, "Writing execution records to diagnostic stream...", "Syncing system logs..."]);
+
+      await logSystemAction(
+        "Database Import",
+        `CRM Importer completed: Registered ${newCount} new and updated ${updateCount} existing customer records for ${currentDealershipId || 'ford'}.`,
+        'settings',
+        currentUser.email,
+        currentUser.username,
+        currentUser.dealershipId || currentDealershipId || 'ford'
+      );
+
+      setImportLogs(prev => [...prev, `🎉 Import Complete! Created ${newCount} profiles, Reconciled ${updateCount} records. S2S Reminders updated successfully.`]);
+      onSuccess?.(`Import completed: Processed ${parsedRows.length} CRM records.`);
+      
+      setCsvText('');
+      setFileName('');
+      setParsedRows([]);
+    } catch (error: any) {
+      console.error(error);
+      setImportLogs(prev => [...prev, `❌ CRITICAL FIREBASE ERROR: ${error.message}`]);
+      onError?.("Failed to save imported customer records. Perms Denied.");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   useEffect(() => {
@@ -488,6 +855,173 @@ export default function AdminPanel({
                 </div>
               );
             })}
+          </div>
+
+          {/* CRM DATABASE IMPORTER */}
+          <div className="card-base p-6 border-slate-800 bg-slate-950/20 backdrop-blur-3xl col-span-full mt-6 space-y-6">
+            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+              <Database size={20} className="text-brand-secondary/80" />
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-widest text-white">Direct CRM Database Importer</h4>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Sync fleet vehicles, sales representatives and service history to client profiles</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Upload Drop Zone */}
+              <div className="space-y-4">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Method 1: File Transfer (.csv)</label>
+                
+                <div 
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "h-48 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-6 text-center transition-all cursor-pointer select-none relative overflow-hidden",
+                    dragActive 
+                      ? "border-brand-primary bg-brand-primary/10 shadow-lg shadow-brand-primary/15" 
+                      : fileName 
+                        ? "border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500/60" 
+                        : "border-slate-800 bg-slate-900/40 hover:border-slate-700/60"
+                  )}
+                >
+                  <input 
+                    type="file" 
+                    accept=".csv"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={isImporting}
+                  />
+                  
+                  {fileName ? (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="w-12 h-12 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl flex items-center justify-center mx-auto">
+                        <FileSpreadsheet size={24} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-white">{fileName}</p>
+                        <p className="text-[9px] text-emerald-400 font-black uppercase tracking-wider mt-1">{parsedRows.length} Valid Records Detected</p>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setFileName('');
+                          setCsvText('');
+                          setParsedRows([]);
+                        }}
+                        className="px-3 py-1 bg-slate-950 text-slate-400 hover:text-white rounded text-[8px] font-black uppercase border border-slate-800 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="w-12 h-12 bg-slate-950 text-slate-500 border border-white/5 rounded-xl flex items-center justify-center mx-auto transition-transform">
+                        <Upload size={20} className="text-brand-primary animate-bounce mt-1" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-white uppercase tracking-wide">Drag & Drop Customer Database CSV File</p>
+                        <p className="text-[9px] text-slate-500 font-medium mt-1 leading-normal">Or click to select spreadsheet. Column headers must align.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Paste raw content */}
+              <div className="space-y-4">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Method 2: Direct delimiters Copy-Paste (Raw CRM CSV data)</label>
+                
+                <div className="relative">
+                  <textarea
+                    value={csvText}
+                    onChange={(e) => {
+                      setCsvText(e.target.value);
+                      parseCSVData(e.target.value);
+                    }}
+                    disabled={isImporting}
+                    placeholder="First,Last,Phone,Email,Vehicle,VIN,Salesman,Notes,ServiceDate&#10;SELINA,QUIROGA,,COSMOQUEENDIVA@YAHOO.COM,2021 WRANGLER,1C4HJXEN3MW744126,DIEGO,NIPOMO,2026-04-30..."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-[10px] font-mono leading-relaxed h-48 focus:outline-none focus:ring-1 focus:ring-brand-primary text-slate-300 placeholder:text-slate-600 resize-none"
+                  />
+                  
+                  {csvText && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCsvText('');
+                        setParsedRows([]);
+                        setFileName('');
+                        setImportLogs([]);
+                      }}
+                      className="absolute top-3 right-3 px-2 py-1 bg-slate-950 text-slate-500 hover:text-white rounded text-[8px] font-black uppercase border border-slate-800 transition-colors"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Parsed Output Summary & execution triggers */}
+            {parsedRows.length > 0 && (
+              <div className="pt-4 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 animate-slide-in">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-brand-primary/10 rounded-xl border border-brand-primary/20 flex items-center justify-center text-brand-primary">
+                    <Database size={16} />
+                  </div>
+                  <div>
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Validated Stream Readiness</span>
+                    <p className="text-xs font-black text-white uppercase mt-0.5">Ready to incorporate {parsedRows.length} customers to Santa Maria {DEALERSHIPS.find(d => d.id === (currentDealershipId || 'ford'))?.name.split(' ')[0] || 'Ford'}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isImporting}
+                  onClick={executeCRMImport}
+                  className="px-6 py-3.5 bg-brand-primary hover:bg-brand-primary/95 text-slate-950 rounded-2xl text-[10px] font-black uppercase tracking-[0.25em] transition-all flex items-center gap-2.5 shadow-xl shadow-brand-primary/15 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-50 w-full md:w-auto justify-center"
+                >
+                  {isImporting ? <Loader2 className="animate-spin" size={14} /> : <Play size={12} />}
+                  {isImporting ? `Logging ${importProgress} / ${parsedRows.length}...` : 'Start DB Integration'}
+                </button>
+              </div>
+            )}
+
+            {/* Real-time scrolling transaction consoles */}
+            {importLogs.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center select-none">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest italic flex items-center gap-2">
+                    <RefreshCw size={12} className={cn("text-brand-primary", isImporting && "animate-spin")} /> CRM Import Diagnostic Terminal
+                  </label>
+                  {isImporting && (
+                    <span className="text-[10px] font-mono text-slate-400 font-bold">
+                      {Math.round((importProgress / parsedRows.length) * 100)}%
+                    </span>
+                  )}
+                </div>
+
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 h-48 overflow-y-auto font-mono text-[9px] leading-relaxed text-slate-400 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800 shadow-inner">
+                  {importLogs.map((log, index) => (
+                    <div 
+                      key={index} 
+                      className={cn(
+                        "whitespace-pre-wrap transition-colors duration-150", 
+                        log.includes('🎉') ? "text-emerald-500 font-black py-1" : 
+                        log.includes('• Combined') ? "text-amber-400 font-bold" : 
+                        log.includes('• Added') ? "text-slate-300 font-medium" : 
+                        log.includes('❌') ? "text-rose-500 font-black" : "text-slate-500"
+                      )}
+                    >
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

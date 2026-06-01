@@ -53,6 +53,7 @@ interface PotOfGoldProps {
 
 export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
+  const [selectedMonth, setSelectedMonth] = useState<string>('active');
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -79,7 +80,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     if (!user || !currentDealershipId) return;
     
     // Scoped by dealership - fallback to legacy 'potOfGold' for hyundai
-    const docId = currentDealershipId === 'hyundai' ? 'potOfGold' : `potOfGold_${currentDealershipId}`;
+    const baseId = currentDealershipId === 'hyundai' ? 'potOfGold' : `potOfGold_${currentDealershipId}`;
+    const docId = selectedMonth === 'active' ? baseId : `${baseId}_archive_${selectedMonth}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -102,7 +104,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [user, currentDealershipId]);
+  }, [user, currentDealershipId, selectedMonth]);
 
   const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any }) => {
     if (!user || !currentDealershipId) return;
@@ -367,11 +369,27 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         </div>
         
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center border border-brand-primary/30">
-              <Trophy className="text-brand-primary" size={24} />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center border border-brand-primary/30">
+                <Trophy className="text-brand-primary" size={24} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary italic">Incentive Program</span>
             </div>
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary italic">Incentive Program</span>
+
+            {/* Local Month/Archive Switcher */}
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">View Period:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="h-9 px-3 bg-slate-950 border border-slate-850 text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer hover:border-slate-750 transition-all"
+              >
+                <option value="active">June 2026 (Active)</option>
+                <option value="2026-05">May 2026 (Saved)</option>
+                <option value="2026-04">April 2026 (Saved)</option>
+              </select>
+            </div>
           </div>
           
           <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-4 uppercase">
@@ -389,28 +407,37 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             className="hidden" 
           />
 
-          <div className="flex flex-wrap items-center gap-4">
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isAiProcessing}
-              className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group"
-            >
-              {isAiProcessing ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Upload size={16} className="group-hover:-translate-y-0.5 transition-transform" />
-              )}
-              {isAiProcessing ? 'Deep Multi-Audit...' : 'PDF Multi-Audit'}
-            </button>
+          {selectedMonth === 'active' ? (
+            <div className="flex flex-wrap items-center gap-4">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isAiProcessing}
+                className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group"
+              >
+                {isAiProcessing ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Upload size={16} className="group-hover:-translate-y-0.5 transition-transform" />
+                )}
+                {isAiProcessing ? 'Deep Multi-Audit...' : 'PDF Multi-Audit'}
+              </button>
 
-            <button 
-              onClick={() => alert("Data validation check: OK. Format alignment matches schema.")}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-750 transition-all border border-slate-700"
-            >
-              <Shield size={16} className="text-brand-primary" />
-              Format Validator
-            </button>
-          </div>
+              <button 
+                onClick={() => alert("Data validation check: OK. Format alignment matches schema.")}
+                className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-750 transition-all border border-slate-700"
+              >
+                <Shield size={16} className="text-brand-primary" />
+                Format Validator
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-950 border border-slate-800 rounded-2xl shadow-xl">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+                🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Global Summary Stats */}
@@ -564,6 +591,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           <input 
                             type="number"
                             value={row.frank}
+                            disabled={selectedMonth !== 'active'}
                             onChange={(e) => {
                               const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 
@@ -572,13 +600,14 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setAdvData(newData);
                               saveToFirestore({ advData: newData });
                             }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
+                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
                           />
                         </td>
                         <td className="px-6 py-2 text-center">
                           <input 
                             type="number"
                             value={row.lemmy}
+                            disabled={selectedMonth !== 'active'}
                             onChange={(e) => {
                               const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 
@@ -587,7 +616,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setAdvData(newData);
                               saveToFirestore({ advData: newData });
                             }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
+                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
                           />
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -650,11 +679,12 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                             <span className="text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{row.desc}</span>
                           </div>
                         </td>
-                        {TECHNICIANS.map(t => (
+                         {TECHNICIANS.map(t => (
                           <td key={t} className="px-2 py-2 text-center">
                             <input 
                               type="number"
                               value={row[t]}
+                              disabled={selectedMonth !== 'active'}
                               onChange={(e) => {
                                 const val = Number(e.target.value) || 0;
                                 const newData = techData.map((d, index) => 
@@ -663,7 +693,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                                 setTechData(newData);
                                 saveToFirestore({ techData: newData });
                               }}
-                              className="w-12 md:w-16 bg-slate-950 border border-slate-800 rounded-lg px-1 py-1 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all"
+                              className="w-12 md:w-16 bg-slate-950 border border-slate-800 rounded-lg px-1 py-1 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
                             />
                           </td>
                         ))}
@@ -733,36 +763,39 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                             type="number"
                             step="0.01"
                             value={prices[d.code]}
+                            disabled={selectedMonth !== 'active'}
                             onChange={(e) => {
                               const val = Number(e.target.value) || 0;
                               const newPrices = { ...prices, [d.code]: val };
                               setPrices(newPrices);
                               saveToFirestore({ prices: newPrices });
                             }}
-                            className="bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-sm font-black text-white w-32 focus:border-brand-primary outline-none"
+                            className="bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-sm font-black text-white w-32 focus:border-brand-primary outline-none disabled:opacity-60"
                           />
                        </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-12 flex flex-col md:flex-row gap-4 justify-between items-center pt-8 border-t border-slate-800">
-                   <div className="flex items-center gap-3">
-                      <div className="p-3 bg-rose-500/10 rounded-2xl">
-                        <Trash2 className="text-rose-500" size={20} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-rose-500 uppercase">Reset Competition</p>
-                        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">This will clear all current entry data</p>
-                      </div>
-                   </div>
-                   <button 
-                    onClick={() => setShowClearConfirm(true)}
-                    className="px-8 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
-                   >
-                     Reset All Statistics
-                   </button>
-                </div>
+                {selectedMonth === 'active' && (
+                  <div className="mt-12 flex flex-col md:flex-row gap-4 justify-between items-center pt-8 border-t border-slate-800">
+                     <div className="flex items-center gap-3">
+                        <div className="p-3 bg-rose-500/10 rounded-2xl">
+                          <Trash2 className="text-rose-500" size={20} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-rose-500 uppercase">Reset Competition</p>
+                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">This will clear all current entry data</p>
+                        </div>
+                     </div>
+                     <button 
+                      onClick={() => setShowClearConfirm(true)}
+                      className="px-8 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-550 border border-rose-550/30 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                     >
+                       Reset All Statistics
+                     </button>
+                  </div>
+                )}
               </div>
 
               {/* Data Persistence Info */}

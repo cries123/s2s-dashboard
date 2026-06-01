@@ -67,6 +67,7 @@ export interface Customer {
   model: string;
   year?: string;
   vinLast8: string;
+  vin?: string;
   mileage?: string;
   soldDate: string;
   language: string;
@@ -92,6 +93,7 @@ export interface Customer {
   addedByUsername: string;
   dealershipId?: string;
   notes?: string;
+  salesman?: string;
 }
 
 export interface ContactLog {
@@ -159,5 +161,19 @@ export interface DispatchRepairOrder {
   year?: string;
   model?: string;
   departmentName?: string;
+}
+
+export interface ArchivePayload {
+  // Allows explicit overrides like "2026-05" instead of forcing the current server month
+  targetYearMonth: string; 
+  dateArchived: string;       // Actual timestamp of action execution
+  metricsSnapshot: {
+    laborSales: number;
+    laborGross: number;
+    partsSales: number;
+    partsGross: number;
+    advisorBreakdown: any[];
+    techBreakdown: any[];
+  };
 }
 
