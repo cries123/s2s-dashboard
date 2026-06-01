@@ -86,10 +86,24 @@ export interface Dealership {
   createdAt: Timestamp;
 }
 
+export type DispatchProductionLaneId =
+  | 'lube'
+  | 'quick_service'
+  | 'ac_electrical'
+  | 'heavyline'
+  | 'diesel'
+  | 'trans'
+  | 'mobile_repair';
+
 export interface DealershipSettings {
   id: string;
   appointmentTarget: number;
   laborGrossTarget?: number;
+  partsSalesTarget?: number;
+  enableDispatchTab?: boolean;
+  dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
+  dispatchShowTodayLoad?: boolean;
+  dispatchBlockWhenFull?: boolean;
   updatedAt: Timestamp;
 }
 
@@ -209,7 +223,9 @@ export interface DispatchRepairOrder {
   id: string;
   roNumber: string;
   techNumber: string;
-  vinLastEight: string;
+  customerLastName?: string;
+  vinLastEight?: string;
+  customerId?: string;
   department: DepartmentColumnId;
   status: 'WIP' | 'DIS' | 'POO' | 'WFA';
   isCompleted: boolean;

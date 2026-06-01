@@ -27,6 +27,7 @@ import {
 import { cn } from '../../../lib/utils';
 
 import { DEALERSHIPS } from '../../../constants';
+import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
 import { SettingsPage } from '../../settings/SettingsPage';
@@ -853,6 +854,89 @@ export default function AdminPanel({
                                 )}
                               />
                             </button>
+                          </div>
+
+                          {/* Dispatch lane capacity */}
+                          <div className="space-y-3 pt-3 border-t border-white/5">
+                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Dispatch Lane Capacity</label>
+                            <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                              Soft caps per production lane. Set to 0 for unlimited. Optionally block new routing when a lane is full.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {DISPATCH_PRODUCTION_LANES.map((lane) => {
+                                const caps = mergeLaneCapacity(dealershipSettings[d.id]?.dispatchLaneCapacity);
+                                const value = caps[lane.id];
+                                return (
+                                  <div key={lane.id} className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-white/5">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider truncate">{lane.label}</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={99}
+                                      value={value}
+                                      onChange={(e) => {
+                                        const n = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                        const prev = dealershipSettings[d.id]?.dispatchLaneCapacity || {};
+                                        updateSetting(d.id, {
+                                          dispatchLaneCapacity: { ...prev, [lane.id]: n },
+                                        });
+                                      }}
+                                      className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs font-black text-white text-center focus:outline-none focus:ring-1 focus:ring-brand-primary"
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex flex-col gap-2 pt-1">
+                              <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
+                                <div>
+                                  <span className="text-xs font-black text-white uppercase tracking-wide block">Show today&apos;s shop load</span>
+                                  <span className="text-[10px] text-slate-500">Compare active dispatch ROs to daily appointment goal.</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const on = dealershipSettings[d.id]?.dispatchShowTodayLoad !== false;
+                                    updateSetting(d.id, { dispatchShowTodayLoad: !on });
+                                  }}
+                                  className={cn(
+                                    'w-11 h-6 rounded-full transition-colors relative shrink-0',
+                                    dealershipSettings[d.id]?.dispatchShowTodayLoad !== false ? 'bg-brand-primary' : 'bg-slate-800'
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
+                                      dealershipSettings[d.id]?.dispatchShowTodayLoad !== false ? 'translate-x-5' : 'translate-x-0'
+                                    )}
+                                  />
+                                </button>
+                              </label>
+                              <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
+                                <div>
+                                  <span className="text-xs font-black text-white uppercase tracking-wide block">Block routing when lane full</span>
+                                  <span className="text-[10px] text-slate-500">Prevent dropping ROs into lanes at capacity.</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const on = !!dealershipSettings[d.id]?.dispatchBlockWhenFull;
+                                    updateSetting(d.id, { dispatchBlockWhenFull: !on });
+                                  }}
+                                  className={cn(
+                                    'w-11 h-6 rounded-full transition-colors relative shrink-0',
+                                    dealershipSettings[d.id]?.dispatchBlockWhenFull ? 'bg-brand-primary' : 'bg-slate-800'
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
+                                      dealershipSettings[d.id]?.dispatchBlockWhenFull ? 'translate-x-5' : 'translate-x-0'
+                                    )}
+                                  />
+                                </button>
+                              </label>
+                            </div>
                           </div>
                         </div>
                       </div>

@@ -632,6 +632,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             <DispatchBoard 
               key={currentDealershipId || 'hyundai'}
               currentDealershipId={currentDealershipId || 'hyundai'}
+              customers={customers}
               showNotification={(msg, isError) => showNotification(msg, isError)}
             />
           )}

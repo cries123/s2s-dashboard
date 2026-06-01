@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
-import { DepartmentColumnId, DispatchRepairOrder } from '../../../types';
+import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
+import { mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
+import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -30,10 +32,12 @@ const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: any }[] = [
 
 export function DispatchBoard({ 
   currentDealershipId,
+  customers = [],
   showNotification
 }: { 
   key?: string;
   currentDealershipId: string;
+  customers?: Customer[];
   showNotification?: (msg: string, isError?: boolean) => void;
 }) {
   const { user } = useAuth();
@@ -54,7 +58,10 @@ export function DispatchBoard({
   // Form states
   const [roNumber, setRoNumber] = useState('');
   const [techNumber, setTechNumber] = useState('');
-  const [vinLastEight, setVinLastEight] = useState('');
+  const [customerLastName, setCustomerLastName] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [dealershipSettings, setDealershipSettings] = useState<Partial<DealershipSettings> | null>(null);
+  const [todayApptCount, setTodayApptCount] = useState(0);
   const [initialStatus, setInitialStatus] = useState<'WIP' | 'DIS' | 'POO' | 'WFA'>('WIP');
   const [quickComplete, setQuickComplete] = useState(false);
 
@@ -62,6 +69,52 @@ export function DispatchBoard({
   const currentSystemDate = useMemo(() => {
     return new Date().toLocaleDateString('en-CA'); // Accurate timezone local YYYY-MM-DD
   }, []);
+
+
+  const laneCapacity = useMemo(
+    () => mergeLaneCapacity(dealershipSettings?.dispatchLaneCapacity),
+    [dealershipSettings?.dispatchLaneCapacity]
+  );
+  const showTodayLoad = dealershipSettings?.dispatchShowTodayLoad !== false;
+  const blockWhenFull = !!dealershipSettings?.dispatchBlockWhenFull;
+  const apptGoal = dealershipSettings?.appointmentTarget ?? 20;
+
+  const matchCandidates = useMemo(
+    () => findCustomersByLastName(customers, customerLastName),
+    [customers, customerLastName]
+  );
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    const settingsRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'dealershipSettings',
+      currentDealershipId
+    );
+    return onSnapshot(settingsRef, (snap) => {
+      setDealershipSettings(snap.exists() ? (snap.data() as DealershipSettings) : null);
+    });
+  }, [currentDealershipId]);
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    const statRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'appointmentTracker',
+      currentSystemDate
+    );
+    return onSnapshot(statRef, (snap) => {
+      setTodayApptCount(snap.exists() && typeof snap.data().count === 'number' ? snap.data().count : 0);
+    });
+  }, [currentDealershipId, currentSystemDate]);
 
   // Sync / Stream Board State from Firestore
   useEffect(() => {
@@ -151,8 +204,22 @@ export function DispatchBoard({
   };
 
   // Rule B: Complete state transition and database mutation
+  const countInLane = (lane: DepartmentColumnId, excludeId?: string) =>
+    (orders.filter((o) => !o.isCompleted && o.department === lane && o.id !== excludeId)).length;
+
+  const isLaneAtCapacity = (lane: DepartmentColumnId, excludeId?: string) => {
+    if (lane === 'unassigned') return false;
+    const cap = laneCapacity[lane as DispatchProductionLane];
+    if (!cap || cap <= 0) return false;
+    return countInLane(lane, excludeId) >= cap;
+  };
+
   const handleCardDropped = async (roId: string, targetLane: DepartmentColumnId) => {
     if (!roId) return;
+    if (blockWhenFull && targetLane !== 'unassigned' && isLaneAtCapacity(targetLane, roId)) {
+      showNotification?.(`${DEPARTMENTS.find((d) => d.id === targetLane)?.label || 'Lane'} is at capacity.`, true);
+      return;
+    }
     try {
       const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
       await updateDoc(roRef, {
@@ -178,7 +245,7 @@ export function DispatchBoard({
   // Rule A Form submission: Default to 'unassigned' department
   const handleSubmitIntake = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roNumber.trim() || !techNumber.trim() || !vinLastEight.trim()) {
+    if (!roNumber.trim() || !techNumber.trim() || !customerLastName.trim()) {
       if (showNotification) showNotification('Please fill out all required fields.', true);
       return;
     }
@@ -188,17 +255,29 @@ export function DispatchBoard({
       const newRoId = doc(collection(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders')).id;
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', newRoId);
 
+      const ln = customerLastName.trim();
+      let crmMatch = selectedCustomer;
+      if (!crmMatch && matchCandidates.length === 1) {
+        crmMatch = matchCandidates[0];
+      }
+      if (!crmMatch && matchCandidates.length > 1) {
+        showNotification?.('Multiple CRM matches — select a customer below before queueing.', true);
+        setSubmitting(false);
+        return;
+      }
+
       const payload: DispatchRepairOrder = {
         id: newRoId,
         roNumber: roNumber.trim(),
         techNumber: techNumber.trim(),
-        vinLastEight: vinLastEight.toUpperCase().trim(),
-        department: 'unassigned', // Rule A: Default Intake goes strictly to Waiting for Dispatch tray
+        customerLastName: ln,
+        department: 'unassigned',
         status: initialStatus,
         isCompleted: quickComplete,
         dateCreated: currentSystemDate,
         lastUpdated: new Date().toISOString(),
-        dealershipId: currentDealershipId
+        dealershipId: currentDealershipId,
+        ...(crmMatch ? enrichDispatchFromCustomer(crmMatch) : { customerName: ln }),
       };
 
       await setDoc(docRef, payload);
@@ -206,7 +285,8 @@ export function DispatchBoard({
       // Reset form states
       setRoNumber('');
       setTechNumber('');
-      setVinLastEight('');
+      setCustomerLastName('');
+      setSelectedCustomer(null);
       setInitialStatus('WIP');
       setQuickComplete(false);
 
@@ -428,7 +508,7 @@ export function DispatchBoard({
               {isInternalAsset ? `STOCK: ${ro.stockNumber || 'N/A'}` : `TAG: ${ro.tagNumber || 'N/A'}`}
             </span>
             <span className="font-mono text-slate-400 text-[10px] block">
-              VIN: ...{ro.vinLastEight}
+              {ro.vinLastEight ? `VIN …${ro.vinLastEight}` : `Last: ${displayCustomerLastName(ro)}`}
             </span>
           </div>
 
@@ -496,7 +576,20 @@ export function DispatchBoard({
             Streamlining shop capacity by routing tickets structurally across production department bays.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {showTodayLoad && (
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-black uppercase tracking-wider">
+              <Calendar size={13} className="text-indigo-400 shrink-0" />
+              <span className="text-slate-400">Today</span>
+              <span className="text-white tabular-nums">{activeTickets.filter((o) => o.dateCreated === currentSystemDate).length}</span>
+              <span className="text-slate-600">active ROs</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-emerald-400 tabular-nums">{todayApptCount}</span>
+              <span className="text-slate-500">appts logged</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-slate-400">goal {apptGoal}</span>
+            </div>
+          )}
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
             className={cn(
@@ -535,7 +628,7 @@ export function DispatchBoard({
                   <tr className="border-b border-slate-810 text-[9.5px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="py-2.5 px-3">RO #</th>
                     <th className="py-2.5 px-3">Tech #</th>
-                    <th className="py-2.5 px-3">VIN (Last 8)</th>
+                    <th className="py-2.5 px-3">Last Name</th>
                     <th className="py-2.5 px-3">Routed Dept</th>
                     <th className="py-2.5 px-3">Date Completed</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
@@ -548,7 +641,7 @@ export function DispatchBoard({
                       <tr key={ro.id} className="hover:bg-slate-850/30 transition-colors">
                         <td className="py-3 px-3 font-bold text-slate-200">RO {ro.roNumber}</td>
                         <td className="py-3 px-3 font-mono font-bold text-slate-300">{ro.techNumber}</td>
-                        <td className="py-3 px-3 font-mono text-slate-400">{ro.vinLastEight}</td>
+                        <td className="py-3 px-3 font-bold text-slate-300 uppercase">{displayCustomerLastName(ro)}</td>
                         <td className="py-3 px-3">
                           <span className="bg-slate-950 text-slate-400 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-slate-800">
                             {deptLabel}
@@ -610,17 +703,49 @@ export function DispatchBoard({
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">VIN Last 8 *</label>
+                <div className="space-y-1 col-span-2 sm:col-span-1">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Customer Last Name *</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. G2054992" 
-                    maxLength={8} 
-                    value={vinLastEight}
-                    onChange={(e) => setVinLastEight(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all uppercase font-mono font-bold focus:ring-1 focus:ring-indigo-500/20" 
+                    placeholder="e.g. Martinez" 
+                    value={customerLastName}
+                    onChange={(e) => {
+                      setCustomerLastName(e.target.value);
+                      setSelectedCustomer(null);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all font-semibold focus:ring-1 focus:ring-indigo-500/20" 
                     required 
                   />
+                  {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && (
+                    <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
+                      {matchCandidates.slice(0, 6).map((cust) => (
+                        <button
+                          key={cust.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomer(cust);
+                            setCustomerLastName(cust.lastName);
+                          }}
+                          className={cn(
+                            'w-full text-left px-2 py-1.5 rounded-lg text-[10px] border transition-all',
+                            selectedCustomer?.id === cust.id
+                              ? 'border-indigo-500/50 bg-indigo-950/40 text-indigo-200'
+                              : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
+                          )}
+                        >
+                          {cust.firstName} {cust.lastName}
+                          {cust.vinLast8 ? ` · …${cust.vinLast8}` : ''}
+                          {cust.model ? ` · ${cust.year || ''} ${cust.model}` : ''}
+                        </button>
+                      ))}
+                      {matchCandidates.length > 6 && (
+                        <p className="text-[9px] text-slate-600 px-1">{matchCandidates.length - 6} more matches…</p>
+                      )}
+                    </div>
+                  )}
+                  {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
+                    <p className="text-[9px] text-amber-500/90 mt-1">No CRM match — ticket will use last name only.</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -735,9 +860,19 @@ export function DispatchBoard({
                         {dept.label}
                       </h3>
                     </div>
-                    <span className="bg-slate-950 text-slate-400 border border-slate-800 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
-                      {list.length} {list.length === 1 ? 'ticket' : 'tickets'}
-                    </span>
+                    {(() => {
+                      const cap = laneCapacity[dept.id];
+                      const atCap = cap > 0 && list.length >= cap;
+                      return (
+                        <span className={cn(
+                          'border px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider tabular-nums',
+                          atCap ? 'bg-rose-950/50 text-rose-400 border-rose-900/50' : 'bg-slate-950 text-slate-400 border-slate-800'
+                        )}>
+                          {cap > 0 ? `${list.length}/${cap}` : list.length} {list.length === 1 ? 'ticket' : 'tickets'}
+                          {atCap ? ' · FULL' : ''}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Horizontal Scroll Area for active cards */}
