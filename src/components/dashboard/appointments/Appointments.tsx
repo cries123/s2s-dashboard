@@ -15,6 +15,10 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import {
+  appointmentTrackerDoc,
+  appointmentTrackerDocId,
+} from '../../../lib/appointmentTracker';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AppointmentsProps {
@@ -329,19 +333,15 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     if (!currentDealershipId) return;
 
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const isAdminUser = currentUser.role === 'admin';
-    
-    // For non-admins, Firestore REQUIRES the query to match the security rules.
-    // If rules say you can only see your dealership, you MUST query with that filter.
-    const q = isAdminUser 
-      ? collection(db, path)
-      : query(collection(db, path), where('dealershipId', '==', currentDealershipId));
+    const q =
+      currentDealershipId === 'hyundai'
+        ? collection(db, path)
+        : query(collection(db, path), where('dealershipId', '==', currentDealershipId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyStat));
-      
-      // Filter by dealershipId, allowing legacy data (no id) in Hyundai view
-      stats = stats.filter(s => {
+
+      stats = stats.filter((s) => {
         if (currentDealershipId === 'hyundai') {
           return !s.dealershipId || s.dealershipId === 'hyundai';
         }
@@ -379,9 +379,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     const totalCount = Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0) as number;
     
     setSaving(true);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${selectedDate}`;
+    const trackerDocId = appointmentTrackerDocId(currentDealershipId || 'hyundai', selectedDate);
+    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${trackerDocId}`;
     try {
-      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
+      await setDoc(appointmentTrackerDoc(db, currentDealershipId || 'hyundai', selectedDate), {
         date: selectedDate,
         count: totalCount,
         dealershipId: currentDealershipId || 'hyundai',
@@ -475,7 +476,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       const sumBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
       const totalCount = sumBreakdown > 0 ? sumBreakdown : (rawData.total || 0);
 
-      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
+      await setDoc(appointmentTrackerDoc(db, currentDealershipId || 'hyundai', selectedDate), {
         date: selectedDate,
         count: totalCount,
         dealershipId: currentDealershipId || 'hyundai',

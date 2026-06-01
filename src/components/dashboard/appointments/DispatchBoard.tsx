@@ -6,6 +6,11 @@ import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder }
 import { cn } from '../../../lib/utils';
 import { mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
+import {
+  appointmentTrackerDoc,
+  legacyAppointmentTrackerDoc,
+  resolveAppointmentCount,
+} from '../../../lib/appointmentTracker';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -102,18 +107,40 @@ export function DispatchBoard({
 
   useEffect(() => {
     if (!currentDealershipId) return;
-    const statRef = doc(
-      db,
-      'artifacts',
-      'hyundai-sales-to-service',
-      'public',
-      'data',
-      'appointmentTracker',
-      currentSystemDate
+
+    let tenantData: { count?: number; dealershipId?: string } | null = null;
+    let legacyData: { count?: number; dealershipId?: string } | null = null;
+
+    const syncCount = () => {
+      setTodayApptCount(
+        resolveAppointmentCount(
+          currentDealershipId,
+          tenantData ?? undefined,
+          legacyData ?? undefined
+        )
+      );
+    };
+
+    const unsubTenant = onSnapshot(
+      appointmentTrackerDoc(db, currentDealershipId, currentSystemDate),
+      (snap) => {
+        tenantData = snap.exists() ? (snap.data() as { count?: number; dealershipId?: string }) : null;
+        syncCount();
+      }
     );
-    return onSnapshot(statRef, (snap) => {
-      setTodayApptCount(snap.exists() && typeof snap.data().count === 'number' ? snap.data().count : 0);
-    });
+
+    const unsubLegacy =
+      currentDealershipId === 'hyundai'
+        ? onSnapshot(legacyAppointmentTrackerDoc(db, currentSystemDate), (snap) => {
+            legacyData = snap.exists() ? (snap.data() as { count?: number; dealershipId?: string }) : null;
+            syncCount();
+          })
+        : () => {};
+
+    return () => {
+      unsubTenant();
+      unsubLegacy();
+    };
   }, [currentDealershipId, currentSystemDate]);
 
   // Sync / Stream Board State from Firestore
