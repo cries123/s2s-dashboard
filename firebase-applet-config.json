@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0812120945",
-  "appId": "1:636277215078:web:00cefbf0cedd4967adc2a7",
-  "apiKey": "AIzaSyDUFTWdcFwMzu3L6uPKUVONWBXesKajGr8",
-  "authDomain": "gen-lang-client-0812120945.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-4e6bb5c0-3499-41a1-983e-16467a405e78",
-  "storageBucket": "gen-lang-client-0812120945.firebasestorage.app",
-  "messagingSenderId": "636277215078",
-  "measurementId": ""
+  "projectId": "hyundai-sales-to-service",
+  "appId": "1:225659307146:web:bfbd97061c835146b31973",
+  "apiKey": "AIzaSyAQkSUl1cyEvMG1cMSb343Mij0eY7VaWm4",
+  "authDomain": "hyundai-sales-to-service.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "hyundai-sales-to-service.firebasestorage.app",
+  "messagingSenderId": "225659307146",
+  "measurementId": "G-LS0R1182ZF"
 }

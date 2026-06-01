@@ -2,24 +2,33 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
+import appletConfig from "../firebase-applet-config.json";
 
-const firebaseConfig = { 
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY, 
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, 
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, 
-  databaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, 
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, 
-  appId: import.meta.env.VITE_FIREBASE_APP_ID, 
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID 
+function pickConfig(envValue: string | undefined, configValue: string | undefined) {
+  const value = envValue || configValue;
+  return value ? value : undefined;
+}
+
+const firebaseOptions = {
+  apiKey: pickConfig(import.meta.env.VITE_FIREBASE_API_KEY, appletConfig.apiKey)!,
+  authDomain: pickConfig(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, appletConfig.authDomain)!,
+  projectId: pickConfig(import.meta.env.VITE_FIREBASE_PROJECT_ID, appletConfig.projectId)!,
+  storageBucket: pickConfig(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, appletConfig.storageBucket)!,
+  messagingSenderId: pickConfig(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, appletConfig.messagingSenderId)!,
+  appId: pickConfig(import.meta.env.VITE_FIREBASE_APP_ID, appletConfig.appId)!,
+  measurementId: pickConfig(import.meta.env.VITE_FIREBASE_MEASUREMENT_ID, appletConfig.measurementId),
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.databaseId);
+const firestoreDatabaseId = pickConfig(
+  import.meta.env.VITE_FIREBASE_DATABASE_ID,
+  appletConfig.firestoreDatabaseId
+);
+
+const app = initializeApp(firebaseOptions);
+export const db = firestoreDatabaseId ? getFirestore(app, firestoreDatabaseId) : getFirestore(app);
 export const auth = getAuth(app);
 export const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
 
-// Debugging: Log active project context
 if (import.meta.env.DEV) {
-  console.log(`[Firebase] Initialized with Project ID: ${firebaseConfig.projectId}`);
+  console.log(`[Firebase] Initialized with Project ID: ${firebaseOptions.projectId}`);
 }
