@@ -13,6 +13,70 @@ export interface User {
   dealershipId?: string;
   isManager?: boolean;
   createdAt?: Timestamp;
+  preferences?: UserPreferences;
+}
+
+export type LandingTab =
+  | 'service-drive'
+  | 'appointments'
+  | 'alerts'
+  | 'search'
+  | 'add'
+  | 'dispatch'
+  | 'recalls'
+  | 'forecast'
+  | 'sales-performance'
+  | 'pot-of-gold'
+  | 'vin-search'
+  | 'admin'
+  | 'settings';
+
+export type ServiceDriveFilter = 'all' | 'service_due' | 'stale_followup';
+
+export type QueuePriorityProfile = 'balanced' | 'overdue_first' | 'never_contacted_first';
+
+export type CrmDensity = 'compact' | 'standard';
+
+export type LanguageFilter = 'all' | 'english' | 'spanish';
+
+export interface ServiceDrivePreferences {
+  openOnLogin: boolean;
+  defaultLandingTab: LandingTab;
+  defaultFilter: ServiceDriveFilter;
+  queuePriority: QueuePriorityProfile;
+}
+
+export interface ContactWorkflowPreferences {
+  followUpDays: number;
+  defaultOutcome: string;
+  autoCheckAppointmentSet: boolean;
+}
+
+export interface DashboardModulePreferences {
+  showWeatherWidget: boolean;
+  showOperationsKpis: boolean;
+  showOperationsProjections: boolean;
+  showAdvisorPerformance: boolean;
+  showTechEfficiency: boolean;
+  showArchiveTools: boolean;
+  showForecastTab: boolean;
+  showSalesPerformanceTab: boolean;
+  showVinSearchTab: boolean;
+  showRecallsTab: boolean;
+  showPotOfGoldTab: boolean;
+}
+
+export interface CrmDisplayPreferences {
+  density: CrmDensity;
+  defaultLanguageFilter: LanguageFilter;
+  alertsOnlyDefault: boolean;
+}
+
+export interface UserPreferences {
+  serviceDrive: ServiceDrivePreferences;
+  contactWorkflow: ContactWorkflowPreferences;
+  dashboardModules: DashboardModulePreferences;
+  crmDisplay: CrmDisplayPreferences;
 }
 
 export interface Dealership {
@@ -177,6 +241,8 @@ export interface ArchivePayload {
   };
 }
 
+
+
 /** Why a customer appears on the Service Drive work queue */
 export type ServiceDriveReason = 'service_due' | 'stale_followup';
 
@@ -191,4 +257,3 @@ export interface WorkQueueItem {
   daysSinceContact: number | null;
   priority: ServiceDrivePriority;
 }
-

@@ -7,14 +7,14 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  Loader2,
-  CalendarCheck,
 } from 'lucide-react';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { cn } from '../../../lib/utils';
 import { calculateServiceCycle } from '../../../lib/alerts';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
+import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 const REASON_META: Record<
   ServiceDriveReason,
@@ -55,15 +55,10 @@ export function ServiceDriveQueueItem({
   onRefresh,
 }: ServiceDriveQueueItemProps) {
   const { customer, reasons, daysOverdue, daysSinceContact, priority } = item;
+  const { preferences } = usePreferences();
   const [expanded, setExpanded] = useState(false);
-  const [isLogging, setIsLogging] = useState(false);
-  const [outcome, setOutcome] = useState('Answered');
-  const [notes, setNotes] = useState('');
-  const [appointmentSet, setAppointmentSet] = useState(false);
 
-  const handleLogCall = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLogging(true);
+  const handleLogCall = async ({ outcome, notes, appointmentSet }: { outcome: string; notes: string; appointmentSet: boolean }) => {
     const path = `customers/${customer.id}/contactLog`;
     try {
       await addDoc(
@@ -100,8 +95,6 @@ export function ServiceDriveQueueItem({
         }
       );
 
-      setNotes('');
-      setAppointmentSet(false);
       setExpanded(false);
       onRefresh?.(`Logged ${outcome} for ${customer.firstName}.`);
     } catch (err) {
@@ -111,8 +104,6 @@ export function ServiceDriveQueueItem({
         const message = formattedErr instanceof Error ? formattedErr.message : 'Failed to log contact';
         onRefresh?.(message, true);
       }
-    } finally {
-      setIsLogging(false);
     }
   };
 
@@ -209,53 +200,14 @@ export function ServiceDriveQueueItem({
         </div>
 
         {expanded && (
-          <form onSubmit={handleLogCall} className="mt-4 pt-4 border-t border-white/5 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
-                  Outcome
-                </label>
-                <select
-                  value={outcome}
-                  onChange={(e) => setOutcome(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
-                >
-                  <option value="Answered">Answered</option>
-                  <option value="Left Voicemail">Left Voicemail</option>
-                  <option value="No Answer">No Answer</option>
-                  <option value="Wrong Number">Wrong Number</option>
-                  <option value="Appointment Set">Appointment Set</option>
-                  <option value="Declined Service">Declined Service</option>
-                </select>
-              </div>
-              <label className="flex items-center gap-2 self-end pb-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={appointmentSet}
-                  onChange={(e) => setAppointmentSet(e.target.checked)}
-                  className="rounded border-slate-600"
-                />
-                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                  <CalendarCheck size={12} /> Appointment set
-                </span>
-              </label>
-            </div>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Call notes…"
-              rows={2}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-600 resize-none"
+          <div className="mt-4 pt-4 border-t border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+            <ContactLogQuickForm
+              defaultOutcome={preferences.contactWorkflow.defaultOutcome}
+              autoCheckAppointmentSet={preferences.contactWorkflow.autoCheckAppointmentSet}
+              onSubmit={handleLogCall}
+              className="space-y-3"
             />
-            <button
-              type="submit"
-              disabled={isLogging}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white text-[10px] font-black uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {isLogging ? <Loader2 size={14} className="animate-spin" /> : null}
-              Save contact log
-            </button>
-          </form>
+          </div>
         )}
       </div>
     </article>

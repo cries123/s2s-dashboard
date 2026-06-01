@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Customer, DailyStat, WorkQueueItem, ServiceDriveReason } from '../types';
+import { Customer, DailyStat, WorkQueueItem, ServiceDriveReason, QueuePriorityProfile } from '../types';
 import { buildWorkQueue } from '../lib/serviceDrivePriority';
 
 function todayISO(): string {
@@ -19,7 +19,16 @@ export interface ServiceDriveStats {
   todayAppointments: number;
 }
 
-export function useServiceDriveQueue(customers: Customer[], dealershipId?: string) {
+export interface ServiceDriveQueueOptions {
+  followUpDays?: number;
+  queuePriority?: QueuePriorityProfile;
+}
+
+export function useServiceDriveQueue(
+  customers: Customer[],
+  dealershipId?: string,
+  options?: ServiceDriveQueueOptions
+) {
   const [todayAppointments, setTodayAppointments] = useState(0);
 
   useEffect(() => {
@@ -50,7 +59,14 @@ export function useServiceDriveQueue(customers: Customer[], dealershipId?: strin
     return () => unsubscribe();
   }, [dealershipId]);
 
-  const queue = useMemo(() => buildWorkQueue(customers), [customers]);
+  const queue = useMemo(
+    () =>
+      buildWorkQueue(customers, {
+        followUpDays: options?.followUpDays,
+        queuePriority: options?.queuePriority,
+      }),
+    [customers, options?.followUpDays, options?.queuePriority]
+  );
 
   const stats: ServiceDriveStats = useMemo(() => {
     const countReason = (reason: ServiceDriveReason) =>

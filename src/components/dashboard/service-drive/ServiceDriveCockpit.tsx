@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Customer, User, ServiceDriveReason } from '../../../types';
 import { useServiceDriveQueue } from '../../../hooks/useServiceDriveQueue';
 import { ServiceDriveQueueItem } from './ServiceDriveQueueItem';
 import { cn } from '../../../lib/utils';
+import { usePreferences } from '../../../context/PreferencesContext';
+import { ServiceDriveFilter } from '../../../types';
 import {
   LayoutDashboard,
   Bell,
@@ -20,7 +22,7 @@ interface ServiceDriveCockpitProps {
   onRefresh?: (msg: string, isError?: boolean) => void;
 }
 
-type FilterId = 'all' | ServiceDriveReason;
+type FilterId = ServiceDriveFilter;
 
 const FILTERS: { id: FilterId; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { id: 'all', label: 'All', icon: LayoutDashboard },
@@ -36,8 +38,17 @@ export function ServiceDriveCockpit({
   onViewProfile,
   onRefresh,
 }: ServiceDriveCockpitProps) {
-  const [filter, setFilter] = useState<FilterId>('all');
-  const { queue, stats, filterQueue } = useServiceDriveQueue(customers, currentDealershipId);
+  const { preferences } = usePreferences();
+  const [filter, setFilter] = useState<FilterId>(preferences.serviceDrive.defaultFilter);
+
+  useEffect(() => {
+    setFilter(preferences.serviceDrive.defaultFilter);
+  }, [preferences.serviceDrive.defaultFilter]);
+
+  const { queue, stats, filterQueue } = useServiceDriveQueue(customers, currentDealershipId, {
+    followUpDays: preferences.contactWorkflow.followUpDays,
+    queuePriority: preferences.serviceDrive.queuePriority,
+  });
 
   const visibleQueue = filterQueue(filter);
 

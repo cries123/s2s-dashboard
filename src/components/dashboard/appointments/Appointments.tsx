@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
-import { User, DailyStat } from '../../../types';
+import { User, DailyStat, DashboardModulePreferences } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { 
@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface AppointmentsProps {
   currentUser: User;
   currentDealershipId: string;
+  modulePrefs?: DashboardModulePreferences;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -45,7 +46,20 @@ interface FirestoreErrorInfo {
   }
 }
 
-export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
+export default function Appointments({ currentUser, currentDealershipId, modulePrefs, onSuccess, onError }: AppointmentsProps) {
+  const modules = modulePrefs ?? {
+    showWeatherWidget: true,
+    showOperationsKpis: true,
+    showOperationsProjections: true,
+    showAdvisorPerformance: true,
+    showTechEfficiency: true,
+    showArchiveTools: true,
+    showForecastTab: true,
+    showSalesPerformanceTab: true,
+    showVinSearchTab: true,
+    showRecallsTab: true,
+    showPotOfGoldTab: true,
+  };
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -684,7 +698,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         }
       `}</style>
 
-      {/* Operations command center header */}
+      {modules.showOperationsKpis && (
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 p-5 sm:p-8 shadow-2xl">
         <div className="absolute top-0 right-0 w-56 h-56 bg-brand-primary/10 blur-[80px] rounded-full pointer-events-none" />
         <div className="relative flex flex-col gap-6">
@@ -729,9 +743,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </div>
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* MONTH-END PROJECTIONS CARD */}
+        {modules.showOperationsProjections ? (
         <div className="bg-slate-950/40 border border-white/5 backdrop-blur-xl p-5 sm:p-8 rounded-3xl col-span-1 lg:col-span-2 relative shadow-2xl overflow-hidden group order-2 lg:order-1">
           {/* Subtle Background Glows */}
           <div className="absolute -top-40 -left-40 w-80 h-80 bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-brand-primary/15 transition-all duration-700" />
@@ -872,6 +887,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             })}
           </div>
         </div>
+        ) : (
+        <div className="hidden lg:block lg:col-span-2" aria-hidden />
+        )}
 
         {/* DAILY ENTRY CARD */}
         <div className="bg-slate-950/45 border border-white/5 backdrop-blur-xl p-5 sm:p-8 rounded-3xl flex flex-col justify-between shadow-2xl relative overflow-hidden group order-1 lg:order-2">
@@ -1254,7 +1272,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             )}
 
             {/* Dynamic Custom Archive Option - Only clickable with active tracker */}
-            {selectedMonth === 'active' && (
+            {selectedMonth === 'active' && modules.showArchiveTools && (
               <button
                 onClick={() => setShowArchiveModal(true)}
                 className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
@@ -1316,14 +1334,15 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         )}
       </AnimatePresence>
 
-      {/* Advisor Performance Tracking */}
+      {modules.showAdvisorPerformance && (
       <AdvisorPerformance 
         currentDealershipId={currentDealershipId} 
         selectedMonth={selectedMonth} 
         allowArchiveEditing={allowArchiveEditing}
       />
+      )}
 
-      {/* Technician Efficiency Tracking */}
+      {modules.showTechEfficiency && (
       <TechnicianEfficiency 
         currentUser={currentUser} 
         currentDealershipId={currentDealershipId} 
@@ -1332,6 +1351,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         selectedMonth={selectedMonth}
         allowArchiveEditing={allowArchiveEditing}
       />
+      )}
 
       {/* Executive Print / PDF Modal */}
       <PerformancePrintModal 
