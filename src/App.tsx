@@ -37,6 +37,7 @@ import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 import { DEALERSHIPS } from './constants';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
+import { MobileBottomNav } from './components/layout/MobileBottomNav';
 
 interface NavDropdownProps {
   label: string;
@@ -344,7 +345,7 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            <div className="hidden sm:block">
+            <div className="block min-w-0">
               <h1 className="text-base font-black text-white leading-none tracking-tighter uppercase whitespace-nowrap">
                 S2S <span className="text-brand-primary">Dashboard</span>
               </h1>
@@ -507,26 +508,18 @@ export default function App() {
 
           </nav>
 
-          {/* Mobile Navigation Dropdown */}
-          <div className="flex-1 md:hidden flex justify-center h-full items-center">
+          {/* Mobile: current page label (nav via bottom bar) */}
+          <div className="flex-1 md:hidden flex justify-center items-center min-w-0 px-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate text-center">
+              {activeTab === 'admin'
+                ? `Admin · ${adminSubTab === 'operations' ? 'Settings' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                : availableTabs.find(t => t.id === activeTab)?.label ?? 'S2S'}
+            </p>
+          </div>
+
+          {/* Mobile full menu sheet (opened from bottom nav "More") */}
+          <div className="md:hidden">
             <div className="relative">
-              <button 
-                onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
-                className="flex items-center gap-3 px-4 py-2.5 bg-slate-900 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] text-white transition-all active:scale-95 shadow-lg shadow-black/20"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-md bg-brand-primary/20 flex items-center justify-center">
-                    {availableTabs.find(t => t.id === activeTab)?.icon && React.createElement(availableTabs.find(t => t.id === activeTab)!.icon, { size: 12, className: "text-brand-primary" })}
-                  </div>
-                  <span className="min-w-[80px] text-left">
-                    {activeTab === 'admin' 
-                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
-                      : availableTabs.find(t => t.id === activeTab)?.label
-                    }
-                  </span>
-                </div>
-                <ChevronRight size={14} className={cn("transition-transform duration-300 text-brand-primary", isMobileNavOpen ? "-rotate-90" : "rotate-90")} />
-              </button>
               
               <AnimatePresence>
                 {isMobileNavOpen && (
@@ -536,10 +529,10 @@ export default function App() {
                       onClick={() => setIsMobileNavOpen(false)} 
                     />
                     <motion.div 
-                      initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                      className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-slate-900 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden z-[100] max-h-[80vh] overflow-y-auto"
+                      initial={{ opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 24 }}
+                      className="fixed inset-x-0 bottom-0 z-[100] max-h-[min(70vh,520px)] overflow-y-auto rounded-t-3xl bg-slate-900 border border-white/10 border-b-0 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:absolute md:inset-auto md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-full md:mt-2 md:w-56 md:max-h-[80vh] md:rounded-2xl md:pb-0 md:pb-0"
                     >
                       <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
@@ -599,7 +592,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="section-container animate-fade-in pb-10">
+      <main className="section-container animate-fade-in app-main-with-mobile-nav">
         {notification && (
           <div className={cn(
             "p-4 rounded-2xl mb-8 flex items-center gap-4 animate-slide-in border shadow-lg",
@@ -721,6 +714,16 @@ export default function App() {
           onDelete={handleDeleteCustomer}
         />
       )}
+
+      <MobileBottomNav
+        activeTab={activeTab}
+        onNavigate={(tab) => {
+          setActiveTab(tab as typeof activeTab);
+          setIsMobileNavOpen(false);
+        }}
+        onOpenMenu={() => setIsMobileNavOpen(true)}
+        alertBadge={activeAlertsCount}
+      />
 
       {showInject && (
         <InjectModal 

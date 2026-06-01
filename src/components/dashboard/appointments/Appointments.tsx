@@ -684,23 +684,55 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         }
       `}</style>
 
-      {/* Forecasting Hero Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
-        <div>
-          <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest block mb-1">Performance Dynamics</span>
-          <h1 className="text-2xl font-black text-white uppercase tracking-wider">Appointment & Gross Forecast</h1>
-        </div>
-        <div className="flex items-center gap-3 self-start sm:self-center">
-          <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-xl px-4 py-2 flex items-center gap-2.5 shadow-sm">
-            <Target size={14} className="text-brand-primary animate-pulse" />
-            <span className="text-xs font-black uppercase tracking-wider text-white">Daily Goal: {targetValue} Units</span>
+      {/* Operations command center header */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 p-5 sm:p-8 shadow-2xl">
+        <div className="absolute top-0 right-0 w-56 h-56 bg-brand-primary/10 blur-[80px] rounded-full pointer-events-none" />
+        <div className="relative flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <span className="text-[9px] font-black text-brand-primary uppercase tracking-[0.25em]">Fixed Operations</span>
+              <h1 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tight mt-1">
+                Operations Center
+              </h1>
+              <p className="text-sm text-slate-400 mt-2 max-w-xl">
+                Daily appointment volume, month-end gross projections, and team performance in one place.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end">
+              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
+                <Target size={14} className="text-brand-primary shrink-0" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-white">Daily goal · {targetValue} appts</span>
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+                <CalendarIcon size={14} className="text-emerald-400 shrink-0" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                  {metrics.daysRemaining} working days left
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+            {[
+              { label: 'MTD Appointments', value: metrics.monthTotal, accent: 'text-white' },
+              { label: 'Week Volume', value: metrics.weekTotal, accent: 'text-sky-400' },
+              { label: 'Month Forecast', value: metrics.forecast, accent: 'text-brand-secondary' },
+              { label: 'Labor Gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}`, accent: 'text-emerald-400', isText: true },
+            ].map((chip) => (
+              <div key={chip.label} className="rounded-2xl bg-slate-950/60 border border-white/5 px-3 py-3 text-center">
+                <p className={cn('text-lg sm:text-xl font-black tabular-nums', chip.accent)}>
+                  {chip.isText ? chip.value : chip.value}
+                </p>
+                <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mt-1">{chip.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* MONTH-END PROJECTIONS CARD */}
-        <div className="bg-slate-950/40 border border-white/5 backdrop-blur-xl p-8 rounded-3xl col-span-1 lg:col-span-2 relative shadow-2xl overflow-hidden group">
+        <div className="bg-slate-950/40 border border-white/5 backdrop-blur-xl p-5 sm:p-8 rounded-3xl col-span-1 lg:col-span-2 relative shadow-2xl overflow-hidden group order-2 lg:order-1">
           {/* Subtle Background Glows */}
           <div className="absolute -top-40 -left-40 w-80 h-80 bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-brand-primary/15 transition-all duration-700" />
           <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-brand-secondary/5 rounded-full blur-[100px] pointer-events-none" />
@@ -755,7 +787,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 target: metrics.monthTarget, 
                 isCurrency: false,
                 color: 'text-sky-400',
-                barColor: 'bg-gradient-to-r from-sky-455 to-blue-400',
+                barColor: 'bg-gradient-to-r from-sky-400 to-blue-400',
                 glowColor: 'shadow-sky-400/20'
               }
             ].map((kpi, idx) => {
@@ -763,14 +795,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               const isShortfall = kpi.forecast < kpi.target;
               
               return (
-                <div key={idx} className="bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] hover:border-white/[0.08] p-5 rounded-2xl transition-all duration-300 relative group/row">
+                <div key={idx} className="bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] hover:border-white/[0.08] p-4 sm:p-5 rounded-2xl transition-all duration-300 relative group/row">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     {/* LEFT: LABEL & PROJECTED FORECAST */}
                     <div className="w-full md:w-5/12">
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{kpi.label} Forecast</span>
                         {isShortfall ? (
-                          <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-450 border border-rose-500/25 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-tight shrink-0">
+                          <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 border border-rose-500/25 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-tight shrink-0">
                             Shortfall
                           </span>
                         ) : (
@@ -805,7 +837,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Pace Velocity</span>
                         <span className="text-sm sm:text-base font-black text-white whitespace-nowrap">
-                          {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}<span className="text-[9px] text-slate-550 font-bold ml-1">/D</span>
+                          {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}<span className="text-[9px] text-slate-500 font-bold ml-1">/D</span>
                         </span>
                       </div>
 
@@ -842,7 +874,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         </div>
 
         {/* DAILY ENTRY CARD */}
-        <div className="bg-slate-950/45 border border-white/5 backdrop-blur-xl p-8 rounded-3xl flex flex-col justify-between shadow-2xl relative overflow-hidden group">
+        <div className="bg-slate-950/45 border border-white/5 backdrop-blur-xl p-5 sm:p-8 rounded-3xl flex flex-col justify-between shadow-2xl relative overflow-hidden group order-1 lg:order-2">
           <div className="absolute top-0 right-0 w-40 h-40 bg-brand-primary/5 rounded-full blur-[50px] pointer-events-none" />
           
           <div className="relative z-10 w-full">
@@ -966,7 +998,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </div>
         </div>
         
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4">
           {weekDays.map((day) => {
              const fullDayData = allStats.find(s => s.date === day.date);
              const isSelected = selectedDate === day.date;
@@ -980,7 +1012,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                    }
                  }}
                  className={cn(
-                   "backdrop-blur-md rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5 transition-all duration-300 hover:scale-[1.03] border relative group cursor-pointer",
+                   "backdrop-blur-md rounded-2xl p-4 sm:p-5 flex flex-col min-h-[100px] sm:min-h-0 items-center justify-center gap-1.5 transition-all duration-300 hover:scale-[1.03] border relative group cursor-pointer",
                    isSelected 
                      ? "ring-2 ring-brand-primary ring-offset-2 ring-offset-[#020617] bg-white/[0.04]" 
                      : "bg-[#0c1120]/45",
@@ -1212,7 +1244,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                   "h-11 px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
                   allowArchiveEditing 
                     ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
-                    : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
+                    : "bg-slate-800 hover:bg-slate-700 border-white/5 text-slate-300 hover:text-white"
                 )}
                 title="Unlock editing capability for this historical archive month"
               >
@@ -1235,7 +1267,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              className="h-11 px-6 bg-slate-800 hover:bg-slate-700 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
             >
               <Printer size={13} />
               Print Report
