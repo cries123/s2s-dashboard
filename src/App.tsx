@@ -29,6 +29,8 @@ import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
 import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
+import { ServiceDriveCockpit } from './components/dashboard/service-drive/ServiceDriveCockpit';
+import { useServiceDriveQueue } from './hooks/useServiceDriveQueue';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -140,7 +142,7 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('add');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance' | 'service-drive'>('service-drive');
   const [adminSubTab, setAdminSubTab] = useState<'operations' | 'users' | 'logs'>('operations');
 
   // Artificial delay for loading screen
@@ -183,11 +185,14 @@ export default function App() {
   const isLoading = authLoading || (user && customersLoading) || minLoading;
 
   const activeAlertsCount = customers.filter(isServiceAlertActive).length;
+  const { stats: serviceDriveStats } = useServiceDriveQueue(customers, currentDealershipId || undefined);
+  const serviceDriveQueueCount = serviceDriveStats.queueTotal;
 
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
   // Filter tabs - Pot of Gold (Competition) only for Hyundai
   const availableTabs = [
+    { id: 'service-drive', label: 'Service Drive', icon: LayoutDashboard, badge: serviceDriveQueueCount },
     { id: 'add', label: 'Onboard', icon: UserPlus },
     { id: 'search', label: 'Directory', icon: Search },
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
@@ -204,7 +209,7 @@ export default function App() {
   // If current activeTab is hidden, fallback to first available
   React.useEffect(() => {
     if (!availableTabs.find(t => t.id === activeTab)) {
-      setActiveTab('add');
+      setActiveTab('service-drive');
     }
   }, [currentDealershipId, activeTab, availableTabs]);
 
@@ -374,8 +379,16 @@ export default function App() {
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
+              isActive={activeTab === 'service-drive' || activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
             >
+              <NavLink 
+                href="/service/drive" 
+                onClick={() => setActiveTab('service-drive')}
+                isActive={activeTab === 'service-drive'}
+                badge={serviceDriveQueueCount}
+              >
+                Service Drive
+              </NavLink>
               <NavLink 
                 href="/service/directory" 
                 onClick={() => setActiveTab('search')}
@@ -598,6 +611,17 @@ export default function App() {
         )}
 
         <div className="space-y-10">
+          {activeTab === 'service-drive' && (
+            <ServiceDriveCockpit
+              customers={customers}
+              currentUser={currentUser}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              dealershipName={currentDealership.name}
+              onViewProfile={setSelectedProfile}
+              onRefresh={(msg, isError) => showNotification(msg, isError)}
+            />
+          )}
+
           {activeTab === 'add' && (
             <CustomerForm 
               currentUser={currentUser} 
