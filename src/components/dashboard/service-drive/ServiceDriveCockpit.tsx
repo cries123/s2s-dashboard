@@ -6,10 +6,8 @@ import { cn } from '../../../lib/utils';
 import {
   LayoutDashboard,
   Bell,
-  ShieldAlert,
   Clock,
   Calendar,
-  Loader2,
   Sparkles,
 } from 'lucide-react';
 
@@ -27,7 +25,6 @@ type FilterId = 'all' | ServiceDriveReason;
 const FILTERS: { id: FilterId; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { id: 'all', label: 'All', icon: LayoutDashboard },
   { id: 'service_due', label: 'Service Due', icon: Bell },
-  { id: 'open_recall', label: 'Recalls', icon: ShieldAlert },
   { id: 'stale_followup', label: 'Follow Up', icon: Clock },
 ];
 
@@ -40,10 +37,7 @@ export function ServiceDriveCockpit({
   onRefresh,
 }: ServiceDriveCockpitProps) {
   const [filter, setFilter] = useState<FilterId>('all');
-  const { queue, stats, filterQueue, recallsLoading } = useServiceDriveQueue(
-    customers,
-    currentDealershipId
-  );
+  const { queue, stats, filterQueue } = useServiceDriveQueue(customers, currentDealershipId);
 
   const visibleQueue = filterQueue(filter);
 
@@ -77,10 +71,9 @@ export function ServiceDriveCockpit({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 w-full lg:w-auto lg:min-w-[420px]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto lg:min-w-[340px]">
             <StatChip label="In Queue" value={stats.queueTotal} accent="text-white" />
             <StatChip label="Service Due" value={stats.serviceDue} accent="text-amber-400" />
-            <StatChip label="Recalls" value={stats.openRecalls} accent="text-rose-400" />
             <StatChip label="Follow Up" value={stats.staleFollowUp} accent="text-violet-400" />
             <StatChip
               label="Appts Today"
@@ -97,11 +90,9 @@ export function ServiceDriveCockpit({
           const count =
             id === 'all'
               ? stats.queueTotal
-              : id === 'open_recall'
-                ? stats.openRecalls
-                : id === 'service_due'
-                  ? stats.serviceDue
-                  : stats.staleFollowUp;
+              : id === 'service_due'
+                ? stats.serviceDue
+                : stats.staleFollowUp;
 
           return (
             <button
@@ -131,19 +122,14 @@ export function ServiceDriveCockpit({
       </div>
 
       <div className="space-y-3">
-        {recallsLoading && queue.length === 0 ? (
-          <div className="card-base p-12 flex flex-col items-center justify-center text-slate-500">
-            <Loader2 size={32} className="animate-spin mb-3 text-brand-primary" />
-            <p className="text-sm font-bold">Building your work queue…</p>
-          </div>
-        ) : visibleQueue.length === 0 ? (
+        {visibleQueue.length === 0 ? (
           <div className="card-base p-12 text-center border-dashed border-slate-700">
             <LayoutDashboard size={40} className="mx-auto text-slate-600 mb-4" />
             <p className="text-lg font-black text-white uppercase italic">Queue clear</p>
             <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
               {filter === 'all'
-                ? 'No prioritized customers right now — service alerts and open recalls will appear here automatically.'
-                : 'No customers match this filter. Try another tab or check Alerts / Recalls.'}
+                ? 'No service-due customers right now — active alerts from your CRM will appear here automatically.'
+                : 'No customers match this filter. Try All or check the Alerts tab.'}
             </p>
           </div>
         ) : (
@@ -162,7 +148,7 @@ export function ServiceDriveCockpit({
       </div>
 
       <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest text-center pb-4">
-        Ranked by service due · open recalls · follow-up urgency
+        Ranked by service due · follow-up urgency
       </p>
     </div>
   );

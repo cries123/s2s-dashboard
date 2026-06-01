@@ -41,10 +41,7 @@ function scoreToPriority(score: number): ServiceDrivePriority {
   return 'normal';
 }
 
-export function buildWorkQueueItem(
-  customer: Customer,
-  recallCount: number
-): WorkQueueItem | null {
+export function buildWorkQueueItem(customer: Customer): WorkQueueItem | null {
   const reasons: ServiceDriveReason[] = [];
   let score = 0;
 
@@ -56,11 +53,6 @@ export function buildWorkQueueItem(
   if (serviceDue) {
     reasons.push('service_due');
     score += 50 + Math.min(daysOverdue * 3, 45);
-  }
-
-  if (recallCount > 0) {
-    reasons.push('open_recall');
-    score += 35 + Math.min(recallCount * 12, 36);
   }
 
   const needsFollowUp =
@@ -78,22 +70,17 @@ export function buildWorkQueueItem(
     customer,
     score,
     reasons,
-    recallCount,
     daysOverdue,
     daysSinceContact,
     priority: scoreToPriority(score),
   };
 }
 
-export function buildWorkQueue(
-  customers: Customer[],
-  recallCountByCustomerId: Record<string, number>
-): WorkQueueItem[] {
+export function buildWorkQueue(customers: Customer[]): WorkQueueItem[] {
   const items: WorkQueueItem[] = [];
 
   for (const customer of customers) {
-    const recallCount = recallCountByCustomerId[customer.id] || 0;
-    const item = buildWorkQueueItem(customer, recallCount);
+    const item = buildWorkQueueItem(customer);
     if (item) items.push(item);
   }
 

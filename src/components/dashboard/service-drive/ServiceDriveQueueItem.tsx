@@ -3,7 +3,6 @@ import { Customer, User, WorkQueueItem, ServiceDriveReason } from '../../../type
 import {
   Phone,
   User as UserIcon,
-  ShieldAlert,
   Bell,
   Clock,
   ChevronDown,
@@ -25,11 +24,6 @@ const REASON_META: Record<
     label: 'Service Due',
     className: 'bg-amber-500/15 text-amber-400 border-amber-500/25',
     icon: Bell,
-  },
-  open_recall: {
-    label: 'Open Recall',
-    className: 'bg-rose-500/15 text-rose-400 border-rose-500/25',
-    icon: ShieldAlert,
   },
   stale_followup: {
     label: 'Follow Up',
@@ -60,7 +54,7 @@ export function ServiceDriveQueueItem({
   onViewProfile,
   onRefresh,
 }: ServiceDriveQueueItemProps) {
-  const { customer, reasons, recallCount, daysOverdue, daysSinceContact, priority } = item;
+  const { customer, reasons, daysOverdue, daysSinceContact, priority } = item;
   const [expanded, setExpanded] = useState(false);
   const [isLogging, setIsLogging] = useState(false);
   const [outcome, setOutcome] = useState('Answered');
@@ -151,7 +145,6 @@ export function ServiceDriveQueueItem({
                     >
                       <Icon size={10} />
                       {meta.label}
-                      {reason === 'open_recall' && recallCount > 1 ? ` (${recallCount})` : ''}
                     </span>
                   );
                 })}

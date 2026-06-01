@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, onSnapshot, query } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Customer, DailyStat, WorkQueueItem, ServiceDriveReason } from '../types';
 import { buildWorkQueue } from '../lib/serviceDrivePriority';
@@ -15,40 +15,12 @@ function todayISO(): string {
 export interface ServiceDriveStats {
   queueTotal: number;
   serviceDue: number;
-  openRecalls: number;
   staleFollowUp: number;
   todayAppointments: number;
 }
 
 export function useServiceDriveQueue(customers: Customer[], dealershipId?: string) {
-  const [recallCountByCustomerId, setRecallCountByCustomerId] = useState<Record<string, number>>({});
   const [todayAppointments, setTodayAppointments] = useState(0);
-  const [recallsLoading, setRecallsLoading] = useState(true);
-
-  useEffect(() => {
-    const q = query(
-      collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'vehicleRecalls')
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const counts: Record<string, number> = {};
-        snapshot.docs.forEach((docSnap) => {
-          const data = docSnap.data();
-          const customerId = data.customerId as string | undefined;
-          if (customerId) {
-            counts[customerId] = (counts[customerId] || 0) + 1;
-          }
-        });
-        setRecallCountByCustomerId(counts);
-        setRecallsLoading(false);
-      },
-      () => setRecallsLoading(false)
-    );
-
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     const today = todayISO();
@@ -78,10 +50,7 @@ export function useServiceDriveQueue(customers: Customer[], dealershipId?: strin
     return () => unsubscribe();
   }, [dealershipId]);
 
-  const queue = useMemo(
-    () => buildWorkQueue(customers, recallCountByCustomerId),
-    [customers, recallCountByCustomerId]
-  );
+  const queue = useMemo(() => buildWorkQueue(customers), [customers]);
 
   const stats: ServiceDriveStats = useMemo(() => {
     const countReason = (reason: ServiceDriveReason) =>
@@ -90,7 +59,6 @@ export function useServiceDriveQueue(customers: Customer[], dealershipId?: strin
     return {
       queueTotal: queue.length,
       serviceDue: countReason('service_due'),
-      openRecalls: queue.filter((item) => item.recallCount > 0).length,
       staleFollowUp: countReason('stale_followup'),
       todayAppointments,
     };
@@ -101,5 +69,5 @@ export function useServiceDriveQueue(customers: Customer[], dealershipId?: strin
     return queue.filter((item) => item.reasons.includes(filter));
   };
 
-  return { queue, stats, filterQueue, recallsLoading };
+  return { queue, stats, filterQueue };
 }

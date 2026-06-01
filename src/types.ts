@@ -178,16 +178,15 @@ export interface ArchivePayload {
 }
 
 /** Why a customer appears on the Service Drive work queue */
-export type ServiceDriveReason = 'service_due' | 'open_recall' | 'stale_followup';
+export type ServiceDriveReason = 'service_due' | 'stale_followup';
 
 export type ServiceDrivePriority = 'urgent' | 'high' | 'medium' | 'normal';
 
-/** Unified advisor work-queue row (alerts + recalls + follow-ups) */
+/** Unified advisor work-queue row (service alerts + follow-ups) */
 export interface WorkQueueItem {
   customer: Customer;
   score: number;
   reasons: ServiceDriveReason[];
-  recallCount: number;
   daysOverdue: number;
   daysSinceContact: number | null;
   priority: ServiceDrivePriority;
