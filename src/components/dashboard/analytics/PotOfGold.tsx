@@ -11,6 +11,9 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
 
 interface PerformanceRow {
   code: string;
@@ -60,6 +63,18 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
+
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
+    return onSnapshot(settingsRef, (snap) => {
+      if (snap.exists()) {
+        setDmsProvider((snap.data().dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER);
+      }
+    });
+  }, [currentDealershipId]);
 
   const [advData, setAdvData] = useState<PerformanceRow[]>(INITIAL_PERFORMANCE_DATA);
   const [techData, setTechData] = useState<TechPerformanceRow[]>(() => 
@@ -201,7 +216,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
       const response = await fetch('/api/parse-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText })
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText }))
       });
 
       if (!response.ok) {

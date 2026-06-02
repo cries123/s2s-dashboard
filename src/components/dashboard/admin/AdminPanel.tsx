@@ -27,6 +27,8 @@ import {
 import { cn } from '../../../lib/utils';
 
 import { DEALERSHIPS } from '../../../constants';
+import { DMS_PROVIDERS, DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
@@ -826,6 +828,37 @@ export default function AdminPanel({
                               className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-black text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
                             />
                           </div>
+                        </div>
+
+
+                        {/* DMS Configuration */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                            <Database size={12} className="text-brand-primary" />
+                            DMS Configuration
+                          </label>
+                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed max-w-xl">
+                            Choose your dealership management system. Report PDF imports (appointments, advisor performance, technician productivity) will route to the matching layout parser.
+                          </p>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
+                            <select
+                              value={(dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER}
+                              onChange={(e) => updateSetting(d.id, { dmsProvider: e.target.value as DmsProviderId })}
+                              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer"
+                            >
+                              {DMS_PROVIDERS.map((provider) => (
+                                <option key={provider.id} value={provider.id} className="bg-slate-950">
+                                  {provider.label}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 shrink-0">
+                              Active parser
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-slate-600 leading-relaxed max-w-xl">
+                            {DMS_PROVIDERS.find((provider) => provider.id === ((dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER))?.description}
+                          </p>
                         </div>
 
                         {/* Dispatch Toggle Feature Switch */}

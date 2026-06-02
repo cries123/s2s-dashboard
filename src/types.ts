@@ -101,6 +101,7 @@ export interface DealershipSettings {
   laborGrossTarget?: number;
   partsSalesTarget?: number;
   enableDispatchTab?: boolean;
+  dmsProvider?: import('./constants/dmsProviders').DmsProviderId;
   dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
   dispatchShowTodayLoad?: boolean;
   dispatchBlockWhenFull?: boolean;

@@ -15,6 +15,9 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
 import {
   appointmentTrackerDoc,
   appointmentTrackerDocId,
@@ -76,6 +79,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   const [saving, setSaving] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [targetValue, setTargetValue] = useState(20);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [laborTarget, setLaborTarget] = useState(500000);
   const [partsTarget, setPartsTarget] = useState(300000);
   const [mtdGross, setMtdGross] = useState(0);
@@ -255,6 +259,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
+        setDmsProvider((data.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER);
       }
     });
 
@@ -435,7 +440,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       const response = await fetch('/api/parse-appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText })
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText }))
       });
 
       if (!response.ok) {

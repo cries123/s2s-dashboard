@@ -9,6 +9,9 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
 
 interface UpsellItem {
   code: string;
@@ -47,6 +50,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -57,6 +61,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         setLaborTarget(docSnap.data().laborGrossTarget || 500000);
+        setDmsProvider((docSnap.data().dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER);
       }
     });
     return () => unsubscribe();
@@ -351,7 +356,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       const response = await fetch('/api/parse-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText })
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText }))
       });
 
       if (!response.ok) {

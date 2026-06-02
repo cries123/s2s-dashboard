@@ -8,6 +8,12 @@ import admin from "firebase-admin";
 import { getApps, initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
+import {
+  normalizeDmsProvider,
+  parseAppointmentsReport,
+  parsePerformanceReport,
+  parseTechnicianReport,
+} from "./server/dms/index.js";
 
 dotenv.config();
 
@@ -154,7 +160,8 @@ async function startServer() {
 
   app.post("/api/parse-appointments", async (req, res) => {
     try {
-      const { pdfBase64, reportText } = req.body;
+      const { pdfBase64, reportText, dmsProvider: rawDmsProvider } = req.body;
+      const dmsProvider = normalizeDmsProvider(rawDmsProvider);
       let text = reportText || "";
 
       if (!text && pdfBase64) {
@@ -249,97 +256,12 @@ async function startServer() {
         }
       }
 
-      // DETERMINISTIC FALLBACK PARSER
-      console.log("[Appointments Parser] Executing high-accuracy deterministic fallback parsing pipeline");
-      let diagnosis = 0;
-      let oilChange = 0;
-      let recall = 0;
-      let misc = 0;
-
-      // Extract all unique confirmation keys (e.g. X06FZ2QQQK, XO6POK5ZXK, X060O61KVT, X06X0S1CNH...)
-      // Robust confirmation matching: starts with letter 'X', followed by 9 alphanumeric characters
-      const confKeysSet = new Set<string>();
-      const keyPattern = /\b(X[A-Z0-9]{9})\b/gi;
-      let match;
-      while ((match = keyPattern.exec(text)) !== null) {
-        confKeysSet.add(match[1].toUpperCase());
-      }
-
-      const confKeys = Array.from(confKeysSet);
-
-      if (confKeys.length > 0) {
-        console.log(`[Deterministic Parser] Found ${confKeys.length} unique confirmation keys. Segmenting document text...`);
-        for (const key of confKeys) {
-          const keyIdx = text.toUpperCase().indexOf(key);
-          if (keyIdx === -1) continue;
-
-          // Extract up to 1200 characters following the key, truncated before the next confirmation key starts
-          let block = text.substring(keyIdx, keyIdx + 1200).toUpperCase();
-          for (const otherKey of confKeys) {
-            if (otherKey === key) continue;
-            const otherIdx = block.indexOf(otherKey);
-            if (otherIdx !== -1) {
-              block = block.substring(0, otherIdx);
-            }
-          }
-
-          // Scan the segment for key indicators to categorize the appointment
-          const isRecall = block.includes("RECALL") || block.includes("CAMPAIGN") || block.includes("UPDATE") || block.includes("BULLETIN") || block.includes("ECU");
-          const isOil = block.includes("OIL") || block.includes("FILTER") || block.includes("MAINTENANCE") || block.includes("LUBE") || block.includes("ROTATION");
-          const isDiag = block.includes("CHECK") || block.includes("NOISE") || block.includes("INSPECTION") || block.includes("DIAG") || block.includes("WARN") || block.includes("LIGHT") || block.includes("LOST POWER") || block.includes("ADVISE");
-
-          if (isRecall) {
-            recall++;
-          } else if (isOil) {
-            oilChange++;
-          } else if (isDiag) {
-            diagnosis++;
-          } else {
-            misc++;
-          }
-        }
-      } else {
-        // Fallback if no keys found structure: split raw lines
-        console.log("[Deterministic Parser] No confirmation keys found. Estimating based on line heuristics.");
-        const lines = text.split('\n');
-        let rawCount = 0;
-        for (const line of lines) {
-          const l = line.toUpperCase();
-          if (!l.trim()) continue;
-
-          const hasTime = /\b\d{1,2}:\d{2}\s*(AM|PM)?\b/i.test(line);
-          const hasVin = /\b[A-Z0-9]{17}\b/.test(line);
-          if (hasTime && hasVin) {
-            rawCount++;
-            const isOil = l.includes("OIL") || l.includes("FILTER") || l.includes("MAINTENANCE") || l.includes("LUBE");
-            const isRecall = l.includes("RECALL") || l.includes("CAMPAIGN") || l.includes("UPDATE");
-            const isDiag = l.includes("CHECK") || l.includes("NOISE") || l.includes("INSPECTION") || l.includes("DIAG") || l.includes("WARN") || l.includes("LIGHT");
-
-            if (isOil) oilChange++;
-            else if (isRecall) recall++;
-            else if (isDiag) diagnosis++;
-            else misc++;
-          }
-        }
-        
-        // Final ultimate fail-safe numbers so it matches a standard 10-25 range instead of inflating 100+
-        if (oilChange === 0 && recall === 0 && diagnosis === 0 && misc === 0) {
-          oilChange = 8;
-          recall = 6;
-          diagnosis = 3;
-          misc = 3;
-        }
-      }
-
-      const total = oilChange + recall + diagnosis + misc;
-
-      res.json({
-        diagnosis,
-        oilChange,
-        recall,
-        misc,
-        total,
-        isAiParsed: false
+      const parsed = parseAppointmentsReport(text, dmsProvider);
+      console.log(`[Appointments Parser] DMS=${dmsProvider} deterministic result:`, parsed);
+      return res.json({
+        ...parsed,
+        isAiParsed: false,
+        dmsProvider,
       });
     } catch (error: any) {
       console.error("API Error Appointments:", error);
@@ -349,171 +271,9 @@ async function startServer() {
 
   app.post("/api/parse-performance", async (req, res) => {
     // Local deterministic parser helper for fallback or offline state
-    const parseDeterministicPerformance = (reportText: string) => {
-      // Setup default totals first
-      let totalSales = 136096.91;
-      let totalLabor = 67957.22;
-      let totalGross = 56463.26; // Grand Total Labor Gross!
-      let totalParts = 54743.36;
-      let totalGrossParts = 18997.72;
-      let totalHrs = 461.20;
-      let totalSo = 391;
-      let elr = 147.35;
+    const dmsProvider = normalizeDmsProvider(req.body?.dmsProvider);
+    const parseDeterministicPerformance = (reportText: string) => parsePerformanceReport(reportText, dmsProvider);
 
-      const advisorsMap: Map<string, any> = new Map();
-      const pageSections = reportText.split(/(?=Advisor\s+|All\s+Repair\s+Orders)/i);
-
-      for (const section of pageSections) {
-        const lines = section.split('\n');
-        let isGrandTotals = false;
-        let advisorName = "";
-
-        if (section.toUpperCase().includes("ALL REPAIR ORDERS")) {
-          isGrandTotals = true;
-        } else {
-          for (const line of lines) {
-            const match = line.match(/Advisor\s+(\w+)\s*-\s*([A-Za-z]+)/i);
-            if (match) {
-              advisorName = match[2].trim();
-              break;
-            }
-          }
-          if (!advisorName) {
-            for (const line of lines) {
-              const match = line.match(/Advisor\s+([A-Za-z]+)/i);
-              if (match) {
-                advisorName = match[1].trim();
-                break;
-              }
-            }
-          }
-        }
-
-        let soCountVal = 0;
-        let hrsSoldVal = 0;
-        let elrVal = 0;
-        let laborSoldVal = 0;
-        let grossLaborVal = 0;
-        let partsSoldVal = 0;
-        let grossPartsVal = 0;
-
-        // Parse summary Total row for SO#, hrsSold, elr
-        // It starts with "Total" and has many numbers
-        for (const line of lines) {
-          const l = line.trim().toUpperCase();
-          if (l.startsWith("TOTAL")) {
-            const nums = line.match(/[\d,]+(?:\.\d+)?/g);
-            if (nums && nums.length >= 10) {
-              const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-              soCountVal = clean[0];
-              hrsSoldVal = clean[2];
-              elrVal = clean[6];
-            }
-          }
-        }
-
-        // Parse Sales Type lines
-        for (const line of lines) {
-          const l = line.trim().toUpperCase().replace(/\s+/g, ' ');
-          if (l.startsWith("LABOR")) {
-            const isSubtype = l.includes("LABOR C") || l.includes("LABOR W") || l.includes("LABOR I") || l.includes("LABOR CEMP") || l.includes("LABOR WSHOP");
-            if (!isSubtype) {
-              const nums = line.match(/[\d,]+(?:\.\d+)?/g);
-              if (nums && nums.length >= 3) {
-                const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-                laborSoldVal = clean[0];
-                grossLaborVal = clean[2];
-              }
-            }
-          }
-          if (l.startsWith("PARTS")) {
-            const isSubtype = l.includes("PARTS C") || l.includes("PARTS W") || l.includes("PARTS I") || l.includes("PARTS CEMPR") || l.includes("PARTS CRO");
-            if (!isSubtype) {
-              const nums = line.match(/[\d,]+(?:\.\d+)?/g);
-              if (nums && nums.length >= 3) {
-                const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-                partsSoldVal = clean[0];
-                grossPartsVal = clean[2];
-              }
-            }
-          }
-        }
-
-        const totalSalesVal = Math.round((laborSoldVal + partsSoldVal) * 100) / 100;
-        const gpPercentVal = laborSoldVal > 0 ? Math.round((grossLaborVal / laborSoldVal) * 1000) / 10 : 0;
-
-        if (isGrandTotals) {
-          if (laborSoldVal > 0) totalLabor = laborSoldVal;
-          if (grossLaborVal > 0) totalGross = grossLaborVal;
-          if (partsSoldVal > 0) totalParts = partsSoldVal;
-          if (grossPartsVal > 0) totalGrossParts = grossPartsVal;
-          if (hrsSoldVal > 0) totalHrs = hrsSoldVal;
-          if (soCountVal > 0) totalSo = soCountVal;
-          if (totalSalesVal > 0) totalSales = totalSalesVal;
-          if (elrVal > 0) elr = elrVal;
-        } else if (advisorName) {
-          const cleanName = advisorName.charAt(0).toUpperCase() + advisorName.slice(1).toLowerCase();
-          
-          advisorsMap.set(cleanName.toLowerCase(), {
-            name: cleanName,
-            soCount: Math.round(soCountVal),
-            hrsSold: hrsSoldVal,
-            laborSold: laborSoldVal,
-            grossLabor: grossLaborVal,
-            partsSold: partsSoldVal,
-            grossParts: grossPartsVal,
-            totalSales: totalSalesVal,
-            gpPercent: gpPercentVal,
-            elr: elrVal,
-            upsells: []
-          });
-        }
-      }
-
-      let advisorsList = Array.from(advisorsMap.values());
-
-      // Fallback to static distribution ONLY if no advisors were parsed dynamically
-      if (advisorsList.length === 0) {
-        console.log("[Deterministic Parser] Dynamic parsing list was empty. Using default proportions.");
-        const names = ["Frank", "Lemmy"];
-        const proportions = [0.56, 0.44];
-        advisorsList = names.map((name, idx) => {
-          const prop = proportions[idx];
-          const adHrs = Math.round(totalHrs * prop * 10) / 10;
-          const adLabor = Math.round(totalLabor * prop * 100) / 100;
-          const adParts = Math.round(totalParts * prop * 100) / 100;
-          const adGrossLab = Math.round(totalGross * prop * 100) / 100;
-          const adGrossParts = Math.round(totalGrossParts * prop * 100) / 100;
-          const adTotal = Math.round((adLabor + adParts) * 100) / 100;
-          const adSo = Math.round(totalSo * prop);
-          return {
-            name,
-            soCount: adSo,
-            hrsSold: adHrs,
-            laborSold: adLabor,
-            grossLabor: adGrossLab,
-            partsSold: adParts,
-            grossParts: adGrossParts,
-            totalSales: adTotal,
-            gpPercent: adLabor > 0 ? Math.round((adGrossLab / adLabor) * 1000) / 10 : 83.1,
-            elr: adHrs > 0 ? Math.round((adLabor / adHrs) * 100) / 100 : elr,
-            upsells: []
-          };
-        });
-      }
-
-      return {
-        advisors: advisorsList,
-        totals: {
-          totalSales: Math.round(totalSales * 100) / 100,
-          totalLabor: Math.round(totalLabor * 100) / 100,
-          totalGross: Math.round(totalGross * 100) / 100,
-          totalParts: Math.round(totalParts * 100) / 100,
-          totalGrossParts: Math.round(totalGrossParts * 100) / 100,
-          totalHrs: Math.round(totalHrs * 10) / 10
-        }
-      };
-    };
 
     try {
       const { pdfBase64, reportText } = req.body;
@@ -1272,113 +1032,11 @@ For overall totals under 'totals':
   });
 
   // Local helper for fallback deterministic technician text parsing
-  const parseDeterministicTechnicianReport = (text: string) => {
-    const technicians: any[] = [];
-    const lines = text.split('\n');
-    const nameMap = new Map<string, string>();
-    
-    // Track last seen tech ID state just in case
-    let lastSeenId = "";
-    
-    // Title case helper
-    const titleCase = (str: string) => {
-      return str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    };
-
-    // Step 1: Pre-scan to compile IDs and names from headers like "64 - JACINTO" or "NM - NANCY MCGRAY"
-    for (const line of lines) {
-      const l = line.trim();
-      if (!l) continue;
-      
-      const headerMatch = l.match(/^(\w+)\s*-\s*([A-Za-z][A-Za-z0-9\s\.\-\(\)]+)/i);
-      if (headerMatch) {
-        const id = headerMatch[1].trim();
-        let name = headerMatch[2].trim();
-        // Strip trailing numbers like "ETHAN 6395" -> "ETHAN"
-        name = name.replace(/\s+\d+$/, '').trim();
-        nameMap.set(id, titleCase(name));
-      }
-    }
-    
-    console.log("[Deterministic Parser] Pre-scanned technician names:", Array.from(nameMap.entries()));
-
-    // Step 2: Extract technical lines matching "Total (Tech):" or "Total (Tech): ID"
-    for (const line of lines) {
-      const l = line.trim();
-      if (!l) continue;
-      
-      // Track the last seen ID sequentially in case of missing index maps
-      const headerMatch = l.match(/^(\w+)\s*-\s*([A-Za-z][A-Za-z0-9\s\.\-\(\)]+)/i);
-      if (headerMatch) {
-        lastSeenId = headerMatch[1].trim();
-      }
-      
-      // Find the Total (Tech) lines
-      const totalMatch = l.match(/Total\s*\(Tech\):?\s*(\w+)\s+([\d\.\s\,\-]+)/i);
-      if (totalMatch) {
-        const id = totalMatch[1].trim();
-        const numbersPart = totalMatch[2].trim();
-        
-        const nums = numbersPart.split(/\s+/).map(x => parseFloat(x.replace(/,/g, ''))).filter(x => !isNaN(x));
-        
-        // We expect around 6 numbers on this line
-        if (nums.length >= 5) {
-          const actualHrs = nums[0];
-          const flaggedHrs = nums[1]; // Sold Hrs
-          const clockedHrs = nums[3]; // Clocked In Hrs
-          let efficiency = nums[4];   // Sold / Clocked % (raw efficiency)
-          
-          // If efficiency is missing or 0 but we have valid hours, compute it
-          if (clockedHrs > 0 && (!efficiency || efficiency === 0)) {
-            efficiency = Math.round((flaggedHrs / clockedHrs) * 100);
-          }
-          
-          let techName = nameMap.get(id) || nameMap.get(lastSeenId);
-          if (!techName) {
-            techName = `Technician #${id}`;
-          }
-          
-          // Skip entry if ID of technician is just dummy / ignored rows e.g. "99"
-          if (id === "99" && techName.includes("99")) {
-            continue;
-          }
-
-          // Validate values are reasonable and not grand totals
-          if (clockedHrs > 0 || flaggedHrs > 0) {
-            technicians.push({
-              techName,
-              clockedHours: Math.round(clockedHrs * 100) / 100,
-              flaggedHours: Math.round(flaggedHrs * 100) / 100,
-              efficiency: Math.round(efficiency)
-            });
-          }
-        }
-      }
-    }
-    
-    // Backup: if no Total (Tech) blocks were matched but we have headers and numbers under them
-    if (technicians.length === 0) {
-      const defaultTechs = ['Daniel Santiago', 'Jon Stinn', 'Matthew', 'Jacinto', 'Ethan', 'Trevor'];
-      const lengthHash = text.length || 42;
-      defaultTechs.forEach((name, i) => {
-        const clocked = Math.round((35 + (lengthHash + i * 7) % 12) * 10) / 10;
-        const flagged = Math.round((40 + (lengthHash + i * 11) % 20) * 10) / 10;
-        const efficiency = Math.round((flagged / clocked) * 100);
-        technicians.push({
-          techName: name,
-          clockedHours: clocked,
-          flaggedHours: flagged,
-          efficiency
-        });
-      });
-    }
-    
-    return { technicians };
-  };
 
   app.post("/api/parse-technician-report", async (req, res) => {
     try {
-      const { pdfBase64, reportText } = req.body;
+      const { pdfBase64, reportText, dmsProvider: rawDmsProvider } = req.body;
+      const dmsProvider = normalizeDmsProvider(rawDmsProvider);
       let text = "";
 
       if (pdfBase64) {
@@ -1466,7 +1124,7 @@ For overall totals under 'totals':
 
       // Local Fallback
       console.log("[Technician Parser] Using deterministic local regex parsing...");
-      const deterministicResult = parseDeterministicTechnicianReport(text);
+      const deterministicResult = parseTechnicianReport(text, dmsProvider);
       return res.json({ success: true, data: deterministicResult, isFallback: true });
 
     } catch (error: any) {
