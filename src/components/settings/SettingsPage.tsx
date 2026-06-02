@@ -323,12 +323,6 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
             disabled={saving}
           />
           <ToggleRow
-            label="Recalls tab"
-            checked={preferences.dashboardModules.showRecallsTab}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showRecallsTab: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
             label="Pot of Gold tab"
             checked={preferences.dashboardModules.showPotOfGoldTab}
             onChange={(v) => wrapSave(() => updateDashboardModules({ showPotOfGoldTab: v }))}

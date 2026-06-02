@@ -30,8 +30,6 @@ export function isTabAllowedForUser(tab: AppTab, user: User | null | undefined):
     case 'search':
     case 'alerts':
     case 'dispatch':
-    case 'recalls':
-      return showService;
     case 'appointments':
       return showService && canSeeOperationsReport(user);
     case 'forecast':

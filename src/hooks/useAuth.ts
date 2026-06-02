@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
@@ -8,18 +8,61 @@ import { normalizeUserProfile } from '../lib/rbac';
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileUnsubRef = useRef<(() => void) | null>(null);
+
+  const clearProfileListener = useCallback(() => {
+    profileUnsubRef.current?.();
+    profileUnsubRef.current = null;
+  }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userDocRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', firebaseUser.uid);
-        
-        const unsubDoc = onSnapshot(userDocRef, (docSnap) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      clearProfileListener();
+
+      if (!firebaseUser) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      const userDocRef = doc(
+        db,
+        'artifacts',
+        'hyundai-sales-to-service',
+        'public',
+        'data',
+        'users',
+        firebaseUser.uid
+      );
+
+      profileUnsubRef.current = onSnapshot(
+        userDocRef,
+        (docSnap) => {
+          if (auth.currentUser?.uid !== firebaseUser.uid) return;
+
           if (docSnap.exists()) {
             setUser(normalizeUserProfile({ uid: firebaseUser.uid, ...docSnap.data() }));
           } else {
-            console.warn(`useAuth: No user document found for UID ${firebaseUser.uid}`);
-            setUser(normalizeUserProfile({
+            setUser(
+              normalizeUserProfile({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                role: 'pending',
+                approved: false,
+                status: 'pending',
+                username: firebaseUser.email || 'User',
+                jobTitle: '',
+              })
+            );
+          }
+          setLoading(false);
+        },
+        (error) => {
+          console.error('useAuth Snapshot Error:', error);
+          if (auth.currentUser?.uid !== firebaseUser.uid) return;
+          setUser(
+            normalizeUserProfile({
               uid: firebaseUser.uid,
               email: firebaseUser.email || '',
               role: 'pending',
@@ -27,34 +70,25 @@ export function useAuth() {
               status: 'pending',
               username: firebaseUser.email || 'User',
               jobTitle: '',
-            }));
-          }
+            })
+          );
           setLoading(false);
-        }, (error) => {
-          console.error(`useAuth Snapshot Error:`, error);
-          setUser(normalizeUserProfile({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            role: 'pending',
-            approved: false,
-            status: 'pending',
-            username: firebaseUser.email || 'User',
-            jobTitle: '',
-          }));
-          setLoading(false);
-        });
-
-        return () => {
-          unsubDoc();
-        };
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
+        }
+      );
     });
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      clearProfileListener();
+      unsubscribeAuth();
+    };
+  }, [clearProfileListener]);
 
-  return { user, loading };
+  const logout = useCallback(async () => {
+    clearProfileListener();
+    setUser(null);
+    setLoading(false);
+    await signOut(auth);
+  }, [clearProfileListener]);
+
+  return { user, loading, logout };
 }

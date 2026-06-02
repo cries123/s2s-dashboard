@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useCustomers } from './hooks/useCustomers';
-import { signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
 import { doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { Customer, User } from './types';
@@ -9,7 +8,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2, ShieldAlert
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,7 +27,6 @@ import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 import { isServiceAlertActive } from './lib/alerts';
 import {
   type AppTab,
@@ -159,7 +157,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 }
 
 export default function App() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<AppTab>('add');
@@ -225,7 +223,6 @@ export default function App() {
       { id: 'search', label: 'Directory', icon: Search },
       { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
       ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
-      { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ] : []),
     ...(showService && canSeeOperationsReport(user) ? [{ id: 'appointments', label: 'Operations', icon: Calendar }] : []),
     ...(canSeeSalesPerformanceReport(user) ? [{ id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 }] : []),
@@ -297,7 +294,7 @@ export default function App() {
     }
   }, [user?.uid, authLoading]);
 
-  const handleSignOut = () => signOut(auth);
+  const handleSignOut = () => void logout();
 
   const handleDeleteCustomer = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to PERMANENTLY delete ${name}?`)) return;
@@ -310,12 +307,12 @@ export default function App() {
     }
   };
 
-  if (isLoading) {
-    return <LoadingScreen />;
+  if (!user && !authLoading) {
+    return <LoginView />;
   }
 
-  if (!user) {
-    return <LoginView />;
+  if (isLoading) {
+    return <LoadingScreen />;
   }
 
   if (user && !isUserApproved(user)) {
@@ -435,13 +432,12 @@ export default function App() {
             )}
 
             {showService && (
-              <NavDropdown label="Service" isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}>
+              <NavDropdown label="Service" isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}>
                 <NavLink href="/service/directory" onClick={() => setActiveTab('search')} isActive={activeTab === 'search'}>Directory</NavLink>
                 <NavLink href="/service/alerts" onClick={() => setActiveTab('alerts')} isActive={activeTab === 'alerts'} badge={activeAlertsCount}>Alerts</NavLink>
                 {dealershipSettings?.enableDispatchTab !== false && (
                   <NavLink href="/service/dispatch" onClick={() => setActiveTab('dispatch')} isActive={activeTab === 'dispatch'}>Dispatch</NavLink>
                 )}
-                <NavLink href="/service/recalls" onClick={() => setActiveTab('recalls')} isActive={activeTab === 'recalls'}>Recalls</NavLink>
               </NavDropdown>
             )}
 
@@ -632,9 +628,6 @@ export default function App() {
             <VinLookup />
           )}
 
-          {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
-          )}
 
 {activeTab === 'pot-of-gold' && (
             <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} dealershipSettings={dealershipSettings} />
