@@ -60,6 +60,17 @@ export default function ManagerDashboard({
   onSuccess,
   onError,
 }: ManagerDashboardProps) {
+  const [internalSubTab, setInternalSubTab] = useState<ManagerTab>(activeSubTab);
+
+  useEffect(() => {
+    setInternalSubTab(activeSubTab);
+  }, [activeSubTab]);
+
+  const subTab = onChangeSubTab ? activeSubTab : internalSubTab;
+  const handleSubTabChange = (tab: ManagerTab) => {
+    if (onChangeSubTab) onChangeSubTab(tab);
+    else setInternalSubTab(tab);
+  };
   const { user: currentUser } = useAuth();
   const tenantId = resolveUserTenantId(currentUser);
   const tenantProfile = getTenantProfile(tenantId);
@@ -269,10 +280,10 @@ export default function ManagerDashboard({
             <button
               key={tab.id}
               type="button"
-              onClick={() => onChangeSubTab?.(tab.id)}
+              onClick={() => handleSubTabChange(tab.id)}
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
-                activeSubTab === tab.id ? 'bg-brand-primary text-white' : 'text-slate-400 hover:text-white'
+                subTab === tab.id ? 'bg-brand-primary text-white' : 'text-slate-400 hover:text-white'
               )}
             >
               <tab.icon size={14} />
@@ -282,7 +293,7 @@ export default function ManagerDashboard({
         </div>
       </div>
 
-      {activeSubTab === 'users' && (
+      {subTab === 'users' && (
         <div className="space-y-6">
           <div className="relative max-w-md">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
@@ -390,7 +401,7 @@ export default function ManagerDashboard({
         </div>
       )}
 
-      {activeSubTab === 'settings' && (
+      {subTab === 'settings' && (
         <div className="card-base p-8 max-w-lg">
           <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6">Tenant DMS Configuration</h3>
           <p className="text-xs text-slate-500 mb-4">Applies only to <span className="text-white font-bold">{tenantProfile?.name}</span></p>
@@ -411,7 +422,7 @@ export default function ManagerDashboard({
         </div>
       )}
 
-      {activeSubTab === 'logs' && (
+      {subTab === 'logs' && (
         <div className="card-base overflow-hidden">
           <div className="p-4 border-b border-white/5">
             <h3 className="text-sm font-black text-white uppercase tracking-widest">Audit Logs — {tenantId}</h3>

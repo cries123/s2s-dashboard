@@ -151,6 +151,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('add');
   const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
+  const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
 
   // Artificial delay for loading screen
@@ -468,7 +469,7 @@ export default function App() {
               <NavDropdown label="Manager" isActive={activeTab === 'manager'}>
                 <NavLink href="/manager/operations" onClick={() => { setActiveTab('manager'); setManagerSubTab('operations'); }} isActive={activeTab === 'manager' && managerSubTab === 'operations'}>Operation Settings</NavLink>
                 <NavLink href="/manager/preferences" onClick={() => { setActiveTab('manager'); setManagerSubTab('preferences'); }} isActive={activeTab === 'manager' && managerSubTab === 'preferences'}>Preferences</NavLink>
-                <NavLink href="/manager/team" onClick={() => { setActiveTab('manager'); setManagerSubTab('team'); }} isActive={activeTab === 'manager' && managerSubTab === 'team'}>Team Approvals</NavLink>
+                <NavLink href="/manager/team" onClick={() => { setActiveTab('manager'); setManagerSubTab('team'); setManagerDashboardSubTab('users'); }} isActive={activeTab === 'manager' && managerSubTab === 'team'}>Team Approvals</NavLink>
               </NavDropdown>
             )}
 
@@ -518,7 +519,7 @@ export default function App() {
                           key={tab.id}
                           onClick={() => {
                             setActiveTab(tab.id as any);
-                            if (tab.id === 'manager') setManagerSubTab('operations');
+                            if (tab.id === 'manager') { setManagerSubTab('operations'); setManagerDashboardSubTab('users'); }
                             if (tab.id === 'admin') setAdminSubTab('users');
                             setIsMobileNavOpen(false);
                           }}
@@ -550,7 +551,45 @@ export default function App() {
             {canAccessPrimaryAdminSettings(currentUser) && (
               <div className="relative">
                 <button onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)} className={cn('w-9 h-9 flex items-center justify-center border rounded-lg transition-all shadow-sm', activeTab === 'admin' ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-brand-primary/10')} title="Admin Settings"><Settings size={16} /></button>
-                <AnimatePresence>{isAdminMenuOpen && (<><div className="fixed inset-0 z-[60]" onClick={() => setIsAdminMenuOpen(false)} /><motion.div initial={{ opacity: 0, y: 6, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.95 }} className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[70] py-1.5 p-1"><NavLink href="/admin/users" onClick={() => { setActiveTab('admin'); setAdminSubTab('users'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'users'}>User Settings</NavLink><NavLink href="/admin/logs" onClick={() => { setActiveTab('admin'); setAdminSubTab('logs'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'logs'}>Audit Logs</NavLink></motion.div></>)}</AnimatePresence>
+                <AnimatePresence>
+                  {isAdminMenuOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-[40]"
+                        onClick={() => setIsAdminMenuOpen(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                        className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[60] py-1.5 p-1"
+                      >
+                        <NavLink
+                          href="/admin/users"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('users');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'users'}
+                        >
+                          User Settings
+                        </NavLink>
+                        <NavLink
+                          href="/admin/logs"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('logs');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'logs'}
+                        >
+                          Audit Logs
+                        </NavLink>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
               </div>
             )}
              <div className="hidden lg:flex flex-col items-end">
@@ -664,7 +703,12 @@ export default function App() {
           )}
 
           {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab === 'team' && (
-            <ManagerDashboard activeSubTab="users" onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} />
+            <ManagerDashboard
+              activeSubTab={managerDashboardSubTab}
+              onChangeSubTab={setManagerDashboardSubTab}
+              onSuccess={(msg) => showNotification(msg)}
+              onError={(msg) => showNotification(msg, true)}
+            />
           )}
           {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab !== 'team' && (
             <AdminPanel key={`manager-${currentDealershipId || 'hyundai'}`} panelMode="manager" currentDealershipId={currentDealershipId || 'hyundai'} onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} activeSubTab={managerSubTab === 'preferences' ? 'preferences' : 'operations'} onChangeSubTab={(tab) => setManagerSubTab(tab === 'preferences' ? 'preferences' : 'operations')} />

@@ -150,6 +150,7 @@ export default function AuthenticatedApp() {
 const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('appointments');
   const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
+  const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const { preferences, loading: prefsLoading } = usePreferences();
   const [landingApplied, setLandingApplied] = useState(false);
@@ -500,7 +501,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                   href="/manager/team" 
                   onClick={() => {
                     setActiveTab('manager');
-                    setManagerSubTab('team');
+                    setManagerSubTab('team'); setManagerDashboardSubTab('users');
                   }}
                   isActive={activeTab === 'manager' && managerSubTab === 'team'}
                 >
@@ -597,12 +598,12 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                 <AnimatePresence>
                   {isAdminMenuOpen && (
                     <>
-                      <div className="fixed inset-0 z-[60]" onClick={() => setIsAdminMenuOpen(false)} />
+                      <div className="fixed inset-0 z-[40]" onClick={() => setIsAdminMenuOpen(false)} />
                       <motion.div
                         initial={{ opacity: 0, y: 6, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 6, scale: 0.95 }}
-                        className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[70] py-1.5 p-1"
+                        className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[60] py-1.5 p-1"
                       >
                         <NavLink href="/admin/users" onClick={() => { setActiveTab('admin'); setAdminSubTab('users'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'users'}>
                           User Settings
@@ -730,7 +731,8 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
 
           {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab === 'team' && (
             <ManagerDashboard
-              activeSubTab="users"
+              activeSubTab={managerDashboardSubTab}
+              onChangeSubTab={setManagerDashboardSubTab}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
             />
