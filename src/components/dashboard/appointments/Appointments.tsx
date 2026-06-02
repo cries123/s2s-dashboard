@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
-import { User, DailyStat, DashboardModulePreferences } from '../../../types';
+import { User, DailyStat } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { 
@@ -15,26 +15,12 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
-import { getDealershipStaffConfig } from '../../../lib/dealershipStaff';
-import { zeroAdvisorCounts } from '../../../lib/potOfGoldData';
-import {
-  EMPTY_PERFORMANCE_TOTALS,
-  performanceDocId,
-  resolveOperationsViewPeriod,
-} from '../../../lib/operationsViewPeriod';
-import { withDmsProvider } from '../../../lib/reportIngestion';
-import type { DmsProviderId } from '../../../constants/dmsProviders';
-import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
-import {
-  appointmentTrackerDoc,
-  appointmentTrackerDocId,
-} from '../../../lib/appointmentTracker';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AppointmentsProps {
   currentUser: User;
   currentDealershipId: string;
-  modulePrefs?: DashboardModulePreferences;
+  modulePrefs?: import('../../../types').DashboardModulePreferences;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -60,20 +46,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-export default function Appointments({ currentUser, currentDealershipId, modulePrefs, onSuccess, onError }: AppointmentsProps) {
-  const modules = modulePrefs ?? {
-    showWeatherWidget: true,
-    showOperationsKpis: true,
-    showOperationsProjections: true,
-    showAdvisorPerformance: true,
-    showTechEfficiency: true,
-    showArchiveTools: true,
-    showForecastTab: true,
-    showSalesPerformanceTab: true,
-    showVinSearchTab: true,
-    showRecallsTab: true,
-    showPotOfGoldTab: true,
-  };
+export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -86,13 +59,18 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   const [saving, setSaving] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [targetValue, setTargetValue] = useState(20);
-  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [laborTarget, setLaborTarget] = useState(500000);
   const [partsTarget, setPartsTarget] = useState(300000);
   const [mtdGross, setMtdGross] = useState(0);
   const [mtdPartsGross, setMtdPartsGross] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [pdfParsePreview, setPdfParsePreview] = useState<{
+    fileName: string;
+    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number };
+    total: number;
+    parseMethod?: string;
+  } | null>(null);
   const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
   const [showManualBreakdownEntry, setShowManualBreakdownEntry] = useState(false);
   const [manualBreakdown, setManualBreakdown] = useState({
@@ -187,10 +165,22 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       });
  
       // 4. NOW RESET ACTIVE COPIES
-      // Reset active advisors to a clean empty sheet
+      // Reset active advisors to clean empty sheet
+      const initialAdvisors = [
+        { name: "Frank", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
+        { name: "Lemmy", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
+        { name: "Jaryn", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] }
+      ];
       await setDoc(activeRef, {
-        advisors: [],
-        totals: EMPTY_PERFORMANCE_TOTALS,
+        advisors: initialAdvisors,
+        totals: {
+          totalSales: 0,
+          totalLabor: 0,
+          totalGross: 0,
+          totalParts: 0,
+          totalGrossParts: 0,
+          totalHrs: 0
+        },
         reportStartDate: "2026-06-01",
         reportEndDate: "2026-06-30",
         updatedAt: serverTimestamp(),
@@ -200,9 +190,11 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       // Reset Pot of Gold statistics (keep payout settings but clear advisor/tech statistics)
       if (activePoGSnap.exists()) {
         const data = activePoGSnap.data();
-        const settingsSnap = await getDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId));
-        const staff = getDealershipStaffConfig(currentDealershipId, settingsSnap.exists() ? settingsSnap.data() : null);
-        const clearedAdvData = zeroAdvisorCounts(data.advData || [], staff.competitionAdvisors.map((a) => a.id));
+        const clearedAdvData = (data.advData || []).map((row: any) => ({
+          ...row,
+          frank: 0,
+          lemmy: 0
+        }));
         const clearedTechData = (data.techData || []).map((row: any) => {
           const updatedRow = { ...row };
           Object.keys(updatedRow).forEach(key => {
@@ -252,13 +244,12 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
-        setDmsProvider((data.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER);
       }
     });
 
-    // Fetch Performance for Gross Tracking (respects View Period)
-    const perfDocId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
-    const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', perfDocId);
+    // Fetch Performance for Gross Tracking
+    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubPerf = onSnapshot(perfRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -290,22 +281,15 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           setMtdLaborSales(computedLabor);
           setMtdPartsGross(computedPartsGross);
         }
-      } else {
-        setActivePerformanceData(null);
-        setMtdGross(0);
-        setMtdLaborSales(0);
-        setMtdPartsGross(0);
       }
     });
 
-    // Fetch Technician Reports (respects View Period)
-    const techDocId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
-    const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', techDocId);
+    // Fetch Technician Reports for dynamic active tracking snapshots
+    const activeTechId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+    const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', activeTechId);
     const unsubTech = onSnapshot(techRef, (snap) => {
       if (snap.exists()) {
         setActiveTechData(snap.data());
-      } else {
-        setActiveTechData(null);
       }
     });
 
@@ -314,7 +298,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       unsubPerf();
       unsubTech();
     };
-  }, [currentDealershipId, selectedMonth]);
+  }, [currentDealershipId]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -338,15 +322,19 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     if (!currentDealershipId) return;
 
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const q =
-      currentDealershipId === 'hyundai'
-        ? collection(db, path)
-        : query(collection(db, path), where('dealershipId', '==', currentDealershipId));
+    const isAdminUser = currentUser.role === 'admin';
+    
+    // For non-admins, Firestore REQUIRES the query to match the security rules.
+    // If rules say you can only see your dealership, you MUST query with that filter.
+    const q = isAdminUser 
+      ? collection(db, path)
+      : query(collection(db, path), where('dealershipId', '==', currentDealershipId));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyStat));
-
-      stats = stats.filter((s) => {
+      
+      // Filter by dealershipId, allowing legacy data (no id) in Hyundai view
+      stats = stats.filter(s => {
         if (currentDealershipId === 'hyundai') {
           return !s.dealershipId || s.dealershipId === 'hyundai';
         }
@@ -384,10 +372,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     const totalCount = Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0) as number;
     
     setSaving(true);
-    const trackerDocId = appointmentTrackerDocId(currentDealershipId || 'hyundai', selectedDate);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${trackerDocId}`;
+    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${selectedDate}`;
     try {
-      await setDoc(appointmentTrackerDoc(db, currentDealershipId || 'hyundai', selectedDate), {
+      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
         date: selectedDate,
         count: totalCount,
         dealershipId: currentDealershipId || 'hyundai',
@@ -428,135 +415,153 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     });
   };
 
+  const applyPdfBreakdown = async (
+    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
+    totalCount: number,
+    fileLabel: string
+  ) => {
+    await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
+      date: selectedDate,
+      count: totalCount,
+      dealershipId: currentDealershipId || 'hyundai',
+      breakdown,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser!.uid
+    }, { merge: true });
+
+    setDailyCount(totalCount.toString());
+    setManualBreakdown(breakdown);
+    onSuccess?.(
+      `Parsed ${totalCount} appointments from ${fileLabel}: ` +
+        `${breakdown.oilChange} oil, ${breakdown.diagnosis} diag, ${breakdown.recall} recall, ${breakdown.misc} misc.`
+    );
+  };
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
 
     setIsUploadingPdf(true);
-    
+
     try {
-      const reportText = await extractTextFromPDF(file);
-      
+      const [reportText, pdfBase64] = await Promise.all([
+        extractTextFromPDF(file),
+        fileToBase64(file),
+      ]);
+
       const response = await fetch('/api/parse-appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText }))
+        body: JSON.stringify({ reportText, pdfBase64 }),
       });
 
       if (!response.ok) {
         let errorMessage = 'Failed to analyze report';
         const contentType = response.headers.get('content-type');
-        
         if (contentType && contentType.includes('application/json')) {
           try {
             const errorData = await response.json();
             errorMessage = errorData.error || errorMessage;
-          } catch (e) {
+          } catch {
             errorMessage = `Server Error (${response.status}): Malformed error response.`;
           }
         } else {
-          const text = await response.text();
-          console.error('Server returned non-JSON error:', text.substring(0, 200));
+          const errText = await response.text();
+          console.error('Server returned non-JSON error:', errText.substring(0, 200));
           errorMessage = `Server Error (${response.status}): ${response.statusText}.`;
         }
         throw new Error(errorMessage);
       }
 
-      let rawData;
-      try {
-        rawData = await response.json();
-      } catch (e) {
-        console.error('Failed to parse successful response as JSON:', e);
-        throw new Error('Server returned an invalid data format. Please try again.');
-      }
-      
+      const rawData = await response.json();
       const breakdown = {
         diagnosis: rawData.diagnosis || 0,
         oilChange: rawData.oilChange || 0,
         recall: rawData.recall || 0,
-        misc: rawData.misc || 0
+        misc: rawData.misc || 0,
       };
-
-      // Ensure total count matches the sum of breakdown to avoid confusion
       const sumBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
       const totalCount = sumBreakdown > 0 ? sumBreakdown : (rawData.total || 0);
+      if (totalCount === 0) {
+        throw new Error('No appointments found in this PDF. Use a PBS Appointment Details report for the selected day.');
+      }
 
-      await setDoc(appointmentTrackerDoc(db, currentDealershipId || 'hyundai', selectedDate), {
-        date: selectedDate,
-        count: totalCount,
-        dealershipId: currentDealershipId || 'hyundai',
+      setPdfParsePreview({
+        fileName: file.name,
         breakdown,
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUser.uid
-      }, { merge: true });
-      
-      setDailyCount(totalCount.toString());
-      onSuccess?.(`AI Parsing Success: Identified ${totalCount} appointments.`);
+        total: totalCount,
+        parseMethod: rawData.parseMethod || (rawData.isAiParsed ? 'ai' : 'deterministic'),
+      });
     } catch (err: any) {
-      console.error("PDF Parse Error:", err);
-      onError?.(err.message || "Failed to analyze PDF report.");
+      console.error('PDF Parse Error:', err);
+      onError?.(err.message || 'Failed to analyze PDF report.');
     } finally {
       setIsUploadingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
     }
   };
 
+  const confirmPdfParsePreview = async () => {
+    if (!pdfParsePreview || !currentUser) return;
+    setIsUploadingPdf(true);
+    try {
+      await applyPdfBreakdown(pdfParsePreview.breakdown, pdfParsePreview.total, pdfParsePreview.fileName);
+      setPdfParsePreview(null);
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to save parsed appointments.');
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
   const calculateMetrics = () => {
-    const viewPeriod = resolveOperationsViewPeriod(selectedMonth);
-    const { year: currentYear, month: currentMonth, isHistorical } = viewPeriod;
-
     const today = new Date();
-    const isActiveCurrentMonth =
-      !isHistorical &&
-      today.getFullYear() === currentYear &&
-      today.getMonth() === currentMonth;
-
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    
+    // Month Stats
     const monthStats = allStats.filter(s => {
       const d = new Date(s.date + 'T00:00:00');
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
     const monthTotal = monthStats.reduce((acc, s) => acc + s.count, 0);
-
+    
+    // Week Stats (Monday start)
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
     startOfWeek.setHours(0, 0, 0, 0);
-
-    const weekStats = isActiveCurrentMonth
-      ? allStats.filter(s => {
-          const d = new Date(s.date + 'T00:00:00');
-          return d >= startOfWeek;
-        })
-      : [];
+    
+    const weekStats = allStats.filter(s => {
+      const d = new Date(s.date + 'T00:00:00');
+      return d >= startOfWeek;
+    });
     const weekTotal = weekStats.reduce((acc, s) => acc + s.count, 0);
 
+    // Forecasting
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const elapsedDays = today.getDate();
 
-    let latestElapsedDay = isHistorical
-      ? daysInMonth
-      : isActiveCurrentMonth
-        ? today.getDate()
-        : daysInMonth;
-
-    if (isActiveCurrentMonth) {
-      monthStats.forEach(s => {
-        if (s.count > 0) {
-          const d = new Date(s.date + 'T00:00:00');
-          if (d.getDate() > latestElapsedDay) {
-            latestElapsedDay = d.getDate();
-          }
+    // Find the latest day with logged data in the active month, or current day, whichever is newer
+    let latestElapsedDay = elapsedDays;
+    monthStats.forEach(s => {
+      if (s.count > 0) {
+        const d = new Date(s.date + 'T00:00:00');
+        if (d.getDate() > latestElapsedDay) {
+          latestElapsedDay = d.getDate();
         }
-      });
-    }
+      }
+    });
 
+    // Working days (Monday to Friday only) calculations
     let totalWorkingDays = 0;
     let elapsedWorkingDays = 0;
     let remainingWorkingDays = 0;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(currentYear, currentMonth, d);
-      const dayOfWeek = date.getDay();
+      const dayOfWeek = date.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
       const isWorkingDay = dayOfWeek >= 1 && dayOfWeek <= 5;
-
+      
       if (isWorkingDay) {
         totalWorkingDays++;
         if (d <= latestElapsedDay) {
@@ -567,11 +572,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       }
     }
 
-    if (isHistorical) {
-      elapsedWorkingDays = totalWorkingDays;
-      remainingWorkingDays = 0;
-    }
-
+    // Help guard against division by zero on the 1st day/weekend
     const activeElapsedWorkingDays = elapsedWorkingDays > 0 ? elapsedWorkingDays : 1;
 
     const pad = (n: number) => n.toString().padStart(2, '0');
@@ -579,46 +580,46 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     const elapsedMonthStats = monthStats.filter(s => s.date <= limitDateStr);
     const elapsedMonthTotal = elapsedMonthStats.reduce((acc, s) => acc + s.count, 0);
 
+    // If we have actual recorded stats for past/present days, count those. Otherwise fallback to monthTotal.
     const runRateBase = elapsedMonthTotal > 0 ? elapsedMonthTotal : monthTotal;
 
+    // Use working days average to project remaining working days
     const avgDaily = activeElapsedWorkingDays > 0 ? runRateBase / activeElapsedWorkingDays : 0;
-    const forecast = isHistorical
-      ? monthTotal
-      : Math.round(runRateBase + avgDaily * remainingWorkingDays);
+    const forecast = Math.round(runRateBase + (avgDaily * remainingWorkingDays));
 
+    // PACE TRACKING (Based on Working Days in Month)
     const dailyTarget = targetValue;
     const monthTarget = dailyTarget * totalWorkingDays;
     const paceTarget = Math.round(dailyTarget * elapsedWorkingDays);
-
+    
+    // Variance from Pace (The "Lost Opportunity" if negative, "Surplus" if positive)
     const mtdVariance = runRateBase - paceTarget;
     const lostOpportunity = mtdVariance < 0 ? Math.abs(mtdVariance) : 0;
+    
+    // Current Monthly Shortfall (Goal - Current)
     const currentShortfall = Math.max(0, monthTarget - monthTotal);
+    
+    // Projected Shortfall (Goal - Forecast)
     const projectedShortfall = monthTarget - forecast;
 
+    // PROJECTED SALES SHORTFALLS & FORECASTS (Using working days)
     const laborDailyAvg = activeElapsedWorkingDays > 0 ? mtdGross / activeElapsedWorkingDays : 0;
     const laborSalesDailyAvg = activeElapsedWorkingDays > 0 ? mtdLaborSales / activeElapsedWorkingDays : 0;
     const grossPaceTarget = Math.round((laborTarget / totalWorkingDays) * elapsedWorkingDays);
-    const grossForecast = isHistorical
-      ? Math.round(mtdGross)
-      : Math.round(mtdGross + laborDailyAvg * remainingWorkingDays);
-    const laborSalesForecast = isHistorical
-      ? Math.round(mtdLaborSales)
-      : Math.round(mtdLaborSales + laborSalesDailyAvg * remainingWorkingDays);
+    const grossForecast = Math.round(mtdGross + (laborDailyAvg * remainingWorkingDays));
+    const laborSalesForecast = Math.round(mtdLaborSales + (laborSalesDailyAvg * remainingWorkingDays));
     const grossVariance = mtdGross - grossPaceTarget;
-
+    
+    // PARTS FORECAST (Using working days)
     const partsDailyAvg = activeElapsedWorkingDays > 0 ? mtdPartsGross / activeElapsedWorkingDays : 0;
     const partsPaceTarget = Math.round((partsTarget / totalWorkingDays) * elapsedWorkingDays);
-    const partsForecast = isHistorical
-      ? Math.round(mtdPartsGross)
-      : Math.round(mtdPartsGross + partsDailyAvg * remainingWorkingDays);
+    const partsForecast = Math.round(mtdPartsGross + (partsDailyAvg * remainingWorkingDays));
     const partsVariance = mtdPartsGross - partsPaceTarget;
 
-    return {
-      viewPeriodLabel: viewPeriod.label,
-      isHistorical,
-      monthTotal,
-      weekTotal,
-      forecast,
+    return { 
+      monthTotal, 
+      weekTotal, 
+      forecast, 
       avgDaily: avgDaily.toFixed(1),
       daysRemaining: remainingWorkingDays,
       lostOpportunity,
@@ -629,6 +630,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       dailyTarget,
       monthTarget,
       paceTarget,
+      // Sales metrics
       mtdGross,
       mtdLaborSales,
       mtdPartsGross,
@@ -639,11 +641,12 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       grossVariance,
       laborDailyAvg,
       laborSalesDailyAvg,
+      // Parts metrics
       partsForecast,
       partsPaceTarget,
       partsTarget,
       partsDailyAvg,
-      partsVariance,
+      partsVariance
     };
   };
 
@@ -714,56 +717,23 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         }
       `}</style>
 
-      {modules.showOperationsKpis && (
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 p-5 sm:p-8 shadow-2xl">
-        <div className="absolute top-0 right-0 w-56 h-56 bg-brand-primary/10 blur-[80px] rounded-full pointer-events-none" />
-        <div className="relative flex flex-col gap-6">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div>
-              <span className="text-[9px] font-black text-brand-primary uppercase tracking-[0.25em]">Fixed Operations</span>
-              <h1 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tight mt-1">
-                Operations Center
-              </h1>
-              <p className="text-sm text-slate-400 mt-2 max-w-xl">
-                Daily appointment volume, month-end gross projections, and team performance in one place.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 sm:flex-col sm:items-end">
-              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
-                <Target size={14} className="text-brand-primary shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-white">Daily goal · {targetValue} appts</span>
-              </div>
-              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
-                <CalendarIcon size={14} className="text-emerald-400 shrink-0" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                  {metrics.daysRemaining} working days left
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-            {[
-              { label: 'MTD Appointments', value: metrics.monthTotal, accent: 'text-white' },
-              { label: 'Week Volume', value: metrics.weekTotal, accent: 'text-sky-400' },
-              { label: 'Month Forecast', value: metrics.forecast, accent: 'text-brand-secondary' },
-              { label: 'Labor Gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}`, accent: 'text-emerald-400', isText: true },
-            ].map((chip) => (
-              <div key={chip.label} className="rounded-2xl bg-slate-950/60 border border-white/5 px-3 py-3 text-center">
-                <p className={cn('text-lg sm:text-xl font-black tabular-nums', chip.accent)}>
-                  {chip.isText ? chip.value : chip.value}
-                </p>
-                <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 mt-1">{chip.label}</p>
-              </div>
-            ))}
+      {/* Forecasting Hero Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+        <div>
+          <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest block mb-1">Performance Dynamics</span>
+          <h1 className="text-2xl font-black text-white uppercase tracking-wider">Appointment & Gross Forecast</h1>
+        </div>
+        <div className="flex items-center gap-3 self-start sm:self-center">
+          <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-xl px-4 py-2 flex items-center gap-2.5 shadow-sm">
+            <Target size={14} className="text-brand-primary animate-pulse" />
+            <span className="text-xs font-black uppercase tracking-wider text-white">Daily Goal: {targetValue} Units</span>
           </div>
         </div>
       </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {modules.showOperationsProjections ? (
-        <div className="bg-slate-950/40 border border-white/5 backdrop-blur-xl p-5 sm:p-8 rounded-3xl col-span-1 lg:col-span-2 relative shadow-2xl overflow-hidden group order-2 lg:order-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* MONTH-END PROJECTIONS CARD */}
+        <div className="bg-slate-950/40 border border-white/5 backdrop-blur-xl p-8 rounded-3xl col-span-1 lg:col-span-2 relative shadow-2xl overflow-hidden group">
           {/* Subtle Background Glows */}
           <div className="absolute -top-40 -left-40 w-80 h-80 bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-brand-primary/15 transition-all duration-700" />
           <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-brand-secondary/5 rounded-full blur-[100px] pointer-events-none" />
@@ -775,15 +745,12 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               </div>
               <div>
                 <h2 className="text-xl font-black text-white tracking-wider uppercase">Month-End Projections</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{metrics.viewPeriodLabel}{metrics.isHistorical ? " · Final Archive" : ""}</p>
               </div>
             </div>
             <div className="self-start sm:self-auto">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 whitespace-nowrap shadow-sm">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">
-                  {metrics.isHistorical ? 'Month Closed' : `${metrics.daysRemaining} Working Days Left`}
-                </span>
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">{metrics.daysRemaining} Working Days Left</span>
               </div>
             </div>
           </div>
@@ -821,7 +788,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                 target: metrics.monthTarget, 
                 isCurrency: false,
                 color: 'text-sky-400',
-                barColor: 'bg-gradient-to-r from-sky-400 to-blue-400',
+                barColor: 'bg-gradient-to-r from-sky-455 to-blue-400',
                 glowColor: 'shadow-sky-400/20'
               }
             ].map((kpi, idx) => {
@@ -829,14 +796,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               const isShortfall = kpi.forecast < kpi.target;
               
               return (
-                <div key={idx} className="bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] hover:border-white/[0.08] p-4 sm:p-5 rounded-2xl transition-all duration-300 relative group/row">
+                <div key={idx} className="bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.04] hover:border-white/[0.08] p-5 rounded-2xl transition-all duration-300 relative group/row">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     {/* LEFT: LABEL & PROJECTED FORECAST */}
                     <div className="w-full md:w-5/12">
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{kpi.label} Forecast</span>
                         {isShortfall ? (
-                          <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 border border-rose-500/25 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-tight shrink-0">
+                          <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-450 border border-rose-500/25 px-1.5 py-0.5 rounded text-[8px] uppercase font-black tracking-tight shrink-0">
                             Shortfall
                           </span>
                         ) : (
@@ -871,7 +838,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Pace Velocity</span>
                         <span className="text-sm sm:text-base font-black text-white whitespace-nowrap">
-                          {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}<span className="text-[9px] text-slate-500 font-bold ml-1">/D</span>
+                          {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}<span className="text-[9px] text-slate-550 font-bold ml-1">/D</span>
                         </span>
                       </div>
 
@@ -906,12 +873,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             })}
           </div>
         </div>
-        ) : (
-        <div className="hidden lg:block lg:col-span-2" aria-hidden />
-        )}
 
         {/* DAILY ENTRY CARD */}
-        <div className="bg-slate-950/45 border border-white/5 backdrop-blur-xl p-5 sm:p-8 rounded-3xl flex flex-col justify-between shadow-2xl relative overflow-hidden group order-1 lg:order-2">
+        <div className="bg-slate-950/45 border border-white/5 backdrop-blur-xl p-8 rounded-3xl flex flex-col justify-between shadow-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-40 h-40 bg-brand-primary/5 rounded-full blur-[50px] pointer-events-none" />
           
           <div className="relative z-10 w-full">
@@ -987,10 +951,15 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               <button 
                 onClick={() => pdfInputRef.current?.click()}
                 disabled={isUploadingPdf}
-                className="w-full h-12 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 shadow-inner"
+                className="w-full min-h-12 flex flex-col items-center justify-center gap-1 py-3 px-4 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 shadow-inner"
               >
-                {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
-                Extract Daily Schedule PDF
+                <span className="flex items-center gap-2">
+                  {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
+                  Import Appointment Details PDF
+                </span>
+                <span className="text-[8px] font-bold text-emerald-500/70 normal-case tracking-normal text-center leading-snug">
+                  Oil = full synthetic or complimentary · Diagnosis = customer states · Recall = campaign
+                </span>
               </button>
             </div>
           </div>
@@ -1035,7 +1004,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           </div>
         </div>
         
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
           {weekDays.map((day) => {
              const fullDayData = allStats.find(s => s.date === day.date);
              const isSelected = selectedDate === day.date;
@@ -1049,7 +1018,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                    }
                  }}
                  className={cn(
-                   "backdrop-blur-md rounded-2xl p-4 sm:p-5 flex flex-col min-h-[100px] sm:min-h-0 items-center justify-center gap-1.5 transition-all duration-300 hover:scale-[1.03] border relative group cursor-pointer",
+                   "backdrop-blur-md rounded-2xl p-5 flex flex-col items-center justify-center gap-1.5 transition-all duration-300 hover:scale-[1.03] border relative group cursor-pointer",
                    isSelected 
                      ? "ring-2 ring-brand-primary ring-offset-2 ring-offset-[#020617] bg-white/[0.04]" 
                      : "bg-[#0c1120]/45",
@@ -1179,7 +1148,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   </button>
                 ) : (
                   <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
-                    *Categorization based on PDF text analysis logic
+                    *Oil = full synthetic / complimentary · Diagnosis = customer states · Recall = campaign/bulletin
                   </p>
                 )}
               </div>
@@ -1281,7 +1250,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   "h-11 px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
                   allowArchiveEditing 
                     ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
-                    : "bg-slate-800 hover:bg-slate-700 border-white/5 text-slate-300 hover:text-white"
+                    : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
                 )}
                 title="Unlock editing capability for this historical archive month"
               >
@@ -1291,7 +1260,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             )}
 
             {/* Dynamic Custom Archive Option - Only clickable with active tracker */}
-            {selectedMonth === 'active' && modules.showArchiveTools && (
+            {selectedMonth === 'active' && (
               <button
                 onClick={() => setShowArchiveModal(true)}
                 className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
@@ -1304,7 +1273,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-11 px-6 bg-slate-800 hover:bg-slate-700 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
             >
               <Printer size={13} />
               Print Report
@@ -1353,15 +1322,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         )}
       </AnimatePresence>
 
-      {modules.showAdvisorPerformance && (
+      {/* Advisor Performance Tracking */}
       <AdvisorPerformance 
         currentDealershipId={currentDealershipId} 
         selectedMonth={selectedMonth} 
         allowArchiveEditing={allowArchiveEditing}
       />
-      )}
 
-      {modules.showTechEfficiency && (
+      {/* Technician Efficiency Tracking */}
       <TechnicianEfficiency 
         currentUser={currentUser} 
         currentDealershipId={currentDealershipId} 
@@ -1370,7 +1338,53 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         selectedMonth={selectedMonth}
         allowArchiveEditing={allowArchiveEditing}
       />
-      )}
+
+
+      {/* PDF parse preview */}
+      <AnimatePresence>
+        {pdfParsePreview && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+              onClick={() => setPdfParsePreview(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
+            >
+              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Confirm PDF Import</h3>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-6 truncate">{pdfParsePreview.fileName}</p>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {[
+                  { key: 'oilChange', label: 'Oil Changes', val: pdfParsePreview.breakdown.oilChange },
+                  { key: 'diagnosis', label: 'Diagnosis', val: pdfParsePreview.breakdown.diagnosis },
+                  { key: 'recall', label: 'Recalls', val: pdfParsePreview.breakdown.recall },
+                  { key: 'misc', label: 'Misc', val: pdfParsePreview.breakdown.misc },
+                ].map((row) => (
+                  <div key={row.key} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{row.label}</p>
+                    <p className="text-2xl font-black text-white">{row.val}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-center text-3xl font-black text-brand-primary mb-2">{pdfParsePreview.total}</p>
+              <p className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest mb-6">Total Appointments</p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setPdfParsePreview(null)} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-[10px] font-black uppercase tracking-widest">Cancel</button>
+                <button type="button" onClick={confirmPdfParsePreview} disabled={isUploadingPdf} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  Apply Counts
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Executive Print / PDF Modal */}
       <PerformancePrintModal 
