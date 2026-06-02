@@ -69,7 +69,10 @@ export function DispatchBoard({
   // Form states
   const [roNumber, setRoNumber] = useState('');
   const [techNumber, setTechNumber] = useState('');
+  const [customerFirstName, setCustomerFirstName] = useState('');
   const [customerLastName, setCustomerLastName] = useState('');
+  const [vinLastEight, setVinLastEight] = useState('');
+  const [tagNumber, setTagNumber] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [dealershipSettings, setDealershipSettings] = useState<Partial<DealershipSettings> | null>(null);
   const [todayApptCount, setTodayApptCount] = useState(0);
@@ -316,8 +319,13 @@ export function DispatchBoard({
   // Rule A Form submission: Default to 'unassigned' department
   const handleSubmitIntake = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roNumber.trim() || !techNumber.trim() || !customerLastName.trim()) {
-      if (showNotification) showNotification('Please fill out all required fields.', true);
+    const ro = roNumber.trim();
+    const tech = techNumber.trim();
+    const ln = customerLastName.trim();
+    const tag = tagNumber.trim();
+
+    if (!ro || !tech || !ln || !tag) {
+      showNotification?.('RO number, last name, tech number, and tag number are required.', true);
       return;
     }
 
@@ -326,7 +334,6 @@ export function DispatchBoard({
       const newRoId = doc(collection(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders')).id;
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', newRoId);
 
-      const ln = customerLastName.trim();
       let crmMatch = selectedCustomer;
       if (!crmMatch && matchCandidates.length === 1) {
         crmMatch = matchCandidates[0];
@@ -337,26 +344,46 @@ export function DispatchBoard({
         return;
       }
 
+      const fn = customerFirstName.trim();
+      const vin = vinLastEight.trim().toUpperCase();
+      const displayName = [fn, ln].filter(Boolean).join(' ');
+
       const payload: DispatchRepairOrder = {
         id: newRoId,
-        roNumber: roNumber.trim(),
-        techNumber: techNumber.trim(),
+        roNumber: ro,
+        techNumber: tech,
+        tagNumber: tag,
         customerLastName: ln,
+        customerName: displayName,
         department: 'unassigned',
         status: initialStatus,
         isCompleted: quickComplete,
         dateCreated: currentSystemDate,
         lastUpdated: new Date().toISOString(),
         dealershipId: currentDealershipId,
-        ...(crmMatch ? enrichDispatchFromCustomer(crmMatch) : { customerName: ln }),
+        ...(crmMatch ? enrichDispatchFromCustomer(crmMatch) : {}),
       };
+
+      payload.roNumber = ro;
+      payload.techNumber = tech;
+      payload.tagNumber = tag;
+      payload.customerLastName = ln;
+      payload.customerName = fn
+        ? `${fn} ${ln}`.trim()
+        : (payload.customerName || ln);
+      if (vin) {
+        payload.vinLastEight = vin;
+      }
 
       await setDoc(docRef, payload);
 
       // Reset form states
       setRoNumber('');
       setTechNumber('');
+      setCustomerFirstName('');
       setCustomerLastName('');
+      setVinLastEight('');
+      setTagNumber('');
       setSelectedCustomer(null);
       setInitialStatus('WIP');
       setQuickComplete(false);
@@ -801,7 +828,7 @@ export function DispatchBoard({
                   <div className="min-w-0">
                     <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Fast Intake</h2>
                     <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
-                      Queue a repair order — match by last name to pull CRM details.
+                      Enter customer name, RO details, and tag — last name can match CRM.
                     </p>
                   </div>
                 </div>
@@ -809,89 +836,127 @@ export function DispatchBoard({
                 <form onSubmit={handleSubmitIntake} className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">RO Number</label>
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">First Name <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
                       <input
                         type="text"
-                        placeholder="883719"
-                        value={roNumber}
-                        onChange={(e) => setRoNumber(e.target.value)}
-                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all font-semibold tabular-nums focus:ring-2 focus:ring-indigo-500/15"
-                        required
+                        placeholder="Maria"
+                        value={customerFirstName}
+                        onChange={(e) => setCustomerFirstName(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tech ID</label>
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5 flex items-center gap-1">
+                        <UserSearch size={10} className="text-indigo-400/80" />
+                        Last Name <span className="text-rose-400/90">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Martinez"
+                        value={customerLastName}
+                        onChange={(e) => {
+                          setCustomerLastName(e.target.value);
+                          setSelectedCustomer(null);
+                        }}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {selectedCustomer && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-950/30 border border-emerald-500/25">
+                      <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                      <p className="text-[10px] font-bold text-emerald-200/90 truncate">
+                        CRM linked · {selectedCustomer.firstName} {selectedCustomer.lastName}
+                        {selectedCustomer.model ? ` · ${selectedCustomer.year || ''} ${selectedCustomer.model}` : ''}
+                      </p>
+                    </div>
+                  )}
+
+                  {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && !selectedCustomer && (
+                    <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
+                        CRM matches
+                      </p>
+                      <div className="max-h-28 overflow-y-auto p-1.5 space-y-1">
+                        {matchCandidates.slice(0, 6).map((cust) => (
+                          <button
+                            key={cust.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCustomer(cust);
+                              setCustomerFirstName(cust.firstName || '');
+                              setCustomerLastName(cust.lastName);
+                              setVinLastEight(cust.vinLast8 || '');
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
+                          >
+                            <span className="font-bold text-white">{cust.firstName} {cust.lastName}</span>
+                            <span className="text-slate-500 block mt-0.5 font-mono text-[9px]">
+                              {[cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()].filter(Boolean).join(' · ')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
+                    <p className="text-[9px] text-amber-400/80 pl-0.5 font-medium">No CRM match — ticket will use the name you entered.</p>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">RO Number <span className="text-rose-400/90">*</span></label>
+                    <input
+                      type="text"
+                      placeholder="883719"
+                      value={roNumber}
+                      onChange={(e) => setRoNumber(e.target.value)}
+                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">VIN Last 8 <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="G2054992"
+                      maxLength={8}
+                      value={vinLastEight}
+                      onChange={(e) => setVinLastEight(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-mono font-bold uppercase tracking-wider"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tech Number <span className="text-rose-400/90">*</span></label>
                       <input
                         type="text"
                         placeholder="402"
                         value={techNumber}
                         onChange={(e) => setTechNumber(e.target.value)}
-                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all font-mono font-bold tabular-nums focus:ring-2 focus:ring-indigo-500/15"
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-mono font-bold tabular-nums"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tag Number <span className="text-rose-400/90">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="A-142"
+                        value={tagNumber}
+                        onChange={(e) => setTagNumber(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
                         required
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5 flex items-center gap-1.5">
-                      <UserSearch size={10} className="text-indigo-400/80" />
-                      Customer Last Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Martinez"
-                      value={customerLastName}
-                      onChange={(e) => {
-                        setCustomerLastName(e.target.value);
-                        setSelectedCustomer(null);
-                      }}
-                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all font-semibold uppercase focus:ring-2 focus:ring-indigo-500/15"
-                      required
-                    />
-
-                    {selectedCustomer && (
-                      <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-emerald-950/30 border border-emerald-500/25">
-                        <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                        <p className="text-[10px] font-bold text-emerald-200/90 truncate">
-                          CRM linked · {selectedCustomer.firstName} {selectedCustomer.lastName}
-                          {selectedCustomer.model ? ` · ${selectedCustomer.year || ''} ${selectedCustomer.model}` : ''}
-                        </p>
-                      </div>
-                    )}
-
-                    {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && !selectedCustomer && (
-                      <div className="mt-2 rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
-                          CRM matches
-                        </p>
-                        <div className="max-h-32 overflow-y-auto p-1.5 space-y-1">
-                          {matchCandidates.slice(0, 6).map((cust) => (
-                            <button
-                              key={cust.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedCustomer(cust);
-                                setCustomerLastName(cust.lastName);
-                              }}
-                              className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
-                            >
-                              <span className="font-bold text-white">{cust.firstName} {cust.lastName}</span>
-                              <span className="text-slate-500 block mt-0.5 font-mono text-[9px]">
-                                {[cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()].filter(Boolean).join(' · ')}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
-                      <p className="text-[9px] text-amber-400/80 mt-1.5 pl-0.5 font-medium">No CRM match — ticket will use last name only.</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Initial Status</label>
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Status <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
                     <div className="relative">
                       <span
                         className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
