@@ -811,56 +811,50 @@ export default function AdminPanel({
         </div>
       </div>
 
-      {/* 2. Sleek Segmented glass navigation bar */}
-      <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
-        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-        <div className={cn(
-          'grid gap-2',
-          (panelMode === 'full' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : panelMode === 'manager' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2')
-        )}>
-          {([
-            { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
-            { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
-            { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
-            { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
-          ] as const).filter((tab) => {
-            if (panelMode === 'admin') return tab.id === 'users' || tab.id === 'logs';
-            if (panelMode === 'manager') return tab.id === 'operations' || tab.id === 'preferences';
-            return true;
-          }).map(tab => {
-            const Icon = tab.icon;
-            const isSelected = subTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onChangeSubTab?.(tab.id as any)}
-                className={cn(
-                  "flex flex-col items-start gap-1 px-4 py-3 rounded-[16px] transition-all duration-300 border text-left select-none relative group w-full",
-                  isSelected
-                    ? "bg-brand-primary text-slate-950 border-brand-primary shadow-lg shadow-brand-primary/10 font-bold"
-                    : "bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <Icon size={13} className={isSelected ? "text-slate-950" : "text-brand-primary group-hover:scale-110 transition-transform"} />
-                  <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
-                </div>
-                <span className={cn(
-                  "text-[8px] font-bold uppercase tracking-widest leading-none mt-1",
-                  isSelected ? "text-slate-950/70" : "text-slate-500 group-hover:text-slate-400"
-                )}>
-                  {tab.desc}
-                </span>
-                {isSelected && (
-                  <span className="absolute bottom-1 right-2 w-1.5 h-1.5 rounded-full bg-slate-950"></span>
-                )}
-              </button>
-            );
-          })}
+      {panelMode === 'full' && (
+        <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
+              { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
+              { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
+              { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
+            ] as const).map(tab => {
+              const Icon = tab.icon;
+              const isSelected = subTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => onChangeSubTab?.(tab.id as any)}
+                  className={cn(
+                    "flex flex-col items-start gap-1 px-4 py-3 rounded-[16px] transition-all duration-300 border text-left select-none relative group w-full",
+                    isSelected
+                      ? "bg-brand-primary text-slate-950 border-brand-primary shadow-lg shadow-brand-primary/10 font-bold"
+                      : "bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon size={13} className={isSelected ? "text-slate-950" : "text-brand-primary group-hover:scale-110 transition-transform"} />
+                    <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
+                  </div>
+                  <span className={cn(
+                    "text-[8px] font-bold uppercase tracking-widest leading-none mt-1",
+                    isSelected ? "text-slate-950/70" : "text-slate-500 group-hover:text-slate-400"
+                  )}>
+                    {tab.desc}
+                  </span>
+                  {isSelected && (
+                    <span className="absolute bottom-1 right-2 w-1.5 h-1.5 rounded-full bg-slate-950"></span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 2. Sub-tab Content Panels */}
+      {/* Sub-tab Content Panels */}
 
       {/* OPERATIONS TARGETS PANEL */}
       {subTab === 'operations' && (
