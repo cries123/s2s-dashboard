@@ -146,7 +146,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 }
 
 export default function AuthenticatedApp() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('appointments');
   const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
@@ -252,11 +252,34 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
     }
   };
 
-  if (customersLoading) {
+  if (authLoading || (user && customersLoading) || prefsLoading) {
     return <LoadingScreen />;
   }
 
-  const currentUser = user!;
+  if (!user) {
+    return <LoginView />;
+  }
+
+  if (!isUserApproved(user) && !isPrimaryAdmin(user)) {
+    return (
+      <div className="min-h-screen bg-surface-base flex items-center justify-center p-4">
+        <div className="w-full max-w-md text-center space-y-8 animate-fade-in">
+          <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto ring-1 ring-amber-500/20">
+            <Shield className="text-amber-500" size={40} />
+          </div>
+          <div className="space-y-3">
+            <h1 className="text-3xl font-black text-white tracking-tight">Access Restricted</h1>
+            <p className="text-slate-400 font-medium leading-relaxed">
+              Your account enrollment is currently <span className="text-amber-500 font-black">PENDING APPROVAL</span>.
+            </p>
+          </div>
+          <button onClick={handleSignOut} className="btn-primary bg-slate-800 hover:bg-slate-700 w-full">Exit System</button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentUser = user;
 
   return (
     <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white relative overflow-x-hidden">
