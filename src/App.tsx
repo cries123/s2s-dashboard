@@ -709,7 +709,7 @@ export default function App() {
             />
           )}
           {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab !== 'team' && (
-            <AdminPanel key={`manager-${currentDealershipId || 'hyundai'}`} panelMode="manager" currentDealershipId={currentDealershipId || 'hyundai'} onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} activeSubTab={managerSubTab === 'preferences' ? 'preferences' : 'operations'} onChangeSubTab={(tab) => setManagerSubTab(tab === 'preferences' ? 'preferences' : 'operations')} />
+            <AdminPanel key={`manager-${currentDealershipId || 'hyundai'}`} panelMode="manager" currentDealershipId={currentDealershipId || 'hyundai'} onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} activeSubTab={managerSubTab === 'preferences' ? 'preferences' : 'operations'} onChangeSubTab={(tab) => setManagerSubTab(tab === 'preferences' ? 'preferences' : 'operations')} onNavigateTab={(tab) => setActiveTab(tab as any)} onDealershipChange={setCurrentDealershipId} />
           )}
           {activeTab === 'admin' && canAccessPrimaryAdminSettings(currentUser) && (
             <AdminPanel key="primary-admin" panelMode="admin" currentDealershipId={currentDealershipId || 'hyundai'} onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} activeSubTab={adminSubTab} onChangeSubTab={setAdminSubTab} />

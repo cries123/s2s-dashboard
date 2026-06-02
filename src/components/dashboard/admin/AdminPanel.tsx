@@ -57,6 +57,50 @@ import {
   type CompetitionAdvisorSlot,
 } from '../../../lib/dealershipStaff';
 
+
+type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences';
+
+function getPanelSectionMeta(
+  subTab: AdminSubTab,
+  panelMode: 'admin' | 'manager' | 'full'
+): { eyebrow: string; title: string; description: string } {
+  const scope =
+    panelMode === 'admin' ? 'Admin settings' : panelMode === 'manager' ? 'Manager settings' : 'System administration';
+
+  switch (subTab) {
+    case 'operations':
+      return {
+        eyebrow: scope,
+        title: 'Dealership Operations Settings',
+        description: 'Configure dealership daily throughput, gross parts & labor dollar targets.',
+      };
+    case 'preferences':
+      return {
+        eyebrow: scope,
+        title: 'Workspace Preferences',
+        description: 'Personal workspace settings for contact workflow, modules, and CRM display.',
+      };
+    case 'users':
+      return {
+        eyebrow: scope,
+        title: 'User Settings',
+        description: 'Manage system permission tiers, account access, and registration flows.',
+      };
+    case 'logs':
+      return {
+        eyebrow: scope,
+        title: 'Audit Logs',
+        description: 'Real-time forensic audit logs of user actions on the app.',
+      };
+    default:
+      return {
+        eyebrow: scope,
+        title: 'System Administration',
+        description: 'Secure administrative controls for this dealership.',
+      };
+  }
+}
+
 interface AdminPanelProps {
   key?: string;
   panelMode?: 'admin' | 'manager' | 'full';
@@ -786,26 +830,24 @@ export default function AdminPanel({
   });
 
   const subTab = activeSubTab || (panelMode === 'admin' ? 'users' : 'operations');
+  const sectionMeta = getPanelSectionMeta(subTab, panelMode);
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
-      {/* 1. Header with Title + Description */}
+    <div className="space-y-8 animate-fade-in pb-20 max-w-4xl mx-auto w-full">
       <div className="border-b border-white/5 pb-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
           <div>
-            <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5 select-none md:mb-1">
-              <Shield size={12} className="text-brand-primary animate-pulse w-3 h-3" />
-              Secure Administrative Access Point
+            <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5 select-none">
+              <Shield size={12} className="text-brand-primary w-3 h-3" />
+              {sectionMeta.eyebrow}
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase leading-none">System Administration</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight uppercase leading-none">
+              {sectionMeta.title}
+            </h2>
           </div>
-          
-          <div className="bg-slate-950/40 border border-white/5 rounded-2xl px-4 py-3 max-w-lg w-full lg:w-auto mt-2 lg:mt-0 shadow-lg select-none">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic leading-relaxed">
-              {subTab === 'operations' && "Configure dealership daily throughput, gross parts & labor dollar targets."}
-              {subTab === 'users' && "Manage system permission tiers, account access, & registration flows."}
-              {subTab === 'logs' && "Real-time forensic audit logs of user actions on the app."}
-              {subTab === 'preferences' && "Personal workspace settings for contact workflow, modules, and CRM display."}
+          <div className="bg-slate-950/40 border border-white/5 rounded-2xl px-4 py-3 max-w-lg w-full lg:w-auto shadow-lg">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
+              {sectionMeta.description}
             </p>
           </div>
         </div>
@@ -859,11 +901,6 @@ export default function AdminPanel({
       {/* OPERATIONS TARGETS PANEL */}
       {subTab === 'operations' && (
         <div className="space-y-4 animate-in fade-in duration-300">
-          <div className="flex items-center gap-3 text-brand-primary">
-            <Target size={20} />
-            <h3 className="text-lg font-black uppercase tracking-widest text-white">Dealership Operations Settings</h3>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {DEALERSHIPS.filter(d => d.id === currentDealershipId).map(d => {
               // Managers can only see/edit their own dealership settings
@@ -1364,11 +1401,7 @@ export default function AdminPanel({
       {subTab === 'users' && (
         <div className="space-y-8 animate-in fade-in duration-300">
           {/* Header containing the User search widget inside the tab section */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-            <h3 className="text-lg font-black uppercase tracking-widest text-slate-300 flex items-center gap-2">
-              <Users size={18} /> User Access Matrix
-            </h3>
-            
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 border-b border-white/5 pb-4">
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-primary" size={14} />
               <input
@@ -1527,6 +1560,7 @@ export default function AdminPanel({
       {/* SYSTEM TRAILS / LOGS */}
       {subTab === 'preferences' && (
         <SettingsPage
+          embedded
           onNavigate={(tab) => onNavigateTab?.(tab)}
           onNotify={(msg, isError) => (isError ? onError?.(msg) : onSuccess?.(msg))}
           currentDealershipId={currentDealershipId}
