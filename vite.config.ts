@@ -17,14 +17,12 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
+      host: '0.0.0.0',
+      // Cursor Cloud / agent preview URLs use dynamic *.cursorvm.com hosts.
+      allowedHosts: ['.cursorvm.com', '.agent.cvm.dev', 'localhost'],
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true' ? {
-        // Cloud dev proxies often break the default Vite websocket; disable there to avoid console spam.
-        clientPort: process.env.VITE_HMR_CLIENT_PORT
-          ? Number(process.env.VITE_HMR_CLIENT_PORT)
-          : undefined,
-      } : false,
+      hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
