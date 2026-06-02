@@ -9,7 +9,6 @@ export type AppTab =
   | 'pot-of-gold'
   | 'forecast'
   | 'dispatch'
-  | 'recalls'
   | 'sales-performance';
 
 export type AdminSubTab = 'operations' | 'users' | 'logs';
@@ -21,7 +20,6 @@ export const TAB_PATHS: Record<AppTab, string> = {
   search: '/service/directory',
   alerts: '/service/alerts',
   dispatch: '/service/dispatch',
-  recalls: '/service/recalls',
   'pot-of-gold': '/competitions/pot-of-gold',
   appointments: '/reports/operations',
   'sales-performance': '/reports/sales-performance',

@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers, ShieldAlert,
+  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
   BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,7 +28,6 @@ import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -147,7 +146,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 
 export default function AuthenticatedApp() {
   const { user, loading: authLoading } = useAuth();
-const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'recalls' | 'sales-performance'>('appointments');
+const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('appointments');
   const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
@@ -207,7 +206,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
     ...(modules.showSalesPerformanceTab
       ? [{ id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 }]
       : []),
-    ...(modules.showRecallsTab ? [{ id: 'recalls', label: 'Recalls', icon: ShieldAlert }] : []),
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
 
@@ -386,7 +384,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
             >
               <NavLink 
                 href="/service/directory" 
@@ -410,15 +408,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                   isActive={activeTab === 'dispatch'}
                 >
                   Dispatch
-                </NavLink>
-              )}
-              {modules.showRecallsTab && (
-                <NavLink 
-                  href="/service/recalls" 
-                  onClick={() => setActiveTab('recalls')}
-                  isActive={activeTab === 'recalls'}
-                >
-                  Recalls
                 </NavLink>
               )}
             </NavDropdown>
@@ -704,9 +693,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             <VinLookup />
           )}
 
-          {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
-          )}
 
           {activeTab === 'pot-of-gold' && (
             <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />

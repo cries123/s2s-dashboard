@@ -29,7 +29,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     showForecastTab: true,
     showSalesPerformanceTab: true,
     showVinSearchTab: true,
-    showRecallsTab: false,
     showPotOfGoldTab: true,
   },
   crmDisplay: {

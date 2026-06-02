@@ -91,7 +91,6 @@ export interface DashboardModulePreferences {
   showForecastTab: boolean;
   showSalesPerformanceTab: boolean;
   showVinSearchTab: boolean;
-  showRecallsTab: boolean;
   showPotOfGoldTab: boolean;
 }
 
