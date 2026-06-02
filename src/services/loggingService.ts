@@ -1,5 +1,7 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { LOGS_COLLECTION_PATH } from '../lib/tenants';
+import type { User } from '../types';
 
 export interface TokenUsage {
   promptTokenCount: number;
@@ -59,15 +61,38 @@ export const logAIUsage = async (action: string, usage: TokenUsage, userEmail?: 
   }
 };
 
+export const logAuditAction = async (
+  action: string,
+  details: string,
+  tenantId: string,
+  user?: Pick<User, 'uid' | 'email' | 'username'> | null
+) => {
+  try {
+    await addDoc(collection(db, ...LOGS_COLLECTION_PATH), {
+      tenantId,
+      userId: user?.uid || auth.currentUser?.uid || 'system',
+      userEmail: user?.email || auth.currentUser?.email || 'unknown',
+      username: user?.username || 'System',
+      action,
+      details,
+      timestamp: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('[Audit Logging Service] Failed to log:', error);
+  }
+};
+
 export const logSystemAction = async (
   action: string,
   details: string,
   category: 'demographics' | 'scanner' | 'appointments' | 'settings' | 'sync' | 'auth',
   userEmail?: string,
   username?: string,
-  dealershipId?: string
+  dealershipId?: string,
+  tenantId?: string
 ) => {
   const path = 'artifacts/hyundai-sales-to-service/public/audit/systemLogs';
+  const resolvedTenant = tenantId || dealershipId || 'hyundai';
   try {
     const logsRef = collection(db, path);
     await addDoc(logsRef, {
@@ -77,7 +102,13 @@ export const logSystemAction = async (
       userEmail: userEmail || auth.currentUser?.email || 'unknown',
       username: username || 'System/Guest',
       dealershipId: dealershipId || 'hyundai',
+      tenantId: resolvedTenant,
       timestamp: serverTimestamp()
+    });
+    await logAuditAction(action, details, resolvedTenant, {
+      uid: auth.currentUser?.uid || 'system',
+      email: userEmail || auth.currentUser?.email || 'unknown',
+      username: username || 'System/Guest',
     });
     console.log(`[System Logging Service] Successfully logged: ${action} - ${details}`);
   } catch (error) {

@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2
+  BarChart2, ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -20,6 +20,7 @@ import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
 import Appointments from './components/dashboard/appointments/Appointments';
 import { CustomerDirectory } from './components/dashboard/customers/CustomerDirectory';
 import AdminPanel from './components/dashboard/admin/AdminPanel';
+import ManagerDashboard from './components/dashboard/admin/ManagerDashboard';
 import { VinLookup } from './components/dashboard/vin/VinLookup';
 import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
 import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
@@ -27,10 +28,12 @@ import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
+import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 import { isServiceAlertActive } from './lib/alerts';
 import {
   type AppTab,
   type AdminSubTab,
+  type ManagerSubTab,
   resolveRoute,
   navigateToTab,
 } from './lib/appRoutes';
@@ -38,6 +41,20 @@ import { defaultTabForRole } from './lib/roleHome';
 import { filterTabsForRole } from './lib/roleNav';
 
 import { DEALERSHIPS } from './constants';
+import {
+  canSeeServiceNav,
+  canSeeSalesNav,
+  canSeeOperationsReport,
+  canSeeForecastReport,
+  canSeeSalesPerformanceReport,
+  canSeeManagerPanel,
+  canSeeAdminPanel,
+  canSeeCompetitions,
+  isUserApproved,
+  isPlatformAdmin,
+  resolveUserDealershipId,
+  resolveUserTenantId,
+} from './lib/rbac';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 
@@ -147,6 +164,7 @@ export default function App() {
   
   const [activeTab, setActiveTab] = useState<AppTab>('add');
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>('operations');
+  const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>('users');
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -159,7 +177,7 @@ export default function App() {
   // Sync current dealership with user's dealership on load
   React.useEffect(() => {
     if (user && !currentDealershipId) {
-      setCurrentDealershipId(user.dealershipId || 'hyundai');
+      setCurrentDealershipId(resolveUserDealershipId(user));
     }
   }, [user, currentDealershipId]);
 
@@ -183,40 +201,44 @@ export default function App() {
     return () => unsubscribe();
   }, [currentDealershipId]);
 
-  const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
+  const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, isPlatformAdmin(user));
 
   const isLoading = authLoading || (user && customersLoading) || minLoading;
 
   const activeAlertsCount = customers.filter(isServiceAlertActive).length;
 
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
-  
-  // Filter tabs - Pot of Gold (Competition) only for Hyundai
+  const userTenantId = resolveUserTenantId(user);
+  const showService = canSeeServiceNav(user);
+
   const availableTabs = [
-    { id: 'add', label: 'Onboard', icon: UserPlus },
-    { id: 'search', label: 'Directory', icon: Search },
-    { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
-    { id: 'appointments', label: 'Operations', icon: Calendar },
-    ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
-    { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
-    { id: 'vin-search', label: 'VIN Search', icon: Search },
-    { id: 'forecast', label: 'Forecast', icon: TrendingUp },
-    { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
-    ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
+    ...(canSeeSalesNav(user) ? [
+      { id: 'add', label: 'Onboard', icon: UserPlus },
+      { id: 'vin-search', label: 'VIN Search', icon: Search },
+    ] : []),
+    ...(showService ? [
+      { id: 'search', label: 'Directory', icon: Search },
+      { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
+      ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
+      { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
+    ] : []),
+    ...(showService && canSeeOperationsReport(user) ? [{ id: 'appointments', label: 'Operations', icon: Calendar }] : []),
+    ...(canSeeSalesPerformanceReport(user) ? [{ id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 }] : []),
+    ...(showService && canSeeForecastReport(user) ? [{ id: 'forecast', label: 'Forecast', icon: TrendingUp }] : []),
+    ...(canSeeCompetitions(user, userTenantId) ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
+    ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
+    ...(canSeeAdminPanel(user) ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
-  const roleFilteredTabs = user
-    ? filterTabsForRole(availableTabs, user.role)
-    : availableTabs;
+  const roleFilteredTabs = user ? filterTabsForRole(availableTabs, user) : availableTabs;
 
-  // If current activeTab is hidden, fallback to first available
   React.useEffect(() => {
     if (!roleFilteredTabs.find(t => t.id === activeTab)) {
-      const fallback = (roleFilteredTabs[0]?.id as AppTab) || defaultTabForRole(user?.role || 'Staff');
+      const fallback = (roleFilteredTabs[0]?.id as AppTab) || defaultTabForRole(user);
       setActiveTab(fallback);
       navigateToTab(fallback, 'operations', true);
     }
-  }, [currentDealershipId, activeTab, roleFilteredTabs, user?.role]);
+  }, [currentDealershipId, activeTab, roleFilteredTabs, user]);
 
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
@@ -228,23 +250,31 @@ export default function App() {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  const goToTab = React.useCallback((tab: AppTab, subTab: AdminSubTab = 'operations') => {
+  const goToTab = React.useCallback((
+    tab: AppTab,
+    subTab: AdminSubTab = 'operations',
+    mgrSubTab: ManagerSubTab = 'users'
+  ) => {
     setActiveTab(tab);
     if (tab === 'admin') {
       setAdminSubTab(subTab);
-      navigateToTab(tab, subTab);
+      navigateToTab(tab, subTab, false, mgrSubTab);
+    } else if (tab === 'manager') {
+      setManagerSubTab(mgrSubTab);
+      navigateToTab(tab, 'operations', false, mgrSubTab);
     } else {
-      navigateToTab(tab, 'operations');
+      navigateToTab(tab, 'operations', false, managerSubTab);
     }
     setIsMobileNavOpen(false);
-  }, []);
+  }, [managerSubTab]);
 
   React.useEffect(() => {
     const syncFromUrl = () => {
-      const { tab, adminSubTab: sub } = resolveRoute(window.location.pathname);
+      const { tab, adminSubTab: sub, managerSubTab: mgrSub } = resolveRoute(window.location.pathname);
       if (tab) {
         setActiveTab(tab);
         if (tab === 'admin') setAdminSubTab(sub);
+        if (tab === 'manager') setManagerSubTab(mgrSub);
       }
     };
     syncFromUrl();
@@ -256,11 +286,11 @@ export default function App() {
     if (!user || authLoading) return;
     const { tab } = resolveRoute(window.location.pathname);
     if (!tab) {
-      const home = defaultTabForRole(user.role);
+      const home = defaultTabForRole(user);
       setActiveTab(home);
       navigateToTab(home, 'operations', true);
     }
-  }, [user?.uid, user?.role, authLoading]);
+  }, [user?.uid, authLoading]);
 
   const handleSignOut = () => signOut(auth);
 
@@ -283,7 +313,7 @@ export default function App() {
     return <LoginView />;
   }
 
-  if (user && user.status !== 'approved' && user.role !== 'admin') {
+  if (user && !isUserApproved(user)) {
     return (
       <div className="min-h-screen bg-surface-base flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center space-y-8 animate-fade-in">
@@ -294,7 +324,7 @@ export default function App() {
             <h1 className="text-3xl font-black text-white tracking-tight">Access Restricted</h1>
             <p className="text-slate-400 font-medium leading-relaxed">
               Your account enrollment is currently <span className="text-amber-500 font-black">PENDING APPROVAL</span>. 
-              A system administrator must verify your identity before dashboard access is granted.
+              A manager for your dealership profile must approve your account before dashboard access is granted.
             </p>
           </div>
           <div className="pt-4 border-t border-slate-800">
@@ -331,7 +361,7 @@ export default function App() {
           <div className="flex items-center gap-3 shrink-0 relative">
             <button 
               onClick={() => {
-                if (currentUser.role === 'admin') {
+                if (isPlatformAdmin(currentUser)) {
                   setIsDealershipDropdownOpen(!isDealershipDropdownOpen);
                 } else {
                   showNotification("Only system admins can switch dealerships.", true);
@@ -339,14 +369,14 @@ export default function App() {
               }}
               className={cn(
                 "w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10 transition-all z-50",
-                currentUser.role === 'admin' ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
+                isPlatformAdmin(currentUser) ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
               )}
             >
               <LayoutDashboard className="text-white" size={20} />
             </button>
 
             <AnimatePresence>
-              {isDealershipDropdownOpen && currentUser.role === 'admin' && (
+              {isDealershipDropdownOpen && isPlatformAdmin(currentUser) && (
                 <>
                   <div 
                     className="fixed inset-0 z-[40]" 
@@ -392,136 +422,60 @@ export default function App() {
 
           {/* Navigation Section */}
           <nav className="flex-1 hidden md:flex items-center justify-center gap-1.5 px-2">
-            
-            {/* 1. SALES DROPDOWN */}
-            <NavDropdown 
-              label="Sales" 
-              isActive={activeTab === 'add' || activeTab === 'vin-search'}
-            >
-              <NavLink 
-                href="/sales/onboard" 
-                onClick={() => goToTab('add')}
-                isActive={activeTab === 'add'}
-              >
-                Onboard
-              </NavLink>
-              <NavLink 
-                href="/sales/vin-search" 
-                onClick={() => goToTab('vin-search')}
-                isActive={activeTab === 'vin-search'}
-              >
-                VIN Search
-              </NavLink>
-            </NavDropdown>
-
-            {/* 2. SERVICE DROPDOWN */}
-            <NavDropdown 
-              label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
-            >
-              <NavLink 
-                href="/service/directory" 
-                onClick={() => goToTab('search')}
-                isActive={activeTab === 'search'}
-              >
-                Directory
-              </NavLink>
-              <NavLink 
-                href="/service/alerts" 
-                onClick={() => goToTab('alerts')}
-                isActive={activeTab === 'alerts'}
-                badge={activeAlertsCount}
-              >
-                Alerts
-              </NavLink>
-              {dealershipSettings?.enableDispatchTab !== false && (
-                <NavLink 
-                  href="/service/dispatch" 
-                  onClick={() => goToTab('dispatch')}
-                  isActive={activeTab === 'dispatch'}
-                >
-                  Dispatch
-                </NavLink>
-              )}
-</NavDropdown>
-
-            {/* 3. COMPETITIONS DROPDOWN */}
-            {currentDealershipId === 'hyundai' && (
-              <NavDropdown 
-                label="Competitions" 
-                isActive={activeTab === 'pot-of-gold'}
-              >
-                <NavLink 
-                  href="/competitions/pot-of-gold" 
-                  onClick={() => goToTab('pot-of-gold')}
-                  isActive={activeTab === 'pot-of-gold'}
-                >
-                  Pot of Gold
-                </NavLink>
+            {canSeeSalesNav(user) && (
+              <NavDropdown label="Sales" isActive={activeTab === 'add' || activeTab === 'vin-search'}>
+                <NavLink href="/sales/onboard" onClick={() => setActiveTab('add')} isActive={activeTab === 'add'}>Onboard</NavLink>
+                <NavLink href="/sales/vin-search" onClick={() => setActiveTab('vin-search')} isActive={activeTab === 'vin-search'}>VIN Search</NavLink>
               </NavDropdown>
             )}
 
-            {/* 4. REPORTS DROPDOWN */}
-            <NavDropdown 
-              label="Reports" 
-              isActive={activeTab === 'appointments' || activeTab === 'forecast' || activeTab === 'sales-performance'}
-            >
-              <NavLink 
-                href="/reports/operations" 
-                onClick={() => goToTab('appointments')}
-                isActive={activeTab === 'appointments'}
-              >
-                Operations
-              </NavLink>
-              <NavLink 
-                href="/reports/sales-performance" 
-                onClick={() => goToTab('sales-performance')}
-                isActive={activeTab === 'sales-performance'}
-              >
-                Sales Performance
-              </NavLink>
-              <NavLink 
-                href="/reports/forecast" 
-                onClick={() => goToTab('forecast')}
-                isActive={activeTab === 'forecast'}
-              >
-                Forecast
-              </NavLink>
-            </NavDropdown>
-
-            {/* 5. ADMIN DROPDOWN */}
-            {user && user.role === 'admin' && (
-              <NavDropdown 
-                label="Admin" 
-                isActive={activeTab === 'admin'}
-              >
-                <NavLink 
-                  href="/admin/operation-settings" 
-                  onClick={() => goToTab('admin', 'operations')}
-                  isActive={activeTab === 'admin' && adminSubTab === 'operations'}
-                >
-                  Operation Settings
-                </NavLink>
-                <NavLink 
-                  href="/admin/user-settings" 
-                  onClick={() => goToTab('admin', 'users')}
-                  isActive={activeTab === 'admin' && adminSubTab === 'users'}
-                >
-                  User Settings
-                </NavLink>
-                <NavLink 
-                  href="/admin/logs" 
-                  onClick={() => goToTab('admin', 'logs')}
-                  isActive={activeTab === 'admin' && adminSubTab === 'logs'}
-                >
-                  Logs
-                </NavLink>
+            {showService && (
+              <NavDropdown label="Service" isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}>
+                <NavLink href="/service/directory" onClick={() => setActiveTab('search')} isActive={activeTab === 'search'}>Directory</NavLink>
+                <NavLink href="/service/alerts" onClick={() => setActiveTab('alerts')} isActive={activeTab === 'alerts'} badge={activeAlertsCount}>Alerts</NavLink>
+                {dealershipSettings?.enableDispatchTab !== false && (
+                  <NavLink href="/service/dispatch" onClick={() => setActiveTab('dispatch')} isActive={activeTab === 'dispatch'}>Dispatch</NavLink>
+                )}
+                <NavLink href="/service/recalls" onClick={() => setActiveTab('recalls')} isActive={activeTab === 'recalls'}>Recalls</NavLink>
               </NavDropdown>
             )}
 
+            {canSeeCompetitions(user, userTenantId) && (
+              <NavDropdown label="Competitions" isActive={activeTab === 'pot-of-gold'}>
+                <NavLink href="/competitions/pot-of-gold" onClick={() => setActiveTab('pot-of-gold')} isActive={activeTab === 'pot-of-gold'}>Pot of Gold</NavLink>
+              </NavDropdown>
+            )}
+
+            {canSeeSalesPerformanceReport(user) && (
+              <NavDropdown label="Reports" isActive={activeTab === 'appointments' || activeTab === 'forecast' || activeTab === 'sales-performance'}>
+                {showService && canSeeOperationsReport(user) && (
+                  <NavLink href="/reports/operations" onClick={() => setActiveTab('appointments')} isActive={activeTab === 'appointments'}>Operations</NavLink>
+                )}
+                <NavLink href="/reports/sales-performance" onClick={() => setActiveTab('sales-performance')} isActive={activeTab === 'sales-performance'}>Sales Performance</NavLink>
+                {showService && canSeeForecastReport(user) && (
+                  <NavLink href="/reports/forecast" onClick={() => setActiveTab('forecast')} isActive={activeTab === 'forecast'}>Forecast</NavLink>
+                )}
+              </NavDropdown>
+            )}
+
+            {canSeeManagerPanel(user) && (
+              <NavDropdown label="Manager" isActive={activeTab === 'manager'}>
+                <NavLink href="/manager/users" onClick={() => { setActiveTab('manager'); setManagerSubTab('users'); }} isActive={activeTab === 'manager' && managerSubTab === 'users'}>User Management</NavLink>
+                <NavLink href="/manager/settings" onClick={() => { setActiveTab('manager'); setManagerSubTab('settings'); }} isActive={activeTab === 'manager' && managerSubTab === 'settings'}>Tenant Settings</NavLink>
+                <NavLink href="/manager/logs" onClick={() => { setActiveTab('manager'); setManagerSubTab('logs'); }} isActive={activeTab === 'manager' && managerSubTab === 'logs'}>Audit Logs</NavLink>
+              </NavDropdown>
+            )}
+
+            {canSeeAdminPanel(user) && (
+              <NavDropdown label="Admin" isActive={activeTab === 'admin'}>
+                <NavLink href="/admin/operation-settings" onClick={() => { setActiveTab('admin'); setAdminSubTab('operations'); }} isActive={activeTab === 'admin' && adminSubTab === 'operations'}>Operation Settings</NavLink>
+                <NavLink href="/admin/user-settings" onClick={() => { setActiveTab('admin'); setAdminSubTab('users'); }} isActive={activeTab === 'admin' && adminSubTab === 'users'}>User Settings</NavLink>
+                <NavLink href="/admin/logs" onClick={() => { setActiveTab('admin'); setAdminSubTab('logs'); }} isActive={activeTab === 'admin' && adminSubTab === 'logs'}>Logs</NavLink>
+              </NavDropdown>
+            )}
           </nav>
 
-          {/* Mobile Navigation Dropdown */}
+                    {/* Mobile Navigation Dropdown */}
           <div className="flex-1 md:hidden flex justify-center h-full items-center">
             <div className="relative">
               <button 
@@ -535,6 +489,8 @@ export default function App() {
                   <span className="min-w-[80px] text-left">
                     {activeTab === 'admin' 
                       ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                      : activeTab === 'manager'
+                      ? `Manager: ${managerSubTab}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -671,6 +627,10 @@ export default function App() {
             <VinLookup />
           )}
 
+          {activeTab === 'recalls' && (
+            <VehicleRecalls onViewProfile={setSelectedProfile} />
+          )}
+
 {activeTab === 'pot-of-gold' && (
             <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} dealershipSettings={dealershipSettings} />
           )}
@@ -689,6 +649,15 @@ export default function App() {
               customers={customers} 
               currentUser={currentUser} 
               currentDealershipId={currentDealershipId || 'ford'} 
+            />
+          )}
+
+          {activeTab === 'manager' && (
+            <ManagerDashboard
+              activeSubTab={managerSubTab}
+              onChangeSubTab={setManagerSubTab}
+              onSuccess={(msg) => showNotification(msg)}
+              onError={(msg) => showNotification(msg, true)}
             />
           )}
 

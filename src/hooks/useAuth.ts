@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
+import { normalizeUserProfile } from '../lib/rbac';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -13,19 +14,33 @@ export function useAuth() {
       if (firebaseUser) {
         const userDocRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', firebaseUser.uid);
         
-        // Use onSnapshot for real-time role updates (approval)
         const unsubDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
-            setUser({ uid: firebaseUser.uid, ...docSnap.data() } as User);
+            setUser(normalizeUserProfile({ uid: firebaseUser.uid, ...docSnap.data() }));
           } else {
-            console.warn(`useAuth: No user document found for UID ${firebaseUser.uid} at path ${userDocRef.path}. This matches your account but requires a profile document.`);
-            setUser({ uid: firebaseUser.uid, email: firebaseUser.email, status: 'pending', role: 'Staff' } as any);
+            console.warn(`useAuth: No user document found for UID ${firebaseUser.uid}`);
+            setUser(normalizeUserProfile({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              role: 'pending',
+              approved: false,
+              status: 'pending',
+              username: firebaseUser.email || 'User',
+              jobTitle: '',
+            }));
           }
           setLoading(false);
         }, (error) => {
-          console.error(`useAuth Snapshot Error for path ${userDocRef.path}:`, error);
-          // Fallback user object to avoid being stuck on loader if permissions fail
-          setUser({ uid: firebaseUser.uid, email: firebaseUser.email, status: 'pending', role: 'Staff' } as any);
+          console.error(`useAuth Snapshot Error:`, error);
+          setUser(normalizeUserProfile({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            role: 'pending',
+            approved: false,
+            status: 'pending',
+            username: firebaseUser.email || 'User',
+            jobTitle: '',
+          }));
           setLoading(false);
         });
 
