@@ -47,6 +47,7 @@ interface AdvisorPerformanceProps {
 export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentDealershipId, selectedMonth = 'active', allowArchiveEditing = false }) => {
   const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<string | null>(null);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
@@ -204,6 +205,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       }, { merge: false }); // Disable automatic merge to cleanly replace any junk advisors
     } catch (error) {
       console.error('Error saving advisor performance:', error);
+      throw error instanceof Error ? error : new Error('Failed to save performance data to Firestore.');
     }
   };
 
@@ -258,6 +260,26 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       setLoading(false);
     }
   };
+
+
+const IMPORT_PARSE_TIMEOUT_MS = 5 * 60 * 1000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `${label} timed out after ${Math.round(ms / 1000)}s. Ensure \`npm run dev\` is running and try again.`
+            )
+          ),
+        ms
+      )
+    ),
+  ]);
+}
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -337,37 +359,72 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     setIsImporting(true);
     setImportStatus(null);
-    
+    setImportProgress(null);
+
+    const isDealerBuiltImport = dmsProvider === 'dealerbuilt';
+
     try {
       let reportText = '';
+      let payload: { reportText: string; pdfBase64?: string };
+
+      if (isDealerBuiltImport) {
+        // Scanned DealerBuilt PDFs: skip slow in-browser pdf.js — server uses OCR + vision.
+        setImportProgress('Uploading PDF for server-side parsing (scanned reports may take 1–3 min)...');
+        payload = {
+          reportText: '',
+          pdfBase64: await withTimeout(fileToBase64(file), 90_000, 'PDF upload'),
+        };
+      } else {
+        setImportProgress('Reading PDF text...');
+        try {
+          reportText = await withTimeout(extractTextFromPDF(file), 20_000, 'PDF text read');
+        } catch (extractErr) {
+          console.warn('PDF text extraction skipped or timed out; will use server-side parsing:', extractErr);
+        }
+
+        payload = { reportText };
+        const hasMinimalText =
+          !reportText || reportText.replace(/\s+/g, ' ').trim().length < 80;
+        const looksDealerBuilt =
+          /service advisor performance|ro svc wrtr/i.test(reportText);
+
+        if (hasMinimalText || looksDealerBuilt) {
+          setImportProgress('Uploading PDF for server-side OCR/vision...');
+          payload.pdfBase64 = await withTimeout(fileToBase64(file), 90_000, 'PDF upload');
+        }
+
+        if (hasMinimalText || looksDealerBuilt) {
+          console.warn(
+            'Scanned or DealerBuilt-style PDF detected. Set Admin → DMS Configuration → DealerBuilt for Ford reports.'
+          );
+        }
+      }
+
+      setImportProgress('Parsing on server (please wait — do not close this tab)...');
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
+
+      let response: Response;
       try {
-        reportText = await extractTextFromPDF(file);
-      } catch (extractErr) {
-        console.warn('PDF text extraction failed, will use server-side vision for DealerBuilt:', extractErr);
-      }
-
-      const payload: { reportText: string; pdfBase64?: string } = { reportText };
-      const isDealerBuiltImport = dmsProvider === 'dealerbuilt';
-      const hasMinimalText =
-        !reportText || reportText.replace(/\s+/g, ' ').trim().length < 80;
-      const looksDealerBuilt =
-        /service advisor performance|ro svc wrtr/i.test(reportText);
-
-      if (isDealerBuiltImport || hasMinimalText || looksDealerBuilt) {
-        payload.pdfBase64 = await fileToBase64(file);
-      }
-
-      if (!isDealerBuiltImport && (hasMinimalText || looksDealerBuilt)) {
-        console.warn(
-          'DealerBuilt-style PDF detected but dealership DMS is not set to DealerBuilt. Set Admin → DMS Configuration → DealerBuilt for best results.'
+        response = await fetch('/api/parse-performance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(withDmsProvider({ dmsProvider }, payload)),
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        if (fetchErr?.name === 'AbortError') {
+          throw new Error(
+            'Import timed out after 5 minutes. Confirm OPENAI_API_KEY is set in .env.local, restart `npm run dev`, and retry.'
+          );
+        }
+        throw new Error(
+          fetchErr?.message ||
+            'Could not reach /api/parse-performance. Start the app with `npm run dev` (not vite alone).'
         );
+      } finally {
+        window.clearTimeout(timeoutId);
       }
-      
-      const response = await fetch('/api/parse-performance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(withDmsProvider({ dmsProvider }, payload))
-      });
 
       if (!response.ok) {
         let errorMessage = 'Failed to analyze report';
@@ -415,6 +472,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       // If this is a main productivity report (contains totals object), overwrite the advisor records completely 
       // rather than merging as a delta, to cleanly eliminate any stale or corrupt duplicates in the database.
       const shouldOverwrite = !!data.totals;
+      setImportProgress('Saving imported data...');
       await saveToFirestore(data, shouldOverwrite, targetMonth);
       
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
@@ -434,6 +492,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       setImportStatus({ type: 'error', message: error.message || 'Error importing PDF. Please try again.' });
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -579,7 +638,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
               className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer"
             >
               {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-              Import PDF Productivity Report
+              {isImporting ? (importProgress ? "Importing..." : "Importing...") : "Import PDF Productivity Report"}
             </button>
           </div>
         )}
@@ -594,6 +653,21 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           setImportStatus({ type: 'success', message: 'Manual productivity data saved successfully!' });
         }}
       />
+
+
+      <AnimatePresence>
+        {isImporting && importProgress && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-3 bg-sky-500/10 border-sky-500/20 text-sky-300"
+          >
+            <Loader2 size={14} className="animate-spin shrink-0" />
+            {importProgress}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {importStatus && (

@@ -1,3 +1,27 @@
+
+async function withRouteTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)),
+          ms
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+const PARSE_ROUTE_TIMEOUT_MS = 4 * 60 * 1000;
+
 import type { Express, Request, Response } from 'express';
 import type OpenAI from 'openai';
 import { normalizeDmsProvider, parsePerformanceReport } from '../index.js';
@@ -169,11 +193,15 @@ export function registerParsePerformanceRoute(
               `[DealerBuilt Performance] parse (deterministic=${deterministic.advisors.length}, vision=${useVision})`
             );
             const openai = deps.getOpenAIClient();
-            const aiResult = await parseDealerBuiltPerformanceWithOpenAI(openai, {
-              reportText: text || undefined,
-              pdfBuffer: useVision ? pdfBuffer : undefined,
-              useVision,
-            });
+            const aiResult = await withRouteTimeout(
+              parseDealerBuiltPerformanceWithOpenAI(openai, {
+                reportText: text || undefined,
+                pdfBuffer: useVision ? pdfBuffer : undefined,
+                useVision,
+              }),
+              PARSE_ROUTE_TIMEOUT_MS,
+              'DealerBuilt PDF parse'
+            );
 
             const merged = mergeDealerBuiltPerformanceResults(
               deterministic,
