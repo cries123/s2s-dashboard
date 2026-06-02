@@ -912,7 +912,7 @@ export default function AdminPanel({
               
               return (
                 <div key={d.id} className={cn(
-                  "card-base p-6 transition-all duration-500 border-brand-primary bg-brand-primary/5 ring-1 ring-brand-primary/20 col-span-full"
+                  "card-base rounded-3xl border border-white/5 overflow-hidden p-6 col-span-full"
                 )}>
                   <div className="flex flex-col gap-6">
                     <div className="flex items-center justify-between">
