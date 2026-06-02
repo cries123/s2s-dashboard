@@ -107,4 +107,13 @@ CRITICAL RULES:
 - Do NOT distribute totals among Frank/Lemmy — use actual names from the report.
 - Ignore voided/zero-dollar filters and header metadata.
 - Numbers must match the printed report; preserve cents precision.
+
+COLUMN ORDER on each advisor TOTAL row (left to right):
+Invoices | ROs | ... | Total Hours | ... | Labor Sales | Labor Cost | Labor Gross | ... | Parts Sales | Parts Gross | ... | Eff Labor Rate
+
+CRITICAL: grossLabor MUST be the "Labor Gross" column — NOT "Labor Cost".
+Labor Cost is typically ~20-25% of Labor Sales. Labor Gross is typically ~75-85% of Labor Sales.
+If Labor Sales is $37,971 and Labor Cost is $7,960, then Labor Gross is $30,010 — NOT $7,960.
+Never put Labor Cost into grossLabor. gpPercent should be ~79%, not ~21%.
+
 - If reading scanned images, read tables carefully column by column.`;

@@ -5,7 +5,8 @@ import { isScannedOrEmptyReportText, looksLikeDealerBuiltPerformanceReport } fro
 import { enrichReportTextFromPdf } from '../pdfOcr.js';
 import { parseDealerBuiltPerformanceWithOpenAI } from '../parsers/dealerbuiltPerformanceOpenAI.js';
 import {
-  normalizeDealerBuiltPerformanceAdvisor,
+  finalizeDealerBuiltPerformance,
+  mergeDealerBuiltPerformanceResults,
   parseDealerBuiltPerformanceDeterministic,
 } from '../parsers/dealerbuiltPerformance.js';
 import { performanceOpenAiJsonSchema } from '../schemas/performanceOpenAiSchema.js';
@@ -100,26 +101,21 @@ function validatePbsPerformance(
 
 function validateDealerBuiltPerformance(parsed: any) {
   if (!parsed?.advisors?.length) return parsed;
-
-  parsed.advisors = parsed.advisors
-    .map((a: any) => normalizeDealerBuiltPerformanceAdvisor(a))
-    .filter((a: any) => a.name.length > 1);
-
-  if (parsed.totals) {
-    parsed.totals = {
+  const finalized = finalizeDealerBuiltPerformance(parsed);
+  if (finalized.totals) {
+    finalized.totals = {
       totalSales:
-        Number(parsed.totals.totalSales) ||
-        Number(parsed.totals.totalLabor || 0) +
-          Number(parsed.totals.totalParts || 0),
-      totalLabor: Number(parsed.totals.totalLabor) || 0,
-      totalGross: Number(parsed.totals.totalGross) || 0,
-      totalParts: Number(parsed.totals.totalParts) || 0,
-      totalGrossParts: Number(parsed.totals.totalGrossParts) || 0,
-      totalHrs: Number(parsed.totals.totalHrs) || 0,
+        Number(finalized.totals.totalSales) ||
+        Number(finalized.totals.totalLabor || 0) +
+          Number(finalized.totals.totalParts || 0),
+      totalLabor: Number(finalized.totals.totalLabor) || 0,
+      totalGross: Number(finalized.totals.totalGross) || 0,
+      totalParts: Number(finalized.totals.totalParts) || 0,
+      totalGrossParts: Number(finalized.totals.totalGrossParts) || 0,
+      totalHrs: Number(finalized.totals.totalHrs) || 0,
     };
   }
-
-  return parsed;
+  return finalized;
 }
 
 export function registerParsePerformanceRoute(
@@ -161,32 +157,58 @@ export function registerParsePerformanceRoute(
           .json({ error: 'No performance data or PDF detected.' });
       }
 
-      if (isDealerBuiltReport && hasUsableOpenAIKey()) {
-        try {
-          const useVision = !!(pdfBuffer && isScannedPdf);
-          console.log(
-            `[DealerBuilt Performance] OpenAI parse (vision=${useVision}, dms=${dmsProvider})`
-          );
-          const openai = deps.getOpenAIClient();
-          const aiResult = await parseDealerBuiltPerformanceWithOpenAI(openai, {
-            reportText: useVision ? undefined : text || undefined,
-            pdfBuffer,
-            useVision,
-          });
+      if (isDealerBuiltReport) {
+        const deterministic = text
+          ? parseDealerBuiltPerformanceDeterministic(text)
+          : { advisors: [], totals: null as any };
 
-          if (aiResult?.advisors?.length) {
-            return res.json({
-              ...validateDealerBuiltPerformance(aiResult),
-              isAiParsed: true,
-              dmsProvider: 'dealerbuilt',
+        if (hasUsableOpenAIKey()) {
+          try {
+            const useVision = !!(pdfBuffer && isScannedPdf);
+            console.log(
+              `[DealerBuilt Performance] parse (deterministic=${deterministic.advisors.length}, vision=${useVision})`
+            );
+            const openai = deps.getOpenAIClient();
+            const aiResult = await parseDealerBuiltPerformanceWithOpenAI(openai, {
+              reportText: text || undefined,
+              pdfBuffer: useVision ? pdfBuffer : undefined,
+              useVision,
+            });
+
+            const merged = mergeDealerBuiltPerformanceResults(
+              deterministic,
+              aiResult
+            );
+
+            if (merged.advisors.length > 0) {
+              return res.json({
+                ...validateDealerBuiltPerformance(merged),
+                isAiParsed: !!aiResult?.advisors?.length,
+                dmsProvider: 'dealerbuilt',
+              });
+            }
+          } catch (err: any) {
+            console.error('[DealerBuilt Performance] OpenAI error:', err);
+            if (deterministic.advisors.length > 0) {
+              return res.json({
+                ...validateDealerBuiltPerformance(deterministic),
+                isAiParsed: false,
+                dmsProvider: 'dealerbuilt',
+              });
+            }
+            const message =
+              err?.error?.message || err?.message || 'OpenAI parse failed';
+            return res.status(502).json({
+              error: `DealerBuilt PDF parse failed: ${message}`,
             });
           }
-        } catch (err: any) {
-          console.error('[DealerBuilt Performance] OpenAI error:', err);
-          const message =
-            err?.error?.message || err?.message || 'OpenAI vision parse failed';
-          return res.status(502).json({
-            error: `DealerBuilt PDF parse failed: ${message}`,
+        }
+
+        if (deterministic.advisors.length > 0) {
+          return res.json({
+            ...validateDealerBuiltPerformance(deterministic),
+            isAiParsed: false,
+            dmsProvider: 'dealerbuilt',
           });
         }
       }
