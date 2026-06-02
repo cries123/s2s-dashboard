@@ -9,6 +9,10 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
+import {
+  EMPTY_PERFORMANCE_TOTALS,
+  performanceDocId,
+} from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
@@ -205,64 +209,48 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
   const resetPerformanceToDefaults = async () => {
     if (!user || !currentDealershipId) return;
-    
+
     setLoading(true);
-    
-    const totalLabor = 59979.38;
-    const totalGross = 49856.94;
-    const totalParts = 34874.50;
-    const totalGrossParts = 11204.62;
-    const totalSales = 103236.21;
-    const totalHrs = 402.40;
-    const totalSo = 336;
-    const elr = 149.05;
 
-    const proportions = [0.56, 0.44];
-    const names = ["Frank", "Lemmy"];
-    
-    const defaultAdvisors = names.map((name, idx) => {
-      const prop = proportions[idx];
-      const adHrs = Math.round(totalHrs * prop * 10) / 10;
-      const adLabor = Math.round(totalLabor * prop * 100) / 100;
-      const adParts = Math.round(totalParts * prop * 100) / 100;
-      const adGrossLab = Math.round(totalGross * prop * 100) / 100;
-      const adGrossParts = Math.round(totalGrossParts * prop * 100) / 100;
-      const adTotal = Math.round((adLabor + adParts) * 100) / 100;
-      const adSo = Math.round(totalSo * prop);
-      
-      return {
-        name,
-        soCount: adSo,
-        hrsSold: adHrs,
-        laborSold: adLabor,
-        grossLabor: adGrossLab,
-        partsSold: adParts,
-        grossParts: adGrossParts,
-        totalSales: adTotal,
-        gpPercent: adLabor > 0 ? Math.round((adGrossLab / adLabor) * 1000) / 10 : 83.1,
-        elr: adHrs > 0 ? Math.round((adLabor / adHrs) * 100) / 100 : elr,
-        upsells: []
-      };
-    });
+    const advisorDocId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
+    const techDocId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
+    const advisorRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'performance',
+      advisorDocId
+    );
+    const techRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'performance',
+      techDocId
+    );
 
-    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
-    
     try {
-      await setDoc(docRef, {
-        advisors: defaultAdvisors,
-        totals: {
-          totalSales,
-          totalLabor,
-          totalGross,
-          totalParts,
-          totalGrossParts,
-          totalHrs
-        },
+      await setDoc(advisorRef, {
+        advisors: [],
+        totals: EMPTY_PERFORMANCE_TOTALS,
         updatedAt: serverTimestamp(),
-        updatedBy: user.uid
+        updatedBy: user.uid,
       });
-      setImportStatus({ type: 'success', message: 'database reset back to exact report defaults (Labor Gross: $49,856 / Parts Gross: $11,204) successfully!' });
+
+      await setDoc(techRef, {
+        technicians: [],
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      });
+
+      setImportStatus({
+        type: 'success',
+        message: 'Reset complete — 0 advisors and 0 technicians for this view period.',
+      });
     } catch (error: any) {
       console.error('Error resetting performance database:', error);
       setImportStatus({ type: 'error', message: 'Failed to reset database.' });
@@ -571,7 +559,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                   ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse" 
                   : "bg-slate-800 text-slate-400 hover:text-rose-400 border-white/5"
               )}
-              title="Reset tracking DB to clean report baseline"
+              title="Clear all advisors and technicians for this view period"
             >
               <RotateCcw size={12} className={showResetConfirm ? "animate-spin" : ""} />
               {showResetConfirm ? "Confirm Reset?" : "Reset Data"}

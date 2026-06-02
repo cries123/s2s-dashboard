@@ -15,6 +15,11 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import {
+  EMPTY_PERFORMANCE_TOTALS,
+  performanceDocId,
+  resolveOperationsViewPeriod,
+} from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
@@ -180,22 +185,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       });
  
       // 4. NOW RESET ACTIVE COPIES
-      // Reset active advisors to clean empty sheet
-      const initialAdvisors = [
-        { name: "Frank", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
-        { name: "Lemmy", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
-        { name: "Jaryn", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] }
-      ];
+      // Reset active advisors to a clean empty sheet
       await setDoc(activeRef, {
-        advisors: initialAdvisors,
-        totals: {
-          totalSales: 0,
-          totalLabor: 0,
-          totalGross: 0,
-          totalParts: 0,
-          totalGrossParts: 0,
-          totalHrs: 0
-        },
+        advisors: [],
+        totals: EMPTY_PERFORMANCE_TOTALS,
         reportStartDate: "2026-06-01",
         reportEndDate: "2026-06-30",
         updatedAt: serverTimestamp(),
@@ -263,9 +256,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       }
     });
 
-    // Fetch Performance for Gross Tracking
-    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+    // Fetch Performance for Gross Tracking (respects View Period)
+    const perfDocId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
+    const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', perfDocId);
     const unsubPerf = onSnapshot(perfRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -297,15 +290,22 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           setMtdLaborSales(computedLabor);
           setMtdPartsGross(computedPartsGross);
         }
+      } else {
+        setActivePerformanceData(null);
+        setMtdGross(0);
+        setMtdLaborSales(0);
+        setMtdPartsGross(0);
       }
     });
 
-    // Fetch Technician Reports for dynamic active tracking snapshots
-    const activeTechId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
-    const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', activeTechId);
+    // Fetch Technician Reports (respects View Period)
+    const techDocId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
+    const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', techDocId);
     const unsubTech = onSnapshot(techRef, (snap) => {
       if (snap.exists()) {
         setActiveTechData(snap.data());
+      } else {
+        setActiveTechData(null);
       }
     });
 
@@ -314,7 +314,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       unsubPerf();
       unsubTech();
     };
-  }, [currentDealershipId]);
+  }, [currentDealershipId, selectedMonth]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -502,53 +502,61 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   };
 
   const calculateMetrics = () => {
+    const viewPeriod = resolveOperationsViewPeriod(selectedMonth);
+    const { year: currentYear, month: currentMonth, isHistorical } = viewPeriod;
+
     const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    
-    // Month Stats
+    const isActiveCurrentMonth =
+      !isHistorical &&
+      today.getFullYear() === currentYear &&
+      today.getMonth() === currentMonth;
+
     const monthStats = allStats.filter(s => {
       const d = new Date(s.date + 'T00:00:00');
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
     const monthTotal = monthStats.reduce((acc, s) => acc + s.count, 0);
-    
-    // Week Stats (Monday start)
+
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
     startOfWeek.setHours(0, 0, 0, 0);
-    
-    const weekStats = allStats.filter(s => {
-      const d = new Date(s.date + 'T00:00:00');
-      return d >= startOfWeek;
-    });
+
+    const weekStats = isActiveCurrentMonth
+      ? allStats.filter(s => {
+          const d = new Date(s.date + 'T00:00:00');
+          return d >= startOfWeek;
+        })
+      : [];
     const weekTotal = weekStats.reduce((acc, s) => acc + s.count, 0);
 
-    // Forecasting
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const elapsedDays = today.getDate();
 
-    // Find the latest day with logged data in the active month, or current day, whichever is newer
-    let latestElapsedDay = elapsedDays;
-    monthStats.forEach(s => {
-      if (s.count > 0) {
-        const d = new Date(s.date + 'T00:00:00');
-        if (d.getDate() > latestElapsedDay) {
-          latestElapsedDay = d.getDate();
+    let latestElapsedDay = isHistorical
+      ? daysInMonth
+      : isActiveCurrentMonth
+        ? today.getDate()
+        : daysInMonth;
+
+    if (isActiveCurrentMonth) {
+      monthStats.forEach(s => {
+        if (s.count > 0) {
+          const d = new Date(s.date + 'T00:00:00');
+          if (d.getDate() > latestElapsedDay) {
+            latestElapsedDay = d.getDate();
+          }
         }
-      }
-    });
+      });
+    }
 
-    // Working days (Monday to Friday only) calculations
     let totalWorkingDays = 0;
     let elapsedWorkingDays = 0;
     let remainingWorkingDays = 0;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(currentYear, currentMonth, d);
-      const dayOfWeek = date.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const dayOfWeek = date.getDay();
       const isWorkingDay = dayOfWeek >= 1 && dayOfWeek <= 5;
-      
+
       if (isWorkingDay) {
         totalWorkingDays++;
         if (d <= latestElapsedDay) {
@@ -559,7 +567,11 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       }
     }
 
-    // Help guard against division by zero on the 1st day/weekend
+    if (isHistorical) {
+      elapsedWorkingDays = totalWorkingDays;
+      remainingWorkingDays = 0;
+    }
+
     const activeElapsedWorkingDays = elapsedWorkingDays > 0 ? elapsedWorkingDays : 1;
 
     const pad = (n: number) => n.toString().padStart(2, '0');
@@ -567,46 +579,46 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     const elapsedMonthStats = monthStats.filter(s => s.date <= limitDateStr);
     const elapsedMonthTotal = elapsedMonthStats.reduce((acc, s) => acc + s.count, 0);
 
-    // If we have actual recorded stats for past/present days, count those. Otherwise fallback to monthTotal.
     const runRateBase = elapsedMonthTotal > 0 ? elapsedMonthTotal : monthTotal;
 
-    // Use working days average to project remaining working days
     const avgDaily = activeElapsedWorkingDays > 0 ? runRateBase / activeElapsedWorkingDays : 0;
-    const forecast = Math.round(runRateBase + (avgDaily * remainingWorkingDays));
+    const forecast = isHistorical
+      ? monthTotal
+      : Math.round(runRateBase + avgDaily * remainingWorkingDays);
 
-    // PACE TRACKING (Based on Working Days in Month)
     const dailyTarget = targetValue;
     const monthTarget = dailyTarget * totalWorkingDays;
     const paceTarget = Math.round(dailyTarget * elapsedWorkingDays);
-    
-    // Variance from Pace (The "Lost Opportunity" if negative, "Surplus" if positive)
+
     const mtdVariance = runRateBase - paceTarget;
     const lostOpportunity = mtdVariance < 0 ? Math.abs(mtdVariance) : 0;
-    
-    // Current Monthly Shortfall (Goal - Current)
     const currentShortfall = Math.max(0, monthTarget - monthTotal);
-    
-    // Projected Shortfall (Goal - Forecast)
     const projectedShortfall = monthTarget - forecast;
 
-    // PROJECTED SALES SHORTFALLS & FORECASTS (Using working days)
     const laborDailyAvg = activeElapsedWorkingDays > 0 ? mtdGross / activeElapsedWorkingDays : 0;
     const laborSalesDailyAvg = activeElapsedWorkingDays > 0 ? mtdLaborSales / activeElapsedWorkingDays : 0;
     const grossPaceTarget = Math.round((laborTarget / totalWorkingDays) * elapsedWorkingDays);
-    const grossForecast = Math.round(mtdGross + (laborDailyAvg * remainingWorkingDays));
-    const laborSalesForecast = Math.round(mtdLaborSales + (laborSalesDailyAvg * remainingWorkingDays));
+    const grossForecast = isHistorical
+      ? Math.round(mtdGross)
+      : Math.round(mtdGross + laborDailyAvg * remainingWorkingDays);
+    const laborSalesForecast = isHistorical
+      ? Math.round(mtdLaborSales)
+      : Math.round(mtdLaborSales + laborSalesDailyAvg * remainingWorkingDays);
     const grossVariance = mtdGross - grossPaceTarget;
-    
-    // PARTS FORECAST (Using working days)
+
     const partsDailyAvg = activeElapsedWorkingDays > 0 ? mtdPartsGross / activeElapsedWorkingDays : 0;
     const partsPaceTarget = Math.round((partsTarget / totalWorkingDays) * elapsedWorkingDays);
-    const partsForecast = Math.round(mtdPartsGross + (partsDailyAvg * remainingWorkingDays));
+    const partsForecast = isHistorical
+      ? Math.round(mtdPartsGross)
+      : Math.round(mtdPartsGross + partsDailyAvg * remainingWorkingDays);
     const partsVariance = mtdPartsGross - partsPaceTarget;
 
-    return { 
-      monthTotal, 
-      weekTotal, 
-      forecast, 
+    return {
+      viewPeriodLabel: viewPeriod.label,
+      isHistorical,
+      monthTotal,
+      weekTotal,
+      forecast,
       avgDaily: avgDaily.toFixed(1),
       daysRemaining: remainingWorkingDays,
       lostOpportunity,
@@ -617,7 +629,6 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       dailyTarget,
       monthTarget,
       paceTarget,
-      // Sales metrics
       mtdGross,
       mtdLaborSales,
       mtdPartsGross,
@@ -628,12 +639,11 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       grossVariance,
       laborDailyAvg,
       laborSalesDailyAvg,
-      // Parts metrics
       partsForecast,
       partsPaceTarget,
       partsTarget,
       partsDailyAvg,
-      partsVariance
+      partsVariance,
     };
   };
 
@@ -765,12 +775,15 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               </div>
               <div>
                 <h2 className="text-xl font-black text-white tracking-wider uppercase">Month-End Projections</h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{metrics.viewPeriodLabel}{metrics.isHistorical ? " · Final Archive" : ""}</p>
               </div>
             </div>
             <div className="self-start sm:self-auto">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 whitespace-nowrap shadow-sm">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
-                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">{metrics.daysRemaining} Working Days Left</span>
+                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                  {metrics.isHistorical ? 'Month Closed' : `${metrics.daysRemaining} Working Days Left`}
+                </span>
               </div>
             </div>
           </div>
