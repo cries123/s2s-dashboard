@@ -192,6 +192,14 @@ export default function ManagerDashboard({
       onError?.('This account cannot be modified.');
       return;
     }
+    if (!canModifyUser(currentUser, target)) {
+      onError?.('You can only manage sales and service enrollments for your dealership.');
+      return;
+    }
+    if (approved && !isPendingStaffEnrollment(target)) {
+      onError?.('Only pending sales and service enrollments can be approved here.');
+      return;
+    }
     if (!approved) {
       await revokePendingEnrollment(target);
       return;
