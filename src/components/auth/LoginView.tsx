@@ -22,7 +22,7 @@ export default function LoginView() {
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [tenantId, setTenantId] = useState('');
-  const [department, setDepartment] = useState<UserDepartment | ''>('');
+  const [department, setDepartment] = useState<UserDepartment | 'manager' | ''>('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
@@ -56,6 +56,7 @@ export default function LoginView() {
       }
 
       const isPrimaryAdmin = email.toLowerCase() === 'admin@hyundai.com';
+      const isManagerEnrollment = department === 'manager';
       
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const dealershipId = dealershipIdFromTenantId(profile.tenantId);
@@ -66,12 +67,16 @@ export default function LoginView() {
         username: isPrimaryAdmin ? 'Primary Admin' : username,
         tenantId: profile.tenantId,
         dealershipId,
-        department,
-        role: isPrimaryAdmin ? 'admin' : 'pending',
+        department: isManagerEnrollment ? 'service' : department,
+        role: isPrimaryAdmin ? 'admin' : (isManagerEnrollment ? 'manager' : 'pending'),
         approved: isPrimaryAdmin,
         status: isPrimaryAdmin ? 'approved' : 'pending',
-        isManager: isPrimaryAdmin,
-        jobTitle: department === 'sales' ? 'Sales Professional' : 'Service Advisor',
+        isManager: isPrimaryAdmin || isManagerEnrollment,
+        jobTitle: isManagerEnrollment
+          ? 'Manager'
+          : department === 'sales'
+            ? 'Sales Professional'
+            : 'Service Advisor',
         createdAt: new Date()
       });
 
@@ -82,7 +87,12 @@ export default function LoginView() {
         { uid: cred.user.uid, email: cred.user.email || email, username }
       );
       
-      showMessage('Enrollment submitted. A manager must approve your account before you can access the dashboard.', false);
+      showMessage(
+        isManagerEnrollment
+          ? 'Manager enrollment submitted. The primary system administrator must approve your account.'
+          : 'Enrollment submitted. A manager must approve your account before you can access the dashboard.',
+        false
+      );
       setMode('login');
     } catch (err: any) {
       showMessage(err.message, true);
@@ -222,13 +232,14 @@ export default function LoginView() {
                       <option value="">-- Select Department --</option>
                       <option value="sales">Sales</option>
                       <option value="service">Service</option>
+                      <option value="manager">Manager</option>
                     </select>
                   </div>
                 </div>
                 <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
                   <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={16} />
                   <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                    New accounts start as <span className="text-amber-400 font-black">pending</span>. A manager for your dealership profile must approve you before dashboard access is granted.
+                    Choose Sales or Service for manager approval at your dealership, or Manager for primary administrator review.
                   </p>
                 </div>
                 <div className="space-y-1.5">

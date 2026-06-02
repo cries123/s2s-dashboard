@@ -44,6 +44,11 @@ import {
   resolveUserTenantId,
   userBelongsToTenant,
   isPendingUser,
+  canModifyUser,
+  isPendingManagerEnrollment,
+  isPendingStaffEnrollment,
+  isPrimaryAdmin,
+  isProtectedUser,
 } from '../../../lib/rbac';
 import { getTenantProfile, tenantIdFromDealershipId } from '../../../lib/tenants';
 import {
@@ -54,6 +59,7 @@ import {
 
 interface AdminPanelProps {
   key?: string;
+  panelMode?: 'admin' | 'manager' | 'full';
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
@@ -64,6 +70,7 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ 
+  panelMode = 'full',
   currentDealershipId, 
   onSuccess, 
   onError, 
@@ -668,6 +675,39 @@ export default function AdminPanel({
     }
   };
 
+
+  const rejectPendingUser = async (userToUpdate: User) => {
+    try {
+      if (!currentUser) return;
+      if (isProtectedUser(userToUpdate)) {
+        onError?.('This account is protected and cannot be modified.');
+        return;
+      }
+      if (panelMode === 'admin' && !isPendingManagerEnrollment(userToUpdate)) {
+        onError?.('Only pending manager enrollments can be revoked here.');
+        return;
+      }
+      if (panelMode === 'manager' && !isPendingStaffEnrollment(userToUpdate)) {
+        onError?.('Only pending sales and service enrollments can be revoked here.');
+        return;
+      }
+      const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', userToUpdate.uid);
+      await deleteDoc(userRef);
+      await logSystemAction(
+        'Enrollment Revoked',
+        `Removed pending enrollment for ${userToUpdate.username} (${userToUpdate.email})`,
+        'settings',
+        currentUser.email,
+        currentUser.username,
+        currentUser.dealershipId || userToUpdate.dealershipId
+      );
+      onSuccess?.(`${userToUpdate.username} removed from pending enrollments.`);
+    } catch (error) {
+      onError?.('Failed to revoke enrollment.');
+      console.error('Error revoking pending user:', error);
+    }
+  };
+
   const updateUserRole = async (uid: string, role: Role, userToUpdate?: User) => {
     try {
       if (!currentUser) return;
@@ -695,9 +735,16 @@ export default function AdminPanel({
     }
   };
 
-  const deleteUser = async (uid: string) => {
+  const deleteUser = async (uid: string, userToUpdate?: User) => {
     try {
       if (!currentUser) return;
+
+      const target = userToUpdate || users.find((u) => u.uid === uid);
+      if (target && (isProtectedUser(target) || !canModifyUser(currentUser, target))) {
+        onError?.('This user cannot be removed.');
+        setConfirmDeleteId(null);
+        return;
+      }
       
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
       await deleteDoc(userRef);
@@ -725,10 +772,20 @@ export default function AdminPanel({
     u.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingUsers = filteredUsers.filter((u) => isPendingUser(u) && u.status !== 'rejected');
-  const activeUsers = filteredUsers.filter((u) => !isPendingUser(u) || u.status === 'rejected');
+  const pendingUsers = filteredUsers.filter((u) => {
+    if (!isPendingUser(u) || u.status === 'rejected') return false;
+    if (panelMode === 'admin') return isPendingManagerEnrollment(u);
+    if (panelMode === 'manager') return isPendingStaffEnrollment(u);
+    return true;
+  });
+  const activeUsers = filteredUsers.filter((u) => {
+    if (isPendingUser(u) || u.status === 'rejected') return false;
+    if (panelMode === 'admin') return u.role === 'manager' || u.role === 'Manager' || u.isManager === true;
+    if (panelMode === 'manager') return u.role !== 'manager' && u.role !== 'Manager' && u.role !== 'admin' && u.isManager !== true;
+    return true;
+  });
 
-  const subTab = activeSubTab || 'operations';
+  const subTab = activeSubTab || (panelMode === 'admin' ? 'users' : 'operations');
 
   return (
     <div className="space-y-8 animate-fade-in pb-20">
@@ -757,13 +814,20 @@ export default function AdminPanel({
       {/* 2. Sleek Segmented glass navigation bar */}
       <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
         <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {[
+        <div className={cn(
+          'grid gap-2',
+          (panelMode === 'full' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : panelMode === 'manager' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2')
+        )}>
+          {([
             { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
             { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
             { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
             { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
-          ].map(tab => {
+          ] as const).filter((tab) => {
+            if (panelMode === 'admin') return tab.id === 'users' || tab.id === 'logs';
+            if (panelMode === 'manager') return tab.id === 'operations' || tab.id === 'preferences';
+            return true;
+          }).map(tab => {
             const Icon = tab.icon;
             const isSelected = subTab === tab.id;
             return (
@@ -1356,7 +1420,7 @@ export default function AdminPanel({
                           <UserCheck size={16} />
                         </button>
                         <button 
-                          onClick={() => updateUserStatus(user.uid, 'rejected', user)}
+                          onClick={() => rejectPendingUser(user)}
                           className="p-2 bg-slate-800 text-rose-500 rounded-xl hover:scale-105 transition-all"
                           title="Reject User"
                         >

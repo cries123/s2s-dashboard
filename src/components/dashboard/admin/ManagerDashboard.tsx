@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   collection,
   doc,
+  deleteDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -33,7 +34,10 @@ import {
 } from '../../../lib/tenants';
 import {
   buildUserApprovalPatch,
+  canModifyUser,
   isPlatformAdmin,
+  isPendingStaffEnrollment,
+  isProtectedUser,
   normalizeUserProfile,
   resolveUserTenantId,
   userBelongsToTenant,
@@ -141,10 +145,44 @@ export default function ManagerDashboard({
     );
   });
 
+  const revokePendingEnrollment = async (target: User) => {
+    if (!currentUser) return;
+    if (isProtectedUser(target) || !canModifyUser(currentUser, target)) {
+      onError?.('This enrollment cannot be revoked.');
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid));
+      await logAuditAction('Revoke Enrollment', `Removed pending enrollment for ${target.username}`, tenantId, currentUser);
+      onSuccess?.(`${target.username} removed from pending enrollments.`);
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to revoke enrollment');
+    }
+  };
+
+  const removeUser = async (target: User) => {
+    if (!currentUser) return;
+    if (isProtectedUser(target) || !canModifyUser(currentUser, target)) {
+      onError?.('This user cannot be removed.');
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid));
+      await logAuditAction('Remove User', `Removed user ${target.username}`, tenantId, currentUser);
+      onSuccess?.(`${target.username} removed.`);
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to remove user');
+    }
+  };
+
   const setApproval = async (target: User, approved: boolean) => {
     if (!currentUser) return;
-    if (target.uid === currentUser.uid) {
-      onError?.('You cannot change your own approval status.');
+    if (target.uid === currentUser.uid || isProtectedUser(target)) {
+      onError?.('This account cannot be modified.');
+      return;
+    }
+    if (!approved) {
+      await revokePendingEnrollment(target);
       return;
     }
     try {
@@ -212,7 +250,7 @@ export default function ManagerDashboard({
     }
   };
 
-  const pendingUsers = filteredUsers.filter((u) => u.approved === false || u.status === 'pending' || u.role === 'pending');
+  const pendingUsers = filteredUsers.filter((u) => isPendingStaffEnrollment(u));
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -272,7 +310,7 @@ export default function ManagerDashboard({
                       <button type="button" onClick={() => setApproval(u, true)} className="btn-primary py-2 px-4 text-[10px] flex items-center gap-1">
                         <CheckCircle size={14} /> Approve
                       </button>
-                      <button type="button" onClick={() => setApproval(u, false)} className="py-2 px-4 text-[10px] font-black uppercase rounded-xl bg-slate-800 text-slate-400 hover:text-rose-400 flex items-center gap-1">
+                      <button type="button" onClick={() => revokePendingEnrollment(u)} className="py-2 px-4 text-[10px] font-black uppercase rounded-xl bg-slate-800 text-slate-400 hover:text-rose-400 flex items-center gap-1">
                         <XCircle size={14} /> Deny
                       </button>
                     </div>

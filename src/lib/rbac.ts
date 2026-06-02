@@ -47,7 +47,7 @@ export function resolveUserDealershipId(user: User | null | undefined): string {
 
 export function isPendingUser(user: User | null | undefined): boolean {
   if (!user) return true;
-  if (isPlatformAdmin(user)) return false;
+  if (isPlatformAdmin(user) || isPrimaryAdmin(user)) return false;
   if (user.status === 'rejected') return true;
   if (user.approved === true || user.status === 'approved') return false;
   if (user.role === 'pending') return true;
@@ -102,7 +102,7 @@ export function canSeeManagerPanel(user: User | null | undefined): boolean {
 }
 
 export function canSeeAdminPanel(user: User | null | undefined): boolean {
-  return isPlatformAdmin(user);
+  return canAccessPrimaryAdminSettings(user);
 }
 
 export function canSeeCompetitions(user: User | null | undefined, tenantId: string): boolean {
@@ -179,4 +179,50 @@ export function normalizeUserProfile(raw: Record<string, unknown> & { uid: strin
     isManager: role === 'manager' || role === 'admin' || raw.isManager === true,
     createdAt: raw.createdAt as User['createdAt'],
   };
+}
+
+export const PRIMARY_ADMIN_EMAIL = 'admin@hyundai.com';
+
+export function normalizeEmail(email?: string | null): string {
+  return (email || '').trim().toLowerCase();
+}
+
+export function isPrimaryAdmin(user: Pick<User, 'email'> | null | undefined): boolean {
+  return normalizeEmail(user?.email) === PRIMARY_ADMIN_EMAIL;
+}
+
+export function isProtectedUser(user: Pick<User, 'email'> | null | undefined): boolean {
+  return isPrimaryAdmin(user);
+}
+
+export function canAccessPrimaryAdminSettings(user: User | null | undefined): boolean {
+  return isPrimaryAdmin(user);
+}
+
+export function canSwitchDealership(user: User | null | undefined): boolean {
+  return isPrimaryAdmin(user);
+}
+
+export function isPendingManagerEnrollment(user: User): boolean {
+  return (
+    isPendingUser(user) &&
+    (user.isManager === true || user.role === 'manager' || user.role === 'Manager')
+  );
+}
+
+export function isPendingStaffEnrollment(user: User): boolean {
+  return isPendingUser(user) && !isPendingManagerEnrollment(user);
+}
+
+export function canModifyUser(actor: User | null | undefined, target: User): boolean {
+  if (!actor || isProtectedUser(target)) return false;
+  if (isPrimaryAdmin(actor)) return true;
+  if (!isManager(actor)) return false;
+  if (resolveUserDealershipId(actor) !== resolveUserDealershipId(target)) return false;
+  return (
+    target.role !== 'manager' &&
+    target.role !== 'Manager' &&
+    target.role !== 'admin' &&
+    target.isManager !== true
+  );
 }

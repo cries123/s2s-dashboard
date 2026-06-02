@@ -2,6 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // --- Primitives & Safety ---
     match /{document=**} {
       allow read, write: if false;
     }
@@ -14,115 +15,60 @@ service cloud.firestore {
       return request.resource.data;
     }
 
-    function userDocPath() {
-      return /databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid);
+    function userDoc() {
+      return get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data;
     }
 
-    function userExists() {
-      return isSignedIn() && exists(userDocPath());
-    }
-
-    function userData() {
-      return get(userDocPath()).data;
-    }
-
-    function userTenantId() {
-      return userExists() && 'tenantId' in userData()
-        ? userData().tenantId
-        : (userExists() && userData().dealershipId == 'nissan'
-            ? 'nissan-mazda'
-            : (userExists() && userData().dealershipId == 'ford'
-                ? 'ford-lincoln'
-                : 'hyundai'));
-    }
-
-    function isAdmin() {
+    function isManager() {
       return isSignedIn() &&
-             'email' in request.auth.token &&
+             exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) &&
+             userDoc().status == 'approved' &&
+             (userDoc().role == 'Manager' || userDoc().role == 'manager' || userDoc().isManager == true);
+    }
+
+    function managerDealershipId() {
+      return userDoc().dealershipId;
+    }
+
+    function isProtectedAccount(data) {
+      return data.email == 'admin@hyundai.com';
+    }
+
+    // Role checks with master decimal/string override
+    function isAdmin() {
+      return isSignedIn() && 
+             'email' in request.auth.token && 
+             (request.auth.token.email == 'admin@hyundai.com' ||
+              request.auth.token.email == 'jaryn.b.healey@gmail.com' ||
+              request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
+              request.auth.token.email == 'jaryn.healey@hyundaigp.com' ||
+              request.auth.token.email == 'Jaryn.Healey@hyundaigp.com' ||
+              (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isApproved() {
+      return isSignedIn() && 
+             'email' in request.auth.token && 
              (request.auth.token.email == 'jaryn.b.healey@gmail.com' ||
               request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
               request.auth.token.email == 'jaryn.healey@hyundaigp.com' ||
               request.auth.token.email == 'Jaryn.Healey@hyundaigp.com' ||
-              (userExists() && userData().role == 'admin'));
-    }
-
-    function isApproved() {
-      return isAdmin() ||
-             (userExists() &&
-              (userData().approved == true ||
-               userData().status == 'approved' ||
-               userData().role == 'admin'));
-    }
-
-    function isTenantManager() {
-      return userExists() &&
-             isApproved() &&
-             (userData().role == 'manager' ||
-              userData().role == 'Manager' ||
-              userData().isManager == true);
-    }
-
-    function isManagerForTenant(tenantId) {
-      return isTenantManager() && userTenantId() == tenantId;
+              (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.status == 'approved'));
     }
 
     function isSystemWorker() {
-      return isSignedIn() &&
-             'email' in request.auth.token &&
+      return isSignedIn() && 
+             'email' in request.auth.token && 
              request.auth.token.email == 'system-worker@hyundai-s2s.internal';
-    }
-
-    function tenantUnchanged() {
-      return !('tenantId' in incoming()) || incoming().tenantId == resource.data.tenantId;
     }
 
     // --- Users Collection ---
     match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
-      allow create: if isSignedIn() &&
-                       request.auth.uid == userId &&
-                       incoming().tenantId is string &&
-                       incoming().department in ['sales', 'service'] &&
-                       incoming().role == 'pending' &&
-                       incoming().approved == false;
-
-      allow get: if isSignedIn() && (
-        request.auth.uid == userId ||
-        isAdmin() ||
-        isSystemWorker() ||
-        (isTenantManager() && (
-          resource.data.tenantId == userTenantId() ||
-          (!('tenantId' in resource.data) && resource.data.dealershipId == userData().dealershipId)
-        ))
-      );
-
-      allow list: if isAdmin() || isSystemWorker() || isTenantManager();
-
-      allow update: if isAdmin() ||
-        (isTenantManager() &&
-         (resource.data.tenantId == userTenantId() ||
-          (!('tenantId' in resource.data) && resource.data.dealershipId == userData().dealershipId)) &&
-         request.auth.uid != userId &&
-         tenantUnchanged() &&
-         (!('tenantId' in resource.data) || incoming().tenantId == resource.data.tenantId)) ||
-        (request.auth.uid == userId &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferences']));
-
-      allow delete: if isAdmin();
-    }
-
-    // --- Tenant profiles (DMS + metadata) ---
-    match /artifacts/hyundai-sales-to-service/public/data/tenants/{tenantId} {
-      allow read: if isSignedIn() && (isAdmin() || userTenantId() == tenantId);
-      allow create, update: if isAdmin() || isManagerForTenant(tenantId);
-      allow delete: if isAdmin();
-    }
-
-    // --- Tenant-scoped audit logs ---
-    match /artifacts/hyundai-sales-to-service/public/data/logs/{logId} {
-      allow create: if isSignedIn() &&
-                       incoming().tenantId is string &&
-                       (isAdmin() || incoming().tenantId == userTenantId());
-      allow read: if isAdmin() || (isTenantManager() && resource.data.tenantId == userTenantId());
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSystemWorker());
+      allow list: if isAdmin();
       allow update, delete: if isAdmin();
     }
 
@@ -135,7 +81,7 @@ service cloud.firestore {
     // --- Customer & Operations Data ---
     match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-
+      
       match /contactLog/{logId} {
         allow read, write: if isApproved() || isAdmin() || isSystemWorker();
       }
@@ -175,5 +121,7 @@ service cloud.firestore {
       allow read: if isApproved() || isAdmin();
       allow write: if isSignedIn();
     }
+
   }
 }
+
