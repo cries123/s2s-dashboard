@@ -14,7 +14,7 @@ import {
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  GripVertical, Check, Wrench
+  GripVertical, Check, Wrench, Monitor, X
 } from 'lucide-react';
 
 // 1. Color System Configuration & Status Tokens
@@ -33,6 +33,11 @@ const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: any }[] = [
   { id: 'diesel', label: 'Diesel Power', icon: ClipboardList },
   { id: 'trans', label: 'Transmission', icon: RefreshCw },
   { id: 'mobile_repair', label: 'Mobile Fleet', icon: Wrench },
+];
+
+const DISPLAY_COLUMNS: { id: DepartmentColumnId; label: string; shortLabel: string; icon: typeof Layers }[] = [
+  { id: 'unassigned', label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
+  ...DEPARTMENTS.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
 ];
 
 export function DispatchBoard({ 
@@ -59,6 +64,7 @@ export function DispatchBoard({
 
   // Completed items view states
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
+  const [isDisplayMode, setIsDisplayMode] = useState<boolean>(false);
 
   // Form states
   const [roNumber, setRoNumber] = useState('');
@@ -74,6 +80,44 @@ export function DispatchBoard({
   const currentSystemDate = useMemo(() => {
     return new Date().toLocaleDateString('en-CA'); // Accurate timezone local YYYY-MM-DD
   }, []);
+
+  useEffect(() => {
+    if (!isDisplayMode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDisplayMode(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, [isDisplayMode]);
+
+  const openDisplayMode = async () => {
+    setShowCompleted(false);
+    setIsDisplayMode(true);
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen is optional; fixed overlay still works in-window.
+    }
+  };
+
+  const closeDisplayMode = () => {
+    setIsDisplayMode(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  };
 
 
   const laneCapacity = useMemo(
@@ -401,6 +445,44 @@ export function DispatchBoard({
     return acc;
   }, [activeTickets]);
 
+
+  const renderDisplayCard = (ro: DispatchRepairOrder) => {
+    const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
+    const isOvernight = ro.dateCreated < currentSystemDate;
+
+    return (
+      <div
+        key={ro.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, ro.id)}
+        onDragEnd={handleDragEnd}
+        style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
+        className={cn(
+          'bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing select-none space-y-0.5',
+          draggedRoId === ro.id && 'opacity-40 scale-95',
+          isOvernight && 'ring-1 ring-amber-500/40'
+        )}
+      >
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-black text-white tabular-nums truncate">RO {ro.roNumber}</span>
+          <span
+            className="text-[8px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+            style={{ backgroundColor: statusInfo.hex, color: statusInfo.text }}
+          >
+            {ro.status}
+          </span>
+        </div>
+        <p className="text-[9px] font-bold text-slate-300 truncate uppercase">
+          {ro.customerName || ro.model || 'Guest'}
+        </p>
+        <div className="flex items-center justify-between text-[8px] font-mono text-slate-500">
+          <span>T#{ro.techNumber}</span>
+          <span>…{ro.vinLastEight}</span>
+        </div>
+      </div>
+    );
+  };
+
   const renderRoCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const isOvernight = ro.dateCreated < currentSystemDate;
@@ -617,6 +699,16 @@ export function DispatchBoard({
               <span className="text-slate-400">goal {apptGoal}</span>
             </div>
           )}
+          <button
+            type="button"
+            onClick={openDisplayMode}
+            disabled={loading || showCompleted}
+            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
+          >
+            <Monitor size={13} />
+            <span>Display Preview</span>
+          </button>
+          
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
             className={cn(
@@ -935,6 +1027,75 @@ export function DispatchBoard({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {isDisplayMode && (
+        <div
+          className="fixed inset-0 z-[9999] bg-slate-950 text-slate-100 flex items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Dispatch display preview"
+        >
+          <div className="relative w-full h-full max-w-[1920px] max-h-[1080px] flex flex-col p-2 box-border">
+            <button
+              type="button"
+              onClick={closeDisplayMode}
+              className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:border-slate-500 opacity-40 hover:opacity-100 transition-opacity"
+              title="Exit display preview (Esc)"
+            >
+              <X size={12} />
+              Exit
+            </button>
+
+            <div className="grid grid-cols-8 gap-1.5 flex-1 min-h-0 w-full h-full">
+              {DISPLAY_COLUMNS.map((col) => {
+                const list = ticketsByColumn[col.id] || [];
+                const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id];
+                const atCap = cap > 0 && list.length >= cap;
+                const isOver = overColumnId === col.id;
+
+                return (
+                  <div
+                    key={col.id}
+                    onDragOver={(e) => handleDragOver(e, col.id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, col.id)}
+                    className={cn(
+                      'flex flex-col min-w-0 min-h-0 rounded-xl border bg-slate-900/60 overflow-hidden',
+                      isOver ? 'border-indigo-500/70 bg-slate-800/80' : 'border-slate-800/80'
+                    )}
+                  >
+                    <div className="shrink-0 px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <col.icon size={11} className="text-indigo-400 shrink-0" />
+                        <span className="text-[9px] font-black uppercase tracking-wide truncate leading-tight">
+                          {col.shortLabel}
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          'text-[8px] font-black tabular-nums px-1.5 py-0.5 rounded shrink-0',
+                          atCap ? 'bg-rose-950 text-rose-400' : 'bg-slate-800 text-slate-400'
+                        )}
+                      >
+                        {cap > 0 ? `${list.length}/${cap}` : list.length}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-1.5 space-y-1.5">
+                      {list.length === 0 ? (
+                        <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-4 px-1">
+                          —
+                        </p>
+                      ) : (
+                        list.map((ro) => renderDisplayCard(ro))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
