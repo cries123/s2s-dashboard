@@ -1,7 +1,8 @@
 /** Dealership group profiles — shared dashboards vs isolated Hyundai. */
-export type TenantId = 'nissan-mazda' | 'ford-lincoln' | 'hyundai';
+import type { DmsProviderId } from '../constants/dmsProviders';
 
-export type DmsProvider = 'pbs' | 'cdk' | 'reynolds' | 'dealertrack';
+export type TenantId = 'nissan-mazda' | 'ford-lincoln' | 'hyundai';
+export type DmsProvider = DmsProviderId;
 
 export interface TenantProfile {
   tenantId: TenantId;
@@ -24,7 +25,7 @@ export const TENANT_PROFILES: TenantProfile[] = [
   {
     tenantId: 'ford-lincoln',
     name: 'Ford / Lincoln',
-    dmsProvider: 'cdk',
+    dmsProvider: 'pbs',
     dealershipId: 'ford',
     isolatedDashboard: false,
   },

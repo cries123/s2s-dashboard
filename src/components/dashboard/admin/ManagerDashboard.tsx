@@ -43,7 +43,7 @@ import {
   userBelongsToTenant,
 } from '../../../lib/rbac';
 import { logAuditAction } from '../../../services/loggingService';
-import type { DmsProvider } from '../../../lib/tenants';
+import { DMS_PROVIDERS, DEFAULT_DMS_PROVIDER, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
 
 type ManagerTab = 'users' | 'settings' | 'logs';
 
@@ -77,7 +77,7 @@ export default function ManagerDashboard({
 
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [dmsProvider, setDmsProvider] = useState<DmsProvider>(tenantProfile?.dmsProvider || 'pbs');
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(normalizeDmsProvider(tenantProfile?.dmsProvider));
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,7 +141,7 @@ export default function ManagerDashboard({
     const unsub = onSnapshot(tenantRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.dmsProvider) setDmsProvider(data.dmsProvider as DmsProvider);
+        if (data.dmsProvider) setDmsProvider(normalizeDmsProvider(data.dmsProvider as string));
       }
     });
     return () => unsub();
@@ -416,14 +416,18 @@ export default function ManagerDashboard({
           <label className="input-label">DMS Provider</label>
           <select
             value={dmsProvider}
-            onChange={(e) => setDmsProvider(e.target.value as DmsProvider)}
+            onChange={(e) => setDmsProvider(e.target.value as DmsProviderId)}
             className="input-field w-full mb-6"
           >
-            <option value="pbs">PBS</option>
-            <option value="cdk">CDK</option>
-            <option value="reynolds">Reynolds</option>
-            <option value="dealertrack">DealerTrack</option>
+            {DMS_PROVIDERS.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.label}
+              </option>
+            ))}
           </select>
+          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">
+            {DMS_PROVIDERS.find((p) => p.id === dmsProvider)?.description}
+          </p>
           <button type="button" onClick={saveDmsProvider} disabled={savingDms} className="btn-primary w-full py-3">
             {savingDms ? <Loader2 className="animate-spin mx-auto" size={18} /> : 'Save Tenant Settings'}
           </button>

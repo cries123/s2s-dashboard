@@ -1,3 +1,4 @@
+import type { DmsProviderId } from './constants/dmsProviders';
 import { Timestamp } from "firebase/firestore";
 
 /** RBAC roles — `admin` is platform super-admin; enrollment starts as `pending`. */
@@ -14,7 +15,7 @@ export type UserStatus = 'pending' | 'approved' | 'rejected';
 export interface Tenant {
   tenantId: string;
   name: string;
-  dmsProvider: 'pbs' | 'cdk' | 'reynolds' | 'dealertrack';
+  dmsProvider: DmsProviderId;
   updatedAt?: Timestamp;
 }
 
@@ -131,7 +132,7 @@ export interface DealershipSettings {
   enableDispatchTab?: boolean;
   /** Pot of Gold / competition column config (slug id + display label) */
   competitionAdvisors?: { id: string; label: string }[];
-  dmsProvider?: 'pbs' | 'cdk' | 'reynolds' | 'dealertrack';
+  dmsProvider?: DmsProviderId;
   dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
   dispatchShowTodayLoad?: boolean;
   dispatchBlockWhenFull?: boolean;
