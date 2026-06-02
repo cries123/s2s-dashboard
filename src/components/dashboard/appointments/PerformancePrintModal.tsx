@@ -4,6 +4,7 @@ import { db } from '../../../firebase';
 import { Printer, X, FileText, Loader2, BarChart2, TrendingUp, ShieldAlert, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
+import { dedupeDailyStatsByDate } from '../../../lib/appointmentTracker';
 
 // Helper: US Federal Holidays definitions
 const isFederalHoliday = (date: Date): boolean => {
@@ -192,7 +193,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
         }
         return s.dealershipId === currentDealershipId;
       });
-      setAppointments(stats);
+      setAppointments(dedupeDailyStatsByDate(stats, currentDealershipId || 'hyundai'));
     }, (err) => {
       console.error("Print Modal failed to subscribe to appointments:", err);
     });

@@ -18,6 +18,21 @@ dotenv.config();
 // Helper sleep function for Sequential Throttling
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Parse "For Jun 2, 2026" from PBS Appointment Details report header. */
+function extractReportDateFromAppointmentText(reportText: string): string | null {
+  const match = reportText.match(/For\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/i);
+  if (!match) return null;
+
+  const monthIndex = new Date(`${match[1]} 1, ${match[3]}`).getMonth();
+  if (Number.isNaN(monthIndex)) return null;
+
+  const year = match[3];
+  const month = String(monthIndex + 1).padStart(2, '0');
+  const day = String(parseInt(match[2], 10)).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+
 // Status tracking for the off-peak sequential background recall sync worker
 let isRecallWorkerRunning = false;
 const recallWorkerStatus = {
@@ -169,6 +184,8 @@ async function startServer() {
       if (!text) {
         return res.status(400).json({ error: "No report text or PDF data detected." });
       }
+
+      const reportDate = extractReportDateFromAppointmentText(text);
 
       console.log(`[Appointments Parser] Received text of length ${text.length}`);
 

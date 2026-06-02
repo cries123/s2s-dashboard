@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
+  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField, deleteDoc 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
@@ -16,6 +16,13 @@ import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  appointmentTrackerDocId,
+  dedupeDailyStatsByDate,
+  extractReportDateFromAppointmentPdf,
+  findDuplicateTrackerDocs,
+  toLocalDateString,
+} from '../../../lib/appointmentTracker';
 
 interface AppointmentsProps {
   currentUser: User;
@@ -47,12 +54,7 @@ interface FirestoreErrorInfo {
 }
 
 export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-    return localDate.toISOString().split('T')[0];
-  });
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDateString(new Date()));
   const [dailyCount, setDailyCount] = useState<string>('');
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +69,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [pdfParsePreview, setPdfParsePreview] = useState<{
     fileName: string;
+    reportDate: string;
     breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number };
     total: number;
     parseMethod?: string;
@@ -88,6 +91,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [activePerformanceData, setActivePerformanceData] = useState<any>(null);
   const [activeTechData, setActiveTechData] = useState<any>(null);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
+  const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
 
   const handleArchiveAndReset = async (payload: {
     targetYearMonth: string;
@@ -341,8 +345,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         return s.dealershipId === currentDealershipId;
       });
 
+      rawTrackerStatsRef.current = stats;
+      stats = dedupeDailyStatsByDate(stats, currentDealershipId || 'hyundai');
       setAllStats(stats);
-      
+
       const currentStat = stats.find(s => s.date === selectedDate);
       setDailyCount(currentStat ? currentStat.count.toString() : '');
       setLoading(false);
@@ -368,21 +374,46 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     setShowManualBreakdownEntry(true);
   };
 
+  const saveAppointmentDay = async (
+    date: string,
+    totalCount: number,
+    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
+    source: 'pdf' | 'manual'
+  ) => {
+    const dealershipId = currentDealershipId || 'hyundai';
+    const docId = appointmentTrackerDocId(dealershipId, date);
+    const basePath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker'] as const;
+
+    const duplicates = findDuplicateTrackerDocs(rawTrackerStatsRef.current, dealershipId, date);
+    await Promise.all(
+      duplicates.map((row) => deleteDoc(doc(db, ...basePath, row.id)))
+    );
+
+    await setDoc(doc(db, ...basePath, docId), {
+      date,
+      count: totalCount,
+      dealershipId,
+      breakdown,
+      source,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser!.uid,
+    });
+
+    if (date !== selectedDate) {
+      setSelectedDate(date);
+    }
+    setDailyCount(totalCount.toString());
+    setManualBreakdown(breakdown);
+  };
+
   const confirmManualSave = async () => {
     const totalCount = Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0) as number;
     
     setSaving(true);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${selectedDate}`;
+    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${appointmentTrackerDocId(currentDealershipId || 'hyundai', selectedDate)}`;
     try {
-      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
-        date: selectedDate,
-        count: totalCount,
-        dealershipId: currentDealershipId || 'hyundai',
-        breakdown: manualBreakdown,
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUser.uid
-      }, { merge: true });
-      
+      await saveAppointmentDay(selectedDate, totalCount, manualBreakdown, 'manual');
+
       await logSystemAction(
         "Appointments Updated",
         `Updated scheduled appointment count to ${totalCount} for date ${selectedDate} with customized service breakdown`,
@@ -392,7 +423,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         currentUser.dealershipId
       );
       
-      setDailyCount(totalCount.toString());
       setShowManualBreakdownEntry(false);
       onSuccess?.(`Recorded ${totalCount} appointments with breakdown for ${selectedDate}.`);
     } catch (err) {
@@ -416,23 +446,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   };
 
   const applyPdfBreakdown = async (
+    targetDate: string,
     breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
     totalCount: number,
     fileLabel: string
   ) => {
-    await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
-      date: selectedDate,
-      count: totalCount,
-      dealershipId: currentDealershipId || 'hyundai',
-      breakdown,
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUser!.uid
-    }, { merge: true });
-
-    setDailyCount(totalCount.toString());
-    setManualBreakdown(breakdown);
+    await saveAppointmentDay(targetDate, totalCount, breakdown, 'pdf');
     onSuccess?.(
-      `Parsed ${totalCount} appointments from ${fileLabel}: ` +
+      `Updated ${targetDate} with ${totalCount} appointments from ${fileLabel} (replaced previous count): ` +
         `${breakdown.oilChange} oil, ${breakdown.diagnosis} diag, ${breakdown.recall} recall, ${breakdown.misc} misc.`
     );
   };
@@ -486,8 +507,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         throw new Error('No appointments found in this PDF. Use a PBS Appointment Details report for the selected day.');
       }
 
+      const reportDate =
+        rawData.reportDate ||
+        extractReportDateFromAppointmentPdf(reportText) ||
+        selectedDate;
+
       setPdfParsePreview({
         fileName: file.name,
+        reportDate,
         breakdown,
         total: totalCount,
         parseMethod: rawData.parseMethod || (rawData.isAiParsed ? 'ai' : 'deterministic'),
@@ -505,7 +532,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     if (!pdfParsePreview || !currentUser) return;
     setIsUploadingPdf(true);
     try {
-      await applyPdfBreakdown(pdfParsePreview.breakdown, pdfParsePreview.total, pdfParsePreview.fileName);
+      await applyPdfBreakdown(pdfParsePreview.reportDate, pdfParsePreview.breakdown, pdfParsePreview.total, pdfParsePreview.fileName);
       setPdfParsePreview(null);
     } catch (err: any) {
       onError?.(err.message || 'Failed to save parsed appointments.');
@@ -670,7 +697,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateString(d);
       const stat = allStats.find(s => s.date === dateStr);
       return {
         date: dateStr,
@@ -695,13 +722,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateString(d));
   };
 
   const handleNextDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateString(d));
   };
 
   return (
@@ -1358,7 +1385,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
             >
               <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Confirm PDF Import</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-6 truncate">{pdfParsePreview.fileName}</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 truncate">{pdfParsePreview.fileName}</p>
+              <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest mb-6">
+                Updates {new Date(pdfParsePreview.reportDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — replaces existing count
+              </p>
               <div className="grid grid-cols-2 gap-3 mb-6">
                 {[
                   { key: 'oilChange', label: 'Oil Changes', val: pdfParsePreview.breakdown.oilChange },
