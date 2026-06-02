@@ -747,6 +747,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
               activeSubTab={managerSubTab === 'preferences' ? 'preferences' : 'operations'}
               onChangeSubTab={(tab) => setManagerSubTab(tab === 'preferences' ? 'preferences' : 'operations')}
               onNavigateTab={(tab) => setActiveTab(tab as typeof activeTab)}
+              onDealershipChange={setCurrentDealershipId}
             />
           )}
 
