@@ -174,12 +174,17 @@ export default function App() {
   const [isDealershipDropdownOpen, setIsDealershipDropdownOpen] = useState(false);
   const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(null);
 
-  // Sync current dealership with user's dealership on load
+  // Non-admin users are locked to their enrolled tenant/dealership dashboard
   React.useEffect(() => {
-    if (user && !currentDealershipId) {
+    if (!user) return;
+    if (!isPlatformAdmin(user)) {
+      setCurrentDealershipId(resolveUserDealershipId(user));
+      return;
+    }
+    if (!currentDealershipId) {
       setCurrentDealershipId(resolveUserDealershipId(user));
     }
-  }, [user, currentDealershipId]);
+  }, [user?.uid, user?.tenantId, user?.dealershipId, user?.approved, user?.status]);
 
   const [dealershipSettings, setDealershipSettings] = useState<any>(null);
 

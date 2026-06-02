@@ -37,6 +37,16 @@ import { SettingsPage } from '../../settings/SettingsPage';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import {
+  buildUserApprovalPatch,
+  isManager,
+  isPlatformAdmin,
+  normalizeUserProfile,
+  resolveUserTenantId,
+  userBelongsToTenant,
+  isPendingUser,
+} from '../../../lib/rbac';
+import { getTenantProfile, tenantIdFromDealershipId } from '../../../lib/tenants';
+import {
   getDealershipStaffConfig,
   slugifyStaffName,
   type CompetitionAdvisorSlot,
@@ -584,30 +594,48 @@ export default function AdminPanel({
   useEffect(() => {
     if (!currentUser) return;
 
-    let q = query(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users'));
-    
-    // Scoped query for managers to comply with security rules
-    if (currentUser.role !== 'admin' && currentUser.isManager && currentUser.dealershipId) {
-      q = query(
-        collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users'),
-        where('dealershipId', '==', currentUser.dealershipId)
-      );
-    }
+    const scopeTenantId = tenantIdFromDealershipId(
+      currentDealershipId || resolveUserTenantId(currentUser)
+    );
 
-    const unsubscribe = onSnapshot(q, 
+    const usersRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users');
+    const scopedDealershipId = getTenantProfile(scopeTenantId)?.dealershipId;
+
+    const q = scopedDealershipId
+      ? query(usersRef, where('tenantId', '==', scopeTenantId))
+      : query(usersRef, where('tenantId', '==', scopeTenantId));
+
+    const unsubscribe = onSnapshot(
+      q,
       (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+        const usersData = snapshot.docs
+          .map((docSnap) => normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() }))
+          .filter((u) => userBelongsToTenant(u, scopeTenantId));
         setUsers(usersData);
         setLoading(false);
       },
-      (error) => {
-        console.error("AdminPanel Snapshot Error:", error);
+      async (error) => {
+        console.error('AdminPanel Snapshot Error:', error);
+        if (!scopedDealershipId) {
+          setLoading(false);
+          return;
+        }
+        try {
+          const legacyQuery = query(usersRef, where('dealershipId', '==', scopedDealershipId));
+          const legacySnap = await getDocs(legacyQuery);
+          const usersData = legacySnap.docs
+            .map((docSnap) => normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() }))
+            .filter((u) => userBelongsToTenant(u, scopeTenantId));
+          setUsers(usersData);
+        } catch (legacyError) {
+          console.error('AdminPanel legacy user query failed:', legacyError);
+        }
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, currentDealershipId]);
 
   const [confirmDeleteUid, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -616,13 +644,13 @@ export default function AdminPanel({
       if (!currentUser) return;
       
       // Managers cannot approve other managers
-      if (currentUser.role !== 'admin' && userToUpdate?.isManager) {
+      if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
         onError?.("Permission denied. Only system admins can approve manager accounts.");
         return;
       }
 
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
-      await updateDoc(userRef, { status });
+      await updateDoc(userRef, buildUserApprovalPatch(userToUpdate || { role: 'pending', status: 'pending' }, status));
 
       await logSystemAction(
         "User Status Approved/Rejected",
@@ -643,7 +671,7 @@ export default function AdminPanel({
       if (!currentUser) return;
       
       // Safety check
-      if (currentUser.role !== 'admin' && userToUpdate?.isManager) {
+      if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
         onError?.("Managers cannot modify other managers.");
         return;
       }
@@ -695,8 +723,8 @@ export default function AdminPanel({
     u.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingUsers = filteredUsers.filter(u => u.status === 'pending');
-  const activeUsers = filteredUsers.filter(u => u.status === 'approved' || u.status === 'rejected');
+  const pendingUsers = filteredUsers.filter((u) => isPendingUser(u) && u.status !== 'rejected');
+  const activeUsers = filteredUsers.filter((u) => !isPendingUser(u) || u.status === 'rejected');
 
   const subTab = activeSubTab || 'operations';
 

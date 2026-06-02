@@ -31,7 +31,13 @@ import {
   LOGS_COLLECTION_PATH,
   getTenantProfile,
 } from '../../../lib/tenants';
-import { isPlatformAdmin, resolveUserTenantId } from '../../../lib/rbac';
+import {
+  buildUserApprovalPatch,
+  isPlatformAdmin,
+  normalizeUserProfile,
+  resolveUserTenantId,
+  userBelongsToTenant,
+} from '../../../lib/rbac';
 import { logAuditAction } from '../../../services/loggingService';
 import type { DmsProvider } from '../../../lib/tenants';
 
@@ -88,8 +94,8 @@ export default function ManagerDashboard({
       : query(usersRef, where('tenantId', '==', tenantId));
 
     const unsubUsers = onSnapshot(usersQuery, (snap) => {
-      const rows = snap.docs.map((d) => ({ uid: d.id, ...d.data() } as User));
-      setUsers(rows.filter((u) => u.tenantId === tenantId || u.dealershipId === tenantProfile?.dealershipId));
+      const rows = snap.docs.map((d) => normalizeUserProfile({ uid: d.id, ...d.data() }));
+      setUsers(rows.filter((u) => userBelongsToTenant(u, tenantId)));
       setLoadingUsers(false);
     }, () => setLoadingUsers(false));
 
@@ -143,11 +149,10 @@ export default function ManagerDashboard({
     }
     try {
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid);
-      await updateDoc(userRef, {
-        approved,
-        status: approved ? 'approved' : 'pending',
-        role: approved && target.role === 'pending' ? 'advisor' : target.role,
-      });
+      await updateDoc(
+        userRef,
+        buildUserApprovalPatch(target, approved ? 'approved' : 'pending')
+      );
       await logAuditAction(
         approved ? 'Approve User' : 'Revoke User Access',
         `${target.username} (${target.email}) approval set to ${approved}`,

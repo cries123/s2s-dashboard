@@ -1,5 +1,10 @@
 import type { User, UserDepartment, UserRole } from '../types';
-import { dealershipIdFromTenantId } from './tenants';
+import {
+  dealershipIdFromTenantId,
+  getTenantProfile,
+  tenantIdFromDealershipId,
+  type TenantId,
+} from './tenants';
 
 /** Platform super-admin (legacy admin role). */
 export function isPlatformAdmin(user: User | null | undefined): boolean {
@@ -18,9 +23,33 @@ export function isAdvisor(user: User | null | undefined): boolean {
   return user.role === 'advisor' || user.role === 'Staff' || user.role === 'Salesperson' || user.role === 'Service Advisor';
 }
 
+/** Resolve canonical tenant id from a user record (handles legacy dealershipId-only docs). */
+export function resolveUserTenantId(user: Pick<User, 'tenantId' | 'dealershipId'> | null | undefined): TenantId {
+  if (!user) return 'hyundai';
+  if (user.tenantId && getTenantProfile(user.tenantId)) {
+    return user.tenantId as TenantId;
+  }
+  return tenantIdFromDealershipId(user.dealershipId);
+}
+
+export function userBelongsToTenant(
+  user: Pick<User, 'tenantId' | 'dealershipId'> | null | undefined,
+  tenantId: string
+): boolean {
+  return resolveUserTenantId(user) === tenantId;
+}
+
+export function resolveUserDealershipId(user: User | null | undefined): string {
+  if (!user) return 'hyundai';
+  if (user.dealershipId) return user.dealershipId;
+  return dealershipIdFromTenantId(resolveUserTenantId(user));
+}
+
 export function isPendingUser(user: User | null | undefined): boolean {
   if (!user) return true;
   if (isPlatformAdmin(user)) return false;
+  if (user.status === 'rejected') return true;
+  if (user.approved === true || user.status === 'approved') return false;
   if (user.role === 'pending') return true;
   if (user.approved === false) return true;
   if (user.status === 'pending') return true;
@@ -29,16 +58,6 @@ export function isPendingUser(user: User | null | undefined): boolean {
 
 export function isUserApproved(user: User | null | undefined): boolean {
   return !isPendingUser(user);
-}
-
-export function resolveUserTenantId(user: User | null | undefined): string {
-  if (!user) return 'hyundai';
-  return user.tenantId ?? user.dealershipId ?? 'hyundai';
-}
-
-export function resolveUserDealershipId(user: User | null | undefined): string {
-  const tenantId = resolveUserTenantId(user);
-  return user?.dealershipId ?? dealershipIdFromTenantId(tenantId);
 }
 
 export function resolveUserDepartment(user: User | null | undefined): UserDepartment {
@@ -66,7 +85,6 @@ export function canSeeReportsNav(user: User | null | undefined): boolean {
   return isUserApproved(user);
 }
 
-/** Service sees all report tabs; sales sees Sales Performance only. */
 export function canSeeOperationsReport(user: User | null | undefined): boolean {
   return canSeeServiceNav(user);
 }
@@ -92,23 +110,46 @@ export function canSeeCompetitions(user: User | null | undefined, tenantId: stri
   return canSeeServiceNav(user);
 }
 
+/** Patch applied when a manager or admin approves / rejects enrollment. */
+export function buildUserApprovalPatch(
+  target: Pick<User, 'role' | 'isManager' | 'status'>,
+  decision: User['status']
+): Partial<User> {
+  if (decision === 'approved') {
+    const promoteToManager =
+      target.role === 'manager' || target.role === 'Manager' || target.isManager === true;
+    const nextRole: UserRole = promoteToManager ? 'manager' : 'advisor';
+    return {
+      status: 'approved',
+      approved: true,
+      role: target.role === 'pending' || target.role === 'Staff' ? nextRole : nextRole,
+      isManager: promoteToManager,
+    };
+  }
+  if (decision === 'rejected') {
+    return { status: 'rejected', approved: false };
+  }
+  return { status: 'pending', approved: false, role: 'pending' };
+}
+
 /** Normalize legacy Firestore user docs into RBAC fields. */
 export function normalizeUserProfile(raw: Record<string, unknown> & { uid: string }): User {
   const legacyRole = raw.role as string | undefined;
   const legacyStatus = raw.status as string | undefined;
-  const dealershipId = (raw.dealershipId as string) || dealershipIdFromTenantId(raw.tenantId as string);
+  const dealershipId =
+    (raw.dealershipId as string) ||
+    dealershipIdFromTenantId(raw.tenantId as string);
+
+  let approved = raw.approved as boolean | undefined;
+  if (approved === undefined) {
+    approved = legacyStatus === 'approved' || legacyRole === 'admin';
+  }
 
   let role: UserRole = 'advisor';
   if (legacyRole === 'admin') role = 'admin';
   else if (legacyRole === 'manager' || legacyRole === 'Manager' || raw.isManager) role = 'manager';
-  else if (legacyRole === 'pending') role = 'pending';
-  else if (legacyStatus === 'pending' && legacyRole !== 'admin') role = 'pending';
+  else if (!approved && (legacyRole === 'pending' || legacyStatus === 'pending')) role = 'pending';
   else role = 'advisor';
-
-  let approved = raw.approved as boolean | undefined;
-  if (approved === undefined) {
-    approved = legacyStatus === 'approved' || role === 'admin';
-  }
 
   let department = raw.department as UserDepartment | undefined;
   if (!department) {
@@ -118,7 +159,11 @@ export function normalizeUserProfile(raw: Record<string, unknown> & { uid: strin
 
   const tenantId =
     (raw.tenantId as string) ||
-    (dealershipId === 'nissan' ? 'nissan-mazda' : dealershipId === 'ford' ? 'ford-lincoln' : 'hyundai');
+    (dealershipId === 'nissan'
+      ? 'nissan-mazda'
+      : dealershipId === 'ford'
+        ? 'ford-lincoln'
+        : 'hyundai');
 
   return {
     uid: raw.uid,
