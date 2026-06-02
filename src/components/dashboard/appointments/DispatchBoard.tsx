@@ -14,7 +14,7 @@ import {
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  GripVertical, Check, Wrench, Monitor, X
+  GripVertical, Check, Wrench, Monitor, X, UserSearch, Inbox
 } from 'lucide-react';
 
 // 1. Color System Configuration & Status Tokens
@@ -787,165 +787,221 @@ export function DispatchBoard({
         /* Horizontal top intake + scrollable list and vertical stack of department rows */
         <div className="space-y-6 w-full pb-10">
           
-          {/* TOP CONTAINER ribbon for Intake & Waiting Queue */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full items-stretch">
-            
-            {/* FAST INTAKE FORM (lg:col-span-5) */}
-            <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-850 p-5 rounded-2xl flex flex-col justify-between shadow-lg space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-850 pb-2.5">
-                <Plus size={14} className="text-indigo-400" />
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Fast Intake Control Panel</span>
-              </div>
-              
-              <form onSubmit={handleSubmitIntake} className="grid grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">RO Number *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. 883719" 
-                    value={roNumber}
-                    onChange={(e) => setRoNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all font-semibold focus:ring-1 focus:ring-indigo-500/20" 
-                    required 
-                  />
+          {/* TOP CONTAINER — Intake & Waiting Queue */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full items-stretch">
+
+            {/* Fast Intake */}
+            <div className="lg:col-span-5 relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-indigo-950/30 shadow-xl shadow-black/20">
+              <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl" />
+              <div className="relative p-5 sm:p-6 flex flex-col gap-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-400/20 shrink-0">
+                    <Plus size={16} className="text-indigo-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Fast Intake</h2>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                      Queue a repair order — match by last name to pull CRM details.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Tech ID *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. 402" 
-                    value={techNumber}
-                    onChange={(e) => setTechNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all font-mono font-bold focus:ring-1 focus:ring-indigo-500/20" 
-                    required 
-                  />
-                </div>
-
-                <div className="space-y-1 col-span-2 sm:col-span-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Customer Last Name *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Martinez" 
-                    value={customerLastName}
-                    onChange={(e) => {
-                      setCustomerLastName(e.target.value);
-                      setSelectedCustomer(null);
-                    }}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all font-semibold focus:ring-1 focus:ring-indigo-500/20" 
-                    required 
-                  />
-                  {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && (
-                    <div className="mt-2 space-y-1 max-h-28 overflow-y-auto">
-                      {matchCandidates.slice(0, 6).map((cust) => (
-                        <button
-                          key={cust.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCustomer(cust);
-                            setCustomerLastName(cust.lastName);
-                          }}
-                          className={cn(
-                            'w-full text-left px-2 py-1.5 rounded-lg text-[10px] border transition-all',
-                            selectedCustomer?.id === cust.id
-                              ? 'border-indigo-500/50 bg-indigo-950/40 text-indigo-200'
-                              : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700'
-                          )}
-                        >
-                          {cust.firstName} {cust.lastName}
-                          {cust.vinLast8 ? ` · …${cust.vinLast8}` : ''}
-                          {cust.model ? ` · ${cust.year || ''} ${cust.model}` : ''}
-                        </button>
-                      ))}
-                      {matchCandidates.length > 6 && (
-                        <p className="text-[9px] text-slate-600 px-1">{matchCandidates.length - 6} more matches…</p>
-                      )}
+                <form onSubmit={handleSubmitIntake} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">RO Number</label>
+                      <input
+                        type="text"
+                        placeholder="883719"
+                        value={roNumber}
+                        onChange={(e) => setRoNumber(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all font-semibold tabular-nums focus:ring-2 focus:ring-indigo-500/15"
+                        required
+                      />
                     </div>
-                  )}
-                  {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
-                    <p className="text-[9px] text-amber-500/90 mt-1">No CRM match — ticket will use last name only.</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Initial Status</label>
-                  <select
-                    value={initialStatus}
-                    onChange={(e) => setInitialStatus(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-300 font-bold uppercase tracking-wide cursor-pointer focus:ring-1 focus:ring-indigo-500/20"
-                  >
-                    {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
-                      <option key={val} value={val} className="font-semibold uppercase text-xs bg-slate-950 text-white">
-                        {info.label} ({val})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="col-span-2 flex items-center justify-between gap-2 pt-2 select-none border-t border-slate-850">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id="quickComplete" 
-                      checked={quickComplete}
-                      onChange={(e) => setQuickComplete(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-850 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer" 
-                    />
-                    <label htmlFor="quickComplete" className="text-xs text-slate-400 hover:text-slate-200 font-semibold cursor-pointer">
-                      Mark Completed
-                    </label>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tech ID</label>
+                      <input
+                        type="text"
+                        placeholder="402"
+                        value={techNumber}
+                        onChange={(e) => setTechNumber(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all font-mono font-bold tabular-nums focus:ring-2 focus:ring-indigo-500/15"
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <button 
-                    type="submit" 
-                    disabled={submitting}
-                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-black text-[10px] py-2 px-4.5 rounded-xl uppercase tracking-wider transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 shrink-0"
-                  >
-                    {submitting ? (
-                      <RefreshCw className="animate-spin" size={13} />
-                    ) : (
-                      <Plus size={13} />
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5 flex items-center gap-1.5">
+                      <UserSearch size={10} className="text-indigo-400/80" />
+                      Customer Last Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Martinez"
+                      value={customerLastName}
+                      onChange={(e) => {
+                        setCustomerLastName(e.target.value);
+                        setSelectedCustomer(null);
+                      }}
+                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all font-semibold uppercase focus:ring-2 focus:ring-indigo-500/15"
+                      required
+                    />
+
+                    {selectedCustomer && (
+                      <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-emerald-950/30 border border-emerald-500/25">
+                        <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                        <p className="text-[10px] font-bold text-emerald-200/90 truncate">
+                          CRM linked · {selectedCustomer.firstName} {selectedCustomer.lastName}
+                          {selectedCustomer.model ? ` · ${selectedCustomer.year || ''} ${selectedCustomer.model}` : ''}
+                        </p>
+                      </div>
                     )}
-                    <span>Queue Ticket</span>
-                  </button>
-                </div>
-              </form>
+
+                    {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && !selectedCustomer && (
+                      <div className="mt-2 rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
+                          CRM matches
+                        </p>
+                        <div className="max-h-32 overflow-y-auto p-1.5 space-y-1">
+                          {matchCandidates.slice(0, 6).map((cust) => (
+                            <button
+                              key={cust.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCustomer(cust);
+                                setCustomerLastName(cust.lastName);
+                              }}
+                              className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
+                            >
+                              <span className="font-bold text-white">{cust.firstName} {cust.lastName}</span>
+                              <span className="text-slate-500 block mt-0.5 font-mono text-[9px]">
+                                {[cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()].filter(Boolean).join(' · ')}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
+                      <p className="text-[9px] text-amber-400/80 mt-1.5 pl-0.5 font-medium">No CRM match — ticket will use last name only.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Initial Status</label>
+                    <div className="relative">
+                      <span
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                        style={{ backgroundColor: DISPATCH_STATUS_COLORS[initialStatus].hex }}
+                      />
+                      <select
+                        value={initialStatus}
+                        onChange={(e) => setInitialStatus(e.target.value as typeof initialStatus)}
+                        className="w-full appearance-none bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg pl-7 pr-8 py-2.5 text-[11px] text-slate-200 font-bold uppercase tracking-wide cursor-pointer focus:ring-2 focus:ring-indigo-500/15"
+                      >
+                        {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
+                          <option key={val} value={val} className="bg-slate-950 text-white">
+                            {info.label} ({val})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/[0.06]">
+                    <label className="flex items-center gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        id="quickComplete"
+                        checked={quickComplete}
+                        onChange={(e) => setQuickComplete(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500/30 w-4 h-4 cursor-pointer"
+                      />
+                      <span className="text-[10px] text-slate-500 group-hover:text-slate-300 font-semibold transition-colors">
+                        Mark completed on intake
+                      </span>
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 shadow-lg shadow-indigo-950/40 transition-all duration-200"
+                    >
+                      {submitting ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                      Queue Ticket
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
 
-            {/* WAITING FOR DISPATCH HORIZONTAL BAR (lg:col-span-7) */}
-            <div 
+            {/* Waiting Queue */}
+            <div
               onDragOver={(e) => handleDragOver(e, 'unassigned')}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, 'unassigned')}
               className={cn(
-                "lg:col-span-7 bg-slate-900 border border-slate-850 p-5 rounded-2xl flex flex-col justify-between shadow-lg transition-all duration-300 relative",
-                overColumnId === 'unassigned' && "bg-slate-850/80 border-indigo-500/50 shadow-inner"
+                'lg:col-span-7 relative overflow-hidden rounded-2xl border flex flex-col min-h-[280px] transition-all duration-300 shadow-xl shadow-black/20',
+                overColumnId === 'unassigned'
+                  ? 'border-indigo-400/40 bg-indigo-950/20 ring-2 ring-indigo-500/20'
+                  : 'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80'
               )}
             >
-              <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <ClipboardList size={14} className="text-indigo-400" />
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Waiting for Dispatch Queue</span>
-                </div>
-                <span className="bg-indigo-950 text-indigo-300 border border-indigo-900 px-2.5 py-0.5 rounded-full text-[10px] font-black">
-                  Queue: {ticketsByColumn.unassigned.length}
-                </span>
-              </div>
-
-              {/* Overflow scrollable horizontal flex content */}
-              <div className="flex-1 flex gap-4 overflow-x-auto py-3 items-center no-scrollbar min-h-[148px] mt-2 scroll-smooth border border-dashed border-slate-950/80 rounded-xl px-3 bg-slate-950/20">
-                {ticketsByColumn.unassigned.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-6 text-slate-600">
-                    <HelpCircle size={18} className="mb-1 text-slate-800" />
-                    <p className="text-[10px] font-black uppercase tracking-wider">All tickets dispatched to lanes.</p>
-                  </div>
-                ) : (
-                  ticketsByColumn.unassigned.map(ro => (
-                    <div key={ro.id} className="w-[285px] shrink-0">
-                      {renderRoCard(ro)}
+              <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/5 blur-3xl" />
+              <div className="relative p-5 sm:p-6 flex flex-col flex-1 gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      'p-2.5 rounded-xl border shrink-0',
+                      ticketsByColumn.unassigned.length > 0
+                        ? 'bg-amber-500/10 border-amber-400/25'
+                        : 'bg-slate-800/50 border-slate-700/50'
+                    )}>
+                      <Inbox size={16} className={ticketsByColumn.unassigned.length > 0 ? 'text-amber-300' : 'text-slate-500'} />
                     </div>
-                  ))
-                )}
+                    <div className="min-w-0">
+                      <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em] truncate">Waiting Queue</h2>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">Drop cards here or drag out to a department lane</p>
+                    </div>
+                  </div>
+                  <div className={cn(
+                    'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-black tabular-nums',
+                    ticketsByColumn.unassigned.length > 0
+                      ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+                      : 'bg-slate-950/80 border-slate-800 text-slate-500'
+                  )}>
+                    <span className="text-[8px] uppercase tracking-widest opacity-70">Queue</span>
+                    <span className="text-sm leading-none">{ticketsByColumn.unassigned.length}</span>
+                  </div>
+                </div>
+
+                <div className={cn(
+                  'flex-1 flex gap-3 overflow-x-auto py-2 px-2 items-stretch min-h-[160px] rounded-xl transition-colors',
+                  ticketsByColumn.unassigned.length === 0
+                    ? 'border border-dashed border-slate-800/80 bg-slate-950/30'
+                    : 'border border-slate-800/60 bg-slate-950/40'
+                )}>
+                  {ticketsByColumn.unassigned.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8 px-4 text-center">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center">
+                        <CheckCircle2 size={22} className="text-emerald-500/70" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Queue is clear</p>
+                        <p className="text-[10px] text-slate-600 mt-1 max-w-[220px]">All tickets are routed to production lanes.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    ticketsByColumn.unassigned.map((ro) => (
+                      <div key={ro.id} className="w-[260px] sm:w-[280px] shrink-0 py-1">
+                        {renderRoCard(ro)}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
