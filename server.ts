@@ -17,6 +17,7 @@ import {
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
 
 dotenv.config();
+dotenv.config({ path: ".env.local", override: false });
 
 // Helper sleep function for Sequential Throttling
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

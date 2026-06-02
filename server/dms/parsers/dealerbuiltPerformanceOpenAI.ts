@@ -67,7 +67,7 @@ export async function parseDealerBuiltPerformanceWithOpenAI(
       userContent.push({
         type: 'image_url',
         image_url: {
-          url: `data:image/png;base64,${imageBase64}`,
+          url: `data:image/jpeg;base64,${imageBase64}`,
           detail: 'high',
         },
       });

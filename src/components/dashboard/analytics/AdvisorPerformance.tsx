@@ -359,11 +359,20 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       }
 
       const payload: { reportText: string; pdfBase64?: string } = { reportText };
-      const needsVisionFallback =
-        dmsProvider === 'dealerbuilt' &&
-        (!reportText || reportText.replace(/\s+/g, ' ').trim().length < 80);
-      if (needsVisionFallback) {
+      const isDealerBuiltImport = dmsProvider === 'dealerbuilt';
+      const hasMinimalText =
+        !reportText || reportText.replace(/\s+/g, ' ').trim().length < 80;
+      const looksDealerBuilt =
+        /service advisor performance|ro svc wrtr/i.test(reportText);
+
+      if (isDealerBuiltImport || hasMinimalText || looksDealerBuilt) {
         payload.pdfBase64 = await fileToBase64(file);
+      }
+
+      if (!isDealerBuiltImport && (hasMinimalText || looksDealerBuilt)) {
+        console.warn(
+          'DealerBuilt-style PDF detected but dealership DMS is not set to DealerBuilt. Set Admin → DMS Configuration → DealerBuilt for best results.'
+        );
       }
       
       const response = await fetch('/api/parse-performance', {

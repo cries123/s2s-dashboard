@@ -1,7 +1,8 @@
 import type { Express, Request, Response } from 'express';
 import type OpenAI from 'openai';
 import { normalizeDmsProvider, parsePerformanceReport } from '../index.js';
-import { isScannedOrEmptyReportText } from '../pdfToImages.js';
+import { isScannedOrEmptyReportText, looksLikeDealerBuiltPerformanceReport } from '../pdfToImages.js';
+import { enrichReportTextFromPdf } from '../pdfOcr.js';
 import { parseDealerBuiltPerformanceWithOpenAI } from '../parsers/dealerbuiltPerformanceOpenAI.js';
 import {
   normalizeDealerBuiltPerformanceAdvisor,
@@ -145,10 +146,14 @@ export function registerParsePerformanceRoute(
         if (!text) {
           text = await deps.extractTextFromPDFBuffer(pdfBuffer);
         }
+        text = await enrichReportTextFromPdf(pdfBuffer, text);
       }
 
-      const isDealerBuilt = dmsProvider === 'dealerbuilt';
       const isScannedPdf = isScannedOrEmptyReportText(text);
+      const isDealerBuiltReport =
+        dmsProvider === 'dealerbuilt' ||
+        looksLikeDealerBuiltPerformanceReport(text) ||
+        (!!pdfBuffer && isScannedPdf);
 
       if (!text && !pdfBuffer) {
         return res
@@ -156,34 +161,40 @@ export function registerParsePerformanceRoute(
           .json({ error: 'No performance data or PDF detected.' });
       }
 
-      if (isDealerBuilt && hasUsableOpenAIKey()) {
+      if (isDealerBuiltReport && hasUsableOpenAIKey()) {
         try {
+          const useVision = !!(pdfBuffer && isScannedPdf);
           console.log(
-            `[DealerBuilt Performance] OpenAI parse (vision=${!!(pdfBuffer && (isScannedPdf || !text))})`
+            `[DealerBuilt Performance] OpenAI parse (vision=${useVision}, dms=${dmsProvider})`
           );
           const openai = deps.getOpenAIClient();
           const aiResult = await parseDealerBuiltPerformanceWithOpenAI(openai, {
-            reportText: text || undefined,
+            reportText: useVision ? undefined : text || undefined,
             pdfBuffer,
-            useVision: !!(pdfBuffer && isScannedPdf),
+            useVision,
           });
 
           if (aiResult?.advisors?.length) {
             return res.json({
               ...validateDealerBuiltPerformance(aiResult),
               isAiParsed: true,
-              dmsProvider,
+              dmsProvider: 'dealerbuilt',
             });
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('[DealerBuilt Performance] OpenAI error:', err);
+          const message =
+            err?.error?.message || err?.message || 'OpenAI vision parse failed';
+          return res.status(502).json({
+            error: `DealerBuilt PDF parse failed: ${message}`,
+          });
         }
       }
 
-      if (!text && pdfBuffer && isDealerBuilt) {
+      if (!text && pdfBuffer && isDealerBuiltReport) {
         return res.status(422).json({
           error:
-            'Could not read this scanned DealerBuilt PDF. Ensure OPENAI_API_KEY is configured for vision parsing.',
+            'This looks like a scanned DealerBuilt PDF. Add OPENAI_API_KEY to .env (or .env.local) and restart the server.',
         });
       }
 
@@ -194,11 +205,11 @@ export function registerParsePerformanceRoute(
       }
 
       const validateAndReconcileTotals = (parsed: any) =>
-        isDealerBuilt
+        isDealerBuiltReport
           ? validateDealerBuiltPerformance(parsed)
           : validatePbsPerformance(parsed, text, parseDeterministicPerformance);
 
-      if (!isDealerBuilt && hasUsableOpenAIKey()) {
+      if (!isDealerBuiltReport && hasUsableOpenAIKey()) {
         try {
           console.log(
             '[OpenAI Performance Parser] Parsing report text using gpt-4o-mini...'
@@ -263,7 +274,7 @@ CRITICAL GUIDELINE: If the report text does not list individual advisor-specific
         !isGeminiKeyMasked
       );
 
-      if (!isDealerBuilt && hasGemini) {
+      if (!isDealerBuiltReport && hasGemini) {
         try {
           console.log(
             '[Gemini Performance Parser] Parsing using gemini-2.0-flash...'
@@ -301,7 +312,7 @@ CRITICAL GUIDELINE: If the report text does not list individual advisor-specific
       console.log(
         `[Performance Parser Fallback] DMS=${dmsProvider} deterministic parse`
       );
-      const deterministicResult = isDealerBuilt
+      const deterministicResult = isDealerBuiltReport
         ? parseDealerBuiltPerformanceDeterministic(text)
         : parseDeterministicPerformance(text);
       return res.json(deterministicResult);

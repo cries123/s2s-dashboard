@@ -20,3 +20,9 @@
 
 - DMS factory and parsers live under `server/dms/`.
 - DealerBuilt performance handlers: `server/dms/parsers/dealerbuiltPerformance*.ts`, route wiring in `server/dms/handlers/parsePerformance.ts`.
+### OpenAI key for DealerBuilt imports
+
+- Add `OPENAI_API_KEY=...` to `.env` or `.env.local` (both are gitignored).
+- Restart `npm run dev` after changing env vars — the server reads keys at startup only.
+- Scanned PDFs use server-side OCR (tesseract + poppler) plus OpenAI; vision is fallback when OCR text is insufficient.
+

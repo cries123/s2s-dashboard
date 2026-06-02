@@ -6,6 +6,28 @@ import path from 'path';
 
 const execFileAsync = promisify(execFile);
 
+const MAX_VISION_WIDTH = 2200;
+const JPEG_QUALITY = 0.88;
+const POPPLER_DPI = '150';
+
+async function compressImageBase64(
+  rawBase64: string,
+  mime: 'image/png' | 'image/jpeg' = 'image/png'
+): Promise<string> {
+  const { loadImage, createCanvas } = await import('canvas');
+  const img = await loadImage(Buffer.from(rawBase64, 'base64'));
+  const scale = img.width > MAX_VISION_WIDTH ? MAX_VISION_WIDTH / img.width : 1;
+  const width = Math.round(img.width * scale);
+  const height = Math.round(img.height * scale);
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, width, height);
+  const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
+  return dataUrl.replace(/^data:image\/jpeg;base64,/, '');
+}
+
 async function pdfBufferToPngBase64ViaPoppler(
   buffer: Buffer,
   maxPages = 8
@@ -19,7 +41,7 @@ async function pdfBufferToPngBase64ViaPoppler(
     await execFileAsync('pdftoppm', [
       '-png',
       '-r',
-      '200',
+      POPPLER_DPI,
       '-f',
       '1',
       '-l',
@@ -33,7 +55,10 @@ async function pdfBufferToPngBase64ViaPoppler(
       .filter((f) => f.endsWith('.png'))
       .sort();
 
-    return files.map((file) => fs.readFileSync(path.join(tmpDir, file)).toString('base64'));
+    const rawImages = files.map((file) =>
+      fs.readFileSync(path.join(tmpDir, file)).toString('base64')
+    );
+    return Promise.all(rawImages.map((img) => compressImageBase64(img)));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -42,7 +67,7 @@ async function pdfBufferToPngBase64ViaPoppler(
 async function pdfBufferToPngBase64ViaPdfJs(
   buffer: Buffer,
   maxPages = 8,
-  scale = 2
+  scale = 1.5
 ): Promise<string[]> {
   const { createCanvas } = await import('canvas');
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -61,13 +86,14 @@ async function pdfBufferToPngBase64ViaPdfJs(
       viewport,
       canvas: canvas as unknown as HTMLCanvasElement,
     }).promise;
-    images.push(canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, ''));
+    const raw = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+    images.push(await compressImageBase64(raw));
   }
 
   return images;
 }
 
-/** Render PDF buffer pages to PNG base64 strings for vision models. */
+/** Render PDF buffer pages to compressed JPEG base64 strings for vision models. */
 export async function pdfBufferToPngBase64Pages(
   buffer: Buffer,
   maxPages = 8
@@ -87,4 +113,14 @@ export function isScannedOrEmptyReportText(text: string): boolean {
   if (trimmed.length < 80) return true;
   const alphaChars = trimmed.replace(/[^a-zA-Z]/g, '').length;
   return alphaChars < 40;
+}
+
+export function looksLikeDealerBuiltPerformanceReport(text: string): boolean {
+  const upper = (text || '').toUpperCase();
+  return (
+    upper.includes('SERVICE ADVISOR PERFORMANCE') ||
+    upper.includes('RO SVC WRTR') ||
+    upper.includes('SVC WRTR') ||
+    upper.includes('DEALERBUILT')
+  );
 }
