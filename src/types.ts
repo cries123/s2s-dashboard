@@ -251,6 +251,8 @@ export type DepartmentColumnId =
   | 'mobile_repair'
   | 'unassigned';
 
+export type DispatchLifecycleStatus = 'active' | 'overnight';
+
 export interface DispatchRepairOrder {
   id: string;
   roNumber: string;
@@ -259,6 +261,8 @@ export interface DispatchRepairOrder {
   vinLastEight?: string;
   customerId?: string;
   department: DepartmentColumnId;
+  currentLaneId?: DepartmentColumnId;
+  lifecycleStatus?: DispatchLifecycleStatus;
   status: 'WIP' | 'DIS' | 'POO' | 'WFA';
   isCompleted: boolean;
   dateCreated: string;

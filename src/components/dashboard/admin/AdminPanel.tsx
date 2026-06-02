@@ -60,6 +60,7 @@ interface AdminPanelProps {
   activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences';
   onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences') => void;
   onNavigateTab?: (tab: LandingTab) => void;
+  onDealershipChange?: (dealershipId: string) => void;
 }
 
 export default function AdminPanel({ 
@@ -68,7 +69,8 @@ export default function AdminPanel({
   onError, 
   activeSubTab, 
   onChangeSubTab,
-  onNavigateTab
+  onNavigateTab,
+  onDealershipChange
 }: AdminPanelProps) {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -1469,6 +1471,8 @@ export default function AdminPanel({
         <SettingsPage
           onNavigate={(tab) => onNavigateTab?.(tab)}
           onNotify={(msg, isError) => (isError ? onError?.(msg) : onSuccess?.(msg))}
+          currentDealershipId={currentDealershipId}
+          onDealershipChange={onDealershipChange}
         />
       )}
 

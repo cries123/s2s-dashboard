@@ -366,22 +366,22 @@ export default function App() {
           <div className="flex items-center gap-3 shrink-0 relative">
             <button 
               onClick={() => {
-                if (isPlatformAdmin(currentUser)) {
+                if (currentUser.role === 'admin') {
                   setIsDealershipDropdownOpen(!isDealershipDropdownOpen);
-                } else {
-                  showNotification("Only system admins can switch dealerships.", true);
                 }
               }}
+              disabled={currentUser.role !== 'admin'}
+              aria-disabled={currentUser.role !== 'admin'}
               className={cn(
                 "w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10 transition-all z-50",
-                isPlatformAdmin(currentUser) ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
+                currentUser.role === 'admin' ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-not-allowed"
               )}
             >
               <LayoutDashboard className="text-white" size={20} />
             </button>
 
             <AnimatePresence>
-              {isDealershipDropdownOpen && isPlatformAdmin(currentUser) && (
+              {isDealershipDropdownOpen && currentUser.role === 'admin' && (
                 <>
                   <div 
                     className="fixed inset-0 z-[40]" 
@@ -674,6 +674,10 @@ export default function App() {
               onError={(msg) => showNotification(msg, true)}
               activeSubTab={adminSubTab}
               onChangeSubTab={setAdminSubTab}
+              onDealershipChange={(id) => {
+                setCurrentDealershipId(id);
+                showNotification(`Switched to ${DEALERSHIPS.find(d => d.id === id)?.name || id}`);
+              }}
             />
           )}
         </div>

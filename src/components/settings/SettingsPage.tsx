@@ -17,10 +17,14 @@ import {
 import { CONTACT_OUTCOMES } from '../../lib/contactOutcomes';
 import { clampFollowUpDays } from '../../lib/userPreferencesDefaults';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../hooks/useAuth';
+import { DealershipProfileField } from '../ui/DealershipProfileField';
 
 interface SettingsPageProps {
   onNavigate: (tab: LandingTab) => void;
   onNotify: (msg: string, isError?: boolean) => void;
+  currentDealershipId?: string;
+  onDealershipChange?: (dealershipId: string) => void;
 }
 
 function Section({
@@ -128,7 +132,8 @@ function SelectField({
   );
 }
 
-export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
+export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDealershipChange }: SettingsPageProps) {
+  const { user } = useAuth();
   const {
     preferences,
     saving,
@@ -194,6 +199,18 @@ export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
           </div>
         </div>
       </div>
+
+      <Section
+        title="Organization profile"
+        description="Your enrolled dealership group is locked unless you are a system administrator."
+        icon={Monitor}
+      >
+        <DealershipProfileField
+          user={user}
+          value={currentDealershipId}
+          onChange={(id) => onDealershipChange?.(id)}
+        />
+      </Section>
 
       <Section
         title="Contact workflow"
