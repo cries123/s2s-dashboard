@@ -22,7 +22,8 @@ import {
   Loader2,
   Database,
   RefreshCw,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Trophy
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 
@@ -35,6 +36,11 @@ import { SystemLogs } from './SystemLogs';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
+import {
+  getDealershipStaffConfig,
+  slugifyStaffName,
+  type CompetitionAdvisorSlot,
+} from '../../../lib/dealershipStaff';
 
 interface AdminPanelProps {
   key?: string;
@@ -160,6 +166,68 @@ export default function AdminPanel({
   const commitPartsTargetChange = (id: string) => {
     const value = localPartsTargets[id] ?? (dealershipSettings[id]?.partsSalesTarget || 300000);
     updateSetting(id, { partsSalesTarget: value });
+  };
+
+  const [localCompetitionAdvisors, setLocalCompetitionAdvisors] = useState<
+    Record<string, CompetitionAdvisorSlot[]>
+  >({});
+
+  useEffect(() => {
+    if (Object.keys(dealershipSettings).length === 0) return;
+    const next: Record<string, CompetitionAdvisorSlot[]> = {};
+    Object.entries(dealershipSettings).forEach(([id, data]: [string, any]) => {
+      next[id] = getDealershipStaffConfig(id, data).competitionAdvisors;
+    });
+    setLocalCompetitionAdvisors((prev) => ({ ...prev, ...next }));
+  }, [dealershipSettings]);
+
+  const commitCompetitionAdvisors = (id: string) => {
+    const advisors = localCompetitionAdvisors[id];
+    if (!advisors?.length) {
+      onError?.('At least one competition advisor is required.');
+      return;
+    }
+    updateSetting(id, { competitionAdvisors: advisors });
+  };
+
+  const updateCompetitionAdvisor = (
+    dealershipId: string,
+    index: number,
+    field: 'id' | 'label',
+    value: string
+  ) => {
+    setLocalCompetitionAdvisors((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const current = { ...list[index] };
+      if (field === 'label') {
+        current.label = value;
+        if (!current.id || current.id.startsWith('advisor_')) {
+          current.id = slugifyStaffName(value) || current.id;
+        }
+      } else {
+        current.id = slugifyStaffName(value) || value;
+      }
+      list[index] = current;
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const addCompetitionAdvisor = (dealershipId: string) => {
+    setLocalCompetitionAdvisors((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const n = list.length + 1;
+      list.push({ id: `advisor_${n}`, label: `Advisor ${n}` });
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const removeCompetitionAdvisor = (dealershipId: string, index: number) => {
+    setLocalCompetitionAdvisors((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      if (list.length <= 1) return prev;
+      list.splice(index, 1);
+      return { ...prev, [dealershipId]: list };
+    });
   };
 
   const parseVehicle = (vehicleStr: string) => {
@@ -859,6 +927,60 @@ export default function AdminPanel({
                           <p className="text-[9px] text-slate-600 leading-relaxed max-w-xl">
                             {DMS_PROVIDERS.find((provider) => provider.id === ((dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER))?.description}
                           </p>
+                        </div>
+
+                        {/* Pot of Gold competition roster */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                            <Trophy size={12} className="text-brand-primary" />
+                            Pot of Gold Competition Advisors
+                          </label>
+                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed max-w-xl">
+                            Configure the advisor columns used in the Pot of Gold competition tracker and PDF imports for this store.
+                          </p>
+                          <div className="space-y-2 max-w-lg">
+                            {(localCompetitionAdvisors[d.id] || getDealershipStaffConfig(d.id, dealershipSettings[d.id]).competitionAdvisors).map((advisor, idx) => (
+                              <div key={`${advisor.id}-${idx}`} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                                <input
+                                  type="text"
+                                  value={advisor.label}
+                                  onChange={(e) => updateCompetitionAdvisor(d.id, idx, 'label', e.target.value)}
+                                  placeholder="Display name"
+                                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                                />
+                                <input
+                                  type="text"
+                                  value={advisor.id}
+                                  onChange={(e) => updateCompetitionAdvisor(d.id, idx, 'id', e.target.value)}
+                                  placeholder="Column key"
+                                  className="w-full sm:w-36 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeCompetitionAdvisor(d.id, idx)}
+                                  className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => addCompetitionAdvisor(d.id)}
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-[10px] font-black uppercase tracking-widest text-white rounded-xl border border-slate-700"
+                            >
+                              Add Advisor
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => commitCompetitionAdvisors(d.id)}
+                              className="px-4 py-2 bg-brand-primary/20 hover:bg-brand-primary/30 text-[10px] font-black uppercase tracking-widest text-brand-primary rounded-xl border border-brand-primary/30"
+                            >
+                              Save Roster
+                            </button>
+                          </div>
                         </div>
 
                         {/* Dispatch Toggle Feature Switch */}

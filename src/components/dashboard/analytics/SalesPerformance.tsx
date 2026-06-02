@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { isServiceAlertActive } from '../../../lib/alerts';
+import { customerMatchesDealership } from '../../../lib/customerScope';
 
 interface SalesPerformanceProps {
   customers: Customer[];
@@ -34,7 +35,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
 
   // Filter customers to current dealership (or show all if selected)
   const dealershipCustomers = useMemo(() => {
-    return customers.filter(c => c.dealershipId === currentDealershipId);
+    return customers.filter((c) => customerMatchesDealership(c, currentDealershipId));
   }, [customers, currentDealershipId]);
 
   // Aggregate Salesman metrics

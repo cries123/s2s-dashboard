@@ -15,6 +15,8 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import { getDealershipStaffConfig } from '../../../lib/dealershipStaff';
+import { zeroAdvisorCounts } from '../../../lib/potOfGoldData';
 import {
   EMPTY_PERFORMANCE_TOTALS,
   performanceDocId,
@@ -198,11 +200,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       // Reset Pot of Gold statistics (keep payout settings but clear advisor/tech statistics)
       if (activePoGSnap.exists()) {
         const data = activePoGSnap.data();
-        const clearedAdvData = (data.advData || []).map((row: any) => ({
-          ...row,
-          frank: 0,
-          lemmy: 0
-        }));
+        const settingsSnap = await getDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId));
+        const staff = getDealershipStaffConfig(currentDealershipId, settingsSnap.exists() ? settingsSnap.data() : null);
+        const clearedAdvData = zeroAdvisorCounts(data.advData || [], staff.competitionAdvisors.map((a) => a.id));
         const clearedTechData = (data.techData || []).map((row: any) => {
           const updatedRow = { ...row };
           Object.keys(updatedRow).forEach(key => {

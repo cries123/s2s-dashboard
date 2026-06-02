@@ -23,7 +23,6 @@ export type LandingTab =
   | 'search'
   | 'add'
   | 'dispatch'
-  | 'recalls'
   | 'forecast'
   | 'sales-performance'
   | 'pot-of-gold'
@@ -101,6 +100,8 @@ export interface DealershipSettings {
   laborGrossTarget?: number;
   partsSalesTarget?: number;
   enableDispatchTab?: boolean;
+  /** Pot of Gold / competition column config (slug id + display label) */
+  competitionAdvisors?: { id: string; label: string }[];
   dmsProvider?: import('./constants/dmsProviders').DmsProviderId;
   dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
   dispatchShowTodayLoad?: boolean;

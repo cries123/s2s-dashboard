@@ -26,7 +26,6 @@ import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
-import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
 import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 
@@ -222,7 +221,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
 
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
-  const [showInject, setShowInject] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
@@ -699,15 +697,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
         onOpenMenu={() => setIsMobileNavOpen(true)}
         alertBadge={activeAlertsCount}
       />
-
-      {showInject && (
-        <InjectModal 
-          currentUser={currentUser} 
-          customers={customers} 
-          onClose={() => setShowInject(false)} 
-          onSuccess={count => showNotification(`Successfully injected ${count} appointments.`)}
-        />
-      )}
     </div>
   );
 }

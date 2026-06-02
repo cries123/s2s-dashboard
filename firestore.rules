@@ -2,7 +2,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // --- Primitives & Safety ---
     match /{document=**} {
       allow read, write: if false;
     }
@@ -11,44 +10,88 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid != null;
     }
 
-    function incoming() {
-      return request.resource.data;
+    function userDocPath() {
+      return /databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid);
     }
 
-    // Role checks with master decimal/string override
+    function userDoc() {
+      return get(userDocPath());
+    }
+
+    function userDealershipId() {
+      return userDoc().data.dealershipId;
+    }
+
     function isAdmin() {
-      return isSignedIn() && 
-             'email' in request.auth.token && 
+      return isSignedIn() &&
+             'email' in request.auth.token &&
              (request.auth.token.email == 'jaryn.b.healey@gmail.com' ||
               request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
               request.auth.token.email == 'jaryn.healey@hyundaigp.com' ||
               request.auth.token.email == 'Jaryn.Healey@hyundaigp.com' ||
-              (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.role == 'admin'));
+              (exists(userDocPath()) && userDoc().data.role == 'admin'));
     }
 
     function isApproved() {
-      return isSignedIn() && 
-             'email' in request.auth.token && 
+      return isSignedIn() &&
+             'email' in request.auth.token &&
              (request.auth.token.email == 'jaryn.b.healey@gmail.com' ||
               request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
               request.auth.token.email == 'jaryn.healey@hyundaigp.com' ||
               request.auth.token.email == 'Jaryn.Healey@hyundaigp.com' ||
-              (exists(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/users/$(request.auth.uid)).data.status == 'approved'));
-    }
-
-    function onlyPreferencesChanged() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferences']);
+              (exists(userDocPath()) && userDoc().data.status == 'approved'));
     }
 
     function isSystemWorker() {
-      return isSignedIn() && 
-             'email' in request.auth.token && 
+      return isSignedIn() &&
+             'email' in request.auth.token &&
              request.auth.token.email == 'system-worker@hyundai-s2s.internal';
     }
 
-    // --- Users Collection ---
+    function legacyHyundaiData(data) {
+      return !('dealershipId' in data) || data.dealershipId == null || data.dealershipId == 'hyundai';
+    }
+
+    function scopedDealershipAllowed(data) {
+      return isAdmin() ||
+             isSystemWorker() ||
+             (exists(userDocPath()) &&
+              (data.dealershipId == userDealershipId() ||
+               (userDealershipId() == 'hyundai' && legacyHyundaiData(data))));
+    }
+
+    function canAccessPerformanceDoc(docId) {
+      return isAdmin() ||
+             (exists(userDocPath()) &&
+              ((userDealershipId() == 'hyundai' &&
+                (docId == 'advisorReports' ||
+                 docId == 'technicianReports' ||
+                 docId == 'potOfGold' ||
+                 docId == 'forecastReport' ||
+                 docId.matches('advisorReports_archive_.*') ||
+                 docId.matches('technicianReports_archive_.*') ||
+                 docId.matches('potOfGold_archive_.*') ||
+                 docId.matches('forecastReport_archive_.*'))) ||
+               (userDealershipId() == 'ford' &&
+                (docId == 'advisorReports_ford' ||
+                 docId == 'technicianReports_ford' ||
+                 docId == 'potOfGold_ford' ||
+                 docId == 'forecastReport_ford' ||
+                 docId.matches('advisorReports_ford_archive_.*') ||
+                 docId.matches('technicianReports_ford_archive_.*') ||
+                 docId.matches('potOfGold_ford_archive_.*') ||
+                 docId.matches('forecastReport_ford_archive_.*'))) ||
+               (userDealershipId() == 'nissan' &&
+                (docId == 'advisorReports_nissan' ||
+                 docId == 'technicianReports_nissan' ||
+                 docId == 'potOfGold_nissan' ||
+                 docId == 'forecastReport_nissan' ||
+                 docId.matches('advisorReports_nissan_archive_.*') ||
+                 docId.matches('technicianReports_nissan_archive_.*') ||
+                 docId.matches('potOfGold_nissan_archive_.*') ||
+                 docId.matches('forecastReport_nissan_archive_.*')))));
+    }
+
     match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin() || isSystemWorker());
@@ -56,56 +99,57 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // --- Settings & Metadata ---
     match /artifacts/hyundai-sales-to-service/public/data/dealershipSettings/{dealershipId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (isAdmin() || (exists(userDocPath()) && userDealershipId() == dealershipId));
       allow write: if isAdmin();
     }
 
-    // --- Customer & Operations Data ---
     match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-      
+      allow read: if isApproved() && scopedDealershipAllowed(resource.data);
+      allow create: if isApproved() && scopedDealershipAllowed(request.resource.data);
+      allow update, delete: if isApproved() &&
+        scopedDealershipAllowed(resource.data) &&
+        scopedDealershipAllowed(request.resource.data);
+
       match /contactLog/{logId} {
-        allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+        allow read, write: if isApproved() &&
+          scopedDealershipAllowed(
+            get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/customers/$(customerId)).data
+          );
       }
     }
 
-    match /artifacts/hyundai-sales-to-service/public/data/appointmentTracker/{date=**} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+    match /artifacts/hyundai-sales-to-service/public/data/appointmentTracker/{docId} {
+      allow read: if isApproved() && scopedDealershipAllowed(resource.data);
+      allow create, update: if isApproved() && scopedDealershipAllowed(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /artifacts/hyundai-sales-to-service/public/data/dispatchOrders/{orderId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+      allow read: if isApproved() && scopedDealershipAllowed(resource.data);
+      allow create: if isApproved() && scopedDealershipAllowed(request.resource.data);
+      allow update, delete: if isApproved() &&
+        scopedDealershipAllowed(resource.data) &&
+        scopedDealershipAllowed(request.resource.data);
     }
 
-    match /artifacts/hyundai-sales-to-service/public/data/vehicleRecalls/{recallId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-    }
-
-    // --- Performance Tracking ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
-      allow read, write: if isApproved() || isAdmin();
+      allow read, write: if isApproved() && canAccessPerformanceDoc(docId);
     }
 
-    // --- AI Usage Logs ---
     match /artifacts/hyundai-sales-to-service/public/data/aiUsageLogs/{logId} {
       allow create: if isSignedIn();
       allow read: if isAdmin();
     }
 
-    // --- Audit Logs (Import History) ---
     match /artifacts/hyundai-sales-to-service/public/audit/imports/{docId} {
-      allow read: if isApproved() || isAdmin();
+      allow read: if isApproved() && isAdmin();
       allow write: if isAdmin();
     }
 
-    // --- System Activity Logs ---
     match /artifacts/hyundai-sales-to-service/public/audit/systemLogs/{logId} {
-      allow read: if isApproved() || isAdmin();
+      allow read: if isApproved() && isAdmin();
       allow write: if isSignedIn();
     }
-
   }
 }
-
