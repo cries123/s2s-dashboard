@@ -152,6 +152,18 @@ export default function App() {
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+  const adminMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!isAdminMenuOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(event.target as Node)) {
+        setIsAdminMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isAdminMenuOpen]);
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -210,8 +222,10 @@ export default function App() {
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
 
-  // If current activeTab is hidden, fallback to first available
+  // If current activeTab is hidden, fallback to first available.
+  // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
+    if (activeTab === 'admin' || activeTab === 'manager') return;
     if (!availableTabs.find(t => t.id === activeTab)) {
       setActiveTab('add');
     }
@@ -540,15 +554,11 @@ export default function App() {
           {/* Profile Section */}
           <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10 relative">
             {canAccessPrimaryAdminSettings(currentUser) && (
-              <div className="relative">
+              <div className="relative z-[60]" ref={adminMenuRef}>
                 <button onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)} className={cn('w-9 h-9 flex items-center justify-center border rounded-lg transition-all shadow-sm', activeTab === 'admin' ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-brand-primary/10')} title="Admin Settings"><Settings size={16} /></button>
                 <AnimatePresence>
                   {isAdminMenuOpen && (
                     <>
-                      <div
-                        className="fixed inset-0 z-[40]"
-                        onClick={() => setIsAdminMenuOpen(false)}
-                      />
                       <motion.div
                         initial={{ opacity: 0, y: 6, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}

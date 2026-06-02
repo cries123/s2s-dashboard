@@ -151,6 +151,18 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+  const adminMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!isAdminMenuOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(event.target as Node)) {
+        setIsAdminMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isAdminMenuOpen]);
   const { preferences, loading: prefsLoading } = usePreferences();
   const [landingApplied, setLandingApplied] = useState(false);
 
@@ -209,8 +221,10 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
 
-  // If current activeTab is hidden, fallback to first available
+  // If current activeTab is hidden, fallback to first available.
+  // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
+    if (activeTab === 'admin' || activeTab === 'manager') return;
     if (!availableTabs.find(t => t.id === activeTab)) {
       setActiveTab('appointments');
     }
@@ -571,7 +585,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
           {/* Profile Section */}
           <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10 relative">
             {canAccessPrimaryAdminSettings(currentUser) && (
-              <div className="relative">
+              <div className="relative z-[60]" ref={adminMenuRef}>
                 <button
                   onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
                   className={cn(
@@ -587,7 +601,6 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                 <AnimatePresence>
                   {isAdminMenuOpen && (
                     <>
-                      <div className="fixed inset-0 z-[40]" onClick={() => setIsAdminMenuOpen(false)} />
                       <motion.div
                         initial={{ opacity: 0, y: 6, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}

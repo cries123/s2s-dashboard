@@ -196,7 +196,7 @@ export function isProtectedUser(user: Pick<User, 'email'> | null | undefined): b
 }
 
 export function canAccessPrimaryAdminSettings(user: User | null | undefined): boolean {
-  return isPrimaryAdmin(user);
+  return isPrimaryAdmin(user) || isPlatformAdmin(user);
 }
 
 export function canSwitchDealership(user: User | null | undefined): boolean {
