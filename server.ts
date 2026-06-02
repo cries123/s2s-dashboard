@@ -8,30 +8,12 @@ import admin from "firebase-admin";
 import { getApps, initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
-import {
-  parseAppointmentReportDeterministic,
-  APPOINTMENT_AI_CATEGORIZATION_RULES,
-} from "./server/parsers/appointmentReport.js";
+import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
 
 dotenv.config();
 
 // Helper sleep function for Sequential Throttling
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Parse "For Jun 2, 2026" from PBS Appointment Details report header. */
-function extractReportDateFromAppointmentText(reportText: string): string | null {
-  const match = reportText.match(/For\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/i);
-  if (!match) return null;
-
-  const monthIndex = new Date(`${match[1]} 1, ${match[3]}`).getMonth();
-  if (Number.isNaN(monthIndex)) return null;
-
-  const year = match[3];
-  const month = String(monthIndex + 1).padStart(2, '0');
-  const day = String(parseInt(match[2], 10)).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 
 // Status tracking for the off-peak sequential background recall sync worker
 let isRecallWorkerRunning = false;
@@ -55,7 +37,7 @@ try {
 // Deterministic Helper: Extract text from PDF buffer on server if possible
 async function extractTextFromPDFBuffer(buffer: Buffer): Promise<string> {
   try {
-    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfjsLib = await import("pdfjs-dist");
     const data = new Uint8Array(buffer);
     const loadingTask = pdfjsLib.getDocument({ data });
     const pdf = await loadingTask.promise;
@@ -88,7 +70,7 @@ async function extractTextFromPDFBuffer(buffer: Buffer): Promise<string> {
     }
     return fullText;
   } catch (error) {
-    console.warn("[PDF Server Extractor] Failed to extract via pdfjs-dist legacy build:", error);
+    console.warn("[PDF Server Extractor] Failed to extract via pdfjs-dist. Falling back.");
     return "";
   }
 }
@@ -177,7 +159,7 @@ async function startServer() {
       let text = reportText || "";
 
       if (!text && pdfBase64) {
-        const buffer = Buffer.from(pdfBase64, "base64");
+        const buffer = Buffer.from(pdfBase64, 'base64');
         text = await extractTextFromPDFBuffer(buffer);
       }
 
@@ -185,27 +167,40 @@ async function startServer() {
         return res.status(400).json({ error: "No report text or PDF data detected." });
       }
 
-      const reportDate = extractReportDateFromAppointmentText(text);
-
       console.log(`[Appointments Parser] Received text of length ${text.length}`);
 
-      const deterministic = parseAppointmentReportDeterministic(text, true);
-      if (deterministic.total > 0) {
-        console.log("[Appointments Parser] Deterministic result:", deterministic);
-        return res.json({ ...deterministic, isAiParsed: false });
+      const isPbsAppointmentReport = /Appointment Details Report/i.test(text) && /\bFor\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i.test(text);
+
+      if (isPbsAppointmentReport) {
+        const parsed = parseAppointmentReportDeterministic(text);
+        console.log("[Appointments Parser] PBS deterministic result:", parsed);
+        if (parsed.total > 0) {
+          return res.json({ ...parsed, isAiParsed: false });
+        }
       }
 
+      // Attempt AI parsing with Gemini if configured and PBS parser found nothing
       const geminiKey = process.env.GEMINI_API_KEY;
       const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
       const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
 
       if (hasGemini) {
         try {
-          console.log("[Appointments AI Parser] Calling Gemini for structured appointment analysis");
+          console.log("[Appointments AI Parser] Calling Gemini-3.5-Flash for structured appointment analysis");
           const client = getAIClient();
           const response = await client.models.generateContent({
             model: "gemini-3.5-flash",
-            contents: [{ role: "user", parts: [{ text: APPOINTMENT_AI_CATEGORIZATION_RULES }, { text }] }],
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    text: "Analyze the attached Service Appointment Details Report. Count only appointments that have scheduled service lines in the Services field (ignore blank walk-ins). Categorize: diagnosis (customer states / check and advise) beats recall (campaign/recall codes) beats oil (full synthetic / complimentary maintenance) beats misc."
+                  },
+                  { text }
+                ]
+              }
+            ],
             config: {
               responseMimeType: "application/json",
               responseSchema: {
@@ -215,33 +210,40 @@ async function startServer() {
                   oilChange: { type: Type.INTEGER },
                   recall: { type: Type.INTEGER },
                   misc: { type: Type.INTEGER },
-                  total: { type: Type.INTEGER },
+                  total: { type: Type.INTEGER }
                 },
-                required: ["diagnosis", "oilChange", "recall", "misc", "total"],
+                required: ["diagnosis", "oilChange", "recall", "misc", "total"]
               },
-              temperature: 0.0,
-            },
+              temperature: 0.0
+            }
           });
 
           if (response.text) {
             const parsed = JSON.parse(response.text.trim());
+            console.log("[Appointments AI Parser] Success:", parsed);
             return res.json({
               diagnosis: parsed.diagnosis || 0,
               oilChange: parsed.oilChange || 0,
               recall: parsed.recall || 0,
               misc: parsed.misc || 0,
               total: parsed.total || 0,
-              parseMethod: "ai",
+              reportDate: parseAppointmentReportDeterministic(text).reportDate,
               isAiParsed: true,
+              parseMethod: 'ai',
             });
           }
         } catch (aiErr: any) {
-          console.error("[Appointments AI Parser] Failed:", aiErr.message || aiErr);
+          console.error("[Appointments AI Parser] Failed, falling back to deterministic parser:", aiErr.message || aiErr);
         }
       }
 
-      return res.status(422).json({
-        error: "Could not extract appointments from this PDF. Ensure it is a PBS/Xtime Appointment Details report with Services lines.",
+      const fallbackParsed = parseAppointmentReportDeterministic(text);
+      if (fallbackParsed.total > 0) {
+        return res.json({ ...fallbackParsed, isAiParsed: false });
+      }
+
+      res.status(422).json({
+        error: "No appointments with scheduled services found in this PDF. Use a PBS Appointment Details report for the selected day.",
       });
     } catch (error: any) {
       console.error("API Error Appointments:", error);

@@ -1,153 +1,133 @@
 export type AppointmentCategory = 'diagnosis' | 'oilChange' | 'recall' | 'misc';
 
-export interface AppointmentBreakdown {
+export interface ParsedAppointment {
+  confirmationKey: string;
+  category: AppointmentCategory;
+  services: string;
+}
+
+export interface AppointmentReportParseResult {
+  reportDate: string | null;
   diagnosis: number;
   oilChange: number;
   recall: number;
   misc: number;
   total: number;
+  appointments: ParsedAppointment[];
+  parseMethod: 'deterministic';
 }
 
-export interface ParsedAppointmentReport extends AppointmentBreakdown {
-  parseMethod: 'deterministic' | 'ai';
-  appointments?: Array<{ category: AppointmentCategory; services: string }>;
+/** Parse "For Jun 1, 2026" from PBS Appointment Details report header. */
+export function extractReportDateFromAppointmentText(reportText: string): string | null {
+  const match = reportText.match(/For\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})/i);
+  if (!match) return null;
+
+  const monthIndex = new Date(`${match[1]} 1, ${match[3]}`).getMonth();
+  if (Number.isNaN(monthIndex)) return null;
+
+  const year = match[3];
+  const month = String(monthIndex + 1).padStart(2, '0');
+  const day = String(parseInt(match[2], 10)).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-const DATE_CLUSTER_PATTERN =
-  /\b\d{2}\/\d{2}\s+\d{2}\/\d{2}\s+\d{1,2}:\d{2}\s*(?:AM|PM)\b/i;
-
-const VIN_PATTERN =
-  /\b(?:5N|KMH|KM8|KND|1N4|3N1|4T1|5YJ|7SAY|WBA|1G1|2C3|1C4|JF1|YV1|SAJ|WDD|WDC|WDB)[A-Z0-9]{12,}\b/i;
-
-const CONF_KEY_PATTERN = /\bX[A-Z0-9]{9}\b/i;
-
-/** Extract one service description per appointment from PBS-style Appointment Details PDF text. */
-export function extractServiceBlocks(reportText: string): string[] {
-  const parts = reportText.split(/(?=Services:\s*)/i);
-
-  const blocks: string[] = [];
-  for (const part of parts.slice(1)) {
-    let body = part.replace(/^Services:\s*/i, '');
-    body = body.split(/(?=Services:\s*)|\f|Page \d+ of \d+/i)[0] ?? body;
-    const cleaned = cleanServiceBlock(body);
-    if (cleaned.length > 3) {
-      blocks.push(cleaned);
-    }
-  }
-
-  return blocks;
+function extractServicesBlock(textFromKey: string): string {
+  const match = textFromKey.match(/Services:\s*([\s\S]*?)(?:Notes:|Advisor\/Team:|DMS State:)/i);
+  return (match?.[1] ?? '').replace(/\s+/g, ' ').trim();
 }
 
-function cleanServiceBlock(raw: string): string {
-  let body = raw.replace(/\s+/g, ' ').trim();
-
-  const dateCluster = DATE_CLUSTER_PATTERN.exec(body);
-  if (dateCluster?.index != null) {
-    body = body.slice(0, dateCluster.index).trim().replace(/[,\s.]+$/, '');
-  }
-
-  body = body.split(VIN_PATTERN)[0]?.trim().replace(/[,\s.]+$/, '') ?? body;
-  body = body.replace(/\bAdvisor\/Team:.*$/i, '').trim().replace(/[,\s.]+$/, '');
-  body = body.replace(CONF_KEY_PATTERN, '').trim().replace(/[,\s.]+$/, '');
-
-  return body;
+function hasScheduledServices(services: string): boolean {
+  return services.replace(/\s/g, '').length > 0;
 }
 
-/**
- * Categorize a single appointment's service description.
- *
- * Priority:
- * 1. diagnosis — "CUSTOMER STATES", explicit diagnose requests, or oil + customer-states together
- * 2. recall — RECALL, CAMPAIGN, or bulletin-style campaign codes
- * 3. oilChange — FULL SYNTHETIC or COMPLIMENTARY MAINTENANCE
- * 4. misc — everything else
- */
-export function categorizeAppointmentService(servicesText: string): AppointmentCategory {
-  const text = servicesText.toUpperCase();
+/** Categorize one appointment. Diagnosis wins over recall/oil when multiple apply. */
+export function categorizeAppointmentServices(services: string): AppointmentCategory {
+  const upper = services.toUpperCase();
 
-  const hasCustomerStates =
-    text.includes('CUSTOMER STATES') || text.includes('CUSTOMER STATE');
-  const hasDiagnoseRequest = /CUSTOMER REQUEST(?:S|ED)? TO DIAGNO|REQUEST TO DIAGNO/i.test(
-    servicesText
-  );
+  const isDiag =
+    /CUSTOMER STATES/.test(upper) ||
+    /CUSTOMER REQUEST TO DIAGNOSE/.test(upper) ||
+    /TELL US MORE/.test(upper) ||
+    /CHECK AND ADVISE/.test(upper) ||
+    /INSPECT AND ADVISE/.test(upper) ||
+    /CHECK ENGINE/.test(upper) ||
+    /LOST POWER/.test(upper) ||
+    /WON'?T START/.test(upper) ||
+    /DELAY AFTER/.test(upper) ||
+    /TICKING NOISE/.test(upper) ||
+    /UNDERCOVER IS LOOSE/.test(upper) ||
+    /GAS PANEL WILL NOT OPEN/.test(upper);
 
-  const hasRecallOrCampaign =
-    /\bRECALL\b|\bCAMPAIGN\b/i.test(text) ||
-    /\(\s*\d{2,4}\s*-\s*\d{2,3}[A-Z0-9]*\s*\)/.test(text) ||
-    /ANC CLIP INS|SEAT BELT.*INS\s*\(/i.test(text);
+  const isRecall =
+    /\bRECALL\b/.test(upper) ||
+    /\bCAMPAIGN\b/.test(upper) ||
+    /\bECU SW UPDATE\b/.test(upper) ||
+    /\bECU SOFTWARE UPDATE\b/.test(upper) ||
+    /\bTSB#/.test(upper) ||
+    /\bANTITHEFT\b/.test(upper) ||
+    /\(\d{2}-\d{2}-\d{3}[A-Z]?\)/.test(upper) ||
+    /\(\d{2,4}-\d{2,3}[A-Z]?\)/.test(upper) ||
+    /\b\d{2}-[A-Z]{2}-\d{3}[A-Z]?\b/.test(upper);
 
-  const hasOilChange =
-    /FULL SYNTHETIC|COMPLIMENTARY MAINTENANCE|HYUNDAI COMPLIMENTARY/i.test(text);
+  const isOil =
+    /FULL SYNTHETIC OIL/.test(upper) ||
+    /HYUNDAI COMPLIMENTARY/.test(upper) ||
+    /COMPLIMENTARY MAINTENANCE/.test(upper) ||
+    /OIL & FILTER CHANGE/.test(upper) ||
+    /OIL AND FILTER CHANGE/.test(upper);
 
-  if (hasCustomerStates || hasDiagnoseRequest) {
-    return 'diagnosis';
-  }
-  if (hasRecallOrCampaign) {
-    return 'recall';
-  }
-  if (hasOilChange) {
-    return 'oilChange';
-  }
+  if (isDiag) return 'diagnosis';
+  if (isRecall) return 'recall';
+  if (isOil) return 'oilChange';
   return 'misc';
 }
 
-export function parseAppointmentReportDeterministic(
-  reportText: string,
-  includeDetails = false
-): ParsedAppointmentReport {
-  const serviceBlocks = extractServiceBlocks(reportText);
+/**
+ * Parse PBS "Appointment Details Report" text.
+ * Counts only appointments with scheduled service lines (non-empty Services: field).
+ */
+export function parseAppointmentReportDeterministic(reportText: string): AppointmentReportParseResult {
+  const reportDate = extractReportDateFromAppointmentText(reportText);
 
-  const breakdown: AppointmentBreakdown = {
-    diagnosis: 0,
-    oilChange: 0,
-    recall: 0,
-    misc: 0,
-    total: 0,
-  };
-
-  const appointments: ParsedAppointmentReport['appointments'] = includeDetails
-    ? []
-    : undefined;
-
-  for (const services of serviceBlocks) {
-    const category = categorizeAppointmentService(services);
-    breakdown[category] += 1;
-    appointments?.push({ category, services });
+  const keyPattern = /\b(X[A-Z0-9]{9})\b/gi;
+  const keyMatches: { key: string; index: number }[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = keyPattern.exec(reportText)) !== null) {
+    keyMatches.push({ key: match[1].toUpperCase(), index: match.index });
   }
 
-  breakdown.total =
-    breakdown.diagnosis + breakdown.oilChange + breakdown.recall + breakdown.misc;
+  const appointments: ParsedAppointment[] = [];
+
+  for (let i = 0; i < keyMatches.length; i++) {
+    const { key, index } = keyMatches[i];
+    const end = i + 1 < keyMatches.length ? keyMatches[i + 1].index : reportText.length;
+    const block = reportText.slice(index, end);
+    const services = extractServicesBlock(block);
+
+    if (!hasScheduledServices(services)) {
+      continue;
+    }
+
+    appointments.push({
+      confirmationKey: key,
+      category: categorizeAppointmentServices(services),
+      services: services.slice(0, 200),
+    });
+  }
+
+  const counts = { diagnosis: 0, oilChange: 0, recall: 0, misc: 0 };
+  for (const appt of appointments) {
+    counts[appt.category]++;
+  }
 
   return {
-    ...breakdown,
-    parseMethod: 'deterministic',
+    reportDate,
+    diagnosis: counts.diagnosis,
+    oilChange: counts.oilChange,
+    recall: counts.recall,
+    misc: counts.misc,
+    total: appointments.length,
     appointments,
+    parseMethod: 'deterministic',
   };
 }
-
-export const APPOINTMENT_AI_CATEGORIZATION_RULES = `Analyze this Service Appointment Details Report (PBS / Xtime style).
-
-Count each UNIQUE appointment exactly once. Each appointment has a "Services:" line — use that line (only that appointment's services, not bleed-over from the next row).
-
-Categorize each appointment into exactly ONE bucket:
-
-1. diagnosis (highest priority when present):
-   - Contains "CUSTOMER STATES" or "CUSTOMER STATE"
-   - Contains "CUSTOMER REQUEST TO DIAGNOSE" or similar explicit diagnosis request
-   - If an appointment has BOTH an oil change (full synthetic / complimentary) AND customer-states/diagnosis wording → diagnosis
-
-2. recall:
-   - Contains "RECALL" or "CAMPAIGN"
-   - Contains bulletin / campaign codes like (26-01-042H), seat belt clip campaigns, etc.
-   - If oil change AND recall/campaign with NO customer-states wording → recall
-
-3. oilChange:
-   - "FULL SYNTHETIC" oil & filter change
-   - "HYUNDAI COMPLIMENTARY MAINTENANCE" or "COMPLIMENTARY MAINTENANCE"
-   - NOT generic "replace oil" or "factory required" without full synthetic / complimentary wording
-
-4. misc:
-   - Brake fluid, tire replacement, factory required maintenance, car wash only, cooling system, etc.
-   - Generic maintenance requests without complimentary / full synthetic wording
-
-The four category counts MUST sum to total. Return JSON only.`;
