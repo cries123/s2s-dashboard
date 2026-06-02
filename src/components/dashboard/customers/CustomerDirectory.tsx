@@ -1,17 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, ListFilter, Users, CalendarDays, Loader2, ChevronRight } from 'lucide-react';
+import { Search, Users, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Customer, User } from '../../../types';
 import CustomerCard from './CustomerCard';
 import { cn } from '../../../lib/utils';
-import { usePreferences } from '../../../context/PreferencesContext';
-import { isServiceAlertActive } from '../../../lib/alerts';
-import { getStoredCrmSearch, setStoredCrmSearch } from '../../../lib/localPreferencesStorage';
-import { LanguageFilter } from '../../../types';
+import {
+  directoryMakeFiltersForDealership,
+  DirectoryMakeFilter,
+  matchesDirectoryMakeFilter,
+} from '../../../lib/directoryMakeFilters';
 
 interface CustomerDirectoryProps {
   customers: Customer[];
   currentUser: User;
+  currentDealershipId: string;
   onViewProfile: (customer: Customer) => void;
   onViewLog: (customer: Customer) => void;
   onRefresh: (msg: string, isError?: boolean) => void;
@@ -20,31 +22,26 @@ interface CustomerDirectoryProps {
 export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   customers,
   currentUser,
+  currentDealershipId,
   onViewProfile,
   onViewLog,
   onRefresh
 }) => {
-  const { preferences } = usePreferences();
-  const [searchQuery, setSearchQuery] = useState(() => getStoredCrmSearch(currentUser.uid));
-  const [alertsOnly, setAlertsOnly] = useState(preferences.crmDisplay.alertsOnlyDefault);
-  const [languageFilter, setLanguageFilter] = useState<LanguageFilter>(
-    preferences.crmDisplay.defaultLanguageFilter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(24);
+  const [filterCategory, setFilterCategory] = useState<DirectoryMakeFilter>('All');
+  const [sortBy, setSortBy] = useState<'Recent' | 'Visits'>('Recent');
+
+  const makeFilters = useMemo(
+    () => directoryMakeFiltersForDealership(currentDealershipId),
+    [currentDealershipId]
   );
 
   useEffect(() => {
-    setLanguageFilter(preferences.crmDisplay.defaultLanguageFilter);
-  }, [preferences.crmDisplay.defaultLanguageFilter]);
-
-  useEffect(() => {
-    setAlertsOnly(preferences.crmDisplay.alertsOnlyDefault);
-  }, [preferences.crmDisplay.alertsOnlyDefault]);
-
-  useEffect(() => {
-    setStoredCrmSearch(currentUser.uid, searchQuery);
-  }, [searchQuery, currentUser.uid]);
-  const [visibleCount, setVisibleCount] = useState(24);
-  const [filterCategory, setFilterCategory] = useState<'All' | 'Hyundai' | 'Other'>('All');
-  const [sortBy, setSortBy] = useState<'Recent' | 'Visits'>('Recent');
+    if (!makeFilters.includes(filterCategory)) {
+      setFilterCategory('All');
+    }
+  }, [makeFilters, filterCategory]);
 
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -63,14 +60,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
         (filterCategory === 'Hyundai' && c.make?.toLowerCase().includes('hyundai')) ||
         (filterCategory === 'Other' && !c.make?.toLowerCase().includes('hyundai'));
 
-      const matchesLanguage =
-        languageFilter === 'all' ||
-        (languageFilter === 'english' && (c.language || 'English').toLowerCase().includes('english')) ||
-        (languageFilter === 'spanish' && (c.language || '').toLowerCase().includes('spanish'));
-
-      const matchesAlerts = !alertsOnly || isServiceAlertActive(c);
-
-      return matchesSearch && matchesCategory && matchesLanguage && matchesAlerts;
+      return matchesSearch && matchesCategory;
     });
 
     // Helper for date parsing
@@ -105,7 +95,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
 
       return a.lastName.localeCompare(b.lastName);
     });
-  }, [customers, searchQuery, filterCategory, sortBy, languageFilter, alertsOnly]);
+  }, [customers, searchQuery, filterCategory, sortBy]);
 
   const displayCustomers = useMemo(() => {
     return filteredCustomers.slice(0, visibleCount);
@@ -236,43 +226,6 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
            </div>
 
            <div className="hidden lg:block w-px h-6 bg-white/5 mx-1" />
-
-           <div className="flex items-center gap-1">
-             {([
-               { id: 'all', label: 'All Lang' },
-               { id: 'english', label: 'English' },
-               { id: 'spanish', label: 'Spanish' },
-             ] as const).map(({ id, label }) => (
-               <button
-                 key={id}
-                 type="button"
-                 onClick={() => setLanguageFilter(id)}
-                 className={cn(
-                   "px-3 py-2.5 rounded-[1rem] text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                   languageFilter === id
-                     ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                     : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-                 )}
-               >
-                 {label}
-               </button>
-             ))}
-           </div>
-
-           <button
-             type="button"
-             onClick={() => setAlertsOnly(!alertsOnly)}
-             className={cn(
-               "px-3 py-2.5 rounded-[1rem] text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-               alertsOnly
-                 ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                 : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-             )}
-           >
-             Alerts only
-           </button>
-
-           <div className="hidden lg:block w-px h-6 bg-white/5 mx-1" />
            <div className="lg:hidden w-full h-px bg-white/5 my-0.5" />
 
            <div className="flex items-center gap-1">
@@ -314,7 +267,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
               Ensure the VIN or name is correct. Our database is synchronized with realtime records.
             </p>
             <button 
-              onClick={() => { setSearchQuery(''); setFilterCategory('All'); setLanguageFilter('all'); setAlertsOnly(false); }}
+              onClick={() => { setSearchQuery(''); setFilterCategory('All'); }}
               className="mt-8 px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
             >
               Reset All Filters
@@ -322,10 +275,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
           </motion.div>
         ) : (
           <div className="space-y-12">
-            <div className={cn(
-              "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
-              preferences.crmDisplay.density === 'compact' ? "gap-4" : "gap-8"
-            )}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
               {displayCustomers.map((c, idx) => (
                 <motion.div
                   key={c.id}
