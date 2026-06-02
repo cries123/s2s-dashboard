@@ -1,4 +1,5 @@
 import type { PerformanceParseResult } from '../types';
+import { parseDealerBuiltPerformanceDeterministic } from './dealerbuiltPerformance.js';
 
 export function parsePBSPerformanceReport(reportText: string): PerformanceParseResult {
   // Setup default totals first
@@ -166,9 +167,16 @@ export function parsePBSPerformanceReport(reportText: string): PerformanceParseR
   };
 }
 
+
 export function parseDealerBuiltPerformanceReport(reportText: string): PerformanceParseResult {
   const normalized = reportText
     .replace(/Service Writer/gi, 'Advisor')
     .replace(/Writer Name/gi, 'Advisor');
+
+  const dealerBuilt = parseDealerBuiltPerformanceDeterministic(normalized);
+  if (dealerBuilt.advisors.length > 0) {
+    return dealerBuilt;
+  }
+
   return parsePBSPerformanceReport(normalized);
 }

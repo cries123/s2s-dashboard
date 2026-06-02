@@ -351,12 +351,25 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     setImportStatus(null);
     
     try {
-      const reportText = await extractTextFromPDF(file);
+      let reportText = '';
+      try {
+        reportText = await extractTextFromPDF(file);
+      } catch (extractErr) {
+        console.warn('PDF text extraction failed, will use server-side vision for DealerBuilt:', extractErr);
+      }
+
+      const payload: { reportText: string; pdfBase64?: string } = { reportText };
+      const needsVisionFallback =
+        dmsProvider === 'dealerbuilt' &&
+        (!reportText || reportText.replace(/\s+/g, ' ').trim().length < 80);
+      if (needsVisionFallback) {
+        payload.pdfBase64 = await fileToBase64(file);
+      }
       
       const response = await fetch('/api/parse-performance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText }))
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, payload))
       });
 
       if (!response.ok) {

@@ -14,6 +14,7 @@ import {
   parsePerformanceReport,
   parseTechnicianReport,
 } from "./server/dms/index.js";
+import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
 
 dotenv.config();
 
@@ -266,259 +267,6 @@ async function startServer() {
     } catch (error: any) {
       console.error("API Error Appointments:", error);
       res.status(500).json({ error: `Internal Server Error during parse: ${error.message}` });
-    }
-  });
-
-  app.post("/api/parse-performance", async (req, res) => {
-    // Local deterministic parser helper for fallback or offline state
-    const dmsProvider = normalizeDmsProvider(req.body?.dmsProvider);
-    const parseDeterministicPerformance = (reportText: string) => parsePerformanceReport(reportText, dmsProvider);
-
-
-    try {
-      const { pdfBase64, reportText } = req.body;
-      let text = reportText || "";
-
-      if (!text && pdfBase64) {
-        const buffer = Buffer.from(pdfBase64, 'base64');
-        text = await extractTextFromPDFBuffer(buffer);
-      }
-
-      if (!text) {
-        return res.status(400).json({ error: "No performance data or PDF detected." });
-      }
-
-      const validateAndReconcileTotals = (parsed: any) => {
-        // Run deterministic parser to fetch golden reference values
-        const ref = parseDeterministicPerformance(text);
-
-        if (parsed && parsed.advisors && parsed.advisors.length > 0) {
-          const cleanName = (n: string) => {
-            const name = n.toUpperCase().trim();
-            if (name.includes("FRANK")) return "Frank";
-            if (name.includes("LEMMY")) return "Lemmy";
-            if (name.includes("JARYN")) return "Jaryn";
-            return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-          };
-
-          parsed.advisors = parsed.advisors.map((a: any) => {
-            const normName = cleanName(a.name);
-            const lSold = a.laborSold !== undefined ? Number(a.laborSold) : 0;
-            const pSold = a.partsSold !== undefined ? Number(a.partsSold) : 0;
-            const gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
-            const hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
-
-            return {
-              ...a,
-              name: normName,
-              soCount: a.soCount !== undefined ? Math.round(Number(a.soCount)) : 0,
-              hrsSold: hSold,
-              laborSold: lSold,
-              grossLabor: gLab,
-              partsSold: pSold,
-              grossParts: a.grossParts !== undefined ? Number(a.grossParts) : 0,
-              totalSales: a.totalSales !== undefined ? Number(a.totalSales) : Math.round((lSold + pSold) * 100) / 100,
-              gpPercent: a.gpPercent !== undefined ? Number(a.gpPercent) : (lSold > 0 ? Math.round((gLab / lSold) * 1000) / 10 : 0),
-              elr: a.elr !== undefined ? Number(a.elr) : (hSold > 0 ? Math.round((lSold / hSold) * 100) / 100 : 0),
-              upsells: a.upsells || []
-            };
-          });
-
-          // Keep LLM parsed totals if valid, fallback to ref totals if null or invalid
-          if (parsed.totals) {
-            parsed.totals = {
-              totalSales: Number(parsed.totals.totalSales) || (Number(parsed.totals.totalLabor || 0) + Number(parsed.totals.totalParts || 0)),
-              totalLabor: Number(parsed.totals.totalLabor) || 0,
-              totalGross: Number(parsed.totals.totalGross) || 0,
-              totalParts: Number(parsed.totals.totalParts) || 0,
-              totalGrossParts: Number(parsed.totals.totalGrossParts) || 0,
-              totalHrs: Number(parsed.totals.totalHrs) || 0
-            };
-          } else if (ref.totals) {
-            parsed.totals = ref.totals;
-          }
-        } else if (ref && ref.advisors && ref.advisors.length > 0) {
-          // Fallback to reference if parsed didn't have advisors
-          parsed = ref;
-        }
-        return parsed;
-      };
-
-      // Check if this is an upsell/frequency report
-      const isUpsell = text.toUpperCase().includes("OP CODE") || text.toUpperCase().includes("FREQUENCY");
-
-      // 1. Try OpenAI/ChatGPT first
-      const openaiKey = process.env.OPENAI_API_KEY;
-      const isMaskedKey = !!(openaiKey && openaiKey.includes("*"));
-      const hasOpenAI = !!(openaiKey && openaiKey.trim() !== "" && !openaiKey.includes("YOUR_") && !isMaskedKey);
-
-      if (hasOpenAI) {
-        try {
-          console.log("[OpenAI Performance Parser] Parsing report text using gpt-4o-mini...");
-          const openai = getOpenAIClient();
-          const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
-For each service advisor cleanly identify:
-- name: Clean name (e.g. Frank, Lemmy)
-- soCount: Total physical repair orders or service orders completed
-- hrsSold: Total flat rate or sold hours billed
-- laborSold: Total labor sales revenue
-- grossLabor: Total labor gross profit dollars
-- partsSold: Total parts sales revenue
-- grossParts: Total parts gross profit dollars
-- totalSales: Combined total sales revenue (usually labor + parts)
-- gpPercent: Blended gross profit percentage (0 to 100)
-- elr: Effective labor rate (ELR)
-
-Also overall mechanical department totals:
-- totalSales: Total combined sales
-- totalLabor: Total combined labor sales (this is the overall total Labor Sales row, e.g. $67,957.22 on the default report. DO NOT use individual advisor totals as the grand total)
-- totalGross: Total combined labor gross profit dollars (this is the overall total Labor Gross row, e.g. $56,463.26 on the default report. DO NOT extract Frank's individual or subtotal page gross profit)
-- totalParts: Total combined parts sales
-- totalGrossParts: Total combined parts gross profit dollars
-- totalHrs: Total combined hours sold
-
-CRITICAL GUIDELINE: If the report text does not list individual advisor-specific breakdowns (i.e. only lists total shop performance, price codes, or pay types), you MUST distribute the totals proportionally among the two standard active advisors: 'Frank' (56%) and 'Lemmy' (44%). Do NOT treat system category/price code labels like 'Labor C', 'Labor W', 'Labor I', or table headings/categories as advisors.
-
-For overall totals (totalLabor, totalGross, totalParts, totalGrossParts), MUST extract the section or column total representing the entire department. Do NOT use partial pay types like Customer Labor ('Labor C') as the overall total. (For the default report, the true totals are: Labor Sales = $67,957.22, Labor Gross = $56,463.26, Parts Sales = $54,743.36, Parts Gross = $18,997.72).
-
-If this is an upsell frequency report (with OP Codes like AF, ALIGN, etc.), also extract the individual upsell counts and revenues for each advisor's 'upsells' array.`
-              },
-              {
-                role: "user",
-                content: `Parse this automotive performance/productivity report chunk and return structured JSON:\n\n${text}`
-              }
-            ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "performance_telemetry",
-                strict: true,
-                schema: {
-                  type: "object",
-                  properties: {
-                    advisors: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          name: { type: "string" },
-                          soCount: { type: "integer" },
-                          hrsSold: { type: "number" },
-                          laborSold: { type: "number" },
-                          grossLabor: { type: "number" },
-                          partsSold: { type: "number" },
-                          grossParts: { type: "number" },
-                          totalSales: { type: "number" },
-                          gpPercent: { type: "number" },
-                          elr: { type: "number" },
-                          upsells: {
-                            type: "array",
-                            items: {
-                              type: "object",
-                              properties: {
-                                code: { type: "string" },
-                                description: { type: "string" },
-                                count: { type: "integer" },
-                                revenue: { type: "number" }
-                              },
-                              required: ["code", "description", "count", "revenue"],
-                              additionalProperties: false
-                            }
-                          }
-                        },
-                        required: ["name", "soCount", "hrsSold", "laborSold", "grossLabor", "partsSold", "grossParts", "totalSales", "gpPercent", "elr", "upsells"],
-                        additionalProperties: false
-                      }
-                    },
-                    totals: {
-                      type: "object",
-                      properties: {
-                        totalSales: { type: "number" },
-                        totalLabor: { type: "number" },
-                        totalGross: { type: "number" },
-                        totalParts: { type: "number" },
-                        totalGrossParts: { type: "number" },
-                        totalHrs: { type: "number" }
-                      },
-                      required: ["totalSales", "totalLabor", "totalGross", "totalParts", "totalGrossParts", "totalHrs"],
-                      additionalProperties: false
-                    }
-                  },
-                  required: ["advisors", "totals"],
-                  additionalProperties: false
-                }
-              }
-            },
-            temperature: 0.0
-          });
-
-          const resContent = completion.choices[0]?.message?.content;
-          if (resContent) {
-            console.log("[OpenAI Performance Parser] Successfully processed.");
-            const parsed = JSON.parse(resContent);
-            return res.json(validateAndReconcileTotals(parsed));
-          }
-        } catch (err) {
-          console.error("[OpenAI Performance Parser] Error:", err);
-        }
-      }
-
-      // 2. Try Gemini fallback
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
-      const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
-
-      if (hasGemini) {
-        try {
-          console.log("[Gemini Performance Parser] Parsing using gemini-2.0-flash...");
-          const client = getAIClient();
-          const response = await client.models.generateContent({
-            model: "gemini-2.0-flash",
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: `Extract Service Advisor productivity and performance metrics cleanly according to the required schema map. Ensure extreme precision for numbers.
-CRITICAL GUIDELINE: If the report text does not list individual advisor-specific breakdowns (i.e. only lists total shop performance, price codes, or pay types), you MUST distribute the totals proportionally among the two standard active advisors: 'Frank' (56%) and 'Lemmy' (44%). Do NOT treat system category/price code labels like 'Labor C', 'Labor W', 'Labor I', or table headings/categories as advisors.
-
-For overall totals under 'totals':
-- totalLabor: MUST be the overall total labor sales for the department (usually labeled 'LABOR' total, e.g. $67,957.22 on the default report). DO NOT extract partial category sales (like 'Labor C').
-- totalGross: MUST be the overall total labor gross profit for the department (usually labeled 'LABOR' total, e.g. $56,463.26 on the default report). DO NOT extract Frank's individual page gross ($38,974.28).
-(For the default report, true totals are: Labor Sales = $67,957.22, Labor Gross = $56,463.26, Parts Sales = $54,743.36, Parts Gross = $18,997.72).` },
-                  { text }
-                ]
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: performanceSchemaGemini,
-              temperature: 0.0
-            }
-          });
-
-          if (response.text) {
-            console.log("[Gemini Performance Parser] Structured JSON retrieved successfully.");
-            const parsed = JSON.parse(response.text);
-            return res.json(validateAndReconcileTotals(parsed));
-          }
-        } catch (err) {
-          console.error("[Gemini Performance Parser] Error:", err);
-        }
-      }
-
-      // 3. Smart local deterministic report parser
-      console.log("[Performance Parser Fallback] Falling back to deterministic local parsing rule...");
-      const deterministicResult = parseDeterministicPerformance(text);
-      return res.json(deterministicResult);
-
-    } catch (error: any) {
-      console.error("API Error Performance:", error);
-      res.status(500).json({ error: `Internal Server Error during performance parse: ${error.message}` });
     }
   });
 
@@ -842,6 +590,13 @@ For overall totals under 'totals':
 
   // Lazy initialize OpenAI client
   let openaiClient: OpenAI | null = null;
+  registerParsePerformanceRoute(app, {
+    extractTextFromPDFBuffer,
+    getOpenAIClient,
+    getAIClient,
+    performanceSchemaGemini,
+  });
+
   function getOpenAIClient() {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
