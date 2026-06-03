@@ -686,7 +686,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         className="hidden"
       />
       
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <Users size={20} className="text-brand-secondary" />
@@ -702,9 +702,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </span>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          <div className="grid grid-cols-1 gap-2 w-full md:flex md:flex-wrap md:items-center md:gap-2.5 md:w-auto">
             {selectedMonth !== 'active' && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse">
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse md:flex-initial">
                 <span>⚠️ ARCHIVE EDIT MODE ({selectedMonth})</span>
               </div>
             )}
@@ -721,32 +721,33 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                 }
               }}
               className={cn(
-                "flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-lg cursor-pointer",
+                "w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:px-3 md:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-lg cursor-pointer touch-manipulation min-h-[44px]",
                 showResetConfirm 
                   ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse" 
                   : "bg-slate-800 text-slate-400 hover:text-rose-400 border-white/5"
               )}
               title="Clear all advisors and technicians for this view period"
             >
-              <RotateCcw size={12} className={showResetConfirm ? "animate-spin" : ""} />
+              <RotateCcw size={14} className={cn("shrink-0", showResetConfirm ? "animate-spin" : "")} />
               {showResetConfirm ? "Confirm Reset?" : "Reset Data"}
             </button>
 
             <button 
               onClick={() => setIsManualEntryOpen(true)}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer"
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer touch-manipulation min-h-[44px]"
             >
-              <Keyboard size={14} />
+              <Keyboard size={14} className="shrink-0" />
               Manual Entry
             </button>
             
             <button 
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer"
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer touch-manipulation min-h-[44px]"
             >
-              {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-              {isImporting ? (importProgress ? "Importing..." : "Importing...") : "Import PDF Productivity Report"}
+              {isImporting ? <Loader2 size={14} className="animate-spin shrink-0" /> : <FileUp size={14} className="shrink-0" />}
+              <span className="md:hidden">{isImporting ? "Importing..." : "Import PDF Report"}</span>
+              <span className="hidden md:inline">{isImporting ? (importProgress ? "Importing..." : "Importing...") : "Import PDF Productivity Report"}</span>
             </button>
           </div>
         )}
