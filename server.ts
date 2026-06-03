@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { OpenAI } from "openai";
@@ -91,9 +91,8 @@ async function runRecallUpdateWorker() {
   console.log("[Recall Worker] Server-side database crawler is bypassed. Synchronizations are triggered and processed securely client-side in the user session to enforce direct Google user credentials.");
 }
 
-async function startServer() {
+export async function createApiApp() {
   const app = express();
-  const PORT = 3000;
 
   // Middleware
   app.use(express.json({ limit: '50mb' }));
@@ -966,8 +965,16 @@ async function startServer() {
     res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
   });
 
-  // Serve static files / Vite
+  return app;
+}
+
+async function startServer() {
+  const app = await createApiApp();
+  const PORT = 3000;
+
+  // Serve static files / Vite (local dev + production Node server only)
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -1000,4 +1007,22 @@ async function startServer() {
   });
 }
 
-startServer();
+function shouldStartStandaloneServer(): boolean {
+  if (process.env.NETLIFY === "true" || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return false;
+  }
+  const entry = process.argv[1] ? path.resolve(process.argv[1]) : "";
+  if (!entry) return false;
+  if (entry.endsWith("server.cjs") || entry.endsWith("server.ts")) {
+    return true;
+  }
+  try {
+    return fileURLToPath(import.meta.url) === entry;
+  } catch {
+    return false;
+  }
+}
+
+if (shouldStartStandaloneServer()) {
+  startServer();
+}

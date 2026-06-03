@@ -2,30 +2,29 @@
 
 ## Cursor Cloud specific instructions
 
-### Stack
+### Architecture
 
-Single-repo **React + Vite** frontend (`src/`) and **Node/Express** API (`server.ts`, bundled to `dist/server.cjs`). Firebase Auth/Firestore for data. Deploy target is **Netlify** (production: `salestoservice.net`).
+- **Frontend**: Vite + React SPA in `src/` (built to `dist/`).
+- **Backend API**: Express routes in `server.ts`, with DMS parsers under `server/dms/`. PBS productivity PDF import uses `POST /api/parse-performance` via `registerParsePerformanceRoute` in `server/dms/handlers/parsePerformance.ts`.
+- **Local dev**: `npm run dev` runs `tsx server.ts` (Express on port 3000 + Vite middleware).
+- **Production (Netlify)**: Static site from `dist/`; `/api/*` is proxied to the Netlify function at `netlify/functions/api.ts`, which wraps `createApiApp()` from `server.ts`.
 
-### Entry point
+### Running services
 
-The live UI shell is **`src/AuthenticatedApp.tsx`**, mounted from `src/main.tsx`. It provides the Manager nav, admin gear menu (User Settings / Master Users / Audit Logs), and URL-synced routes via `src/lib/appNavigation.ts`. Do not re-point `main.tsx` at the legacy `App.tsx` shell unless intentionally reverting.
+| Service | Command | Notes |
+|---------|---------|-------|
+| Dev (frontend + API) | `npm run dev` | Port 3000 |
+| Production Node server | `npm run build && npm start` | Serves `dist/` + API on port 3000 |
+| Lint | `npm run lint` | `tsc --noEmit` (may report pre-existing type errors) |
 
-### Common commands
+### PBS / productivity PDF import
 
-See `package.json` scripts:
+- Requires **`OPENAI_API_KEY`** in environment (Netlify site env vars for production). Without it, the route returns a structured error rather than a 404.
+- Test locally: `curl -X POST http://localhost:3000/api/parse-performance -H 'Content-Type: application/json' -d '{"reportText":"..."}'`
+- A 404 with HTML body on production usually means the Netlify API redirect or function is missing — check `netlify.toml` and that `netlify/functions/api.ts` is deployed.
 
-- **Dev:** `npm run dev` (Vite + server)
-- **Build:** `npm run build`
-- **Lint:** `npm run lint` (if defined)
+### Gotchas
 
-### Netlify / cache
-
-After merging to `main`, Netlify auto-deploys. If the site looks stale, hard-refresh or clear cache (especially on Fire Stick / Silk). Deep links like `/sales/onboard` and `/manager/operations` should restore the correct tab on reload.
-
-### Services for E2E testing
-
-| Service | Required | Notes |
-|---------|----------|-------|
-| `npm run dev` or built static + server | Yes | Full dashboard |
-| Firebase (hosted) | Yes | Auth + Firestore; config in repo |
-| OpenAI / DMS parsers | Optional | Only for PDF/OCR import flows |
+- Do not revert `server.ts` to the old inline `/api/parse-performance` handler; use `registerParsePerformanceRoute`.
+- `createApiApp()` is imported by the Netlify function — avoid top-level Vite imports in the API path (Vite is dynamically imported only in `startServer()`).
+- Netlify function timeout is 120s (`netlify.toml`); PDF parsing with OCR can be slow.
