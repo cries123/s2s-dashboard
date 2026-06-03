@@ -75,6 +75,11 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       if (docSnap.exists()) {
         setLaborTarget(docSnap.data().laborGrossTarget || 500000);
         setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
+        setPerformanceAdvisorRoster(
+          Array.isArray(docSnap.data().performanceAdvisorRoster)
+            ? docSnap.data().performanceAdvisorRoster
+            : []
+        );
       }
     });
     return () => unsubscribe();
@@ -84,8 +89,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   useEffect(() => {
     if (!user || !currentDealershipId) return;
 
-    const baseId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const docId = selectedMonth === 'active' ? baseId : `${baseId}_archive_${selectedMonth}`;
+    const docId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -119,10 +123,13 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
     overwrite = false,
     targetMonthOverride?: string
-  ) => {
-    if (!user || !currentDealershipId) return;
+  ): Promise<{ advisorCount: number; skippedCount: number; targetMonth: string; advisors: AdvisorData[]; totals?: any }> => {
+    if (!user || !currentDealershipId) {
+      throw new Error('You must be signed in with a dealership selected to save performance data.');
+    }
     
     let updatedAdvisors: AdvisorData[] = [];
+    const incomingCount = newData.advisors?.length ?? 0;
 
     const acceptAdvisor = (name: string): boolean => {
       if (!isRealAdvisorName(name, dmsProvider)) return false;
@@ -175,9 +182,17 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     }
 
     const targetMonth = targetMonthOverride || selectedMonth;
-    const baseId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const docId = targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
+    const docId = performanceDocId('advisorReports', currentDealershipId, targetMonth);
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+
+    const skippedCount = Math.max(0, incomingCount - updatedAdvisors.length);
+    if (incomingCount > 0 && updatedAdvisors.length === 0) {
+      const rosterHint =
+        performanceAdvisorRoster.length > 0
+          ? ` None of the ${incomingCount} parsed advisor(s) matched your configured roster. Check Admin → DMS = DealerBuilt and the productivity advisor list.`
+          : ' All parsed advisors were rejected by validation rules.';
+      throw new Error(`Import parsed ${incomingCount} advisor(s) but none could be saved.${rosterHint}`);
+    }
     
     try {
       await setDoc(docRef, {
@@ -192,6 +207,14 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       console.error('Error saving advisor performance:', error);
       throw error instanceof Error ? error : new Error('Failed to save performance data to Firestore.');
     }
+
+    return {
+      advisorCount: updatedAdvisors.length,
+      skippedCount,
+      targetMonth,
+      advisors: updatedAdvisors,
+      totals: newData.totals,
+    };
   };
 
   const resetPerformanceToDefaults = async () => {
@@ -277,6 +300,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       };
       reader.onerror = error => reject(error);
     });
+  };
+
+
+  const monthKeyFromIsoDate = (iso?: string | null): string | null => {
+    if (!iso || !/^\d{4}-\d{2}/.test(iso)) return null;
+    return iso.slice(0, 7);
+  };
+
+  /** When editing an archive month, always save to that month. */
+  const resolveImportTargetMonth = (
+    parsed: { reportStartDate?: string; reportEndDate?: string },
+    reportText: string
+  ): string => {
+    if (selectedMonth !== 'active') return selectedMonth;
+    const fromParsed =
+      monthKeyFromIsoDate(parsed.reportStartDate) ||
+      monthKeyFromIsoDate(parsed.reportEndDate);
+    if (fromParsed) return fromParsed;
+    const detected = detectDateRangeFromText(reportText);
+    if (detected?.start) {
+      const key = monthKeyFromIsoDate(detected.start);
+      if (key) return key;
+    }
+    return selectedMonth;
   };
 
   const detectDateRangeFromText = (text: string): { start: string; end: string } | null => {
@@ -439,36 +486,55 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         throw new Error('Server returned an invalid data format. Please try again.');
       }
       
-      // Detect date range from PDF text
       const detectedDates = detectDateRangeFromText(reportText);
-      let targetMonth = selectedMonth;
-      if (detectedDates) {
+      if (detectedDates && !data.reportStartDate) {
         data = {
           ...data,
           reportStartDate: detectedDates.start,
-          reportEndDate: detectedDates.end
+          reportEndDate: detectedDates.end,
         };
-        // Auto-route to May archive if dates fall in May
-        if (detectedDates.start.startsWith('2026-05')) {
-          targetMonth = '2026-05';
-        }
       }
-      
-      // If this is a main productivity report (contains totals object), overwrite the advisor records completely 
-      // rather than merging as a delta, to cleanly eliminate any stale or corrupt duplicates in the database.
+
+      const targetMonth = resolveImportTargetMonth(data, reportText);
+
+      if (!data.advisors?.length) {
+        throw new Error(
+          'OpenAI did not return any advisors for this report. Confirm DMS is set to DealerBuilt (Ford) in Admin → Operations and retry.'
+        );
+      }
+
       const shouldOverwrite = !!data.totals;
       setImportProgress('Saving imported data...');
-      await saveToFirestore(data, shouldOverwrite, targetMonth);
-      
+      const saved = await saveToFirestore(data, shouldOverwrite, targetMonth);
+
+      if (saved.advisorCount === 0) {
+        throw new Error('Nothing was saved — no valid advisor rows after validation.');
+      }
+
+      // Refresh UI immediately (don't wait for Firestore listener)
+      setAdvisors(saved.advisors);
+      if (saved.totals) setTotals(saved.totals);
+
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
-      
-      let message = 'Report imported successfully!';
-      if (targetMonth === '2026-05' && selectedMonth === 'active') {
-        message = 'Detected May dates! Saved directly to May 2026 Saved Archive. June active tracker kept clean!';
-      } else if (hasUpsells && hasTotals) message = 'Productivity and Upsell data imported and merged!';
-      else if (hasUpsells) message = 'Upsell data imported and merged!';
-      else if (hasTotals) message = 'Productivity data imported!';
+      const archiveLabel =
+        targetMonth !== 'active'
+          ? targetMonth === '2026-05'
+            ? 'May 2026 archive'
+            : `${targetMonth} archive`
+          : 'active month';
+
+      let message = `Saved ${saved.advisorCount} advisor(s) to ${archiveLabel}.`;
+      if (saved.skippedCount > 0) {
+        message += ` (${saved.skippedCount} row(s) skipped — not on roster)`;
+      }
+      if (targetMonth !== selectedMonth && selectedMonth === 'active') {
+        message += ' Switch the month selector to view the archive you just updated.';
+      } else if (hasUpsells && hasTotals) {
+        message = `Productivity + upsell data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
+      } else if (hasTotals) {
+        message = `Productivity data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
+      }
 
       setImportStatus({ type: 'success', message });
       
