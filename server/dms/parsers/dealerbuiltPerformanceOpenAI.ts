@@ -5,10 +5,7 @@ import {
   performanceOpenAiJsonSchema,
 } from '../schemas/performanceOpenAiSchema';
 import { pdfBufferToPngBase64Pages } from '../pdfToImages';
-import {
-  normalizeDealerBuiltPerformanceAdvisor,
-  parseDealerBuiltPerformanceDeterministic,
-} from './dealerbuiltPerformance';
+import { normalizeDealerBuiltPerformanceAdvisor } from './dealerbuiltPerformance';
 
 function normalizeParsedResult(raw: PerformanceParseResult): PerformanceParseResult {
   const advisors = (raw.advisors || [])
@@ -101,10 +98,9 @@ export async function parseDealerBuiltPerformanceWithOpenAI(
   const parsed = JSON.parse(content) as PerformanceParseResult;
   const normalized = normalizeParsedResult(parsed);
 
-  if (normalized.advisors.length === 0 && options.reportText?.trim()) {
-    const fallback = parseDealerBuiltPerformanceDeterministic(options.reportText);
-    if (fallback.advisors.length > 0) return fallback;
+  if (normalized.advisors.length === 0) {
+    return null;
   }
 
-  return normalized.advisors.length > 0 ? normalized : null;
+  return normalized;
 }
