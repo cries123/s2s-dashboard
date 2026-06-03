@@ -267,9 +267,22 @@ export function registerParsePerformanceRoute(
 
           return res.json(withPayTypes({ ...validateDealerBuiltPerformance(merged), isAiParsed: true, dmsProvider: 'dealerbuilt' }, text));
         } catch (err: unknown) {
-          console.error('[DealerBuilt Performance] OpenAI error:', err);
+          console.error('[DealerBuilt Performance] OpenAI error, trying deterministic fallback:', err);
+          if (deterministic.advisors.length > 0) {
+            return res.json(
+              withPayTypes(
+                {
+                  ...validateDealerBuiltPerformance(deterministic),
+                  isAiParsed: false,
+                  parseMethod: 'deterministic',
+                  dmsProvider: 'dealerbuilt',
+                },
+                text
+              )
+            );
+          }
           return res.status(openAiFailureStatus(err)).json({
-            error: `OpenAI parse failed: ${openAiFailureMessage(err)}`,
+            error: `Could not parse DealerBuilt report. ${openAiFailureMessage(err)}`,
             requiresOpenAi: true,
           });
         }
