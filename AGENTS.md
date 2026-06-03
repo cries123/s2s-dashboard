@@ -3,28 +3,29 @@
 ## Cursor Cloud specific instructions
 
 ### Stack
-- React 19 + Vite frontend, Express API in `server.ts` (run together via `npm run dev`).
-- Firebase Auth + Firestore (`artifacts/hyundai-sales-to-service/public/data/...`).
 
-### Commands
-- Install: `npm install`
-- Lint: `npm run lint`
-- Build: `npm run build`
-- Dev: `npm run dev` (serves UI and API on port 3000)
+Single-repo **React + Vite** frontend (`src/`) and **Node/Express** API (`server.ts`, bundled to `dist/server.cjs`). Firebase Auth/Firestore for data. Deploy target is **Netlify** (production: `salestoservice.net`).
 
-### Multi-tenant RBAC
-- Tenant profiles live in `src/lib/tenants.ts` (`nissan-mazda`, `ford-lincoln`, `hyundai`).
-- User docs: `.../data/users/{uid}` with `tenantId`, `department`, `role`, `approved`.
-- Audit logs: `.../data/logs` filtered by `tenantId`.
-- Tenant DMS config: `.../data/tenants/{tenantId}`.
-- Firestore rules in `firestore.rules` enforce manager tenant isolation.
+### Entry point
 
-### Nav visibility
-- **Sales** department: Sales dropdown + Sales Performance report only.
-- **Service** department: Sales + Service nav + Operations/Forecast reports.
-- **Manager** role: Manager Control Panel (same tenant only).
-- **admin** role: platform Admin panel + dealership switcher.
+The live UI shell is **`src/AuthenticatedApp.tsx`**, mounted from `src/main.tsx`. It provides the Manager nav, admin gear menu (User Settings / Master Users / Audit Logs), and URL-synced routes via `src/lib/appNavigation.ts`. Do not re-point `main.tsx` at the legacy `App.tsx` shell unless intentionally reverting.
 
-### Notes
-- New enrollments default to `role: pending`, `approved: false` until a manager approves.
-- Deploy updated `firestore.rules` to Firebase separately after merging RBAC changes.
+### Common commands
+
+See `package.json` scripts:
+
+- **Dev:** `npm run dev` (Vite + server)
+- **Build:** `npm run build`
+- **Lint:** `npm run lint` (if defined)
+
+### Netlify / cache
+
+After merging to `main`, Netlify auto-deploys. If the site looks stale, hard-refresh or clear cache (especially on Fire Stick / Silk). Deep links like `/sales/onboard` and `/manager/operations` should restore the correct tab on reload.
+
+### Services for E2E testing
+
+| Service | Required | Notes |
+|---------|----------|-------|
+| `npm run dev` or built static + server | Yes | Full dashboard |
+| Firebase (hosted) | Yes | Auth + Firestore; config in repo |
+| OpenAI / DMS parsers | Optional | Only for PDF/OCR import flows |

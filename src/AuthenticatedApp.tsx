@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2
+  BarChart2, ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -28,6 +28,7 @@ import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
+import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
@@ -43,7 +44,17 @@ import {
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
-import { usePreferences } from './context/PreferencesContext';
+import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
+import {
+  type AdminSubTab,
+  type AppTab,
+  type ManagerSubTab,
+  parseAppRoute,
+  readInitialAppRoute,
+  readStoredDealershipId,
+  storeDealershipId,
+  syncAppRoute,
+} from './lib/appNavigation';
 
 interface NavDropdownProps {
   label: string;
@@ -145,11 +156,11 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
   );
 }
 
-export default function AuthenticatedApp() {
-  const { user, loading: authLoading } = useAuth();
-const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('appointments');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history'>('users');
-  const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
+function DashboardShell({ user }: { user: User }) {
+  const initialRoute = React.useMemo(() => readInitialAppRoute(), []);
+  const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
+  const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'users');
+  const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const adminMenuRef = React.useRef<HTMLDivElement>(null);
@@ -168,7 +179,14 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
   const [landingApplied, setLandingApplied] = useState(false);
 
   const [isDealershipDropdownOpen, setIsDealershipDropdownOpen] = useState(false);
-  const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(null);
+  const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(() =>
+    readStoredDealershipId(DEALERSHIPS.map((d) => d.id))
+  );
+
+  const selectDealership = React.useCallback((dealershipId: string) => {
+    setCurrentDealershipId(dealershipId);
+    storeDealershipId(dealershipId);
+  }, []);
 
   // Sync current dealership with user's dealership on load
   React.useEffect(() => {
@@ -176,6 +194,25 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
       setCurrentDealershipId(user.dealershipId || 'hyundai');
     }
   }, [user, currentDealershipId]);
+
+  React.useEffect(() => {
+    syncAppRoute({
+      activeTab,
+      adminSubTab: activeTab === 'admin' ? adminSubTab : undefined,
+      managerSubTab: activeTab === 'manager' ? managerSubTab : undefined,
+    });
+  }, [activeTab, adminSubTab, managerSubTab]);
+
+  React.useEffect(() => {
+    const onPopState = () => {
+      const route = parseAppRoute(window.location.pathname);
+      setActiveTab(route.activeTab);
+      if (route.adminSubTab) setAdminSubTab(route.adminSubTab);
+      if (route.managerSubTab) setManagerSubTab(route.managerSubTab);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const [dealershipSettings, setDealershipSettings] = useState<any>(null);
 
@@ -238,12 +275,17 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
 
   React.useEffect(() => {
     if (prefsLoading || landingApplied) return;
+    const path = (typeof window !== 'undefined' ? window.location.pathname : '/').replace(/\/+$/, '') || '/';
+    if (path !== '/' && path !== '/sales/onboard') {
+      setLandingApplied(true);
+      return;
+    }
     let preferredTab = preferences.serviceDrive.defaultLandingTab;
     if (preferredTab === 'service-drive' || preferredTab === 'settings') {
       preferredTab = 'appointments';
     }
     if (availableTabs.find(t => t.id === preferredTab)) {
-      setActiveTab(preferredTab as typeof activeTab);
+      setActiveTab(preferredTab as AppTab);
     }
     setLandingApplied(true);
   }, [prefsLoading, landingApplied, preferences, availableTabs]);
@@ -271,12 +313,8 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
     }
   };
 
-  if (authLoading || (user && customersLoading) || prefsLoading) {
+  if (customersLoading || prefsLoading) {
     return <LoadingScreen />;
-  }
-
-  if (!user) {
-    return <LoginView />;
   }
 
   if (!isUserApproved(user) && !isPrimaryAdmin(user)) {
@@ -350,7 +388,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                       <button
                         key={dealership.id}
                         onClick={() => {
-                          setCurrentDealershipId(dealership.id);
+                          selectDealership(dealership.id);
                           setIsDealershipDropdownOpen(false);
                           showNotification(`Switched to ${dealership.name}`);
                         }}
@@ -404,7 +442,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
             >
               <NavLink 
                 href="/service/directory" 
@@ -430,6 +468,13 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                   Dispatch
                 </NavLink>
               )}
+              <NavLink 
+                href="/service/recalls" 
+                onClick={() => setActiveTab('recalls')}
+                isActive={activeTab === 'recalls'}
+              >
+                Recalls
+              </NavLink>
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
@@ -741,6 +786,10 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
             />
           )}
 
+          {activeTab === 'recalls' && (
+            <VehicleRecalls onViewProfile={setSelectedProfile} />
+          )}
+
           {activeTab === 'vin-search' && (
             <VinLookup />
           )}
@@ -825,5 +874,23 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
         alertBadge={activeAlertsCount}
       />
     </div>
+  );
+}
+
+export default function AuthenticatedApp() {
+  const { user, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
+
+  return (
+    <PreferencesProvider user={user}>
+      <DashboardShell user={user} />
+    </PreferencesProvider>
   );
 }

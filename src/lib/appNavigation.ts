@@ -4,6 +4,7 @@ export type AppTab =
   | 'alerts'
   | 'appointments'
   | 'admin'
+  | 'manager'
   | 'vin-search'
   | 'pot-of-gold'
   | 'forecast'
@@ -11,11 +12,13 @@ export type AppTab =
   | 'recalls'
   | 'sales-performance';
 
-export type AdminSubTab = 'operations' | 'users' | 'logs';
+export type AdminSubTab = 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
+export type ManagerSubTab = 'operations' | 'preferences' | 'team';
 
 export interface AppRouteState {
   activeTab: AppTab;
   adminSubTab?: AdminSubTab;
+  managerSubTab?: ManagerSubTab;
 }
 
 const PATH_TO_ROUTE: Record<string, AppRouteState> = {
@@ -29,8 +32,16 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
   '/reports/forecast': { activeTab: 'forecast' },
-  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'operations' },
+  '/manager/operations': { activeTab: 'manager', managerSubTab: 'operations' },
+  '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
+  '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
+  // Legacy admin operation settings URL → manager operations
+  '/admin/operation-settings': { activeTab: 'manager', managerSubTab: 'operations' },
   '/admin/user-settings': { activeTab: 'admin', adminSubTab: 'users' },
+  '/admin/users': { activeTab: 'admin', adminSubTab: 'users' },
+  '/admin/master-users': { activeTab: 'admin', adminSubTab: 'master-users' },
+  '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
+  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-history' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
 };
 
@@ -48,15 +59,31 @@ export function parseAppRoute(pathname: string): AppRouteState {
 }
 
 export function buildAppPath(state: AppRouteState): string {
-  if (state.activeTab === 'admin') {
-    switch (state.adminSubTab) {
-      case 'users':
-        return '/admin/user-settings';
-      case 'logs':
-        return '/admin/logs';
+  if (state.activeTab === 'manager') {
+    switch (state.managerSubTab) {
+      case 'preferences':
+        return '/manager/preferences';
+      case 'team':
+        return '/manager/team';
       case 'operations':
       default:
-        return '/admin/operation-settings';
+        return '/manager/operations';
+    }
+  }
+
+  if (state.activeTab === 'admin') {
+    switch (state.adminSubTab) {
+      case 'master-users':
+        return '/admin/master-users';
+      case 'ai-usage':
+        return '/admin/ai-usage';
+      case 'import-history':
+        return '/admin/import-history';
+      case 'logs':
+        return '/admin/logs';
+      case 'users':
+      default:
+        return '/admin/users';
     }
   }
 
