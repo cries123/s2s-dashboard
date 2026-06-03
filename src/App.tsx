@@ -20,24 +20,26 @@ import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
 import Appointments from './components/dashboard/appointments/Appointments';
 import { CustomerDirectory } from './components/dashboard/customers/CustomerDirectory';
 import AdminPanel from './components/dashboard/admin/AdminPanel';
+import ManagerDashboard from './components/dashboard/admin/ManagerDashboard';
 import { VinLookup } from './components/dashboard/vin/VinLookup';
 import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
 import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
+import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
-import { isServiceAlertActive } from './lib/alerts';
-import {
-  type AppTab,
-  type AdminSubTab,
-  resolveRoute,
-  navigateToTab,
-} from './lib/appRoutes';
-import { defaultTabForRole } from './lib/roleHome';
-import { filterTabsForRole } from './lib/roleNav';
+
+import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
 import { DEALERSHIPS } from './constants';
+import {
+  canAccessPrimaryAdminSettings,
+  canSeeManagerPanel,
+  canSwitchDealership,
+  isPrimaryAdmin,
+  isUserApproved,
+} from './lib/rbac';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 
@@ -145,8 +147,23 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
   
-  const [activeTab, setActiveTab] = useState<AppTab>('add');
-  const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>('operations');
+  const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('add');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users'>('users');
+  const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
+  const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+  const adminMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!isAdminMenuOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(event.target as Node)) {
+        setIsAdminMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isAdminMenuOpen]);
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -198,28 +215,25 @@ export default function App() {
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
-    { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
+    ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
     { id: 'vin-search', label: 'VIN Search', icon: Search },
     { id: 'forecast', label: 'Forecast', icon: TrendingUp },
     { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
-    ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
+    ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
 
-  const roleFilteredTabs = user
-    ? filterTabsForRole(availableTabs, user.role)
-    : availableTabs;
-
-  // If current activeTab is hidden, fallback to first available
+  // If current activeTab is hidden, fallback to first available.
+  // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
-    if (!roleFilteredTabs.find(t => t.id === activeTab)) {
-      const fallback = (roleFilteredTabs[0]?.id as AppTab) || defaultTabForRole(user?.role || 'Staff');
-      setActiveTab(fallback);
-      navigateToTab(fallback, 'operations', true);
+    if (activeTab === 'admin' || activeTab === 'manager') return;
+    if (!availableTabs.find(t => t.id === activeTab)) {
+      setActiveTab('add');
     }
-  }, [currentDealershipId, activeTab, roleFilteredTabs, user?.role]);
+  }, [currentDealershipId, activeTab, availableTabs]);
 
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
+  const [showInject, setShowInject] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
@@ -227,40 +241,6 @@ export default function App() {
     setNotification({ text, isError });
     setTimeout(() => setNotification(null), 5000);
   };
-
-  const goToTab = React.useCallback((tab: AppTab, subTab: AdminSubTab = 'operations') => {
-    setActiveTab(tab);
-    if (tab === 'admin') {
-      setAdminSubTab(subTab);
-      navigateToTab(tab, subTab);
-    } else {
-      navigateToTab(tab, 'operations');
-    }
-    setIsMobileNavOpen(false);
-  }, []);
-
-  React.useEffect(() => {
-    const syncFromUrl = () => {
-      const { tab, adminSubTab: sub } = resolveRoute(window.location.pathname);
-      if (tab) {
-        setActiveTab(tab);
-        if (tab === 'admin') setAdminSubTab(sub);
-      }
-    };
-    syncFromUrl();
-    window.addEventListener('popstate', syncFromUrl);
-    return () => window.removeEventListener('popstate', syncFromUrl);
-  }, []);
-
-  React.useEffect(() => {
-    if (!user || authLoading) return;
-    const { tab } = resolveRoute(window.location.pathname);
-    if (!tab) {
-      const home = defaultTabForRole(user.role);
-      setActiveTab(home);
-      navigateToTab(home, 'operations', true);
-    }
-  }, [user?.uid, user?.role, authLoading]);
 
   const handleSignOut = () => signOut(auth);
 
@@ -283,7 +263,7 @@ export default function App() {
     return <LoginView />;
   }
 
-  if (user && user.status !== 'approved' && user.role !== 'admin') {
+  if (user && !isUserApproved(user) && !isPrimaryAdmin(user)) {
     return (
       <div className="min-h-screen bg-surface-base flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center space-y-8 animate-fade-in">
@@ -331,7 +311,7 @@ export default function App() {
           <div className="flex items-center gap-3 shrink-0 relative">
             <button 
               onClick={() => {
-                if (currentUser.role === 'admin') {
+                if (canSwitchDealership(currentUser)) {
                   setIsDealershipDropdownOpen(!isDealershipDropdownOpen);
                 } else {
                   showNotification("Only system admins can switch dealerships.", true);
@@ -339,14 +319,14 @@ export default function App() {
               }}
               className={cn(
                 "w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10 transition-all z-50",
-                currentUser.role === 'admin' ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
+                canSwitchDealership(currentUser) ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
               )}
             >
               <LayoutDashboard className="text-white" size={20} />
             </button>
 
             <AnimatePresence>
-              {isDealershipDropdownOpen && currentUser.role === 'admin' && (
+              {isDealershipDropdownOpen && canSwitchDealership(currentUser) && (
                 <>
                   <div 
                     className="fixed inset-0 z-[40]" 
@@ -400,14 +380,14 @@ export default function App() {
             >
               <NavLink 
                 href="/sales/onboard" 
-                onClick={() => goToTab('add')}
+                onClick={() => setActiveTab('add')}
                 isActive={activeTab === 'add'}
               >
                 Onboard
               </NavLink>
               <NavLink 
                 href="/sales/vin-search" 
-                onClick={() => goToTab('vin-search')}
+                onClick={() => setActiveTab('vin-search')}
                 isActive={activeTab === 'vin-search'}
               >
                 VIN Search
@@ -421,14 +401,14 @@ export default function App() {
             >
               <NavLink 
                 href="/service/directory" 
-                onClick={() => goToTab('search')}
+                onClick={() => setActiveTab('search')}
                 isActive={activeTab === 'search'}
               >
                 Directory
               </NavLink>
               <NavLink 
                 href="/service/alerts" 
-                onClick={() => goToTab('alerts')}
+                onClick={() => setActiveTab('alerts')}
                 isActive={activeTab === 'alerts'}
                 badge={activeAlertsCount}
               >
@@ -437,13 +417,13 @@ export default function App() {
               {dealershipSettings?.enableDispatchTab !== false && (
                 <NavLink 
                   href="/service/dispatch" 
-                  onClick={() => goToTab('dispatch')}
+                  onClick={() => setActiveTab('dispatch')}
                   isActive={activeTab === 'dispatch'}
                 >
                   Dispatch
                 </NavLink>
               )}
-</NavDropdown>
+            </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
             {currentDealershipId === 'hyundai' && (
@@ -453,7 +433,7 @@ export default function App() {
               >
                 <NavLink 
                   href="/competitions/pot-of-gold" 
-                  onClick={() => goToTab('pot-of-gold')}
+                  onClick={() => setActiveTab('pot-of-gold')}
                   isActive={activeTab === 'pot-of-gold'}
                 >
                   Pot of Gold
@@ -468,54 +448,33 @@ export default function App() {
             >
               <NavLink 
                 href="/reports/operations" 
-                onClick={() => goToTab('appointments')}
+                onClick={() => setActiveTab('appointments')}
                 isActive={activeTab === 'appointments'}
               >
                 Operations
               </NavLink>
               <NavLink 
                 href="/reports/sales-performance" 
-                onClick={() => goToTab('sales-performance')}
+                onClick={() => setActiveTab('sales-performance')}
                 isActive={activeTab === 'sales-performance'}
               >
                 Sales Performance
               </NavLink>
               <NavLink 
                 href="/reports/forecast" 
-                onClick={() => goToTab('forecast')}
+                onClick={() => setActiveTab('forecast')}
                 isActive={activeTab === 'forecast'}
               >
                 Forecast
               </NavLink>
             </NavDropdown>
 
-            {/* 5. ADMIN DROPDOWN */}
-            {user && user.role === 'admin' && (
-              <NavDropdown 
-                label="Admin" 
-                isActive={activeTab === 'admin'}
-              >
-                <NavLink 
-                  href="/admin/operation-settings" 
-                  onClick={() => goToTab('admin', 'operations')}
-                  isActive={activeTab === 'admin' && adminSubTab === 'operations'}
-                >
-                  Operation Settings
-                </NavLink>
-                <NavLink 
-                  href="/admin/user-settings" 
-                  onClick={() => goToTab('admin', 'users')}
-                  isActive={activeTab === 'admin' && adminSubTab === 'users'}
-                >
-                  User Settings
-                </NavLink>
-                <NavLink 
-                  href="/admin/logs" 
-                  onClick={() => goToTab('admin', 'logs')}
-                  isActive={activeTab === 'admin' && adminSubTab === 'logs'}
-                >
-                  Logs
-                </NavLink>
+            {/* 5. MANAGER DROPDOWN */}
+            {canSeeManagerPanel(user) && (
+              <NavDropdown label="Manager" isActive={activeTab === 'manager'}>
+                <NavLink href="/manager/operations" onClick={() => { setActiveTab('manager'); setManagerSubTab('operations'); }} isActive={activeTab === 'manager' && managerSubTab === 'operations'}>Operation Settings</NavLink>
+                <NavLink href="/manager/preferences" onClick={() => { setActiveTab('manager'); setManagerSubTab('preferences'); }} isActive={activeTab === 'manager' && managerSubTab === 'preferences'}>Preferences</NavLink>
+                <NavLink href="/manager/team" onClick={() => { setActiveTab('manager'); setManagerSubTab('team'); setManagerDashboardSubTab('users'); }} isActive={activeTab === 'manager' && managerSubTab === 'team'}>Team Approvals</NavLink>
               </NavDropdown>
             )}
 
@@ -533,8 +492,10 @@ export default function App() {
                     {availableTabs.find(t => t.id === activeTab)?.icon && React.createElement(availableTabs.find(t => t.id === activeTab)!.icon, { size: 12, className: "text-brand-primary" })}
                   </div>
                   <span className="min-w-[80px] text-left">
-                    {activeTab === 'admin' 
-                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                    {activeTab === 'manager'
+                      ? `Manager: ${managerSubTab === 'operations' ? 'Operations' : managerSubTab === 'preferences' ? 'Preferences' : 'Team'}`
+                      : activeTab === 'admin'
+                      ? `Admin: ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -558,10 +519,15 @@ export default function App() {
                       <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
                       </div>
-                      {roleFilteredTabs.map(tab => (
+                      {availableTabs.map(tab => (
                         <button
                           key={tab.id}
-                          onClick={() => goToTab(tab.id as AppTab, tab.id === 'admin' ? 'operations' : adminSubTab)}
+                          onClick={() => {
+                            setActiveTab(tab.id as any);
+                            if (tab.id === 'manager') { setManagerSubTab('operations'); setManagerDashboardSubTab('users'); }
+                            if (tab.id === 'admin') setAdminSubTab('users');
+                            setIsMobileNavOpen(false);
+                          }}
                           className={cn(
                             "w-full flex items-center justify-between px-4 py-3.5 text-[9px] font-black uppercase tracking-widest text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0",
                             activeTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400"
@@ -586,7 +552,58 @@ export default function App() {
           </div>
 
           {/* Profile Section */}
-          <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10">
+          <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10 relative">
+            {canAccessPrimaryAdminSettings(currentUser) && (
+              <div className="relative z-[60]" ref={adminMenuRef}>
+                <button onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)} className={cn('w-9 h-9 flex items-center justify-center border rounded-lg transition-all shadow-sm', activeTab === 'admin' ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary' : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-brand-primary/10')} title="Admin Settings"><Settings size={16} /></button>
+                <AnimatePresence>
+                  {isAdminMenuOpen && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.95 }}
+                        className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[60] py-1.5 p-1"
+                      >
+                        <NavLink
+                          href="/admin/users"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('users');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'users'}
+                        >
+                          User Settings
+                        </NavLink>
+                        <NavLink
+                          href="/admin/master-users"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('master-users');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'master-users'}
+                        >
+                          Master Users
+                        </NavLink>
+                        <NavLink
+                          href="/admin/logs"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('logs');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'logs'}
+                        >
+                          Audit Logs
+                        </NavLink>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
              <div className="hidden lg:flex flex-col items-end">
                <p className="text-[10px] font-black text-white leading-none uppercase tracking-tight">{currentUser.username}</p>
                <div className="flex items-center gap-1 mt-1">
@@ -631,6 +648,7 @@ export default function App() {
             <CustomerDirectory 
               customers={customers}
               currentUser={currentUser}
+              currentDealershipId={currentDealershipId || 'hyundai'}
               onViewProfile={setSelectedProfile}
               onViewLog={setSelectedProfile}
               onRefresh={showNotification}
@@ -671,8 +689,9 @@ export default function App() {
             <VinLookup />
           )}
 
-{activeTab === 'pot-of-gold' && (
-            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} dealershipSettings={dealershipSettings} />
+
+          {activeTab === 'pot-of-gold' && (
+            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />
           )}
 
           {activeTab === 'forecast' && (
@@ -692,15 +711,19 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'admin' && (
-            <AdminPanel 
-              key={currentDealershipId || 'hyundai'} 
-              currentDealershipId={currentDealershipId || 'hyundai'} 
+          {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab === 'team' && (
+            <ManagerDashboard
+              activeSubTab={managerDashboardSubTab}
+              onChangeSubTab={setManagerDashboardSubTab}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
-              activeSubTab={adminSubTab}
-              onChangeSubTab={setAdminSubTab}
             />
+          )}
+          {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab !== 'team' && (
+            <AdminPanel key={`manager-${currentDealershipId || 'hyundai'}`} panelMode="manager" currentDealershipId={currentDealershipId || 'hyundai'} onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} activeSubTab={managerSubTab === 'preferences' ? 'preferences' : 'operations'} onChangeSubTab={(tab) => setManagerSubTab(tab === 'preferences' ? 'preferences' : 'operations')} onNavigateTab={(tab) => setActiveTab(tab as any)} onDealershipChange={setCurrentDealershipId} />
+          )}
+          {activeTab === 'admin' && canAccessPrimaryAdminSettings(currentUser) && (
+            <AdminPanel key="primary-admin" panelMode="admin" currentDealershipId={currentDealershipId || 'hyundai'} onSuccess={(msg) => showNotification(msg)} onError={(msg) => showNotification(msg, true)} activeSubTab={adminSubTab} onChangeSubTab={setAdminSubTab} />
           )}
         </div>
       </main>
@@ -712,6 +735,15 @@ export default function App() {
           currentUser={currentUser}
           onClose={() => setSelectedProfile(null)} 
           onDelete={handleDeleteCustomer}
+        />
+      )}
+
+      {showInject && (
+        <InjectModal 
+          currentUser={currentUser} 
+          customers={customers} 
+          onClose={() => setShowInject(false)} 
+          onSuccess={count => showNotification(`Successfully injected ${count} appointments.`)}
         />
       )}
     </div>

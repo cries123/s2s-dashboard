@@ -29,7 +29,11 @@ const CATEGORIES = [
   { id: 'auth', label: 'Authentication', icon: Shield },
 ];
 
-export function SystemLogs() {
+interface SystemLogsProps {
+  scope?: 'all' | 'dealership';
+}
+
+export function SystemLogs({ scope = 'all' }: SystemLogsProps) {
   const { user, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);

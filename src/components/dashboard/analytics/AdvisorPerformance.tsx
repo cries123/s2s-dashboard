@@ -15,7 +15,7 @@ import {
 } from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
-import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 
 interface UpsellItem {
   code: string;
@@ -66,7 +66,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         setLaborTarget(docSnap.data().laborGrossTarget || 500000);
-        setDmsProvider((docSnap.data().dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER);
+        setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
       }
     });
     return () => unsubscribe();

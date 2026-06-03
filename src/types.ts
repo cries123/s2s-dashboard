@@ -1,13 +1,44 @@
+import type { DmsProviderId } from './constants/dmsProviders';
 import { Timestamp } from "firebase/firestore";
 
-export type Role = 'admin' | 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
+/** RBAC roles — `admin` is platform super-admin; enrollment starts as `pending`. */
+export type UserRole = 'admin' | 'manager' | 'advisor' | 'pending';
+
+/** @deprecated Legacy roles — normalized to RBAC roles in useAuth */
+export type LegacyRole = 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
+
+export type Role = UserRole | LegacyRole | 'admin';
+
+export type UserDepartment = 'sales' | 'service';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
+
+export interface Tenant {
+  tenantId: string;
+  name: string;
+  dmsProvider: DmsProviderId;
+  updatedAt?: Timestamp;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  tenantId: string;
+  userId: string;
+  userEmail?: string;
+  username?: string;
+  action: string;
+  details: string;
+  timestamp: Timestamp;
+}
 
 export interface User {
   uid: string;
   email: string;
   username: string;
-  role: Role;
+  role: UserRole | LegacyRole | 'admin';
+  department?: UserDepartment;
+  /** Explicit approval flag (preferred over legacy `status`). */
+  approved?: boolean;
+  tenantId?: string;
   jobTitle: string;
   status: UserStatus;
   dealershipId?: string;
@@ -61,7 +92,6 @@ export interface DashboardModulePreferences {
   showForecastTab: boolean;
   showSalesPerformanceTab: boolean;
   showVinSearchTab: boolean;
-  showRecallsTab: boolean;
   showPotOfGoldTab: boolean;
 }
 
@@ -102,7 +132,7 @@ export interface DealershipSettings {
   enableDispatchTab?: boolean;
   /** Pot of Gold / competition column config (slug id + display label) */
   competitionAdvisors?: { id: string; label: string }[];
-  dmsProvider?: import('./constants/dmsProviders').DmsProviderId;
+  dmsProvider?: DmsProviderId;
   dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
   dispatchShowTodayLoad?: boolean;
   dispatchBlockWhenFull?: boolean;
@@ -159,7 +189,7 @@ export interface Customer {
   lastContactUsername?: string;
   lastAcknowledgedCycle?: number;
   lastServiceDate?: string;
-  recentVisits?: ServiceVisit[]; // Last few for quick display
+  recentVisits?: ServiceVisit[];
   stopAlertInfo?: {
     reason: string;
     notes: string;
@@ -211,15 +241,17 @@ export interface DailyStat {
   };
 }
 
-export type DepartmentColumnId = 
-  | 'lube' 
-  | 'quick_service' 
-  | 'ac_electrical' 
-  | 'heavyline' 
-  | 'diesel' 
-  | 'trans' 
-  | 'mobile_repair' 
+export type DepartmentColumnId =
+  | 'lube'
+  | 'quick_service'
+  | 'ac_electrical'
+  | 'heavyline'
+  | 'diesel'
+  | 'trans'
+  | 'mobile_repair'
   | 'unassigned';
+
+export type DispatchLifecycleStatus = 'active' | 'overnight';
 
 export interface DispatchRepairOrder {
   id: string;
@@ -229,6 +261,8 @@ export interface DispatchRepairOrder {
   vinLastEight?: string;
   customerId?: string;
   department: DepartmentColumnId;
+  currentLaneId?: DepartmentColumnId;
+  lifecycleStatus?: DispatchLifecycleStatus;
   status: 'WIP' | 'DIS' | 'POO' | 'WFA';
   isCompleted: boolean;
   dateCreated: string;
@@ -246,9 +280,8 @@ export interface DispatchRepairOrder {
 }
 
 export interface ArchivePayload {
-  // Allows explicit overrides like "2026-05" instead of forcing the current server month
-  targetYearMonth: string; 
-  dateArchived: string;       // Actual timestamp of action execution
+  targetYearMonth: string;
+  dateArchived: string;
   metricsSnapshot: {
     laborSales: number;
     laborGross: number;
@@ -258,8 +291,6 @@ export interface ArchivePayload {
     techBreakdown: any[];
   };
 }
-
-
 
 /** Why a customer appears on the Service Drive work queue */
 export type ServiceDriveReason = 'service_due' | 'stale_followup';

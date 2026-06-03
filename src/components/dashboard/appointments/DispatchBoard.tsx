@@ -11,10 +11,17 @@ import {
   legacyAppointmentTrackerDoc,
   resolveAppointmentCount,
 } from '../../../lib/appointmentTracker';
+import {
+  buildDispatchMoveUpdate,
+  buildOvernightQueuePatch,
+  isOvernightRo,
+  normalizeDispatchOrder,
+  type DispatchMoveTarget,
+} from '../../../lib/dispatchTransitions';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  GripVertical, Check, Wrench, Monitor, X, UserSearch, Inbox
+  Check, Wrench, Monitor, X, UserSearch, Inbox, MapPin, Moon
 } from 'lucide-react';
 
 // 1. Color System Configuration & Status Tokens
@@ -56,9 +63,7 @@ export function DispatchBoard({
   const [orders, setOrders] = useState<DispatchRepairOrder[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   
-  // Drag & drop interactive feedback states
-  const [draggedRoId, setDraggedRoId] = useState<string | null>(null);
-  const [overColumnId, setOverColumnId] = useState<DepartmentColumnId | null>(null);
+  const [moveMenuRoId, setMoveMenuRoId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -203,11 +208,10 @@ export function DispatchBoard({
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedOrders: DispatchRepairOrder[] = [];
-      snapshot.forEach((doc) => {
-        fetchedOrders.push({
-          ...(doc.data() as Omit<DispatchRepairOrder, 'id'>),
-          id: doc.id
-        });
+      snapshot.forEach((docSnap) => {
+        fetchedOrders.push(
+          normalizeDispatchOrder(docSnap.data() as Omit<DispatchRepairOrder, 'id'>, docSnap.id)
+        );
       });
 
       setOrders(fetchedOrders);
@@ -215,8 +219,8 @@ export function DispatchBoard({
 
       // Rule C: Overnight carryover retention logic.
       // If any active (non-completed) ticket is from an earlier date and is not in 'unassigned', sweep it back.
-      const carryoversToReset = fetchedOrders.filter(ro => {
-        return !ro.isCompleted && ro.dateCreated < currentSystemDate && ro.department !== 'unassigned';
+      const carryoversToReset = fetchedOrders.filter((ro) => {
+        return !ro.isCompleted && isOvernightRo(ro, currentSystemDate) && ro.department !== 'unassigned';
       });
 
       if (carryoversToReset.length > 0) {
@@ -226,10 +230,7 @@ export function DispatchBoard({
         const batch = writeBatch(db);
         carryoversToReset.forEach(ro => {
           const docRef = doc(db, path, ro.id);
-          batch.update(docRef, {
-            department: 'unassigned',
-            lastUpdated: new Date().toISOString()
-          });
+          batch.update(docRef, buildOvernightQueuePatch());
         });
         
         batch.commit()
@@ -254,30 +255,6 @@ export function DispatchBoard({
     return () => unsubscribe();
   }, [currentDealershipId, currentSystemDate]);
 
-  // Handle Drag Events
-  const handleDragStart = (e: React.DragEvent, roId: string) => {
-    setDraggedRoId(roId);
-    e.dataTransfer.setData('text/plain', roId);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragEnd = () => {
-    setDraggedRoId(null);
-    setOverColumnId(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent, columnId: DepartmentColumnId) => {
-    e.preventDefault();
-    if (overColumnId !== columnId) {
-      setOverColumnId(columnId);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setOverColumnId(null);
-  };
-
-  // Rule B: Complete state transition and database mutation
   const countInLane = (lane: DepartmentColumnId, excludeId?: string) =>
     (orders.filter((o) => !o.isCompleted && o.department === lane && o.id !== excludeId)).length;
 
@@ -288,33 +265,46 @@ export function DispatchBoard({
     return countInLane(lane, excludeId) >= cap;
   };
 
-  const handleCardDropped = async (roId: string, targetLane: DepartmentColumnId) => {
-    if (!roId) return;
-    if (blockWhenFull && targetLane !== 'unassigned' && isLaneAtCapacity(targetLane, roId)) {
-      showNotification?.(`${DEPARTMENTS.find((d) => d.id === targetLane)?.label || 'Lane'} is at capacity.`, true);
+  const handleMoveRo = async (ro: DispatchRepairOrder, target: DispatchMoveTarget) => {
+    const laneTarget = target === 'overnight' ? 'unassigned' : target;
+    const overnightVehicle = isOvernightRo(ro, currentSystemDate);
+    if (
+      laneTarget !== 'unassigned' &&
+      blockWhenFull &&
+      isLaneAtCapacity(laneTarget, ro.id) &&
+      !overnightVehicle
+    ) {
+      showNotification?.(
+        `${DEPARTMENTS.find((d) => d.id === laneTarget)?.label || 'Lane'} is at capacity.`,
+        true
+      );
       return;
     }
     try {
-      const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
-      await updateDoc(roRef, {
-        department: targetLane,
-        lastUpdated: new Date().toISOString()
-      });
-    } catch (err: any) {
-      console.error('[Dispatch] Drop mutation error:', err);
+      const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
+      await updateDoc(roRef, buildDispatchMoveUpdate(ro, target, currentSystemDate));
+      setMoveMenuRoId(null);
       if (showNotification) {
-        showNotification('Failed to route dispatch card.', true);
+        const label =
+          target === 'overnight'
+            ? 'Overnight (Queue)'
+            : target === 'unassigned'
+              ? 'Waiting Queue'
+              : DEPARTMENTS.find((d) => d.id === target)?.label || target;
+        showNotification(`RO #${ro.roNumber} moved to ${label}.`);
       }
+    } catch (err: unknown) {
+      console.error('[Dispatch] Move mutation error:', err);
+      showNotification?.('Failed to move dispatch card.', true);
     }
   };
 
-  const handleDrop = (e: React.DragEvent, targetLane: DepartmentColumnId) => {
-    e.preventDefault();
-    const roId = e.dataTransfer.getData('text/plain');
-    handleCardDropped(roId, targetLane);
-    setOverColumnId(null);
-    setDraggedRoId(null);
-  };
+  useEffect(() => {
+    if (!moveMenuRoId) return;
+    const close = () => setMoveMenuRoId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [moveMenuRoId]);
 
   // Rule A Form submission: Default to 'unassigned' department
   const handleSubmitIntake = async (e: React.FormEvent) => {
@@ -356,6 +346,8 @@ export function DispatchBoard({
         customerLastName: ln,
         customerName: displayName,
         department: 'unassigned',
+        currentLaneId: 'unassigned',
+        lifecycleStatus: 'active',
         status: initialStatus,
         isCompleted: quickComplete,
         dateCreated: currentSystemDate,
@@ -473,22 +465,55 @@ export function DispatchBoard({
   }, [activeTickets]);
 
 
+
+  const moveTargets: { target: DispatchMoveTarget; label: string; icon?: React.ReactNode }[] = [
+    { target: 'unassigned', label: 'Move to Queue', icon: <Inbox size={12} /> },
+    ...DEPARTMENTS.map((d) => ({ target: d.id as DispatchMoveTarget, label: `Move to ${d.label}`, icon: <d.icon size={12} /> })),
+    { target: 'overnight', label: 'Move to Overnight', icon: <Moon size={12} /> },
+  ];
+
+  const renderMoveMenu = (ro: DispatchRepairOrder) => {
+    if (moveMenuRoId !== ro.id) return null;
+    return (
+      <div
+        className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-indigo-500/30 bg-slate-950 shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+        role="menu"
+      >
+        <p className="px-3 py-2 text-[8px] font-black uppercase tracking-widest text-slate-500 border-b border-white/5">
+          Route RO #{ro.roNumber}
+        </p>
+        <div className="max-h-52 overflow-y-auto py-1">
+          {moveTargets.map(({ target, label, icon }) => (
+            <button
+              key={String(target)}
+              type="button"
+              role="menuitem"
+              onClick={() => handleMoveRo(ro, target)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-200 hover:bg-indigo-500/15 hover:text-white transition-colors"
+            >
+              <span className="text-indigo-400 shrink-0">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderDisplayCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
-    const isOvernight = ro.dateCreated < currentSystemDate;
-
+    const overnight = isOvernightRo(ro, currentSystemDate);
     return (
       <div
         key={ro.id}
-        draggable
-        onDragStart={(e) => handleDragStart(e, ro.id)}
-        onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
         className={cn(
-          'bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-grab active:cursor-grabbing select-none space-y-0.5',
-          draggedRoId === ro.id && 'opacity-40 scale-95',
-          isOvernight && 'ring-1 ring-amber-500/40'
+          'relative bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-pointer select-none space-y-0.5',
+          overnight && 'ring-1 ring-amber-500/40',
+          moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50'
         )}
+        onClick={() => setMoveMenuRoId((id) => (id === ro.id ? null : ro.id))}
       >
         <div className="flex items-center justify-between gap-1">
           <span className="text-[11px] font-black text-white tabular-nums truncate">RO {ro.roNumber}</span>
@@ -506,13 +531,14 @@ export function DispatchBoard({
           <span>T#{ro.techNumber}</span>
           <span>…{ro.vinLastEight}</span>
         </div>
+        {renderMoveMenu(ro)}
       </div>
     );
   };
 
   const renderRoCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
-    const isOvernight = ro.dateCreated < currentSystemDate;
+    const isOvernight = isOvernightRo(ro, currentSystemDate);
 
     // Check if it's an internal dealership vehicle
     const isInternalAsset = 
@@ -523,15 +549,13 @@ export function DispatchBoard({
     return (
       <div
         key={ro.id}
-        draggable
-        onDragStart={(e) => handleDragStart(e, ro.id)}
-        onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
         className={cn(
-          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 active:cursor-grabbing p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-grab select-none w-full text-slate-100",
-          draggedRoId === ro.id && "opacity-30 scale-95 border-dashed border-indigo-500",
-          isOvernight && "ring-1 ring-amber-500/30"
+          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-pointer select-none w-full text-slate-100",
+          isOvernight && "ring-1 ring-amber-500/30",
+          moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30"
         )}
+        onClick={() => setMoveMenuRoId((id) => (id === ro.id ? null : ro.id))}
       >
         {/* 1. HEADER SECTION (DYNAMIC HIERARCHY) */}
         <div className="flex justify-between items-start gap-2">
@@ -560,8 +584,17 @@ export function DispatchBoard({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <GripVertical size={13} className="text-slate-650 group-hover:text-slate-400 transition-colors cursor-grab" />
-            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMoveMenuRoId((id) => (id === ro.id ? null : ro.id));
+              }}
+              className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-950/50 border border-indigo-900/40 px-1.5 py-0.5 rounded hover:bg-indigo-900/40"
+            >
+              <MapPin size={11} /> Move
+            </button>
+
             {isOvernight && (
               <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
                 Overnight
@@ -579,10 +612,6 @@ export function DispatchBoard({
                     setConfirmDeleteId(null);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
                   className="text-[9px] font-black uppercase text-rose-400 bg-rose-950/80 border border-rose-900/40 px-1 py-0.5 rounded hover:bg-rose-900/80 transition-all cursor-pointer relative z-20 animate-pulse"
                 >
                   Delete?
@@ -595,10 +624,6 @@ export function DispatchBoard({
                     setConfirmDeleteId(null);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
                   className="text-[9px] font-black uppercase text-slate-400 bg-slate-950 border border-slate-805 px-1 py-0.5 rounded hover:bg-slate-800 transition-all cursor-pointer relative z-20"
                 >
                   No
@@ -613,11 +638,7 @@ export function DispatchBoard({
                   setConfirmDeleteId(ro.id);
                 }}
                 onMouseDown={(e) => {
-                  e.stopPropagation(); // Avoid triggering any drag initiates
-                }}
-                onDragStart={(e) => {
                   e.stopPropagation();
-                  e.preventDefault();
                 }}
                 className="text-slate-600 hover:text-rose-450 p-0.5 rounded transition-all duration-200 cursor-pointer relative z-20"
                 title="Delete from Board"
@@ -694,6 +715,7 @@ export function DispatchBoard({
             <span>Done</span>
           </button>
         </div>
+        {renderMoveMenu(ro)}
       </div>
     );
   };
@@ -1005,14 +1027,9 @@ export function DispatchBoard({
 
             {/* Waiting Queue */}
             <div
-              onDragOver={(e) => handleDragOver(e, 'unassigned')}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, 'unassigned')}
               className={cn(
                 'lg:col-span-7 relative overflow-hidden rounded-2xl border flex flex-col min-h-[280px] transition-all duration-300 shadow-xl shadow-black/20',
-                overColumnId === 'unassigned'
-                  ? 'border-indigo-400/40 bg-indigo-950/20 ring-2 ring-indigo-500/20'
-                  : 'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80'
+                'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80'
               )}
             >
               <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/5 blur-3xl" />
@@ -1029,7 +1046,7 @@ export function DispatchBoard({
                     </div>
                     <div className="min-w-0">
                       <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em] truncate">Waiting Queue</h2>
-                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">Drop cards here or drag out to a department lane</p>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tap a card → Move to route into a production lane</p>
                     </div>
                   </div>
                   <div className={cn(
@@ -1076,17 +1093,11 @@ export function DispatchBoard({
           <div className="flex flex-col gap-4 w-full">
             {DEPARTMENTS.map((dept) => {
               const list = ticketsByColumn[dept.id] || [];
-              const isOver = overColumnId === dept.id;
-
               return (
                 <div 
                   key={dept.id} 
-                  onDragOver={(e) => handleDragOver(e, dept.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, dept.id)}
                   className={cn(
                     "bg-gradient-to-r from-slate-900/60 to-slate-900/30 border border-slate-850 rounded-2xl p-4.5 flex flex-col md:flex-row md:items-center gap-5 w-full transition-all duration-300 shadow-md relative",
-                    isOver && "from-slate-850/80 to-slate-900/80 border-dashed border-indigo-500/60 scale-[1.002] shadow-lg shadow-indigo-950/25",
                     list.length > 0 ? "border-slate-800/80 bg-slate-900/40" : "border-slate-900/60"
                   )}
                 >
@@ -1120,7 +1131,7 @@ export function DispatchBoard({
                     {list.length === 0 ? (
                       <div className="flex items-center gap-2 text-slate-600 py-6 px-3 border border-dashed border-slate-950/60 rounded-xl w-full">
                         <HelpCircle size={14} className="text-slate-700" />
-                        <p className="text-[10px] font-black uppercase tracking-wider">Vacant Lane — drag an RO card here to schedule</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider">Vacant lane — tap a queue card and Move to schedule</p>
                       </div>
                     ) : (
                       list.map((ro) => (
@@ -1174,17 +1185,12 @@ export function DispatchBoard({
                 const list = ticketsByColumn[col.id] || [];
                 const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id];
                 const atCap = cap > 0 && list.length >= cap;
-                const isOver = overColumnId === col.id;
-
                 return (
                   <div
                     key={col.id}
-                    onDragOver={(e) => handleDragOver(e, col.id)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, col.id)}
                     className={cn(
                       'flex flex-col min-w-0 min-h-0 rounded-xl border bg-slate-900/60 overflow-hidden',
-                      isOver ? 'border-indigo-500/70 bg-slate-800/80' : 'border-slate-800/80'
+                      'border-slate-800/80'
                     )}
                   >
                     <div className="shrink-0 px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center justify-between gap-1">
