@@ -168,7 +168,7 @@ export default function AdminPanel({
   useEffect(() => {
     if (!currentUser) return;
 
-    // Fetch settings for all dealerships if admin, or just current
+    // Subscribe to all settings docs; UI shows only the selected dealership at a time
     const settingsRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings');
     const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
       const settings: Record<string, any> = {};
@@ -1080,8 +1080,8 @@ export default function AdminPanel({
       {subTab === 'operations' && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {(isPlatformAdmin(currentUser) ? DEALERSHIPS : DEALERSHIPS.filter(d => d.id === currentDealershipId)).map(d => {
-              // Managers can only see/edit their own dealership settings
+            {DEALERSHIPS.filter((d) => d.id === currentDealershipId).map((d) => {
+              // Operation settings are scoped to the selected dealership only
               if (currentUser?.role !== 'admin' && currentUser?.dealershipId !== d.id) return null;
 
               const appTarget = localAppTargets[d.id] ?? (dealershipSettings[d.id]?.appointmentTarget || 20);
