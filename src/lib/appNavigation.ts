@@ -13,7 +13,7 @@ export type AppTab =
   | 'sales-performance';
 
 export type AdminSubTab = 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
-export type ManagerSubTab = 'operations' | 'preferences' | 'team';
+export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
   activeTab: AppTab;
@@ -35,6 +35,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/manager/operations': { activeTab: 'manager', managerSubTab: 'operations' },
   '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
   '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
+  '/manager/logs': { activeTab: 'manager', managerSubTab: 'logs' },
   // Legacy admin operation settings URL → manager operations
   '/admin/operation-settings': { activeTab: 'manager', managerSubTab: 'operations' },
   '/admin/user-settings': { activeTab: 'admin', adminSubTab: 'users' },
@@ -65,6 +66,8 @@ export function buildAppPath(state: AppRouteState): string {
         return '/manager/preferences';
       case 'team':
         return '/manager/team';
+      case 'logs':
+        return '/manager/logs';
       case 'operations':
       default:
         return '/manager/operations';

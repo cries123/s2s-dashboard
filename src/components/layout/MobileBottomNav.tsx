@@ -15,6 +15,7 @@ import {
   Settings,
   Users,
   ClipboardList,
+  FileText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -26,7 +27,7 @@ export interface MobileNavSubItem {
   label: string;
   href: string;
   badge?: number;
-  managerSubTab?: 'operations' | 'preferences' | 'team';
+  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
 }
 
 export interface MobileNavSection {
@@ -38,12 +39,12 @@ export interface MobileNavSection {
 
 export interface MobileNavSelection {
   tab: string;
-  managerSubTab?: 'operations' | 'preferences' | 'team';
+  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
 }
 
 interface MobileBottomNavProps {
   activeTab: string;
-  managerSubTab?: 'operations' | 'preferences' | 'team';
+  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
   sections: MobileNavSection[];
   onNavigate: (selection: MobileNavSelection) => void;
 }
@@ -82,19 +83,21 @@ const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   'manager-operations': Settings,
   'manager-preferences': ClipboardList,
   'manager-team': Users,
+  'manager-logs': FileText,
 };
 
 function subItemIcon(item: MobileNavSubItem): LucideIcon {
   if (item.managerSubTab === 'operations') return SUB_ITEM_ICONS['manager-operations'];
   if (item.managerSubTab === 'preferences') return SUB_ITEM_ICONS['manager-preferences'];
   if (item.managerSubTab === 'team') return SUB_ITEM_ICONS['manager-team'];
+  if (item.managerSubTab === 'logs') return SUB_ITEM_ICONS['manager-logs'];
   return SUB_ITEM_ICONS[item.tabId] ?? Search;
 }
 
 function isSubItemActive(
   item: MobileNavSubItem,
   activeTab: string,
-  managerSubTab?: 'operations' | 'preferences' | 'team'
+  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs'
 ): boolean {
   if (item.tabId !== activeTab) return false;
   if (item.tabId === 'manager' && item.managerSubTab) {

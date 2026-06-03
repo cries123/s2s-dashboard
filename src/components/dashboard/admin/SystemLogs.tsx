@@ -30,10 +30,11 @@ const CATEGORIES = [
 ];
 
 interface SystemLogsProps {
-  scope?: 'all' | 'dealership';
+  dealershipId?: string;
+  tenantScope?: boolean;
 }
 
-export function SystemLogs({ scope = 'all' }: SystemLogsProps) {
+export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProps) {
   const { user, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +116,13 @@ export function SystemLogs({ scope = 'all' }: SystemLogsProps) {
       (log.userEmail || '').toLowerCase().includes(searchLower) ||
       (log.username || '').toLowerCase().includes(searchLower);
 
-    return matchesCategory && matchesSearch;
+    const matchesTenant =
+      !tenantScope ||
+      !dealershipId ||
+      !log.dealershipId ||
+      log.dealershipId === dealershipId;
+
+    return matchesCategory && matchesSearch && matchesTenant;
   });
 
   const formatTimestamp = (ts: any) => {
@@ -141,6 +148,11 @@ export function SystemLogs({ scope = 'all' }: SystemLogsProps) {
 
   return (
     <div className="space-y-6">
+      {tenantScope && dealershipId && (
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
+          Showing logs for <span className="text-brand-primary">{dealershipId.toUpperCase()}</span> only
+        </p>
+      )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
         <div>
           <h4 className="text-lg font-black uppercase tracking-widest text-white">System Trail Logs</h4>

@@ -888,39 +888,24 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </div>
 
 
-            {(payTypes || advisorMix.length > 0) && (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {payTypes && (
-                  <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Pay Type Mix (RO)</h4>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                          Customer pay portion: <span className="text-brand-secondary">{payTypes.customerPayPortionPercent}%</span>
-                        </p>
-                      </div>
-                    </div>
-                    <table className="w-full text-left text-xs">
-                      <thead><tr className="text-[9px] uppercase text-slate-500"><th className="py-2">Type</th><th className="text-right">ROs</th><th className="text-right">Mix</th><th className="text-right">ELR</th><th className="text-right">GP</th></tr></thead>
-                      <tbody>
-                        {([['Customer', payTypes.customer], ['Warranty', payTypes.warranty], ['Internal', payTypes.internal]] as const).map(([label, seg]) => (
-                          <tr key={label} className="text-white border-t border-slate-800"><td className="py-2">{label}</td><td className="text-right font-mono">{seg.roCount}</td><td className="text-right font-mono text-brand-secondary">{seg.mixPercent}%</td><td className="text-right font-mono">${seg.elr.toFixed(2)}</td><td className="text-right font-mono">{seg.gpPercent}%</td></tr>
-                        ))}
-                      </tbody>
-                    </table>
+            {payTypes && (
+              <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Pay Type Mix (RO)</h4>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                      Customer pay portion: <span className="text-brand-secondary">{payTypes.customerPayPortionPercent}%</span>
+                    </p>
                   </div>
-                )}
-                {advisorMix.length > 0 && (
-                  <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-4">
-                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Advisor Derived Mix</h4>
-                    {advisorMix.map((row) => (
-                      <div key={row.name} className="space-y-1">
-                        <div className="flex justify-between text-xs font-black text-white"><span>{row.name}</span><span className="text-brand-secondary">{row.mixPercent}%</span></div>
-                        <div className="h-2 bg-slate-800 rounded-full"><div className="h-full bg-brand-primary rounded-full" style={{ width: `${Math.min(100, row.mixPercent)}%` }} /></div>
-                      </div>
+                </div>
+                <table className="w-full text-left text-xs">
+                  <thead><tr className="text-[9px] uppercase text-slate-500"><th className="py-2">Type</th><th className="text-right">ROs</th><th className="text-right">Mix</th><th className="text-right">ELR</th><th className="text-right">GP</th></tr></thead>
+                  <tbody>
+                    {([['Customer', payTypes.customer], ['Warranty', payTypes.warranty], ['Internal', payTypes.internal]] as const).map(([label, seg]) => (
+                      <tr key={label} className="text-white border-t border-slate-800"><td className="py-2">{label}</td><td className="text-right font-mono">{seg.roCount}</td><td className="text-right font-mono text-brand-secondary">{seg.mixPercent}%</td><td className="text-right font-mono">${seg.elr.toFixed(2)}</td><td className="text-right font-mono">{seg.gpPercent}%</td></tr>
                     ))}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
             )}
 
