@@ -1,50 +1,25 @@
-import React, { useState, Component, type ErrorInfo, type ReactNode, useCallback } from 'react';
+import React, { useState } from 'react';
 import { cn } from '../../../lib/utils';
 import { Customer } from '../../../types';
 import { VehicleRecalls } from './VehicleRecalls';
 import { RecallCampaignOutreach } from './RecallCampaignOutreach';
 
-class RecallOutreachErrorBoundary extends Component<
-  { children: ReactNode; fallback: ReactNode },
-  { hasError: boolean }
-> {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[RecallsHub] Recall outreach render failed:', error, info);
-  }
-
-  render() {
-    if (this.state.hasError) return this.props.fallback;
-    return this.props.children;
-  }
-}
-
-interface RecallsHubProps {
+export interface RecallsPageProps {
   onViewProfile?: (customer: Customer) => void;
   currentDealershipId: string;
   currentUserId: string;
   onNotify?: (message: string, isError?: boolean) => void;
 }
 
-export function RecallsHub({
+type RecallsView = 'campaign' | 'nhtsa';
+
+export function RecallsPage({
   onViewProfile,
   currentDealershipId,
   currentUserId,
   onNotify,
-}: RecallsHubProps) {
-  const [activeView, setActiveView] = useState<'campaign' | 'nhtsa'>('campaign');
-
-  const handleNotify = useCallback(
-    (message: string, isError?: boolean) => onNotify?.(message, isError),
-    [onNotify]
-  );
-
-  const nhtsaFallback = <VehicleRecalls onViewProfile={onViewProfile} />;
+}: RecallsPageProps) {
+  const [activeView, setActiveView] = useState<RecallsView>('campaign');
 
   return (
     <div className="space-y-6">
@@ -76,15 +51,13 @@ export function RecallsHub({
       </div>
 
       {activeView === 'campaign' ? (
-        <RecallOutreachErrorBoundary fallback={nhtsaFallback}>
-          <RecallCampaignOutreach
-            currentDealershipId={currentDealershipId}
-            currentUserId={currentUserId}
-            onNotify={handleNotify}
-          />
-        </RecallOutreachErrorBoundary>
+        <RecallCampaignOutreach
+          currentDealershipId={currentDealershipId}
+          currentUserId={currentUserId}
+          onNotify={onNotify}
+        />
       ) : (
-        nhtsaFallback
+        <VehicleRecalls onViewProfile={onViewProfile} />
       )}
     </div>
   );

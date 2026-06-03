@@ -95,7 +95,7 @@ export function RecallCampaignOutreach({
   onNotify,
 }: RecallCampaignOutreachProps) {
   const [leads, setLeads] = useState<RecallCampaignLead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [sending, setSending] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,7 +121,6 @@ export function RecallCampaignOutreach({
       return;
     }
 
-    setLoading(true);
     setLoadError(null);
 
     const colRef = collection(
@@ -664,12 +663,14 @@ export function RecallCampaignOutreach({
         />
       </div>
 
-      {loading ? (
-        <div className="py-16 text-center border border-slate-800 rounded-3xl">
-          <Loader2 className="animate-spin text-brand-secondary mx-auto mb-3" size={28} />
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Loading recall list...</p>
+      {loading && leads.length === 0 && (
+        <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+          <Loader2 className="animate-spin" size={14} />
+          Loading recall list...
         </div>
-      ) : leads.length === 0 ? (
+      )}
+
+      {!loading && leads.length === 0 ? (
         <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-3xl">
           <ShieldAlert size={40} className="mx-auto text-slate-700 mb-3" />
           <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
