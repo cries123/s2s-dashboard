@@ -1,10 +1,18 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { cn } from '../../../lib/utils';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { DEALERSHIPS } from '../../../constants';
+import {
+  applyForecastPayTypeSeed,
+  formatArchiveMonthLabel,
+  getPreviousArchiveMonthKey,
+  payTypesToForecastSeed,
+  performanceDocId,
+  type OperationsPayTypeSummary,
+} from '../../../lib/operationsPayTypes';
 import { 
   TrendingUp, 
   Printer, 
@@ -688,6 +696,11 @@ export default function FixedOpsForecast({
 
   // Derived or input raw Counts for CP, Warr, and Internal
   const [rawCounts, setRawCounts] = useState(INITIAL_RAW_COUNTS);
+  const [operationsSeedLabel, setOperationsSeedLabel] = useState<string | null>(null);
+  const [operationsArchiveAvailable, setOperationsArchiveAvailable] = useState(false);
+  const [isApplyingOperationsSeed, setIsApplyingOperationsSeed] = useState(false);
+  const operationsSeedMonthRef = useRef<string | null>(null);
+  const seedAttemptedRef = useRef(false);
 
   // Load from Firestore on mount or context changes
   useEffect(() => {
@@ -703,6 +716,10 @@ export default function FixedOpsForecast({
         if (data.rawCounts) setRawCounts(data.rawCounts);
         if (data.mtdTelemetry) setMtdTelemetry(data.mtdTelemetry);
         if (data.activePreset) setActivePreset(data.activePreset);
+        if (data.operationsSeedMonth) {
+          operationsSeedMonthRef.current = data.operationsSeedMonth;
+          setOperationsSeedLabel(formatArchiveMonthLabel(data.operationsSeedMonth));
+        }
       } else {
         // Switch to separate clean default states if no saved database report exists yet for this dealership
         setInputs(getInitialInputs());
@@ -717,12 +734,12 @@ export default function FixedOpsForecast({
     return () => unsubscribe();
   }, [user, currentDealershipId]);
 
-  // Firestore Save Helper
   const saveForecastToFirestore = async (
     nextInputs: typeof inputs,
     nextCounts: typeof rawCounts,
     nextTelemetry: typeof mtdTelemetry,
-    nextPreset: typeof activePreset
+    nextPreset: typeof activePreset,
+    operationsSeedMonth?: string | null
   ) => {
     if (!user || !currentDealershipId) return;
 
@@ -735,14 +752,86 @@ export default function FixedOpsForecast({
         rawCounts: nextCounts,
         mtdTelemetry: nextTelemetry,
         activePreset: nextPreset,
+        ...(operationsSeedMonth ? { operationsSeedMonth } : {}),
         updatedAt: new Date().toISOString(),
         updatedBy: user.uid
-      });
+      }, { merge: true });
       console.log("[Forecast] Saved successfully to Firestore.");
     } catch (err) {
       console.error("[Forecast] Failed to save forecast to Firestore:", err);
     }
   };
+
+  const applyOperationsPayTypeSeed = useCallback(
+    async (payTypes: OperationsPayTypeSummary, monthKey: string) => {
+      if (!user || !currentDealershipId) return;
+
+      const seed = payTypesToForecastSeed(payTypes);
+      const docId = currentDealershipId === 'hyundai' ? 'forecastReport' : `forecastReport_${currentDealershipId}`;
+      const forecastRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+      const forecastSnap = await getDoc(forecastRef);
+      const forecastData = forecastSnap.data();
+
+      const baseInputs = forecastData?.inputs ?? getInitialInputs();
+      const nextInputs = applyForecastPayTypeSeed(baseInputs, seed);
+      const nextCounts = seed.rawCounts;
+      const nextTelemetry = forecastData?.mtdTelemetry ?? mtdTelemetry;
+      const nextPreset = forecastData?.activePreset ?? activePreset;
+
+      setInputs(nextInputs);
+      setRawCounts(nextCounts);
+      operationsSeedMonthRef.current = monthKey;
+      setOperationsSeedLabel(formatArchiveMonthLabel(monthKey));
+
+      await saveForecastToFirestore(nextInputs, nextCounts, nextTelemetry, nextPreset, monthKey);
+    },
+    [user, currentDealershipId, mtdTelemetry, activePreset]
+  );
+
+  useEffect(() => {
+    if (!user || !currentDealershipId || seedAttemptedRef.current) return;
+
+    const loadAndSeedFromOperations = async () => {
+      seedAttemptedRef.current = true;
+      const prevMonth = getPreviousArchiveMonthKey();
+      const archiveRef = doc(
+        db,
+        'artifacts',
+        'hyundai-sales-to-service',
+        'public',
+        'data',
+        'performance',
+        performanceDocId(currentDealershipId, prevMonth)
+      );
+      const forecastId = currentDealershipId === 'hyundai' ? 'forecastReport' : `forecastReport_${currentDealershipId}`;
+      const forecastRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', forecastId);
+
+      try {
+        const [archiveSnap, forecastSnap] = await Promise.all([getDoc(archiveRef), getDoc(forecastRef)]);
+        const payTypes = archiveSnap.data()?.payTypes as OperationsPayTypeSummary | undefined;
+        if (!payTypes) {
+          setOperationsArchiveAvailable(false);
+          return;
+        }
+
+        setOperationsArchiveAvailable(true);
+        const alreadySeeded = forecastSnap.data()?.operationsSeedMonth === prevMonth;
+        if (!alreadySeeded) {
+          setIsApplyingOperationsSeed(true);
+          await applyOperationsPayTypeSeed(payTypes, prevMonth);
+        } else {
+          operationsSeedMonthRef.current = prevMonth;
+          setOperationsSeedLabel(formatArchiveMonthLabel(prevMonth));
+        }
+      } catch (err) {
+        console.error('[Forecast] Failed to seed from operations archive:', err);
+      } finally {
+        setIsApplyingOperationsSeed(false);
+      }
+    };
+
+    loadAndSeedFromOperations();
+  }, [user, currentDealershipId, applyOperationsPayTypeSeed]);
 
   const calculateScaledProportionalMix = useCallback((counts: { cpCount: number; warrCount: number; internalCount: number }) => {
     const total = counts.cpCount + counts.warrCount + counts.internalCount;
@@ -1462,6 +1551,58 @@ export default function FixedOpsForecast({
           </button>
         </div>
       </div>
+
+      {(operationsSeedLabel || operationsArchiveAvailable || isApplyingOperationsSeed) && (
+        <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
+          <div className="flex items-start gap-3">
+            <Database size={18} className="text-brand-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-white uppercase tracking-widest">
+                {isApplyingOperationsSeed
+                  ? 'Loading pay mix from operations archive...'
+                  : operationsSeedLabel
+                    ? `Pay mix loaded from ${operationsSeedLabel} operations`
+                    : 'Operations archive available'}
+              </p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                RO counts, derived mix %, target ELR, and GP % — adjust techs and capacity sliders below
+              </p>
+            </div>
+          </div>
+          {operationsArchiveAvailable && !isApplyingOperationsSeed && (
+            <button
+              type="button"
+              onClick={async () => {
+                const prevMonth = getPreviousArchiveMonthKey();
+                const archiveRef = doc(
+                  db,
+                  'artifacts',
+                  'hyundai-sales-to-service',
+                  'public',
+                  'data',
+                  'performance',
+                  performanceDocId(currentDealershipId, prevMonth)
+                );
+                setIsApplyingOperationsSeed(true);
+                try {
+                  const archiveSnap = await getDoc(archiveRef);
+                  const payTypes = archiveSnap.data()?.payTypes as OperationsPayTypeSummary | undefined;
+                  if (payTypes) {
+                    await applyOperationsPayTypeSeed(payTypes, prevMonth);
+                    onSuccess?.(`Reloaded pay mix from ${formatArchiveMonthLabel(prevMonth)} operations.`);
+                  }
+                } finally {
+                  setIsApplyingOperationsSeed(false);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-[10px] font-black uppercase tracking-widest text-white border border-white/10"
+            >
+              <RefreshCw size={12} />
+              Reload from Operations
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 2. Side-by-Side Area */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

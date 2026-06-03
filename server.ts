@@ -8,6 +8,7 @@ import admin from "firebase-admin";
 import { getApps, initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
+import { extractOperationsPayTypes } from "./src/lib/operationsPayTypes.ts";
 
 dotenv.config();
 
@@ -581,6 +582,10 @@ async function startServer() {
           // Fallback to reference if parsed didn't have advisors
           parsed = ref;
         }
+        const payTypes = extractOperationsPayTypes(text);
+        if (payTypes) {
+          parsed.payTypes = payTypes;
+        }
         return parsed;
       };
 
@@ -754,6 +759,10 @@ For overall totals under 'totals':
       // 3. Smart local deterministic report parser
       console.log("[Performance Parser Fallback] Falling back to deterministic local parsing rule...");
       const deterministicResult = parseDeterministicPerformance(text);
+      const payTypes = extractOperationsPayTypes(text);
+      if (payTypes) {
+        (deterministicResult as { payTypes?: unknown }).payTypes = payTypes;
+      }
       return res.json(deterministicResult);
 
     } catch (error: any) {

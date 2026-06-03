@@ -9,6 +9,12 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
+import {
+  computeAdvisorMix,
+  extractOperationsPayTypes,
+  type AdvisorMixRow,
+  type OperationsPayTypeSummary,
+} from '../../../lib/operationsPayTypes';
 
 interface UpsellItem {
   code: string;
@@ -45,6 +51,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [totals, setTotals] = useState<any>(null);
+  const [payTypes, setPayTypes] = useState<OperationsPayTypeSummary | null>(null);
+  const [advisorMix, setAdvisorMix] = useState<AdvisorMixRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -98,7 +106,14 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   }, [user, currentDealershipId, selectedMonth]);
 
   const saveToFirestore = async (
-    newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
+    newData: {
+      advisors: AdvisorData[];
+      totals?: any;
+      reportStartDate?: string;
+      reportEndDate?: string;
+      payTypes?: OperationsPayTypeSummary | null;
+      advisorMix?: AdvisorMixRow[];
+    }, 
     overwrite = false,
     targetMonthOverride?: string
   ) => {
@@ -184,12 +199,16 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const docId = targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     
+    const mixRows = newData.advisorMix ?? computeAdvisorMix(updatedAdvisors);
+
     try {
       await setDoc(docRef, {
         advisors: updatedAdvisors,
         ...(newData.totals && { totals: newData.totals }),
         ...(newData.reportStartDate && { reportStartDate: newData.reportStartDate }),
         ...(newData.reportEndDate && { reportEndDate: newData.reportEndDate }),
+        ...(newData.payTypes && { payTypes: newData.payTypes }),
+        advisorMix: mixRows,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       }, { merge: false }); // Disable automatic merge to cleanly replace any junk advisors
@@ -400,7 +419,15 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       // If this is a main productivity report (contains totals object), overwrite the advisor records completely 
       // rather than merging as a delta, to cleanly eliminate any stale or corrupt duplicates in the database.
       const shouldOverwrite = !!data.totals;
-      await saveToFirestore(data, shouldOverwrite, targetMonth);
+      const extractedPayTypes = extractOperationsPayTypes(reportText);
+      await saveToFirestore(
+        {
+          ...data,
+          payTypes: extractedPayTypes ?? data.payTypes ?? null,
+        },
+        shouldOverwrite,
+        targetMonth
+      );
       
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
@@ -689,6 +716,85 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
               </div>
             </div>
 
+            {(payTypes || advisorMix.length > 0) && (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {payTypes && (
+                  <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Pay Type Mix (RO)</h4>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                          Customer pay portion: <span className="text-brand-secondary">{payTypes.customerPayPortionPercent}%</span>
+                        </p>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-[10px] font-black uppercase tracking-widest text-brand-primary">
+                        {payTypes.totalRoCount.toLocaleString()} Total ROs
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="text-[9px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-800">
+                            <th className="py-2 pr-3">Pay Type</th>
+                            <th className="py-2 px-2 text-right">RO Count</th>
+                            <th className="py-2 px-2 text-right">Mix %</th>
+                            <th className="py-2 px-2 text-right">Target ELR</th>
+                            <th className="py-2 pl-2 text-right">Target GP %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {([
+                            ['Customer Pay', payTypes.customer],
+                            ['Warranty', payTypes.warranty],
+                            ['Internal', payTypes.internal],
+                          ] as const).map(([label, seg]) => (
+                            <tr key={label} className="text-white">
+                              <td className="py-3 pr-3 font-bold">{label}</td>
+                              <td className="py-3 px-2 text-right font-mono">{seg.roCount.toLocaleString()}</td>
+                              <td className="py-3 px-2 text-right font-mono text-brand-secondary">{seg.mixPercent}%</td>
+                              <td className="py-3 px-2 text-right font-mono">${seg.elr.toFixed(2)}</td>
+                              <td className="py-3 pl-2 text-right font-mono">{seg.gpPercent}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {advisorMix.length > 0 && (
+                  <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
+                    <div>
+                      <h4 className="text-sm font-black text-white uppercase tracking-widest">Advisor Derived Mix</h4>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+                        Labor sales share by advisor
+                      </p>
+                    </div>
+                    <div className="space-y-4">
+                      {advisorMix.map((row) => (
+                        <div key={row.name} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs font-black text-white uppercase">{row.name}</span>
+                            <span className="text-xs font-black text-brand-secondary font-mono">{row.mixPercent}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-brand-primary transition-all duration-700"
+                              style={{ width: `${Math.min(100, row.mixPercent)}%` }}
+                            />
+                          </div>
+                          <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                            Labor sales ${row.laborSold.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {advisors.map((advisor, idx) => (
@@ -701,6 +807,11 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                       <div>
                         <h4 className="font-black text-white uppercase tracking-tighter text-lg leading-none">{advisor.name}</h4>
                         <p className="text-[9px] font-bold text-slate-500 uppercase mt-1 tracking-widest">Service Advisor</p>
+                        {advisorMix.length > 0 && (
+                          <p className="text-[9px] font-black text-brand-secondary uppercase mt-1 tracking-widest">
+                            Mix {advisorMix.find((m) => m.name.toLowerCase() === advisor.name.toLowerCase())?.mixPercent ?? 0}%
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
