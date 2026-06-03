@@ -912,7 +912,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                 )}
                 {advisorMix.length > 0 && (
                   <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-4">
-                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Advisor Derived Mix</h4>
+                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Customer Portion Mix</h4>
                     {advisorMix.map((row) => (
                       <div key={row.name} className="space-y-1">
                         <div className="flex justify-between text-xs font-black text-white"><span>{row.name}</span><span className="text-brand-secondary">{row.mixPercent}%</span></div>

@@ -99,6 +99,12 @@ export function buildMobileNavSections({
           href: '/manager/team',
           managerSubTab: 'team',
         },
+        {
+          tabId: 'manager',
+          label: 'Logs',
+          href: '/manager/logs',
+          managerSubTab: 'logs',
+        },
       ],
     });
   }

@@ -573,6 +573,16 @@ function DashboardShell({ user }: { user: User }) {
                 >
                   Team Approvals
                 </NavLink>
+                <NavLink 
+                  href="/manager/logs" 
+                  onClick={() => {
+                    setActiveTab('manager');
+                    setManagerSubTab('logs');
+                  }}
+                  isActive={activeTab === 'manager' && managerSubTab === 'logs'}
+                >
+                  Logs
+                </NavLink>
               </NavDropdown>
             )}
 
@@ -780,8 +790,18 @@ function DashboardShell({ user }: { user: User }) {
               currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
-              activeSubTab={managerSubTab === 'preferences' ? 'preferences' : 'operations'}
-              onChangeSubTab={(tab) => setManagerSubTab(tab === 'preferences' ? 'preferences' : 'operations')}
+              activeSubTab={
+                managerSubTab === 'preferences'
+                  ? 'preferences'
+                  : managerSubTab === 'logs'
+                    ? 'logs'
+                    : 'operations'
+              }
+              onChangeSubTab={(tab) => {
+                if (tab === 'preferences') setManagerSubTab('preferences');
+                else if (tab === 'logs') setManagerSubTab('logs');
+                else setManagerSubTab('operations');
+              }}
               onNavigateTab={(tab) => setActiveTab(tab as typeof activeTab)}
               onDealershipChange={setCurrentDealershipId}
             />

@@ -931,12 +931,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       {/* Weekly Visual Calendar */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950/20 p-5 rounded-2xl border border-white/[0.03]">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2.5">
-              <CalendarIcon size={18} className="text-brand-primary" /> 
+          <div className="flex flex-col items-center sm:items-start gap-3 sm:flex-row sm:items-center sm:gap-4 w-full sm:w-auto">
+            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2.5 text-center sm:text-left">
+              <CalendarIcon size={18} className="text-brand-primary shrink-0" /> 
               Weekly Performance Grid
             </h3>
-            <div className="flex items-center bg-slate-900/90 border border-white/5 rounded-xl p-1 shadow-inner">
+            <div className="flex items-center justify-center bg-slate-900/90 border border-white/5 rounded-xl p-1 shadow-inner mx-auto sm:mx-0">
               <button 
                 onClick={() => setWeekOffset(prev => prev - 1)}
                 className="p-1.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-200 cursor-pointer"
