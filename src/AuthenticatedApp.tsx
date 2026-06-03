@@ -28,7 +28,7 @@ import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
+import { RecallsPage } from './components/dashboard/customers/RecallsPage';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
@@ -254,6 +254,7 @@ function DashboardShell({ user }: { user: User }) {
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
+    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(currentDealershipId === 'hyundai' && modules.showPotOfGoldTab
       ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }]
       : []),
@@ -745,7 +746,12 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
+            <RecallsPage
+              onViewProfile={setSelectedProfile}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              currentUserId={user?.uid || ''}
+              onNotify={(msg, isError) => showNotification(msg, isError)}
+            />
           )}
 
           {activeTab === 'vin-search' && (

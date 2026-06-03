@@ -181,6 +181,10 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
     }
 
+    match /artifacts/hyundai-sales-to-service/public/data/recallCampaignLeads/{leadId} {
+      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+    }
+
     // --- Performance Tracking ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
       allow read, write: if isApproved() || isAdmin();
