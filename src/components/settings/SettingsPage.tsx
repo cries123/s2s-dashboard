@@ -17,10 +17,16 @@ import {
 import { CONTACT_OUTCOMES } from '../../lib/contactOutcomes';
 import { clampFollowUpDays } from '../../lib/userPreferencesDefaults';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../hooks/useAuth';
+import { DealershipProfileField } from '../ui/DealershipProfileField';
 
 interface SettingsPageProps {
   onNavigate: (tab: LandingTab) => void;
   onNotify: (msg: string, isError?: boolean) => void;
+  currentDealershipId?: string;
+  onDealershipChange?: (dealershipId: string) => void;
+  /** When true, omit the page hero — parent supplies the section header. */
+  embedded?: boolean;
 }
 
 function Section({
@@ -66,7 +72,7 @@ function ToggleRow({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex items-start justify-between gap-4 cursor-pointer group">
+    <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <p className="text-[11px] font-black text-white uppercase tracking-wide">{label}</p>
         {description && <p className="text-[10px] text-slate-500 mt-0.5">{description}</p>}
@@ -76,21 +82,22 @@ function ToggleRow({
         role="switch"
         aria-checked={checked}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
+        onClick={() => !disabled && onChange(!checked)}
         className={cn(
-          'relative w-11 h-6 rounded-full shrink-0 transition-colors border',
+          'inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors',
           checked ? 'bg-brand-primary border-brand-primary/50' : 'bg-slate-800 border-white/10',
-          disabled && 'opacity-50 cursor-not-allowed'
+          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         )}
       >
         <span
+          aria-hidden
           className={cn(
-            'absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-            checked ? 'translate-x-5' : 'translate-x-0.5'
+            'block h-5 w-5 rounded-full bg-white shadow transition-transform',
+            checked ? 'translate-x-5' : 'translate-x-0'
           )}
         />
       </button>
-    </label>
+    </div>
   );
 }
 
@@ -128,7 +135,8 @@ function SelectField({
   );
 }
 
-export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
+export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDealershipChange, embedded = false }: SettingsPageProps) {
+  const { user } = useAuth();
   const {
     preferences,
     saving,
@@ -152,48 +160,69 @@ export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
     }
   };
 
+  const saveToolbar = (
+    <div className="flex items-center justify-end gap-2 flex-wrap">
+      {saving && (
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-400">
+          <Loader2 size={12} className="animate-spin" /> Saving
+        </span>
+      )}
+      {savedFlash && !saving && (
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-400">
+          <Check size={12} /> Saved
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => wrapSave(resetPreferences)}
+        disabled={saving}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-[10px] font-black uppercase tracking-wider text-slate-300 disabled:opacity-50"
+      >
+        <RotateCcw size={12} />
+        Reset defaults
+      </button>
+    </div>
+  );
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-3xl mx-auto pb-8">
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-brand-primary/10 p-6 sm:p-8 shadow-2xl">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-brand-primary/10 blur-[60px] rounded-full pointer-events-none" />
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <SlidersHorizontal size={16} className="text-brand-primary" />
-              <span className="text-[9px] font-black uppercase tracking-[0.25em] text-brand-primary">
-                Your workspace
-              </span>
+    <div className={cn('space-y-6 animate-in fade-in duration-300 w-full pb-8', embedded ? '' : 'max-w-3xl mx-auto slide-in-from-bottom-4')}>
+
+      {!embedded ? (
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-brand-primary/10 p-6 sm:p-8 shadow-2xl">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-brand-primary/10 blur-[60px] rounded-full pointer-events-none" />
+          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <SlidersHorizontal size={16} className="text-brand-primary" />
+                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-brand-primary">
+                  Your workspace
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tight">
+                Preferences
+              </h1>
+              <p className="text-sm text-slate-400 mt-2">
+                Tune contact logging, dashboard modules, and CRM display. Saved to your profile.
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tight">
-              Preferences
-            </h1>
-            <p className="text-sm text-slate-400 mt-2">
-              Tune contact logging, dashboard modules, and CRM display. Saved to your profile.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {saving && (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-400">
-                <Loader2 size={12} className="animate-spin" /> Saving
-              </span>
-            )}
-            {savedFlash && !saving && (
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-400">
-                <Check size={12} /> Saved
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => wrapSave(resetPreferences)}
-              disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-[10px] font-black uppercase tracking-wider text-slate-300 disabled:opacity-50"
-            >
-              <RotateCcw size={12} />
-              Reset defaults
-            </button>
+            {saveToolbar}
           </div>
         </div>
-      </div>
+      ) : (
+        saveToolbar
+      )}
+
+      <Section
+        title="Organization profile"
+        description="Your enrolled dealership group is locked unless you are a system administrator."
+        icon={Monitor}
+      >
+        <DealershipProfileField
+          user={user}
+          value={currentDealershipId}
+          onChange={(id) => onDealershipChange?.(id)}
+        />
+      </Section>
 
       <Section
         title="Contact workflow"
@@ -303,12 +332,6 @@ export function SettingsPage({ onNavigate, onNotify }: SettingsPageProps) {
             label="VIN search tab"
             checked={preferences.dashboardModules.showVinSearchTab}
             onChange={(v) => wrapSave(() => updateDashboardModules({ showVinSearchTab: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="Recalls tab"
-            checked={preferences.dashboardModules.showRecallsTab}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showRecallsTab: v }))}
             disabled={saving}
           />
           <ToggleRow

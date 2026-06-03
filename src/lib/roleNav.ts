@@ -1,37 +1,48 @@
-import type { Role } from '../types';
+import type { User } from '../types';
 import type { AppTab } from './appRoutes';
+import {
+  canSeeAdminPanel,
+  canSeeCompetitions,
+  canSeeForecastReport,
+  canSeeManagerPanel,
+  canSeeOperationsReport,
+  canSeeSalesNav,
+  canSeeSalesPerformanceReport,
+  canSeeServiceNav,
+  isPlatformAdmin,
+  isUserApproved,
+  resolveUserTenantId,
+} from './rbac';
 
-const SALES_TABS: AppTab[] = ['add', 'vin-search', 'search', 'sales-performance'];
-const SERVICE_TABS: AppTab[] = ['search', 'alerts', 'dispatch', 'appointments', 'forecast'];
-const MANAGER_TABS: AppTab[] = [
-  'add',
-  'vin-search',
-  'search',
-  'alerts',
-  'dispatch',
-  'appointments',
-  'forecast',
-  'sales-performance',
-  'pot-of-gold',
-];
+export function isTabAllowedForUser(tab: AppTab, user: User | null | undefined): boolean {
+  if (!user || !isUserApproved(user)) return false;
+  if (tab === 'admin') return canSeeAdminPanel(user);
+  if (tab === 'manager') return canSeeManagerPanel(user);
+  if (isPlatformAdmin(user)) return true;
 
-export function isTabAllowedForRole(tab: AppTab, role: Role): boolean {
-  if (role === 'admin') return true;
-  if (tab === 'admin') return false;
-  switch (role) {
-    case 'Salesperson':
-      return SALES_TABS.includes(tab);
-    case 'Service Advisor':
-      return SERVICE_TABS.includes(tab);
-    case 'Manager':
-      return MANAGER_TABS.includes(tab);
-    case 'Staff':
-      return ['search', 'alerts', 'appointments'].includes(tab);
+  const showService = canSeeServiceNav(user);
+  const tenantId = resolveUserTenantId(user);
+
+  switch (tab) {
+    case 'add':
+    case 'vin-search':
+      return canSeeSalesNav(user);
+    case 'search':
+    case 'alerts':
+    case 'dispatch':
+    case 'appointments':
+      return showService && canSeeOperationsReport(user);
+    case 'forecast':
+      return showService && canSeeForecastReport(user);
+    case 'sales-performance':
+      return canSeeSalesPerformanceReport(user);
+    case 'pot-of-gold':
+      return canSeeCompetitions(user, tenantId);
     default:
       return true;
   }
 }
 
-export function filterTabsForRole<T extends { id: string }>(tabs: T[], role: Role): T[] {
-  return tabs.filter((t) => isTabAllowedForRole(t.id as AppTab, role));
+export function filterTabsForRole<T extends { id: string }>(tabs: T[], user: User | null | undefined): T[] {
+  return tabs.filter((t) => isTabAllowedForUser(t.id as AppTab, user));
 }

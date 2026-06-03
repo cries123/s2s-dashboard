@@ -28,37 +28,131 @@ import {
 import { cn } from '../../../lib/utils';
 
 import { DEALERSHIPS } from '../../../constants';
-import { DMS_PROVIDERS, DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
-import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
+import {
+  defaultDmsProviderForDealership,
+  defaultPerformanceAdvisorRoster,
+  FORD_PERFORMANCE_ADVISOR_ROSTER,
+} from '../../../constants/dealerDefaults';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
+import { MasterUserSettings } from './MasterUserSettings';
+import { DealershipAdvancedSettings } from './DealershipAdvancedSettings';
+import { AiUsageLogsPanel } from './AiUsageLogsPanel';
+import { ImportHistoryPanel } from './ImportHistoryPanel';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import {
+  buildUserApprovalPatch,
+  isManager,
+  isPlatformAdmin,
+  normalizeUserProfile,
+  resolveUserTenantId,
+  userBelongsToTenant,
+  isPendingUser,
+  canModifyUser,
+  isPendingManagerEnrollment,
+  isPendingStaffEnrollment,
+  isPrimaryAdmin,
+  isProtectedUser,
+  buildManagerAdminRolePatch,
+  managerAdminPermissionFromUser,
+  type ManagerAdminPermission,
+} from '../../../lib/rbac';
+import { getTenantProfile, tenantIdFromDealershipId } from '../../../lib/tenants';
+import {
   getDealershipStaffConfig,
   slugifyStaffName,
   type CompetitionAdvisorSlot,
+  type CompetitionTechnicianSlot,
+  type PerformanceAdvisorSlot,
 } from '../../../lib/dealershipStaff';
+
+
+type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history';
+
+function getPanelSectionMeta(
+  subTab: AdminSubTab,
+  panelMode: 'admin' | 'manager' | 'full'
+): { eyebrow: string; title: string; description: string } {
+  const scope =
+    panelMode === 'admin' ? 'Admin settings' : panelMode === 'manager' ? 'Manager settings' : 'System administration';
+
+  switch (subTab) {
+    case 'operations':
+      return {
+        eyebrow: scope,
+        title: 'Dealership Operations Settings',
+        description: 'Configure dealership daily throughput, gross parts & labor dollar targets.',
+      };
+    case 'preferences':
+      return {
+        eyebrow: scope,
+        title: 'Workspace Preferences',
+        description: 'Personal workspace settings for contact workflow, modules, and CRM display.',
+      };
+    case 'users':
+      return {
+        eyebrow: scope,
+        title: 'User Settings',
+        description: 'Manage system permission tiers, account access, and registration flows.',
+      };
+    case 'ai-usage':
+      return {
+        eyebrow: scope,
+        title: 'AI Usage Logs',
+        description: 'Token usage from automated PDF and DMS parse routes.',
+      };
+    case 'import-history':
+      return {
+        eyebrow: scope,
+        title: 'Import History',
+        description: 'CRM CSV imports and archive payloads stored in audit logs.',
+      };
+    case 'master-users':
+      return {
+        eyebrow: scope,
+        title: 'Master User Settings',
+        description: 'Edit every account across all dealerships — email, password, permissions.',
+      };
+    case 'logs':
+      return {
+        eyebrow: scope,
+        title: 'Audit Logs',
+        description: 'Real-time forensic audit logs of user actions on the app.',
+      };
+    default:
+      return {
+        eyebrow: scope,
+        title: 'System Administration',
+        description: 'Secure administrative controls for this dealership.',
+      };
+  }
+}
 
 interface AdminPanelProps {
   key?: string;
+  panelMode?: 'admin' | 'manager' | 'full';
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences') => void;
+  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history';
+  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history') => void;
   onNavigateTab?: (tab: LandingTab) => void;
+  onDealershipChange?: (dealershipId: string) => void;
 }
 
 export default function AdminPanel({ 
+  panelMode = 'full',
   currentDealershipId, 
   onSuccess, 
   onError, 
   activeSubTab, 
   onChangeSubTab,
-  onNavigateTab
+  onNavigateTab,
+  onDealershipChange
 }: AdminPanelProps) {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -78,7 +172,7 @@ export default function AdminPanel({
   useEffect(() => {
     if (!currentUser) return;
 
-    // Fetch settings for all dealerships if admin, or just current
+    // Subscribe to all settings docs; UI shows only the selected dealership at a time
     const settingsRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings');
     const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
       const settings: Record<string, any> = {};
@@ -223,6 +317,107 @@ export default function AdminPanel({
 
   const removeCompetitionAdvisor = (dealershipId: string, index: number) => {
     setLocalCompetitionAdvisors((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      if (list.length <= 1) return prev;
+      list.splice(index, 1);
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+
+  const [localTechnicians, setLocalTechnicians] = useState<Record<string, CompetitionTechnicianSlot[]>>({});
+  const [localPerformanceRoster, setLocalPerformanceRoster] = useState<Record<string, PerformanceAdvisorSlot[]>>({});
+
+  useEffect(() => {
+    if (Object.keys(dealershipSettings).length === 0) return;
+    const techNext: Record<string, CompetitionTechnicianSlot[]> = {};
+    const perfNext: Record<string, PerformanceAdvisorSlot[]> = {};
+    Object.entries(dealershipSettings).forEach(([id, data]: [string, any]) => {
+      const cfg = getDealershipStaffConfig(id, data);
+      techNext[id] = cfg.competitionTechnicians;
+      perfNext[id] = cfg.performanceAdvisorRoster;
+    });
+    setLocalTechnicians((prev) => ({ ...prev, ...techNext }));
+    setLocalPerformanceRoster((prev) => ({ ...prev, ...perfNext }));
+  }, [dealershipSettings]);
+
+  const commitTechnicians = (id: string) => {
+    const rows = localTechnicians[id];
+    if (!rows?.length) {
+      onError?.('At least one technician is required.');
+      return;
+    }
+    updateSetting(id, { competitionTechnicians: rows });
+  };
+
+  const updateTechnician = (dealershipId: string, index: number, field: 'id' | 'label', value: string) => {
+    setLocalTechnicians((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const current = { ...list[index] };
+      if (field === 'label') {
+        current.label = value;
+        current.id = slugifyStaffName(value) || current.id;
+      } else {
+        current.id = slugifyStaffName(value) || value;
+      }
+      list[index] = current;
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const addTechnician = (dealershipId: string) => {
+    setLocalTechnicians((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const n = list.length + 1;
+      list.push({ id: `tech_${n}`, label: `Tech ${n}` });
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const removeTechnician = (dealershipId: string, index: number) => {
+    setLocalTechnicians((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      if (list.length <= 1) return prev;
+      list.splice(index, 1);
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const commitPerformanceRoster = (id: string) => {
+    const rows = localPerformanceRoster[id];
+    if (!rows?.length) {
+      onError?.('At least one performance advisor is required.');
+      return;
+    }
+    updateSetting(id, { performanceAdvisorRoster: rows });
+  };
+
+  const updatePerformanceRoster = (dealershipId: string, index: number, field: 'id' | 'label', value: string) => {
+    setLocalPerformanceRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const current = { ...list[index] };
+      if (field === 'label') {
+        current.label = value;
+        current.id = slugifyStaffName(value) || current.id;
+      } else {
+        current.id = slugifyStaffName(value) || value;
+      }
+      list[index] = current;
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const addPerformanceRoster = (dealershipId: string) => {
+    setLocalPerformanceRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const n = list.length + 1;
+      list.push({ id: `advisor_${n}`, label: `Advisor ${n}` });
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const removePerformanceRoster = (dealershipId: string, index: number) => {
+    setLocalPerformanceRoster((prev) => {
       const list = [...(prev[dealershipId] || [])];
       if (list.length <= 1) return prev;
       list.splice(index, 1);
@@ -567,6 +762,21 @@ export default function AdminPanel({
       );
 
       setImportLogs(prev => [...prev, `🎉 Import Complete! Created ${newCount} profiles, Reconciled ${updateCount} records. S2S Reminders updated successfully.`]);
+      try {
+        await addDoc(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'audit', 'imports'), {
+          filename: fileName || 'paste-import.csv',
+          type: 'csv',
+          totalRecords: parsedRows.length,
+          newProfiles: newCount,
+          matchedProfiles: updateCount,
+          userId: currentUser?.uid,
+          username: currentUser?.username,
+          timestamp: serverTimestamp(),
+        });
+      } catch (auditErr) {
+        console.warn('Import audit log failed:', auditErr);
+      }
+
       onSuccess?.(`Import completed: Processed ${parsedRows.length} CRM records.`);
       
       setCsvText('');
@@ -584,30 +794,48 @@ export default function AdminPanel({
   useEffect(() => {
     if (!currentUser) return;
 
-    let q = query(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users'));
-    
-    // Scoped query for managers to comply with security rules
-    if (currentUser.role !== 'admin' && currentUser.isManager && currentUser.dealershipId) {
-      q = query(
-        collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users'),
-        where('dealershipId', '==', currentUser.dealershipId)
-      );
-    }
+    const scopeTenantId = tenantIdFromDealershipId(
+      currentDealershipId || resolveUserTenantId(currentUser)
+    );
 
-    const unsubscribe = onSnapshot(q, 
+    const usersRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users');
+    const scopedDealershipId = getTenantProfile(scopeTenantId)?.dealershipId;
+
+    const q = scopedDealershipId
+      ? query(usersRef, where('tenantId', '==', scopeTenantId))
+      : query(usersRef, where('tenantId', '==', scopeTenantId));
+
+    const unsubscribe = onSnapshot(
+      q,
       (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+        const usersData = snapshot.docs
+          .map((docSnap) => normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() }))
+          .filter((u) => userBelongsToTenant(u, scopeTenantId));
         setUsers(usersData);
         setLoading(false);
       },
-      (error) => {
-        console.error("AdminPanel Snapshot Error:", error);
+      async (error) => {
+        console.error('AdminPanel Snapshot Error:', error);
+        if (!scopedDealershipId) {
+          setLoading(false);
+          return;
+        }
+        try {
+          const legacyQuery = query(usersRef, where('dealershipId', '==', scopedDealershipId));
+          const legacySnap = await getDocs(legacyQuery);
+          const usersData = legacySnap.docs
+            .map((docSnap) => normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() }))
+            .filter((u) => userBelongsToTenant(u, scopeTenantId));
+          setUsers(usersData);
+        } catch (legacyError) {
+          console.error('AdminPanel legacy user query failed:', legacyError);
+        }
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, currentDealershipId]);
 
   const [confirmDeleteUid, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -616,13 +844,13 @@ export default function AdminPanel({
       if (!currentUser) return;
       
       // Managers cannot approve other managers
-      if (currentUser.role !== 'admin' && userToUpdate?.isManager) {
+      if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
         onError?.("Permission denied. Only system admins can approve manager accounts.");
         return;
       }
 
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
-      await updateDoc(userRef, { status });
+      await updateDoc(userRef, buildUserApprovalPatch(userToUpdate || { role: 'pending', status: 'pending' }, status));
 
       await logSystemAction(
         "User Status Approved/Rejected",
@@ -638,18 +866,86 @@ export default function AdminPanel({
     }
   };
 
-  const updateUserRole = async (uid: string, role: Role, userToUpdate?: User) => {
+
+  const rejectPendingUser = async (userToUpdate: User) => {
     try {
       if (!currentUser) return;
-      
-      // Safety check
-      if (currentUser.role !== 'admin' && userToUpdate?.isManager) {
+      if (isProtectedUser(userToUpdate)) {
+        onError?.('This account is protected and cannot be modified.');
+        return;
+      }
+      if (panelMode === 'admin' && !isPendingManagerEnrollment(userToUpdate)) {
+        onError?.('Only pending manager enrollments can be revoked here.');
+        return;
+      }
+      if (panelMode === 'manager' && !isPendingStaffEnrollment(userToUpdate)) {
+        onError?.('Only pending sales and service enrollments can be revoked here.');
+        return;
+      }
+      const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', userToUpdate.uid);
+      await deleteDoc(userRef);
+      await logSystemAction(
+        'Enrollment Revoked',
+        `Removed pending enrollment for ${userToUpdate.username} (${userToUpdate.email})`,
+        'settings',
+        currentUser.email,
+        currentUser.username,
+        currentUser.dealershipId || userToUpdate.dealershipId
+      );
+      onSuccess?.(`${userToUpdate.username} removed from pending enrollments.`);
+    } catch (error) {
+      onError?.('Failed to revoke enrollment.');
+      console.error('Error revoking pending user:', error);
+    }
+  };
+
+  const updateManagerAdminPermission = async (
+    uid: string,
+    permission: ManagerAdminPermission,
+    userToUpdate?: User
+  ) => {
+    try {
+      if (!currentUser) return;
+
+      if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
         onError?.("Managers cannot modify other managers.");
         return;
       }
 
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
-      await updateDoc(userRef, { role, isManager: role === 'Manager' || role === 'admin' });
+      await updateDoc(userRef, buildManagerAdminRolePatch(permission));
+
+      await logSystemAction(
+        "User Role Updated",
+        `Updated permission of user ${userToUpdate?.username || uid} to ${permission}`,
+        'settings',
+        currentUser.email,
+        currentUser.username,
+        currentUser.dealershipId
+      );
+    } catch (error) {
+      onError?.("Permission denied. Insufficient administrative level.");
+      console.error("Error updating manager permission:", error);
+    }
+  };
+
+
+  const updateStaffRole = async (uid: string, role: Role, userToUpdate?: User) => {
+    try {
+      if (!currentUser) return;
+
+      if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
+        onError?.("Managers cannot modify other managers.");
+        return;
+      }
+
+      const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
+      const isSales = role === 'Salesperson';
+      await updateDoc(userRef, {
+        role: 'advisor',
+        department: isSales ? 'sales' : 'service',
+        isManager: false,
+      });
 
       await logSystemAction(
         "User Role Updated",
@@ -665,9 +961,16 @@ export default function AdminPanel({
     }
   };
 
-  const deleteUser = async (uid: string) => {
+  const deleteUser = async (uid: string, userToUpdate?: User) => {
     try {
       if (!currentUser) return;
+
+      const target = userToUpdate || users.find((u) => u.uid === uid);
+      if (target && (isProtectedUser(target) || !canModifyUser(currentUser, target))) {
+        onError?.('This user cannot be removed.');
+        setConfirmDeleteId(null);
+        return;
+      }
       
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
       await deleteDoc(userRef);
@@ -695,90 +998,94 @@ export default function AdminPanel({
     u.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const pendingUsers = filteredUsers.filter(u => u.status === 'pending');
-  const activeUsers = filteredUsers.filter(u => u.status === 'approved' || u.status === 'rejected');
+  const pendingUsers = filteredUsers.filter((u) => {
+    if (!isPendingUser(u) || u.status === 'rejected') return false;
+    if (panelMode === 'admin') return isPendingManagerEnrollment(u);
+    if (panelMode === 'manager') return isPendingStaffEnrollment(u);
+    return true;
+  });
+  const activeUsers = filteredUsers.filter((u) => {
+    if (isPendingUser(u) || u.status === 'rejected') return false;
+    if (panelMode === 'admin') return u.role === 'manager' || u.role === 'Manager' || u.isManager === true;
+    if (panelMode === 'manager') return u.role !== 'manager' && u.role !== 'Manager' && u.role !== 'admin' && u.isManager !== true;
+    return true;
+  });
 
-  const subTab = activeSubTab || 'operations';
+  const subTab = activeSubTab || (panelMode === 'admin' ? 'users' : 'operations');
+  const sectionMeta = getPanelSectionMeta(subTab, panelMode);
 
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
-      {/* 1. Header with Title + Description */}
+    <div className="space-y-8 animate-fade-in pb-20 max-w-4xl mx-auto w-full">
       <div className="border-b border-white/5 pb-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
           <div>
-            <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5 select-none md:mb-1">
-              <Shield size={12} className="text-brand-primary animate-pulse w-3 h-3" />
-              Secure Administrative Access Point
+            <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5 select-none">
+              <Shield size={12} className="text-brand-primary w-3 h-3" />
+              {sectionMeta.eyebrow}
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight uppercase leading-none">System Administration</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight uppercase leading-none">
+              {sectionMeta.title}
+            </h2>
           </div>
-          
-          <div className="bg-slate-950/40 border border-white/5 rounded-2xl px-4 py-3 max-w-lg w-full lg:w-auto mt-2 lg:mt-0 shadow-lg select-none">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider italic leading-relaxed">
-              {subTab === 'operations' && "Configure dealership daily throughput, gross parts & labor dollar targets."}
-              {subTab === 'users' && "Manage system permission tiers, account access, & registration flows."}
-              {subTab === 'logs' && "Real-time forensic audit logs of user actions on the app."}
-              {subTab === 'preferences' && "Personal workspace settings for contact workflow, modules, and CRM display."}
+          <div className="bg-slate-950/40 border border-white/5 rounded-2xl px-4 py-3 max-w-lg w-full lg:w-auto shadow-lg">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
+              {sectionMeta.description}
             </p>
           </div>
         </div>
       </div>
 
-      {/* 2. Sleek Segmented glass navigation bar */}
-      <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
-        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-          {[
-            { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
-            { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
-            { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
-            { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
-          ].map(tab => {
-            const Icon = tab.icon;
-            const isSelected = subTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onChangeSubTab?.(tab.id as any)}
-                className={cn(
-                  "flex flex-col items-start gap-1 px-4 py-3 rounded-[16px] transition-all duration-300 border text-left select-none relative group w-full",
-                  isSelected
-                    ? "bg-brand-primary text-slate-950 border-brand-primary shadow-lg shadow-brand-primary/10 font-bold"
-                    : "bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-white/5"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <Icon size={13} className={isSelected ? "text-slate-950" : "text-brand-primary group-hover:scale-110 transition-transform"} />
-                  <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
-                </div>
-                <span className={cn(
-                  "text-[8px] font-bold uppercase tracking-widest leading-none mt-1",
-                  isSelected ? "text-slate-950/70" : "text-slate-500 group-hover:text-slate-400"
-                )}>
-                  {tab.desc}
-                </span>
-                {isSelected && (
-                  <span className="absolute bottom-1 right-2 w-1.5 h-1.5 rounded-full bg-slate-950"></span>
-                )}
-              </button>
-            );
-          })}
+      {panelMode === 'full' && (
+        <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              { id: 'operations', label: 'Operations', icon: Target, desc: 'Operational Targets' },
+              { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
+              { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
+              { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
+            ] as const).map(tab => {
+              const Icon = tab.icon;
+              const isSelected = subTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => onChangeSubTab?.(tab.id as any)}
+                  className={cn(
+                    "flex flex-col items-start gap-1 px-4 py-3 rounded-[16px] transition-all duration-300 border text-left select-none relative group w-full",
+                    isSelected
+                      ? "bg-brand-primary text-slate-950 border-brand-primary shadow-lg shadow-brand-primary/10 font-bold"
+                      : "bg-transparent border-transparent text-slate-400 hover:text-white hover:bg-white/5"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon size={13} className={isSelected ? "text-slate-950" : "text-brand-primary group-hover:scale-110 transition-transform"} />
+                    <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
+                  </div>
+                  <span className={cn(
+                    "text-[8px] font-bold uppercase tracking-widest leading-none mt-1",
+                    isSelected ? "text-slate-950/70" : "text-slate-500 group-hover:text-slate-400"
+                  )}>
+                    {tab.desc}
+                  </span>
+                  {isSelected && (
+                    <span className="absolute bottom-1 right-2 w-1.5 h-1.5 rounded-full bg-slate-950"></span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 2. Sub-tab Content Panels */}
+      {/* Sub-tab Content Panels */}
 
       {/* OPERATIONS TARGETS PANEL */}
       {subTab === 'operations' && (
         <div className="space-y-4 animate-in fade-in duration-300">
-          <div className="flex items-center gap-3 text-brand-primary">
-            <Target size={20} />
-            <h3 className="text-lg font-black uppercase tracking-widest text-white">Dealership Operations Settings</h3>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {DEALERSHIPS.filter(d => d.id === currentDealershipId).map(d => {
-              // Managers can only see/edit their own dealership settings
+            {DEALERSHIPS.filter((d) => d.id === currentDealershipId).map((d) => {
+              // Operation settings are scoped to the selected dealership only
               if (currentUser?.role !== 'admin' && currentUser?.dealershipId !== d.id) return null;
 
               const appTarget = localAppTargets[d.id] ?? (dealershipSettings[d.id]?.appointmentTarget || 20);
@@ -787,7 +1094,7 @@ export default function AdminPanel({
               
               return (
                 <div key={d.id} className={cn(
-                  "card-base p-6 transition-all duration-500 border-brand-primary bg-brand-primary/5 ring-1 ring-brand-primary/20 col-span-full"
+                  "card-base rounded-3xl border border-white/5 overflow-hidden p-6 col-span-full"
                 )}>
                   <div className="flex flex-col gap-6">
                     <div className="flex items-center justify-between">
@@ -910,7 +1217,7 @@ export default function AdminPanel({
                           </p>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
                             <select
-                              value={(dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER}
+                              value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
                               onChange={(e) => updateSetting(d.id, { dmsProvider: e.target.value as DmsProviderId })}
                               className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer"
                             >
@@ -925,7 +1232,7 @@ export default function AdminPanel({
                             </span>
                           </div>
                           <p className="text-[9px] text-slate-600 leading-relaxed max-w-xl">
-                            {DMS_PROVIDERS.find((provider) => provider.id === ((dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER))?.description}
+                            {DMS_PROVIDERS.find((provider) => provider.id === (normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)))?.description}
                           </p>
                         </div>
 
@@ -981,6 +1288,47 @@ export default function AdminPanel({
                               Save Roster
                             </button>
                           </div>
+                        </div>
+
+                        {/* DMS + Advisor Roster (productivity imports) */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">DMS Report Parser</label>
+                          <select
+                            value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
+                            onChange={(e) => {
+                              const next = e.target.value as DmsProviderId;
+                              const patch: Record<string, unknown> = { dmsProvider: next };
+                              if (
+                                next === 'dealerbuilt' &&
+                                !dealershipSettings[d.id]?.performanceAdvisorRoster?.length
+                              ) {
+                                patch.performanceAdvisorRoster =
+                                  defaultPerformanceAdvisorRoster(d.id) ?? FORD_PERFORMANCE_ADVISOR_ROSTER;
+                              }
+                              updateSetting(d.id, patch);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                          >
+                            {DMS_PROVIDERS.map((p) => (
+                              <option key={p.id} value={p.id}>{p.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[10px] text-slate-500 leading-relaxed">
+                            {DMS_PROVIDERS.find((p) => p.id === (dealershipSettings[d.id]?.dmsProvider || defaultDmsProviderForDealership(d.id)))?.description}
+                            {' '}Use <strong className="text-slate-400">DealerBuilt</strong> for Santa Maria Ford scanned Service Advisor Performance PDFs.
+                          </p>
+                          {(dealershipSettings[d.id]?.performanceAdvisorRoster?.length ?? 0) > 0 && (
+                            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Productivity advisors</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(dealershipSettings[d.id]?.performanceAdvisorRoster || []).map((slot: { id: string; label: string }) => (
+                                  <span key={slot.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40">
+                                    {slot.label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Dispatch Toggle Feature Switch */}
@@ -1102,8 +1450,7 @@ export default function AdminPanel({
               );
             })}
           </div>
-
-          {/* CRM DATABASE IMPORTER */}
+                    {/* CRM DATABASE IMPORTER */}
           <div className="card-base p-6 border-slate-800 bg-slate-950/20 backdrop-blur-3xl col-span-full mt-6 space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
               <Database size={20} className="text-brand-secondary/80" />
@@ -1272,15 +1619,15 @@ export default function AdminPanel({
         </div>
       )}
 
+      {subTab === 'master-users' && panelMode === 'admin' && (
+        <MasterUserSettings onSuccess={onSuccess} onError={onError} />
+      )}
+
       {/* USER SETTINGS / ROLES PANEL */}
       {subTab === 'users' && (
         <div className="space-y-8 animate-in fade-in duration-300">
           {/* Header containing the User search widget inside the tab section */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-            <h3 className="text-lg font-black uppercase tracking-widest text-slate-300 flex items-center gap-2">
-              <Users size={18} /> User Access Matrix
-            </h3>
-            
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 border-b border-white/5 pb-4">
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-primary" size={14} />
               <input
@@ -1326,7 +1673,7 @@ export default function AdminPanel({
                           <UserCheck size={16} />
                         </button>
                         <button 
-                          onClick={() => updateUserStatus(user.uid, 'rejected', user)}
+                          onClick={() => rejectPendingUser(user)}
                           className="p-2 bg-slate-800 text-rose-500 rounded-xl hover:scale-105 transition-all"
                           title="Reject User"
                         >
@@ -1378,20 +1725,36 @@ export default function AdminPanel({
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <select 
-                              value={user.role}
-                              onChange={(e) => updateUserRole(user.uid, e.target.value as Role, user)}
-                              className={cn(
-                                "bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary",
-                                user.role === 'admin' ? "text-brand-primary" : "text-slate-400"
-                              )}
-                            >
-                              <option value="admin">System Admin</option>
-                              <option value="Manager">Manager</option>
-                              <option value="Salesperson">Sales Professional</option>
-                              <option value="Service Advisor">Service Advisor</option>
-                              <option value="Staff">Staff</option>
-                            </select>
+                            {panelMode === 'admin' ? (
+                              <select
+                                value={managerAdminPermissionFromUser(user)}
+                                onChange={(e) =>
+                                  updateManagerAdminPermission(
+                                    user.uid,
+                                    e.target.value as ManagerAdminPermission,
+                                    user
+                                  )
+                                }
+                                className={cn(
+                                  'bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary',
+                                  user.role === 'admin' ? 'text-brand-primary' : 'text-slate-400'
+                                )}
+                              >
+                                <option value="manager">Manager</option>
+                                <option value="admin">System Admin</option>
+                              </select>
+                            ) : (
+                              <select
+                                value={user.role}
+                                onChange={(e) => updateStaffRole(user.uid, e.target.value as Role, user)}
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary text-slate-400"
+                              >
+                                <option value="advisor">Service Advisor</option>
+                                <option value="Staff">Staff</option>
+                                <option value="Salesperson">Sales Professional</option>
+                                <option value="Service Advisor">Service Advisor (legacy)</option>
+                              </select>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -1439,9 +1802,20 @@ export default function AdminPanel({
       {/* SYSTEM TRAILS / LOGS */}
       {subTab === 'preferences' && (
         <SettingsPage
+          embedded
           onNavigate={(tab) => onNavigateTab?.(tab)}
           onNotify={(msg, isError) => (isError ? onError?.(msg) : onSuccess?.(msg))}
+          currentDealershipId={currentDealershipId}
+          onDealershipChange={onDealershipChange}
         />
+      )}
+
+      {subTab === 'ai-usage' && panelMode === 'admin' && (
+        <AiUsageLogsPanel />
+      )}
+
+      {subTab === 'import-history' && panelMode === 'admin' && (
+        <ImportHistoryPanel />
       )}
 
       {subTab === 'logs' && (

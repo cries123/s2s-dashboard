@@ -7,7 +7,7 @@ import { User } from '../../../types';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
-import { DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { 
   FileUp, Clock, User as UserIcon, Gauge, Plus, Trash2, Loader2, 
   CheckCircle2, TrendingUp, UserPlus, Edit2, Save, RotateCcw, Sparkles 
@@ -145,7 +145,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     return onSnapshot(settingsRef, (snap) => {
       if (snap.exists()) {
-        setDmsProvider((snap.data().dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER);
+        setDmsProvider(normalizeDmsProvider(snap.data().dmsProvider as string));
       }
     });
   }, [currentDealershipId]);

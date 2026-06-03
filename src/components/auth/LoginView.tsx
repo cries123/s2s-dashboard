@@ -4,26 +4,47 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail 
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { cn } from '../../lib/utils';
 import { 
   LayoutDashboard, Mail, Lock, User as UserIcon, Briefcase, 
-  ArrowRight, Loader2, ShieldCheck, Database 
+  ArrowRight, Loader2, ShieldCheck, Building2
 } from 'lucide-react';
-import { DEALERSHIPS } from '../../constants';
+import { TENANT_PROFILES } from '../../lib/tenants';
+import { dealershipIdFromTenantId } from '../../lib/tenants';
+import { resolveEnrollmentJoinCode } from '../../lib/dealershipSettingsUtils';
+import type { UserDepartment } from '../../types';
+import { logAuditAction } from '../../services/loggingService';
 
 export default function LoginView() {
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
-  const [dealershipId, setDealershipId] = useState('');
+  const [tenantId, setTenantId] = useState('');
+  const [department, setDepartment] = useState<UserDepartment | 'manager' | ''>('');
   const [joinCode, setJoinCode] = useState('');
-  const [isManagerRequested, setIsManagerRequested] = useState(false);
+  const [joinCodesByDealership, setJoinCodesByDealership] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(
+          collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings')
+        );
+        const map: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          map[d.id] = resolveEnrollmentJoinCode(d.id, d.data() as any);
+        });
+        setJoinCodesByDealership(map);
+      } catch {
+        /* fallback to constants at validation time */
+      }
+    })();
+  }, []);
 
   const showMessage = (text: string, isError = false) => {
     setMessage({ text, isError });
@@ -46,33 +67,59 @@ export default function LoginView() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Validate join code
-      const selectedDealership = DEALERSHIPS.find(d => d.id === dealershipId);
-      if (!selectedDealership) {
-        throw new Error("Please select a dealership.");
+      const profile = TENANT_PROFILES.find((t) => t.tenantId === tenantId);
+      if (!profile) {
+        throw new Error('Please select a dealership profile.');
       }
-      if (selectedDealership.code !== joinCode.toUpperCase().trim()) {
-        throw new Error(`Invalid join code for ${selectedDealership.name}.`);
+      if (!department) {
+        throw new Error('Please select your department.');
       }
 
       const isPrimaryAdmin = email.toLowerCase() === 'admin@hyundai.com';
-      const isNewAdmin = isPrimaryAdmin;
+      if (!isPrimaryAdmin) {
+        const dealershipIdForCode = dealershipIdFromTenantId(profile.tenantId);
+        const expected = joinCodesByDealership[dealershipIdForCode] || resolveEnrollmentJoinCode(dealershipIdForCode, null);
+        if (expected && joinCode.trim().toUpperCase() !== expected) {
+          throw new Error('Invalid enrollment join code for this dealership.');
+        }
+      }
+      const isManagerEnrollment = department === 'manager';
       
       const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const dealershipId = dealershipIdFromTenantId(profile.tenantId);
       
       await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', cred.user.uid), {
         uid: cred.user.uid,
         email: cred.user.email,
-        username: isNewAdmin ? 'Primary Admin' : username,
-        role: isNewAdmin ? 'admin' : (isManagerRequested ? 'Manager' : 'Staff'),
-        isManager: isNewAdmin || isManagerRequested,
-        status: isNewAdmin ? 'approved' : 'pending',
-        jobTitle: isNewAdmin ? 'Master Administrator' : jobTitle,
-        dealershipId: dealershipId,
+        username: isPrimaryAdmin ? 'Primary Admin' : username,
+        tenantId: profile.tenantId,
+        dealershipId,
+        department: isManagerEnrollment ? 'service' : department,
+        role: isPrimaryAdmin ? 'admin' : (isManagerEnrollment ? 'manager' : 'pending'),
+        approved: isPrimaryAdmin,
+        status: isPrimaryAdmin ? 'approved' : 'pending',
+        isManager: isPrimaryAdmin || isManagerEnrollment,
+        jobTitle: isManagerEnrollment
+          ? 'Manager'
+          : department === 'sales'
+            ? 'Sales Professional'
+            : 'Service Advisor',
         createdAt: new Date()
       });
+
+      await logAuditAction(
+        'User Enrollment',
+        `${username} (${email}) requested access — ${profile.name}, ${department}`,
+        profile.tenantId,
+        { uid: cred.user.uid, email: cred.user.email || email, username }
+      );
       
-      showMessage("Enrollment request sent. Approved managers or system admins will grant access soon.", false);
+      showMessage(
+        isManagerEnrollment
+          ? 'Manager enrollment submitted. The primary system administrator must approve your account.'
+          : 'Enrollment submitted. A manager must approve your account before you can access the dashboard.',
+        false
+      );
       setMode('login');
     } catch (err: any) {
       showMessage(err.message, true);
@@ -86,7 +133,7 @@ export default function LoginView() {
     setIsLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      showMessage("Password reset email sent.", false);
+      showMessage('Password reset email sent.', false);
       setMode('login');
     } catch (err: any) {
       showMessage(err.message, true);
@@ -103,7 +150,7 @@ export default function LoginView() {
             <LayoutDashboard className="text-white" size={32} />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">S2S<span className="text-brand-primary"> Dashboard</span></h1>
-          <p className="text-slate-400 mt-2 font-medium">Hyundai Sales-to-Service Intelligence</p>
+          <p className="text-slate-400 mt-2 font-medium">Sales-to-Service Intelligence Platform</p>
         </div>
 
         <div className="card-base bg-surface-base/50 backdrop-blur-xl border-surface-border overflow-hidden">
@@ -154,11 +201,7 @@ export default function LoginView() {
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field pl-12" placeholder="••••••••" />
                   </div>
                 </div>
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="w-full btn-primary py-4 mt-4"
-                >
+                <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4">
                   {isLoading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-2">Authorize System <ArrowRight size={18} /></span>}
                 </button>
                 <div className="text-center mt-6">
@@ -175,7 +218,7 @@ export default function LoginView() {
                   <label className="input-label">Full Name</label>
                   <div className="relative">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="input-field pl-12" placeholder="John Wick" />
+                    <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="input-field pl-12" placeholder="Jane Smith" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -186,68 +229,56 @@ export default function LoginView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Select Dealership</label>
+                  <label className="input-label">Dealership Profile</label>
                   <div className="relative">
-                    <Database className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <select 
-                      value={dealershipId} 
-                      onChange={e => setDealershipId(e.target.value)} 
+                      value={tenantId} 
+                      onChange={e => setTenantId(e.target.value)} 
                       required 
                       className="input-field pl-12 appearance-none"
                     >
-                      <option value="">-- Choose Location --</option>
-                      {DEALERSHIPS.map(d => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
+                      <option value="">-- Select Profile --</option>
+                      {TENANT_PROFILES.map(t => (
+                        <option key={t.tenantId} value={t.tenantId}>{t.name}</option>
                       ))}
                     </select>
                   </div>
+                  <p className="text-[9px] text-slate-500 font-medium">Nissan/Mazda and Ford/Lincoln share a dashboard layout; Hyundai is isolated.</p>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Organization Role</label>
+                  <label className="input-label">Department</label>
                   <div className="relative">
                     <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <select value={jobTitle} onChange={e => setJobTitle(e.target.value)} required className="input-field pl-12 appearance-none">
-                      <option value="">-- Identity Type --</option>
-                      <option value="Salesperson">Sales Professional</option>
-                      <option value="Service Advisor">Service Advisor</option>
-                      <option value="Porter">Porter / Driver</option>
-                      <option value="Office">Office Personnel</option>
+                    <select 
+                      value={department} 
+                      onChange={e => setDepartment(e.target.value as UserDepartment)} 
+                      required 
+                      className="input-field pl-12 appearance-none"
+                    >
+                      <option value="">-- Select Department --</option>
+                      <option value="sales">Sales</option>
+                      <option value="service">Service</option>
+                      <option value="manager">Manager</option>
                     </select>
                   </div>
                 </div>
-                <div className="space-y-3 p-4 bg-slate-900/50 rounded-2xl border border-white/5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                       <ShieldCheck className={cn("transition-colors", isManagerRequested ? "text-brand-primary" : "text-slate-500")} size={16} />
-                       <span className="text-[10px] font-black text-white uppercase tracking-widest">Enroll as Manager</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={isManagerRequested} 
-                        onChange={e => setIsManagerRequested(e.target.checked)} 
-                        className="sr-only peer" 
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-primary"></div>
-                    </label>
-                  </div>
-                  {isManagerRequested && (
-                    <p className="text-[9px] text-slate-500 font-medium italic">Manager accounts must be verified by a system administrator.</p>
-                  )}
-                </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Dealership Join Code</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input 
-                      type="text" 
-                      value={joinCode} 
-                      onChange={e => setJoinCode(e.target.value)} 
-                      required 
-                      className="input-field pl-12 uppercase" 
-                      placeholder="Enter dealership code" 
-                    />
-                  </div>
+                  <label className="input-label">Enrollment Join Code</label>
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    required
+                    className="input-field uppercase font-mono tracking-widest"
+                    placeholder="Provided by your manager"
+                  />
+                </div>
+                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
+                  <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={16} />
+                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                    Choose Sales or Service for manager approval at your dealership, or Manager for primary administrator review.
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="input-label">Create Password</label>
@@ -256,12 +287,8 @@ export default function LoginView() {
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="input-field pl-12" placeholder="••••••••" />
                   </div>
                 </div>
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="w-full btn-primary py-4 mt-4 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
-                >
-                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : "Request Enrollment"}
+                <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20">
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Request Enrollment'}
                 </button>
               </form>
             )}
@@ -275,12 +302,8 @@ export default function LoginView() {
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="w-full btn-primary py-4 mt-4"
-                >
-                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : "Send Reset Protocol"}
+                <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4">
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send Reset Protocol'}
                 </button>
                 <div className="text-center mt-6">
                   <button type="button" onClick={() => setMode('login')} className="text-xs font-bold text-slate-500 hover:text-brand-primary uppercase tracking-widest transition-colors">
@@ -293,7 +316,7 @@ export default function LoginView() {
         </div>
         
         <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em] mt-10">
-          SECURE PROPRIETARY ACCESS • HYUNDAI MOTORS AMERICA
+          SECURE MULTI-TENANT ACCESS • S2S DASHBOARD
         </p>
       </div>
     </div>

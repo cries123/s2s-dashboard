@@ -29,7 +29,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     showForecastTab: true,
     showSalesPerformanceTab: true,
     showVinSearchTab: true,
-    showRecallsTab: true,
     showPotOfGoldTab: true,
   },
   crmDisplay: {
@@ -126,7 +125,6 @@ export function isValidLandingTab(value: string): value is LandingTab {
     'search',
     'add',
     'dispatch',
-    'recalls',
     'forecast',
     'sales-performance',
     'pot-of-gold',

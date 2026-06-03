@@ -15,6 +15,9 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   appointmentTrackerDocId,
@@ -67,6 +70,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [mtdPartsGross, setMtdPartsGross] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [pdfParsePreview, setPdfParsePreview] = useState<{
     fileName: string;
     reportDate: string;
@@ -248,6 +252,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
+        setDmsProvider(normalizeDmsProvider(data.dmsProvider as string));
       }
     });
 
@@ -473,7 +478,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       const response = await fetch('/api/parse-appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText, pdfBase64 }),
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText, pdfBase64 })),
       });
 
       if (!response.ok) {
@@ -504,7 +509,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       const sumBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
       const totalCount = sumBreakdown > 0 ? sumBreakdown : (rawData.total || 0);
       if (totalCount === 0) {
-        throw new Error('No appointments found in this PDF. Use a PBS Appointment Details report for the selected day.');
+        throw new Error(`No appointments found in this PDF. Use a ${dmsProvider === 'dealerbuilt' ? 'DealerBuilt' : 'PBS'} appointment report for the selected day.`);
       }
 
       const reportDate =

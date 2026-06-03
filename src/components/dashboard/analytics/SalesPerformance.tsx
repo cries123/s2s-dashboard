@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Customer, User } from '../../../types';
 import { 
   Trophy, 
-  TrendingUp, 
   Users, 
   Car, 
   Search, 
@@ -129,22 +128,14 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
   }, [salesmanData, selectedSalesman]);
 
   // Top overall stats
-  const overallMetrics = useMemo(() => {
-    const totalDeliveries = dealershipCustomers.length;
-    const activeServiceOpportunityCount = dealershipCustomers.filter(isServiceAlertActive).length;
-    const retentionRate = totalDeliveries > 0 ? Math.round(((totalDeliveries - activeServiceOpportunityCount) / totalDeliveries) * 100) : 100;
-
-    return {
-      totalDeliveries,
-      activeServiceOpportunityCount,
-      retentionRate
-    };
-  }, [dealershipCustomers]);
+  const overallMetrics = useMemo(() => ({
+    totalDeliveries: dealershipCustomers.length,
+  }), [dealershipCustomers]);
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Overview Stats Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Metric 1 */}
         <div className="card-base p-6 border-slate-800 bg-slate-950/20 backdrop-blur-3xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-brand-primary">
@@ -160,20 +151,6 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
         </div>
 
         {/* Metric 2 */}
-        <div className="card-base p-6 border-slate-800 bg-slate-950/20 backdrop-blur-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-brand-secondary">
-            <TrendingUp size={80} />
-          </div>
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Average S2S Service Retention</p>
-          <h3 className="text-3xl font-black text-brand-secondary tracking-tighter mt-2.5">
-            {overallMetrics.retentionRate}%
-          </h3>
-          <p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">
-            Percentage of salesperson clients in good standing with recent contact or maintenance visits.
-          </p>
-        </div>
-
-        {/* Metric 3 */}
         <div className="card-base p-6 border-brand-primary/10 bg-brand-primary/5 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-brand-primary">
             <Trophy size={80} />

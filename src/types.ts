@@ -13,69 +13,6 @@ export interface User {
   dealershipId?: string;
   isManager?: boolean;
   createdAt?: Timestamp;
-  preferences?: UserPreferences;
-}
-
-export type LandingTab =
-  | 'service-drive'
-  | 'appointments'
-  | 'alerts'
-  | 'search'
-  | 'add'
-  | 'dispatch'
-  | 'forecast'
-  | 'sales-performance'
-  | 'pot-of-gold'
-  | 'vin-search'
-  | 'admin'
-  | 'settings';
-
-export type ServiceDriveFilter = 'all' | 'service_due' | 'stale_followup';
-
-export type QueuePriorityProfile = 'balanced' | 'overdue_first' | 'never_contacted_first';
-
-export type CrmDensity = 'compact' | 'standard';
-
-export type LanguageFilter = 'all' | 'english' | 'spanish';
-
-export interface ServiceDrivePreferences {
-  openOnLogin: boolean;
-  defaultLandingTab: LandingTab;
-  defaultFilter: ServiceDriveFilter;
-  queuePriority: QueuePriorityProfile;
-}
-
-export interface ContactWorkflowPreferences {
-  followUpDays: number;
-  defaultOutcome: string;
-  autoCheckAppointmentSet: boolean;
-}
-
-export interface DashboardModulePreferences {
-  showWeatherWidget: boolean;
-  showOperationsKpis: boolean;
-  showOperationsProjections: boolean;
-  showAdvisorPerformance: boolean;
-  showTechEfficiency: boolean;
-  showArchiveTools: boolean;
-  showForecastTab: boolean;
-  showSalesPerformanceTab: boolean;
-  showVinSearchTab: boolean;
-  showRecallsTab: boolean;
-  showPotOfGoldTab: boolean;
-}
-
-export interface CrmDisplayPreferences {
-  density: CrmDensity;
-  defaultLanguageFilter: LanguageFilter;
-  alertsOnlyDefault: boolean;
-}
-
-export interface UserPreferences {
-  serviceDrive: ServiceDrivePreferences;
-  contactWorkflow: ContactWorkflowPreferences;
-  dashboardModules: DashboardModulePreferences;
-  crmDisplay: CrmDisplayPreferences;
 }
 
 export interface Dealership {
@@ -85,27 +22,20 @@ export interface Dealership {
   createdAt: Timestamp;
 }
 
-export type DispatchProductionLaneId =
-  | 'lube'
-  | 'quick_service'
-  | 'ac_electrical'
-  | 'heavyline'
-  | 'diesel'
-  | 'trans'
-  | 'mobile_repair';
+export interface PerformanceAdvisorSlot {
+  id: string;
+  label: string;
+}
 
 export interface DealershipSettings {
   id: string;
   appointmentTarget: number;
   laborGrossTarget?: number;
   partsSalesTarget?: number;
-  enableDispatchTab?: boolean;
-  /** Pot of Gold / competition column config (slug id + display label) */
-  competitionAdvisors?: { id: string; label: string }[];
-  dmsProvider?: import('./constants/dmsProviders').DmsProviderId;
-  dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
-  dispatchShowTodayLoad?: boolean;
-  dispatchBlockWhenFull?: boolean;
+  /** PBS Systems vs DealerBuilt report layouts */
+  dmsProvider?: 'pbs' | 'dealerbuilt';
+  /** Allowed service advisors for productivity imports (DealerBuilt) */
+  performanceAdvisorRoster?: PerformanceAdvisorSlot[];
   updatedAt: Timestamp;
 }
 
@@ -225,9 +155,7 @@ export interface DispatchRepairOrder {
   id: string;
   roNumber: string;
   techNumber: string;
-  customerLastName?: string;
-  vinLastEight?: string;
-  customerId?: string;
+  vinLastEight: string;
   department: DepartmentColumnId;
   status: 'WIP' | 'DIS' | 'POO' | 'WFA';
   isCompleted: boolean;
@@ -259,19 +187,3 @@ export interface ArchivePayload {
   };
 }
 
-
-
-/** Why a customer appears on the Service Drive work queue */
-export type ServiceDriveReason = 'service_due' | 'stale_followup';
-
-export type ServiceDrivePriority = 'urgent' | 'high' | 'medium' | 'normal';
-
-/** Unified advisor work-queue row (service alerts + follow-ups) */
-export interface WorkQueueItem {
-  customer: Customer;
-  score: number;
-  reasons: ServiceDriveReason[];
-  daysOverdue: number;
-  daysSinceContact: number | null;
-  priority: ServiceDrivePriority;
-}

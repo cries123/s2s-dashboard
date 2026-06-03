@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
+  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers, ShieldAlert,
   BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,20 +26,25 @@ import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
+import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
-import { isServiceAlertActive } from './lib/alerts';
-import {
-  type AppTab,
-  type AdminSubTab,
-  resolveRoute,
-  navigateToTab,
-} from './lib/appRoutes';
-import { defaultTabForRole } from './lib/roleHome';
-import { filterTabsForRole } from './lib/roleNav';
+import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
+
+import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
 import { DEALERSHIPS } from './constants';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
+import {
+  type AdminSubTab,
+  type AppTab,
+  parseAppRoute,
+  readInitialAppRoute,
+  readStoredDealershipId,
+  storeDealershipId,
+  syncAppRoute,
+} from './lib/appNavigation';
+
 
 interface NavDropdownProps {
   label: string;
@@ -144,9 +149,13 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 export default function App() {
   const { user, loading: authLoading } = useAuth();
   const [minLoading, setMinLoading] = useState(true);
-  
-  const [activeTab, setActiveTab] = useState<AppTab>('add');
-  const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>('operations');
+
+  const initialRoute = React.useMemo(() => readInitialAppRoute(), []);
+
+  const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
+  const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(
+    initialRoute.adminSubTab ?? 'operations'
+  );
 
   // Artificial delay for loading screen
   React.useEffect(() => {
@@ -154,14 +163,39 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
   const [isDealershipDropdownOpen, setIsDealershipDropdownOpen] = useState(false);
-  const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(null);
+  const [currentDealershipId, setCurrentDealershipId] = useState<string | null>(() =>
+    readStoredDealershipId(DEALERSHIPS.map((d) => d.id))
+  );
 
-  // Sync current dealership with user's dealership on load
+  // Sync current dealership with user's dealership on load when none stored
   React.useEffect(() => {
     if (user && !currentDealershipId) {
       setCurrentDealershipId(user.dealershipId || 'hyundai');
     }
   }, [user, currentDealershipId]);
+
+  const selectDealership = React.useCallback((dealershipId: string) => {
+    setCurrentDealershipId(dealershipId);
+    storeDealershipId(dealershipId);
+  }, []);
+
+  // Keep the browser URL in sync so reload restores the current view
+  React.useEffect(() => {
+    syncAppRoute({
+      activeTab,
+      adminSubTab: activeTab === 'admin' ? adminSubTab : undefined,
+    });
+  }, [activeTab, adminSubTab]);
+
+  React.useEffect(() => {
+    const onPopState = () => {
+      const route = parseAppRoute(window.location.pathname);
+      setActiveTab(route.activeTab);
+      if (route.adminSubTab) setAdminSubTab(route.adminSubTab);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const [dealershipSettings, setDealershipSettings] = useState<any>(null);
 
@@ -198,28 +232,24 @@ export default function App() {
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
-    { id: 'pot-of-gold', label: 'Competition', icon: Trophy },
+    ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
     { id: 'vin-search', label: 'VIN Search', icon: Search },
     { id: 'forecast', label: 'Forecast', icon: TrendingUp },
     { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
+    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
-  const roleFilteredTabs = user
-    ? filterTabsForRole(availableTabs, user.role)
-    : availableTabs;
-
   // If current activeTab is hidden, fallback to first available
   React.useEffect(() => {
-    if (!roleFilteredTabs.find(t => t.id === activeTab)) {
-      const fallback = (roleFilteredTabs[0]?.id as AppTab) || defaultTabForRole(user?.role || 'Staff');
-      setActiveTab(fallback);
-      navigateToTab(fallback, 'operations', true);
+    if (!availableTabs.find(t => t.id === activeTab)) {
+      setActiveTab('add');
     }
-  }, [currentDealershipId, activeTab, roleFilteredTabs, user?.role]);
+  }, [currentDealershipId, activeTab, availableTabs]);
 
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
+  const [showInject, setShowInject] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
@@ -227,40 +257,6 @@ export default function App() {
     setNotification({ text, isError });
     setTimeout(() => setNotification(null), 5000);
   };
-
-  const goToTab = React.useCallback((tab: AppTab, subTab: AdminSubTab = 'operations') => {
-    setActiveTab(tab);
-    if (tab === 'admin') {
-      setAdminSubTab(subTab);
-      navigateToTab(tab, subTab);
-    } else {
-      navigateToTab(tab, 'operations');
-    }
-    setIsMobileNavOpen(false);
-  }, []);
-
-  React.useEffect(() => {
-    const syncFromUrl = () => {
-      const { tab, adminSubTab: sub } = resolveRoute(window.location.pathname);
-      if (tab) {
-        setActiveTab(tab);
-        if (tab === 'admin') setAdminSubTab(sub);
-      }
-    };
-    syncFromUrl();
-    window.addEventListener('popstate', syncFromUrl);
-    return () => window.removeEventListener('popstate', syncFromUrl);
-  }, []);
-
-  React.useEffect(() => {
-    if (!user || authLoading) return;
-    const { tab } = resolveRoute(window.location.pathname);
-    if (!tab) {
-      const home = defaultTabForRole(user.role);
-      setActiveTab(home);
-      navigateToTab(home, 'operations', true);
-    }
-  }, [user?.uid, user?.role, authLoading]);
 
   const handleSignOut = () => signOut(auth);
 
@@ -365,7 +361,7 @@ export default function App() {
                       <button
                         key={dealership.id}
                         onClick={() => {
-                          setCurrentDealershipId(dealership.id);
+                          selectDealership(dealership.id);
                           setIsDealershipDropdownOpen(false);
                           showNotification(`Switched to ${dealership.name}`);
                         }}
@@ -400,14 +396,14 @@ export default function App() {
             >
               <NavLink 
                 href="/sales/onboard" 
-                onClick={() => goToTab('add')}
+                onClick={() => setActiveTab('add')}
                 isActive={activeTab === 'add'}
               >
                 Onboard
               </NavLink>
               <NavLink 
                 href="/sales/vin-search" 
-                onClick={() => goToTab('vin-search')}
+                onClick={() => setActiveTab('vin-search')}
                 isActive={activeTab === 'vin-search'}
               >
                 VIN Search
@@ -417,18 +413,18 @@ export default function App() {
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
             >
               <NavLink 
                 href="/service/directory" 
-                onClick={() => goToTab('search')}
+                onClick={() => setActiveTab('search')}
                 isActive={activeTab === 'search'}
               >
                 Directory
               </NavLink>
               <NavLink 
                 href="/service/alerts" 
-                onClick={() => goToTab('alerts')}
+                onClick={() => setActiveTab('alerts')}
                 isActive={activeTab === 'alerts'}
                 badge={activeAlertsCount}
               >
@@ -437,13 +433,20 @@ export default function App() {
               {dealershipSettings?.enableDispatchTab !== false && (
                 <NavLink 
                   href="/service/dispatch" 
-                  onClick={() => goToTab('dispatch')}
+                  onClick={() => setActiveTab('dispatch')}
                   isActive={activeTab === 'dispatch'}
                 >
                   Dispatch
                 </NavLink>
               )}
-</NavDropdown>
+              <NavLink 
+                href="/service/recalls" 
+                onClick={() => setActiveTab('recalls')}
+                isActive={activeTab === 'recalls'}
+              >
+                Recalls
+              </NavLink>
+            </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
             {currentDealershipId === 'hyundai' && (
@@ -453,7 +456,7 @@ export default function App() {
               >
                 <NavLink 
                   href="/competitions/pot-of-gold" 
-                  onClick={() => goToTab('pot-of-gold')}
+                  onClick={() => setActiveTab('pot-of-gold')}
                   isActive={activeTab === 'pot-of-gold'}
                 >
                   Pot of Gold
@@ -468,21 +471,21 @@ export default function App() {
             >
               <NavLink 
                 href="/reports/operations" 
-                onClick={() => goToTab('appointments')}
+                onClick={() => setActiveTab('appointments')}
                 isActive={activeTab === 'appointments'}
               >
                 Operations
               </NavLink>
               <NavLink 
                 href="/reports/sales-performance" 
-                onClick={() => goToTab('sales-performance')}
+                onClick={() => setActiveTab('sales-performance')}
                 isActive={activeTab === 'sales-performance'}
               >
                 Sales Performance
               </NavLink>
               <NavLink 
                 href="/reports/forecast" 
-                onClick={() => goToTab('forecast')}
+                onClick={() => setActiveTab('forecast')}
                 isActive={activeTab === 'forecast'}
               >
                 Forecast
@@ -497,21 +500,30 @@ export default function App() {
               >
                 <NavLink 
                   href="/admin/operation-settings" 
-                  onClick={() => goToTab('admin', 'operations')}
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('operations');
+                  }}
                   isActive={activeTab === 'admin' && adminSubTab === 'operations'}
                 >
                   Operation Settings
                 </NavLink>
                 <NavLink 
                   href="/admin/user-settings" 
-                  onClick={() => goToTab('admin', 'users')}
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('users');
+                  }}
                   isActive={activeTab === 'admin' && adminSubTab === 'users'}
                 >
                   User Settings
                 </NavLink>
                 <NavLink 
                   href="/admin/logs" 
-                  onClick={() => goToTab('admin', 'logs')}
+                  onClick={() => {
+                    setActiveTab('admin');
+                    setAdminSubTab('logs');
+                  }}
                   isActive={activeTab === 'admin' && adminSubTab === 'logs'}
                 >
                   Logs
@@ -558,10 +570,16 @@ export default function App() {
                       <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
                       </div>
-                      {roleFilteredTabs.map(tab => (
+                      {availableTabs.map(tab => (
                         <button
                           key={tab.id}
-                          onClick={() => goToTab(tab.id as AppTab, tab.id === 'admin' ? 'operations' : adminSubTab)}
+                          onClick={() => {
+                            setActiveTab(tab.id as any);
+                            if (tab.id === 'admin') {
+                              setAdminSubTab('operations');
+                            }
+                            setIsMobileNavOpen(false);
+                          }}
                           className={cn(
                             "w-full flex items-center justify-between px-4 py-3.5 text-[9px] font-black uppercase tracking-widest text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0",
                             activeTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400"
@@ -671,8 +689,12 @@ export default function App() {
             <VinLookup />
           )}
 
-{activeTab === 'pot-of-gold' && (
-            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} dealershipSettings={dealershipSettings} />
+          {activeTab === 'recalls' && (
+            <VehicleRecalls onViewProfile={setSelectedProfile} />
+          )}
+
+          {activeTab === 'pot-of-gold' && (
+            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />
           )}
 
           {activeTab === 'forecast' && (
@@ -712,6 +734,15 @@ export default function App() {
           currentUser={currentUser}
           onClose={() => setSelectedProfile(null)} 
           onDelete={handleDeleteCustomer}
+        />
+      )}
+
+      {showInject && (
+        <InjectModal 
+          currentUser={currentUser} 
+          customers={customers} 
+          onClose={() => setShowInject(false)} 
+          onSuccess={count => showNotification(`Successfully injected ${count} appointments.`)}
         />
       )}
     </div>

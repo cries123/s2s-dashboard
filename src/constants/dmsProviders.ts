@@ -23,5 +23,7 @@ export const DEFAULT_DMS_PROVIDER: DmsProviderId = 'pbs';
 
 export function normalizeDmsProvider(value?: string | null): DmsProviderId {
   if (value === 'dealerbuilt') return 'dealerbuilt';
+  if (value === 'pbs') return 'pbs';
+  // Legacy stored values (CDK, Reynolds, etc.) map to PBS layouts until dedicated parsers exist.
   return DEFAULT_DMS_PROVIDER;
 }

@@ -9,8 +9,19 @@ import { getApps, initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
+import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } from "./server/dms/index.js";
+import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
+import {
+  rejectIfOpenAiUnavailable,
+  openAiFailureMessage,
+  openAiFailureStatus,
+} from "./server/dms/requireOpenAi.js";
+import { registerMasterUserRoutes } from "./server/admin/registerMasterUserRoutes.js";
+import { getFirebaseAdminApp } from "./server/admin/initFirebaseAdmin.js";
+import { extractOperationsPayTypes } from "./src/lib/operationsPayTypes.ts";
 
 dotenv.config();
+getFirebaseAdminApp();
 
 // Helper sleep function for Sequential Throttling
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -155,6 +166,7 @@ async function startServer() {
 
   app.post("/api/parse-appointments", async (req, res) => {
     try {
+      const dmsProvider = normalizeDmsProvider(req.body?.dmsProvider);
       const { pdfBase64, reportText } = req.body;
       let text = reportText || "";
 
@@ -167,502 +179,81 @@ async function startServer() {
         return res.status(400).json({ error: "No report text or PDF data detected." });
       }
 
-      console.log(`[Appointments Parser] Received text of length ${text.length}`);
+      console.log(`[Appointments Parser] DMS=${dmsProvider} text length ${text.length}`);
 
-      const isPbsAppointmentReport = /Appointment Details Report/i.test(text) && /\bFor\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i.test(text);
+      if (rejectIfOpenAiUnavailable(res)) return;
 
-      if (isPbsAppointmentReport) {
-        const parsed = parseAppointmentReportDeterministic(text);
-        console.log("[Appointments Parser] PBS deterministic result:", parsed);
-        if (parsed.total > 0) {
-          return res.json({ ...parsed, isAiParsed: false });
-        }
-      }
-
-      // Attempt AI parsing with Gemini if configured and PBS parser found nothing
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
-      const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
-
-      if (hasGemini) {
-        try {
-          console.log("[Appointments AI Parser] Calling Gemini-3.5-Flash for structured appointment analysis");
-          const client = getAIClient();
-          const response = await client.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  {
-                    text: "Analyze the attached Service Appointment Details Report. Count only appointments that have scheduled service lines in the Services field (ignore blank walk-ins). Categorize: diagnosis (customer states / check and advise) beats recall (campaign/recall codes) beats oil (full synthetic / complimentary maintenance) beats misc."
-                  },
-                  { text }
-                ]
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  diagnosis: { type: Type.INTEGER },
-                  oilChange: { type: Type.INTEGER },
-                  recall: { type: Type.INTEGER },
-                  misc: { type: Type.INTEGER },
-                  total: { type: Type.INTEGER }
-                },
-                required: ["diagnosis", "oilChange", "recall", "misc", "total"]
-              },
-              temperature: 0.0
+      try {
+        console.log("[Appointments AI Parser] OpenAI gpt-4o-mini (required)...");
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert automotive appointment report parser. Count unique appointments (one per confirmation key / customer visit). Categorize each appointment into exactly one bucket: recall, oilChange, diagnosis, misc. Return JSON with diagnosis, oilChange, recall, misc, total where total equals the sum."
+            },
+            {
+              role: "user",
+              content: `Parse this service appointment report:\n\n${text}`
             }
-          });
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "appointment_counts",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  diagnosis: { type: "integer" },
+                  oilChange: { type: "integer" },
+                  recall: { type: "integer" },
+                  misc: { type: "integer" },
+                  total: { type: "integer" }
+                },
+                required: ["diagnosis", "oilChange", "recall", "misc", "total"],
+                additionalProperties: false
+              }
+            }
+          },
+          temperature: 0
+        });
 
-          if (response.text) {
-            const parsed = JSON.parse(response.text.trim());
-            console.log("[Appointments AI Parser] Success:", parsed);
-            return res.json({
-              diagnosis: parsed.diagnosis || 0,
-              oilChange: parsed.oilChange || 0,
-              recall: parsed.recall || 0,
-              misc: parsed.misc || 0,
-              total: parsed.total || 0,
-              reportDate: parseAppointmentReportDeterministic(text).reportDate,
-              isAiParsed: true,
-              parseMethod: 'ai',
-            });
-          }
-        } catch (aiErr: any) {
-          console.error("[Appointments AI Parser] Failed, falling back to deterministic parser:", aiErr.message || aiErr);
+        const resContent = completion.choices[0]?.message?.content;
+        if (!resContent) {
+          return res.status(502).json({ error: "OpenAI returned an empty appointment parse response.", requiresOpenAi: true });
         }
-      }
 
-      const fallbackParsed = parseAppointmentReportDeterministic(text);
-      if (fallbackParsed.total > 0) {
-        return res.json({ ...fallbackParsed, isAiParsed: false });
-      }
+        const parsed = JSON.parse(resContent);
+        if (!parsed.total || parsed.total <= 0) {
+          return res.status(422).json({
+            error: `OpenAI found no appointments in this PDF. Use a ${dmsProvider === 'dealerbuilt' ? 'DealerBuilt' : 'PBS'} appointment report for the selected day.`,
+            requiresOpenAi: true,
+          });
+        }
 
-      res.status(422).json({
-        error: "No appointments with scheduled services found in this PDF. Use a PBS Appointment Details report for the selected day.",
-      });
+        return res.json({
+          diagnosis: parsed.diagnosis || 0,
+          oilChange: parsed.oilChange || 0,
+          recall: parsed.recall || 0,
+          misc: parsed.misc || 0,
+          total: parsed.total || 0,
+          reportDate: parseAppointmentReportDeterministic(text).reportDate,
+          isAiParsed: true,
+          parseMethod: 'openai',
+          dmsProvider,
+        });
+      } catch (aiErr: any) {
+        console.error("[Appointments AI Parser] OpenAI failed:", aiErr);
+        return res.status(openAiFailureStatus(aiErr)).json({
+          error: `OpenAI appointment parse failed: ${openAiFailureMessage(aiErr)}`,
+          requiresOpenAi: true,
+        });
+      }
     } catch (error: any) {
       console.error("API Error Appointments:", error);
       res.status(500).json({ error: `Internal Server Error during parse: ${error.message}` });
-    }
-  });
-
-  app.post("/api/parse-performance", async (req, res) => {
-    // Local deterministic parser helper for fallback or offline state
-    const parseDeterministicPerformance = (reportText: string) => {
-      // Setup default totals first
-      let totalSales = 136096.91;
-      let totalLabor = 67957.22;
-      let totalGross = 56463.26; // Grand Total Labor Gross!
-      let totalParts = 54743.36;
-      let totalGrossParts = 18997.72;
-      let totalHrs = 461.20;
-      let totalSo = 391;
-      let elr = 147.35;
-
-      const advisorsMap: Map<string, any> = new Map();
-      const pageSections = reportText.split(/(?=Advisor\s+|All\s+Repair\s+Orders)/i);
-
-      for (const section of pageSections) {
-        const lines = section.split('\n');
-        let isGrandTotals = false;
-        let advisorName = "";
-
-        if (section.toUpperCase().includes("ALL REPAIR ORDERS")) {
-          isGrandTotals = true;
-        } else {
-          for (const line of lines) {
-            const match = line.match(/Advisor\s+(\w+)\s*-\s*([A-Za-z]+)/i);
-            if (match) {
-              advisorName = match[2].trim();
-              break;
-            }
-          }
-          if (!advisorName) {
-            for (const line of lines) {
-              const match = line.match(/Advisor\s+([A-Za-z]+)/i);
-              if (match) {
-                advisorName = match[1].trim();
-                break;
-              }
-            }
-          }
-        }
-
-        let soCountVal = 0;
-        let hrsSoldVal = 0;
-        let elrVal = 0;
-        let laborSoldVal = 0;
-        let grossLaborVal = 0;
-        let partsSoldVal = 0;
-        let grossPartsVal = 0;
-
-        // Parse summary Total row for SO#, hrsSold, elr
-        // It starts with "Total" and has many numbers
-        for (const line of lines) {
-          const l = line.trim().toUpperCase();
-          if (l.startsWith("TOTAL")) {
-            const nums = line.match(/[\d,]+(?:\.\d+)?/g);
-            if (nums && nums.length >= 10) {
-              const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-              soCountVal = clean[0];
-              hrsSoldVal = clean[2];
-              elrVal = clean[6];
-            }
-          }
-        }
-
-        // Parse Sales Type lines
-        for (const line of lines) {
-          const l = line.trim().toUpperCase().replace(/\s+/g, ' ');
-          if (l.startsWith("LABOR")) {
-            const isSubtype = l.includes("LABOR C") || l.includes("LABOR W") || l.includes("LABOR I") || l.includes("LABOR CEMP") || l.includes("LABOR WSHOP");
-            if (!isSubtype) {
-              const nums = line.match(/[\d,]+(?:\.\d+)?/g);
-              if (nums && nums.length >= 3) {
-                const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-                laborSoldVal = clean[0];
-                grossLaborVal = clean[2];
-              }
-            }
-          }
-          if (l.startsWith("PARTS")) {
-            const isSubtype = l.includes("PARTS C") || l.includes("PARTS W") || l.includes("PARTS I") || l.includes("PARTS CEMPR") || l.includes("PARTS CRO");
-            if (!isSubtype) {
-              const nums = line.match(/[\d,]+(?:\.\d+)?/g);
-              if (nums && nums.length >= 3) {
-                const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-                partsSoldVal = clean[0];
-                grossPartsVal = clean[2];
-              }
-            }
-          }
-        }
-
-        const totalSalesVal = Math.round((laborSoldVal + partsSoldVal) * 100) / 100;
-        const gpPercentVal = laborSoldVal > 0 ? Math.round((grossLaborVal / laborSoldVal) * 1000) / 10 : 0;
-
-        if (isGrandTotals) {
-          if (laborSoldVal > 0) totalLabor = laborSoldVal;
-          if (grossLaborVal > 0) totalGross = grossLaborVal;
-          if (partsSoldVal > 0) totalParts = partsSoldVal;
-          if (grossPartsVal > 0) totalGrossParts = grossPartsVal;
-          if (hrsSoldVal > 0) totalHrs = hrsSoldVal;
-          if (soCountVal > 0) totalSo = soCountVal;
-          if (totalSalesVal > 0) totalSales = totalSalesVal;
-          if (elrVal > 0) elr = elrVal;
-        } else if (advisorName) {
-          const cleanName = advisorName.charAt(0).toUpperCase() + advisorName.slice(1).toLowerCase();
-          
-          advisorsMap.set(cleanName.toLowerCase(), {
-            name: cleanName,
-            soCount: Math.round(soCountVal),
-            hrsSold: hrsSoldVal,
-            laborSold: laborSoldVal,
-            grossLabor: grossLaborVal,
-            partsSold: partsSoldVal,
-            grossParts: grossPartsVal,
-            totalSales: totalSalesVal,
-            gpPercent: gpPercentVal,
-            elr: elrVal,
-            upsells: []
-          });
-        }
-      }
-
-      let advisorsList = Array.from(advisorsMap.values());
-
-      // Fallback to static distribution ONLY if no advisors were parsed dynamically
-      if (advisorsList.length === 0) {
-        console.log("[Deterministic Parser] Dynamic parsing list was empty. Using default proportions.");
-        const names = ["Frank", "Lemmy"];
-        const proportions = [0.56, 0.44];
-        advisorsList = names.map((name, idx) => {
-          const prop = proportions[idx];
-          const adHrs = Math.round(totalHrs * prop * 10) / 10;
-          const adLabor = Math.round(totalLabor * prop * 100) / 100;
-          const adParts = Math.round(totalParts * prop * 100) / 100;
-          const adGrossLab = Math.round(totalGross * prop * 100) / 100;
-          const adGrossParts = Math.round(totalGrossParts * prop * 100) / 100;
-          const adTotal = Math.round((adLabor + adParts) * 100) / 100;
-          const adSo = Math.round(totalSo * prop);
-          return {
-            name,
-            soCount: adSo,
-            hrsSold: adHrs,
-            laborSold: adLabor,
-            grossLabor: adGrossLab,
-            partsSold: adParts,
-            grossParts: adGrossParts,
-            totalSales: adTotal,
-            gpPercent: adLabor > 0 ? Math.round((adGrossLab / adLabor) * 1000) / 10 : 83.1,
-            elr: adHrs > 0 ? Math.round((adLabor / adHrs) * 100) / 100 : elr,
-            upsells: []
-          };
-        });
-      }
-
-      return {
-        advisors: advisorsList,
-        totals: {
-          totalSales: Math.round(totalSales * 100) / 100,
-          totalLabor: Math.round(totalLabor * 100) / 100,
-          totalGross: Math.round(totalGross * 100) / 100,
-          totalParts: Math.round(totalParts * 100) / 100,
-          totalGrossParts: Math.round(totalGrossParts * 100) / 100,
-          totalHrs: Math.round(totalHrs * 10) / 10
-        }
-      };
-    };
-
-    try {
-      const { pdfBase64, reportText } = req.body;
-      let text = reportText || "";
-
-      if (!text && pdfBase64) {
-        const buffer = Buffer.from(pdfBase64, 'base64');
-        text = await extractTextFromPDFBuffer(buffer);
-      }
-
-      if (!text) {
-        return res.status(400).json({ error: "No performance data or PDF detected." });
-      }
-
-      const validateAndReconcileTotals = (parsed: any) => {
-        // Run deterministic parser to fetch golden reference values
-        const ref = parseDeterministicPerformance(text);
-
-        if (parsed && parsed.advisors && parsed.advisors.length > 0) {
-          const cleanName = (n: string) => {
-            const name = n.toUpperCase().trim();
-            if (name.includes("FRANK")) return "Frank";
-            if (name.includes("LEMMY")) return "Lemmy";
-            if (name.includes("JARYN")) return "Jaryn";
-            return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-          };
-
-          parsed.advisors = parsed.advisors.map((a: any) => {
-            const normName = cleanName(a.name);
-            const lSold = a.laborSold !== undefined ? Number(a.laborSold) : 0;
-            const pSold = a.partsSold !== undefined ? Number(a.partsSold) : 0;
-            const gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
-            const hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
-
-            return {
-              ...a,
-              name: normName,
-              soCount: a.soCount !== undefined ? Math.round(Number(a.soCount)) : 0,
-              hrsSold: hSold,
-              laborSold: lSold,
-              grossLabor: gLab,
-              partsSold: pSold,
-              grossParts: a.grossParts !== undefined ? Number(a.grossParts) : 0,
-              totalSales: a.totalSales !== undefined ? Number(a.totalSales) : Math.round((lSold + pSold) * 100) / 100,
-              gpPercent: a.gpPercent !== undefined ? Number(a.gpPercent) : (lSold > 0 ? Math.round((gLab / lSold) * 1000) / 10 : 0),
-              elr: a.elr !== undefined ? Number(a.elr) : (hSold > 0 ? Math.round((lSold / hSold) * 100) / 100 : 0),
-              upsells: a.upsells || []
-            };
-          });
-
-          // Keep LLM parsed totals if valid, fallback to ref totals if null or invalid
-          if (parsed.totals) {
-            parsed.totals = {
-              totalSales: Number(parsed.totals.totalSales) || (Number(parsed.totals.totalLabor || 0) + Number(parsed.totals.totalParts || 0)),
-              totalLabor: Number(parsed.totals.totalLabor) || 0,
-              totalGross: Number(parsed.totals.totalGross) || 0,
-              totalParts: Number(parsed.totals.totalParts) || 0,
-              totalGrossParts: Number(parsed.totals.totalGrossParts) || 0,
-              totalHrs: Number(parsed.totals.totalHrs) || 0
-            };
-          } else if (ref.totals) {
-            parsed.totals = ref.totals;
-          }
-        } else if (ref && ref.advisors && ref.advisors.length > 0) {
-          // Fallback to reference if parsed didn't have advisors
-          parsed = ref;
-        }
-        return parsed;
-      };
-
-      // Check if this is an upsell/frequency report
-      const isUpsell = text.toUpperCase().includes("OP CODE") || text.toUpperCase().includes("FREQUENCY");
-
-      // 1. Try OpenAI/ChatGPT first
-      const openaiKey = process.env.OPENAI_API_KEY;
-      const isMaskedKey = !!(openaiKey && openaiKey.includes("*"));
-      const hasOpenAI = !!(openaiKey && openaiKey.trim() !== "" && !openaiKey.includes("YOUR_") && !isMaskedKey);
-
-      if (hasOpenAI) {
-        try {
-          console.log("[OpenAI Performance Parser] Parsing report text using gpt-4o-mini...");
-          const openai = getOpenAIClient();
-          const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
-For each service advisor cleanly identify:
-- name: Clean name (e.g. Frank, Lemmy)
-- soCount: Total physical repair orders or service orders completed
-- hrsSold: Total flat rate or sold hours billed
-- laborSold: Total labor sales revenue
-- grossLabor: Total labor gross profit dollars
-- partsSold: Total parts sales revenue
-- grossParts: Total parts gross profit dollars
-- totalSales: Combined total sales revenue (usually labor + parts)
-- gpPercent: Blended gross profit percentage (0 to 100)
-- elr: Effective labor rate (ELR)
-
-Also overall mechanical department totals:
-- totalSales: Total combined sales
-- totalLabor: Total combined labor sales (this is the overall total Labor Sales row, e.g. $67,957.22 on the default report. DO NOT use individual advisor totals as the grand total)
-- totalGross: Total combined labor gross profit dollars (this is the overall total Labor Gross row, e.g. $56,463.26 on the default report. DO NOT extract Frank's individual or subtotal page gross profit)
-- totalParts: Total combined parts sales
-- totalGrossParts: Total combined parts gross profit dollars
-- totalHrs: Total combined hours sold
-
-CRITICAL GUIDELINE: If the report text does not list individual advisor-specific breakdowns (i.e. only lists total shop performance, price codes, or pay types), you MUST distribute the totals proportionally among the two standard active advisors: 'Frank' (56%) and 'Lemmy' (44%). Do NOT treat system category/price code labels like 'Labor C', 'Labor W', 'Labor I', or table headings/categories as advisors.
-
-For overall totals (totalLabor, totalGross, totalParts, totalGrossParts), MUST extract the section or column total representing the entire department. Do NOT use partial pay types like Customer Labor ('Labor C') as the overall total. (For the default report, the true totals are: Labor Sales = $67,957.22, Labor Gross = $56,463.26, Parts Sales = $54,743.36, Parts Gross = $18,997.72).
-
-If this is an upsell frequency report (with OP Codes like AF, ALIGN, etc.), also extract the individual upsell counts and revenues for each advisor's 'upsells' array.`
-              },
-              {
-                role: "user",
-                content: `Parse this automotive performance/productivity report chunk and return structured JSON:\n\n${text}`
-              }
-            ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: "performance_telemetry",
-                strict: true,
-                schema: {
-                  type: "object",
-                  properties: {
-                    advisors: {
-                      type: "array",
-                      items: {
-                        type: "object",
-                        properties: {
-                          name: { type: "string" },
-                          soCount: { type: "integer" },
-                          hrsSold: { type: "number" },
-                          laborSold: { type: "number" },
-                          grossLabor: { type: "number" },
-                          partsSold: { type: "number" },
-                          grossParts: { type: "number" },
-                          totalSales: { type: "number" },
-                          gpPercent: { type: "number" },
-                          elr: { type: "number" },
-                          upsells: {
-                            type: "array",
-                            items: {
-                              type: "object",
-                              properties: {
-                                code: { type: "string" },
-                                description: { type: "string" },
-                                count: { type: "integer" },
-                                revenue: { type: "number" }
-                              },
-                              required: ["code", "description", "count", "revenue"],
-                              additionalProperties: false
-                            }
-                          }
-                        },
-                        required: ["name", "soCount", "hrsSold", "laborSold", "grossLabor", "partsSold", "grossParts", "totalSales", "gpPercent", "elr", "upsells"],
-                        additionalProperties: false
-                      }
-                    },
-                    totals: {
-                      type: "object",
-                      properties: {
-                        totalSales: { type: "number" },
-                        totalLabor: { type: "number" },
-                        totalGross: { type: "number" },
-                        totalParts: { type: "number" },
-                        totalGrossParts: { type: "number" },
-                        totalHrs: { type: "number" }
-                      },
-                      required: ["totalSales", "totalLabor", "totalGross", "totalParts", "totalGrossParts", "totalHrs"],
-                      additionalProperties: false
-                    }
-                  },
-                  required: ["advisors", "totals"],
-                  additionalProperties: false
-                }
-              }
-            },
-            temperature: 0.0
-          });
-
-          const resContent = completion.choices[0]?.message?.content;
-          if (resContent) {
-            console.log("[OpenAI Performance Parser] Successfully processed.");
-            const parsed = JSON.parse(resContent);
-            return res.json(validateAndReconcileTotals(parsed));
-          }
-        } catch (err) {
-          console.error("[OpenAI Performance Parser] Error:", err);
-        }
-      }
-
-      // 2. Try Gemini fallback
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
-      const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
-
-      if (hasGemini) {
-        try {
-          console.log("[Gemini Performance Parser] Parsing using gemini-2.0-flash...");
-          const client = getAIClient();
-          const response = await client.models.generateContent({
-            model: "gemini-2.0-flash",
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: `Extract Service Advisor productivity and performance metrics cleanly according to the required schema map. Ensure extreme precision for numbers.
-CRITICAL GUIDELINE: If the report text does not list individual advisor-specific breakdowns (i.e. only lists total shop performance, price codes, or pay types), you MUST distribute the totals proportionally among the two standard active advisors: 'Frank' (56%) and 'Lemmy' (44%). Do NOT treat system category/price code labels like 'Labor C', 'Labor W', 'Labor I', or table headings/categories as advisors.
-
-For overall totals under 'totals':
-- totalLabor: MUST be the overall total labor sales for the department (usually labeled 'LABOR' total, e.g. $67,957.22 on the default report). DO NOT extract partial category sales (like 'Labor C').
-- totalGross: MUST be the overall total labor gross profit for the department (usually labeled 'LABOR' total, e.g. $56,463.26 on the default report). DO NOT extract Frank's individual page gross ($38,974.28).
-(For the default report, true totals are: Labor Sales = $67,957.22, Labor Gross = $56,463.26, Parts Sales = $54,743.36, Parts Gross = $18,997.72).` },
-                  { text }
-                ]
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: performanceSchemaGemini,
-              temperature: 0.0
-            }
-          });
-
-          if (response.text) {
-            console.log("[Gemini Performance Parser] Structured JSON retrieved successfully.");
-            const parsed = JSON.parse(response.text);
-            return res.json(validateAndReconcileTotals(parsed));
-          }
-        } catch (err) {
-          console.error("[Gemini Performance Parser] Error:", err);
-        }
-      }
-
-      // 3. Smart local deterministic report parser
-      console.log("[Performance Parser Fallback] Falling back to deterministic local parsing rule...");
-      const deterministicResult = parseDeterministicPerformance(text);
-      return res.json(deterministicResult);
-
-    } catch (error: any) {
-      console.error("API Error Performance:", error);
-      res.status(500).json({ error: `Internal Server Error during performance parse: ${error.message}` });
     }
   });
 
@@ -997,6 +588,15 @@ For overall totals under 'totals':
     return openaiClient;
   }
 
+  registerMasterUserRoutes(app);
+
+  registerParsePerformanceRoute(app, {
+    extractTextFromPDFBuffer,
+    getOpenAIClient,
+    getAIClient,
+    performanceSchemaGemini,
+  });
+
   app.post("/api/gemini-parse-dms", async (req, res) => {
     let openaiFailureReason: 'openai_auth_failed' | 'openai_quota_exhausted' | 'openai_api_failed' | 'openai_key_masked' | null = null;
     let openaiFailureError: string | null = null;
@@ -1011,13 +611,16 @@ For overall totals under 'totals':
       const isMaskedKey = !!(openaiKey && openaiKey.includes("*"));
       const hasOpenAI = !!(openaiKey && openaiKey.trim() !== "" && !openaiKey.includes("YOUR_") && !isMaskedKey);
 
+      if (rejectIfOpenAiUnavailable(res)) return;
+
       if (openaiKey && isMaskedKey) {
-        console.log("[OpenAI] API Key format check: The key contains asterisks (*), indicating a masked key copied by mistake.");
-        openaiFailureReason = "openai_key_masked";
-        openaiFailureError = "The provided OpenAI API Key contains asterisks (*). You may have copied a masked key preview from the OpenAI platform dashboard by mistake. Please generate a new key and copy the full unmasked key immediate upon creation.";
+        return res.status(422).json({
+          error: "OPENAI_API_KEY looks masked (contains *). Paste the full key from the OpenAI dashboard.",
+          requiresOpenAi: true,
+        });
       }
 
-      // Try ChatGPT (OpenAI) first as explicitly requested
+      // OpenAI is required for DMS forecast reports
       if (hasOpenAI) {
         try {
           console.log("[OpenAI DMS Parser] Extracting report text using gpt-4o-mini...");
@@ -1110,67 +713,14 @@ For overall totals under 'totals':
         }
       }
 
-      // Gemini Fallback
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
-      const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
 
-      if (hasGemini) {
-        console.log("[Gemini DMS Parser Fallback] Sending raw data payload of length:", rawReportText.length);
-        try {
-          const client = getAIClient();
-          const response = await client.models.generateContent({
-            model: "gemini-2.0-flash", // Utilizes the high-speed, free tier model requested by user
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { text: "Extract all specific mechanical operations, labor metrics, rates, and financial row allocations from this raw text report chunk precisely according to the required schema map.\n\nCRITICAL INSTRUCTION FOR LABOR GP% (Gross Profit Percentages):\nDo NOT extract GP% for Customer, Warranty, and Internal from the general left-hand 'Pay Type' table (which contains blended parts/labor/sublet margins like 63.9%, 58.6%, 51.7%).\nInstead, you MUST extract the specific LABOR GP% values from the right-hand 'Price Code' table:\n- cpLaborGPPercent MUST be extracted from the 'Labor C' row GP% (e.g., 81.9).\n- warrLaborGPPercent MUST be extracted from the 'Labor W' row GP% (e.g., 86.7).\n- internalLaborGPPercent MUST be extracted from the 'Labor I' row GP% (e.g., 79.0)." },
-                  { text: rawReportText }
-                ]
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: dmsTelemetrySchema,
-              temperature: 0.0 // Locks randomness down to guarantee static precision extraction
-            }
-          });
-
-          if (response.text) {
-            console.log("[Gemini DMS Parser] Successfully fetched structured JSON.");
-            const parsedData = JSON.parse(response.text);
-            return res.json({ success: true, data: parsedData, isChatGPT: false });
-          }
-          throw new Error("Empty extraction string payload returned from AI node context.");
-        } catch (geminiErr: any) {
-          console.log("[Gemini DMS Parser Fallback] Encountered error during generation, handling cleanly.");
-          throw geminiErr;
-        }
-      } else {
-        console.log("[Gemini DMS Parser Fallback] Gemini API key not configured or has been removed. Skipping Gemini fallback...");
-        throw new Error("GEMINI_API_KEY is not configured or has been removed.");
-      }
-
+      return res.status(502).json({ success: false, error: openaiFailureError || "OpenAI DMS parse failed.", requiresOpenAi: true });
     } catch (error: any) {
-      const errorMsg = error?.message || String(error);
-      const isQuotaOrCredits = errorMsg.includes("RESOURCE_EXHAUSTED") || 
-                               errorMsg.includes("prepayment") || 
-                               errorMsg.includes("credits") || 
-                               errorMsg.includes("429") ||
-                               errorMsg.includes("quota");
-
-      // Concise single line status logging to keep container outputs readable and pristine
-      console.log(`[AI Engine Status] OpenAI: ${openaiFailureReason || 'skipped'}, Gemini: ${isQuotaOrCredits ? 'quota_exhausted' : 'failed'}`);
-
-      const reason = openaiFailureReason || (isQuotaOrCredits ? "quota_exhausted" : "api_failed");
-      const combinedError = openaiFailureError ? `${openaiFailureError} (Fallback Gemini failed too: ${errorMsg})` : errorMsg;
-
-      return res.json({ 
-        success: false, 
-        isGeminiError: true,
-        reason: reason,
-        error: combinedError 
+      console.error("[OpenAI DMS Parser] Unexpected error:", error);
+      return res.status(500).json({
+        success: false,
+        error: error?.message || String(error),
+        requiresOpenAi: true,
       });
     }
   });
@@ -1307,71 +857,71 @@ For overall totals under 'totals':
 
       console.log(`[Technician Parser] Decoding technician report text length: ${text.length}`);
 
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
-      const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
+      const dmsProvider = normalizeDmsProvider(req.body?.dmsProvider);
 
-      if (hasGemini) {
-        try {
-          const client = getAIClient();
-          const response = await client.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  { 
-                    text: "Analyze the attached DMS Technician Productivity Report. The report structure is as follows:\n" +
-                          "- Each technician section starts with an ID and name header (e.g., '64 - JACINTO', '66 - DANIEL SANTIAGO'). Strip trailing numerals like 6395 or 7269 from names and convert them to clean Title Case (e.g., 'Daniel Santiago').\n" +
-                          "- Daily records exist, with weekly summaries. Do not extract daily or weekly records.\n" +
-                          "- At the end of each technician's section, there is a total row matching 'Total (Tech): <ID> <Actual Hrs> <Sold Hrs> <Sold/Actual%> <Clocked In Hrs> <Sold/Clocked%> <Unapplied Hrs>'\n" +
-                          "- Extract the technician's full name, their total 'Clocked In Hrs' (as clockedHours), their total 'Sold Hrs' (as flaggedHours), and their efficiency 'Sold/Clocked%' (as percentage, e.g., 68.5 for 68.5% efficiency).\n" +
-                          "- Rule: Strictly ignore grand totals (e.g., 'Grand Total') or technical markers like '99 - 99'. Only return active technicians, making sure all fields are correctly typed numbers."
-                  },
-                  { text }
-                ]
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
+      if (rejectIfOpenAiUnavailable(res)) return;
+
+      try {
+        console.log("[Technician AI Parser] OpenAI gpt-4o-mini (required)...");
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "Parse the DMS Technician Productivity Report. For each technician extract techName, clockedHours, flaggedHours, efficiency (%). Use only Total (Tech) summary rows, not daily lines. Ignore grand totals and dummy IDs like 99."
+            },
+            { role: "user", content: text }
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "technician_productivity",
+              strict: true,
+              schema: {
+                type: "object",
                 properties: {
                   technicians: {
-                    type: Type.ARRAY,
-                    description: "List of technicians parsed from the text report summary.",
+                    type: "array",
                     items: {
-                      type: Type.OBJECT,
+                      type: "object",
                       properties: {
-                        techName: { type: Type.STRING, description: "Full clean name of the technician" },
-                        clockedHours: { type: Type.NUMBER, description: "Total clocked / payroll / actual / attended hours" },
-                        flaggedHours: { type: Type.NUMBER, description: "Total flagged / sold / flat rate hours" },
-                        efficiency: { type: Type.NUMBER, description: "Efficiency percentage (e.g. 115.5 representing 115.5%)" }
+                        techName: { type: "string" },
+                        clockedHours: { type: "number" },
+                        flaggedHours: { type: "number" },
+                        efficiency: { type: "number" }
                       },
-                      required: ["techName", "clockedHours", "flaggedHours", "efficiency"]
+                      required: ["techName", "clockedHours", "flaggedHours", "efficiency"],
+                      additionalProperties: false
                     }
                   }
                 },
-                required: ["technicians"]
-              },
-              temperature: 0.0
+                required: ["technicians"],
+                additionalProperties: false
+              }
             }
-          });
+          },
+          temperature: 0
+        });
 
-          if (response.text) {
-            console.log("[Gemini Technician Parser] Successfully fetched structured JSON.");
-            const parsedData = JSON.parse(response.text);
-            return res.json({ success: true, data: parsedData, isFallback: false });
-          }
-        } catch (geminiErr: any) {
-          console.warn("[Gemini Technician Parser] Falling back to deterministic local regex parser.");
+        const resContent = completion.choices[0]?.message?.content;
+        if (!resContent) {
+          return res.status(502).json({ error: "OpenAI returned an empty technician parse response.", requiresOpenAi: true });
         }
-      }
 
-      // Local Fallback
-      console.log("[Technician Parser] Using deterministic local regex parsing...");
-      const deterministicResult = parseDeterministicTechnicianReport(text);
-      return res.json({ success: true, data: deterministicResult, isFallback: true });
+        const parsedData = JSON.parse(resContent);
+        if (!parsedData.technicians?.length) {
+          return res.status(422).json({ error: "OpenAI found no technicians in this report.", requiresOpenAi: true });
+        }
+
+        return res.json({ success: true, data: parsedData, isAiParsed: true, dmsProvider });
+      } catch (aiErr: any) {
+        console.error("[Technician AI Parser] OpenAI failed:", aiErr);
+        return res.status(openAiFailureStatus(aiErr)).json({
+          error: `OpenAI technician parse failed: ${openAiFailureMessage(aiErr)}`,
+          requiresOpenAi: true,
+        });
+      }
 
     } catch (error: any) {
       console.error("API Error Technician Parser:", error);
