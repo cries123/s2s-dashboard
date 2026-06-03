@@ -31,7 +31,6 @@ import {
   computeAdvisorMix,
   extractOperationsPayTypes,
   type AdvisorMixRow,
-  type OperationsPayTypeSummary,
 } from '../../../lib/operationsPayTypes';
 
 interface UpsellItem {
@@ -70,7 +69,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [totals, setTotals] = useState<any>(null);
-  const [payTypes, setPayTypes] = useState<OperationsPayTypeSummary | null>(null);
   const [advisorMix, setAdvisorMix] = useState<AdvisorMixRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
@@ -135,15 +133,12 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           setAdvisors([]);
         }
         if (data.totals) setTotals(data.totals);
-        if (data.payTypes) setPayTypes(data.payTypes as OperationsPayTypeSummary);
-        else setPayTypes(null);
         if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
         else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
         else setAdvisorMix([]);
       } else {
         setAdvisors([]);
         setTotals(null);
-        setPayTypes(null);
         setAdvisorMix([]);
       }
       setLoading(false);
@@ -570,8 +565,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       // Refresh UI immediately (don't wait for Firestore listener)
       setAdvisors(saved.advisors);
       if (saved.totals) setTotals(saved.totals);
-      if (extractedPayTypes) setPayTypes(extractedPayTypes);
-
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
       const archiveLabel =
@@ -887,27 +880,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               </div>
             </div>
 
-
-            {payTypes && (
-              <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Pay Type Mix (RO)</h4>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                      Customer pay portion: <span className="text-brand-secondary">{payTypes.customerPayPortionPercent}%</span>
-                    </p>
-                  </div>
-                </div>
-                <table className="w-full text-left text-xs">
-                  <thead><tr className="text-[9px] uppercase text-slate-500"><th className="py-2">Type</th><th className="text-right">ROs</th><th className="text-right">Mix</th><th className="text-right">ELR</th><th className="text-right">GP</th></tr></thead>
-                  <tbody>
-                    {([['Customer', payTypes.customer], ['Warranty', payTypes.warranty], ['Internal', payTypes.internal]] as const).map(([label, seg]) => (
-                      <tr key={label} className="text-white border-t border-slate-800"><td className="py-2">{label}</td><td className="text-right font-mono">{seg.roCount}</td><td className="text-right font-mono text-brand-secondary">{seg.mixPercent}%</td><td className="text-right font-mono">${seg.elr.toFixed(2)}</td><td className="text-right font-mono">{seg.gpPercent}%</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
