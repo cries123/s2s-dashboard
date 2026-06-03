@@ -1217,7 +1217,7 @@ export default function AdminPanel({
                           </p>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
                             <select
-                              value={(dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER}
+                              value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
                               onChange={(e) => updateSetting(d.id, { dmsProvider: e.target.value as DmsProviderId })}
                               className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer"
                             >
@@ -1232,7 +1232,7 @@ export default function AdminPanel({
                             </span>
                           </div>
                           <p className="text-[9px] text-slate-600 leading-relaxed max-w-xl">
-                            {DMS_PROVIDERS.find((provider) => provider.id === ((dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER))?.description}
+                            {DMS_PROVIDERS.find((provider) => provider.id === (normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)))?.description}
                           </p>
                         </div>
 
