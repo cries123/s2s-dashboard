@@ -30,7 +30,8 @@ import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
 
-import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
+import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
+import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
 import {
@@ -148,7 +149,7 @@ export default function App() {
   const [minLoading, setMinLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('add');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
@@ -204,7 +205,12 @@ export default function App() {
 
   const isLoading = authLoading || (user && customersLoading) || minLoading;
 
-  const activeAlertsCount = customers.filter(isServiceAlertActive).length;
+  const mergedDealershipSettings = mergeDealershipSettings(
+    currentDealershipId || 'hyundai',
+    dealershipSettings
+  );
+  const serviceAlerts = useServiceAlertInterval(mergedDealershipSettings.serviceAlertIntervalDays);
+  const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
 
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
@@ -215,10 +221,10 @@ export default function App() {
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
-    ...(currentDealershipId === 'hyundai' ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
-    { id: 'vin-search', label: 'VIN Search', icon: Search },
-    { id: 'forecast', label: 'Forecast', icon: TrendingUp },
-    { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
+    ...(isNavFeatureEnabled(dealershipSettings, 'enablePotOfGoldTab') ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }] : []),
+    ...(isNavFeatureEnabled(dealershipSettings, 'enableVinSearchTab') ? [{ id: 'vin-search', label: 'VIN Search', icon: Search }] : []),
+    ...(isNavFeatureEnabled(dealershipSettings, 'enableForecastTab') ? [{ id: 'forecast', label: 'Forecast', icon: TrendingUp }] : []),
+    ...(isNavFeatureEnabled(dealershipSettings, 'enableSalesPerformanceTab') ? [{ id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 }] : []),
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
 
@@ -426,7 +432,7 @@ export default function App() {
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
-            {currentDealershipId === 'hyundai' && (
+            {isNavFeatureEnabled(dealershipSettings, 'enablePotOfGoldTab') && (
               <NavDropdown 
                 label="Competitions" 
                 isActive={activeTab === 'pot-of-gold'}
@@ -495,7 +501,7 @@ export default function App() {
                     {activeTab === 'manager'
                       ? `Manager: ${managerSubTab === 'operations' ? 'Operations' : managerSubTab === 'preferences' ? 'Preferences' : 'Team'}`
                       : activeTab === 'admin'
-                      ? `Admin: ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                      ? `Admin: ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'ai-usage' ? 'AI Usage' : adminSubTab === 'import-history' ? 'Imports' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -667,7 +673,7 @@ export default function App() {
 
           {activeTab === 'appointments' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <WeatherWidget />
+              <WeatherWidget lat={mergedDealershipSettings.weatherLat} lon={mergedDealershipSettings.weatherLon} displayCity={mergedDealershipSettings.weatherDisplayCity} />
               <Appointments 
                 currentUser={currentUser} 
                 currentDealershipId={currentDealershipId || 'hyundai'}
@@ -691,7 +697,7 @@ export default function App() {
 
 
           {activeTab === 'pot-of-gold' && (
-            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />
+            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} dealershipSettings={dealershipSettings} />
           )}
 
           {activeTab === 'forecast' && (

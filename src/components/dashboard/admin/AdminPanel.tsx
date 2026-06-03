@@ -28,12 +28,19 @@ import {
 import { cn } from '../../../lib/utils';
 
 import { DEALERSHIPS } from '../../../constants';
-import { DMS_PROVIDERS, DEFAULT_DMS_PROVIDER } from '../../../constants/dmsProviders';
-import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
+import {
+  defaultDmsProviderForDealership,
+  defaultPerformanceAdvisorRoster,
+  FORD_PERFORMANCE_ADVISOR_ROSTER,
+} from '../../../constants/dealerDefaults';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
 import { MasterUserSettings } from './MasterUserSettings';
+import { DealershipAdvancedSettings } from './DealershipAdvancedSettings';
+import { AiUsageLogsPanel } from './AiUsageLogsPanel';
+import { ImportHistoryPanel } from './ImportHistoryPanel';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
@@ -59,10 +66,12 @@ import {
   getDealershipStaffConfig,
   slugifyStaffName,
   type CompetitionAdvisorSlot,
+  type CompetitionTechnicianSlot,
+  type PerformanceAdvisorSlot,
 } from '../../../lib/dealershipStaff';
 
 
-type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users';
+type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history';
 
 function getPanelSectionMeta(
   subTab: AdminSubTab,
@@ -89,6 +98,18 @@ function getPanelSectionMeta(
         eyebrow: scope,
         title: 'User Settings',
         description: 'Manage system permission tiers, account access, and registration flows.',
+      };
+    case 'ai-usage':
+      return {
+        eyebrow: scope,
+        title: 'AI Usage Logs',
+        description: 'Token usage from automated PDF and DMS parse routes.',
+      };
+    case 'import-history':
+      return {
+        eyebrow: scope,
+        title: 'Import History',
+        description: 'CRM CSV imports and archive payloads stored in audit logs.',
       };
     case 'master-users':
       return {
@@ -117,8 +138,8 @@ interface AdminPanelProps {
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users') => void;
+  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history';
+  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history') => void;
   onNavigateTab?: (tab: LandingTab) => void;
   onDealershipChange?: (dealershipId: string) => void;
 }
@@ -151,7 +172,7 @@ export default function AdminPanel({
   useEffect(() => {
     if (!currentUser) return;
 
-    // Fetch settings for all dealerships if admin, or just current
+    // Subscribe to all settings docs; UI shows only the selected dealership at a time
     const settingsRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings');
     const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
       const settings: Record<string, any> = {};
@@ -296,6 +317,107 @@ export default function AdminPanel({
 
   const removeCompetitionAdvisor = (dealershipId: string, index: number) => {
     setLocalCompetitionAdvisors((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      if (list.length <= 1) return prev;
+      list.splice(index, 1);
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+
+  const [localTechnicians, setLocalTechnicians] = useState<Record<string, CompetitionTechnicianSlot[]>>({});
+  const [localPerformanceRoster, setLocalPerformanceRoster] = useState<Record<string, PerformanceAdvisorSlot[]>>({});
+
+  useEffect(() => {
+    if (Object.keys(dealershipSettings).length === 0) return;
+    const techNext: Record<string, CompetitionTechnicianSlot[]> = {};
+    const perfNext: Record<string, PerformanceAdvisorSlot[]> = {};
+    Object.entries(dealershipSettings).forEach(([id, data]: [string, any]) => {
+      const cfg = getDealershipStaffConfig(id, data);
+      techNext[id] = cfg.competitionTechnicians;
+      perfNext[id] = cfg.performanceAdvisorRoster;
+    });
+    setLocalTechnicians((prev) => ({ ...prev, ...techNext }));
+    setLocalPerformanceRoster((prev) => ({ ...prev, ...perfNext }));
+  }, [dealershipSettings]);
+
+  const commitTechnicians = (id: string) => {
+    const rows = localTechnicians[id];
+    if (!rows?.length) {
+      onError?.('At least one technician is required.');
+      return;
+    }
+    updateSetting(id, { competitionTechnicians: rows });
+  };
+
+  const updateTechnician = (dealershipId: string, index: number, field: 'id' | 'label', value: string) => {
+    setLocalTechnicians((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const current = { ...list[index] };
+      if (field === 'label') {
+        current.label = value;
+        current.id = slugifyStaffName(value) || current.id;
+      } else {
+        current.id = slugifyStaffName(value) || value;
+      }
+      list[index] = current;
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const addTechnician = (dealershipId: string) => {
+    setLocalTechnicians((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const n = list.length + 1;
+      list.push({ id: `tech_${n}`, label: `Tech ${n}` });
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const removeTechnician = (dealershipId: string, index: number) => {
+    setLocalTechnicians((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      if (list.length <= 1) return prev;
+      list.splice(index, 1);
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const commitPerformanceRoster = (id: string) => {
+    const rows = localPerformanceRoster[id];
+    if (!rows?.length) {
+      onError?.('At least one performance advisor is required.');
+      return;
+    }
+    updateSetting(id, { performanceAdvisorRoster: rows });
+  };
+
+  const updatePerformanceRoster = (dealershipId: string, index: number, field: 'id' | 'label', value: string) => {
+    setLocalPerformanceRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const current = { ...list[index] };
+      if (field === 'label') {
+        current.label = value;
+        current.id = slugifyStaffName(value) || current.id;
+      } else {
+        current.id = slugifyStaffName(value) || value;
+      }
+      list[index] = current;
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const addPerformanceRoster = (dealershipId: string) => {
+    setLocalPerformanceRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const n = list.length + 1;
+      list.push({ id: `advisor_${n}`, label: `Advisor ${n}` });
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const removePerformanceRoster = (dealershipId: string, index: number) => {
+    setLocalPerformanceRoster((prev) => {
       const list = [...(prev[dealershipId] || [])];
       if (list.length <= 1) return prev;
       list.splice(index, 1);
@@ -640,6 +762,21 @@ export default function AdminPanel({
       );
 
       setImportLogs(prev => [...prev, `🎉 Import Complete! Created ${newCount} profiles, Reconciled ${updateCount} records. S2S Reminders updated successfully.`]);
+      try {
+        await addDoc(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'audit', 'imports'), {
+          filename: fileName || 'paste-import.csv',
+          type: 'csv',
+          totalRecords: parsedRows.length,
+          newProfiles: newCount,
+          matchedProfiles: updateCount,
+          userId: currentUser?.uid,
+          username: currentUser?.username,
+          timestamp: serverTimestamp(),
+        });
+      } catch (auditErr) {
+        console.warn('Import audit log failed:', auditErr);
+      }
+
       onSuccess?.(`Import completed: Processed ${parsedRows.length} CRM records.`);
       
       setCsvText('');
@@ -947,8 +1084,8 @@ export default function AdminPanel({
       {subTab === 'operations' && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {DEALERSHIPS.filter(d => d.id === currentDealershipId).map(d => {
-              // Managers can only see/edit their own dealership settings
+            {DEALERSHIPS.filter((d) => d.id === currentDealershipId).map((d) => {
+              // Operation settings are scoped to the selected dealership only
               if (currentUser?.role !== 'admin' && currentUser?.dealershipId !== d.id) return null;
 
               const appTarget = localAppTargets[d.id] ?? (dealershipSettings[d.id]?.appointmentTarget || 20);
@@ -1080,7 +1217,7 @@ export default function AdminPanel({
                           </p>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
                             <select
-                              value={(dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER}
+                              value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
                               onChange={(e) => updateSetting(d.id, { dmsProvider: e.target.value as DmsProviderId })}
                               className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer"
                             >
@@ -1095,7 +1232,7 @@ export default function AdminPanel({
                             </span>
                           </div>
                           <p className="text-[9px] text-slate-600 leading-relaxed max-w-xl">
-                            {DMS_PROVIDERS.find((provider) => provider.id === ((dealershipSettings[d.id]?.dmsProvider as DmsProviderId) || DEFAULT_DMS_PROVIDER))?.description}
+                            {DMS_PROVIDERS.find((provider) => provider.id === (normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)))?.description}
                           </p>
                         </div>
 
@@ -1151,6 +1288,47 @@ export default function AdminPanel({
                               Save Roster
                             </button>
                           </div>
+                        </div>
+
+                        {/* DMS + Advisor Roster (productivity imports) */}
+                        <div className="space-y-3 pt-3 border-t border-white/5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">DMS Report Parser</label>
+                          <select
+                            value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
+                            onChange={(e) => {
+                              const next = e.target.value as DmsProviderId;
+                              const patch: Record<string, unknown> = { dmsProvider: next };
+                              if (
+                                next === 'dealerbuilt' &&
+                                !dealershipSettings[d.id]?.performanceAdvisorRoster?.length
+                              ) {
+                                patch.performanceAdvisorRoster =
+                                  defaultPerformanceAdvisorRoster(d.id) ?? FORD_PERFORMANCE_ADVISOR_ROSTER;
+                              }
+                              updateSetting(d.id, patch);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                          >
+                            {DMS_PROVIDERS.map((p) => (
+                              <option key={p.id} value={p.id}>{p.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[10px] text-slate-500 leading-relaxed">
+                            {DMS_PROVIDERS.find((p) => p.id === (dealershipSettings[d.id]?.dmsProvider || defaultDmsProviderForDealership(d.id)))?.description}
+                            {' '}Use <strong className="text-slate-400">DealerBuilt</strong> for Santa Maria Ford scanned Service Advisor Performance PDFs.
+                          </p>
+                          {(dealershipSettings[d.id]?.performanceAdvisorRoster?.length ?? 0) > 0 && (
+                            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Productivity advisors</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(dealershipSettings[d.id]?.performanceAdvisorRoster || []).map((slot: { id: string; label: string }) => (
+                                  <span key={slot.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40">
+                                    {slot.label}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Dispatch Toggle Feature Switch */}
@@ -1272,8 +1450,7 @@ export default function AdminPanel({
               );
             })}
           </div>
-
-          {/* CRM DATABASE IMPORTER */}
+                    {/* CRM DATABASE IMPORTER */}
           <div className="card-base p-6 border-slate-800 bg-slate-950/20 backdrop-blur-3xl col-span-full mt-6 space-y-6">
             <div className="flex items-center gap-3 border-b border-white/5 pb-4">
               <Database size={20} className="text-brand-secondary/80" />
@@ -1631,6 +1808,14 @@ export default function AdminPanel({
           currentDealershipId={currentDealershipId}
           onDealershipChange={onDealershipChange}
         />
+      )}
+
+      {subTab === 'ai-usage' && panelMode === 'admin' && (
+        <AiUsageLogsPanel />
+      )}
+
+      {subTab === 'import-history' && panelMode === 'admin' && (
+        <ImportHistoryPanel />
       )}
 
       {subTab === 'logs' && (

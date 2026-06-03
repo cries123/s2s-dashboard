@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -42,10 +43,15 @@ const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: any }[] = [
   { id: 'mobile_repair', label: 'Mobile Fleet', icon: Wrench },
 ];
 
-const DISPLAY_COLUMNS: { id: DepartmentColumnId; label: string; shortLabel: string; icon: typeof Layers }[] = [
-  { id: 'unassigned', label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
-  ...DEPARTMENTS.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
-];
+const BASE_DEPARTMENTS = DEPARTMENTS;
+
+function buildDisplayColumns(hidden: DepartmentColumnId[] = []) {
+  const visible = BASE_DEPARTMENTS.filter((d) => !hidden.includes(d.id as DepartmentColumnId));
+  return [
+    { id: 'unassigned' as DepartmentColumnId, label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
+    ...visible.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
+  ];
+}
 
 export function DispatchBoard({ 
   currentDealershipId,
@@ -64,6 +70,14 @@ export function DispatchBoard({
   const [loading, setLoading] = useState<boolean>(true);
   
   const [moveMenuRoId, setMoveMenuRoId] = useState<string | null>(null);
+  const moveMenuAnchorRef = useRef<HTMLElement | null>(null);
+  const moveMenuPortalRef = useRef<HTMLDivElement | null>(null);
+  const [moveMenuLayout, setMoveMenuLayout] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    placement: 'above' | 'below';
+  } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -135,6 +149,15 @@ export function DispatchBoard({
   const showTodayLoad = dealershipSettings?.dispatchShowTodayLoad !== false;
   const blockWhenFull = !!dealershipSettings?.dispatchBlockWhenFull;
   const apptGoal = dealershipSettings?.appointmentTarget ?? 20;
+  const displayColumns = useMemo(
+    () => buildDisplayColumns(dealershipSettings?.hiddenDispatchLanes ?? []),
+    [dealershipSettings?.hiddenDispatchLanes]
+  );
+  const visibleDepartments = useMemo(
+    () => DEPARTMENTS.filter((d) => !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)),
+    [dealershipSettings?.hiddenDispatchLanes]
+  );
+
 
   const matchCandidates = useMemo(
     () => findCustomersByLastName(customers, customerLastName),
@@ -299,12 +322,66 @@ export function DispatchBoard({
     }
   };
 
+  const updateMoveMenuLayout = useCallback(() => {
+    const anchor = moveMenuAnchorRef.current;
+    if (!anchor || !moveMenuRoId) return;
+    const rect = anchor.getBoundingClientRect();
+    const menuHeightEstimate = 240;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placement =
+      spaceBelow < menuHeightEstimate && rect.top > menuHeightEstimate ? 'above' : 'below';
+    setMoveMenuLayout({
+      left: rect.left,
+      width: Math.max(rect.width, 240),
+      top: placement === 'below' ? rect.bottom + 4 : rect.top - 4,
+      placement,
+    });
+  }, [moveMenuRoId]);
+
+  useLayoutEffect(() => {
+    if (!moveMenuRoId) {
+      setMoveMenuLayout(null);
+      moveMenuAnchorRef.current = null;
+      return;
+    }
+    updateMoveMenuLayout();
+    const onScrollOrResize = () => updateMoveMenuLayout();
+    window.addEventListener('resize', onScrollOrResize);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    return () => {
+      window.removeEventListener('resize', onScrollOrResize);
+      window.removeEventListener('scroll', onScrollOrResize, true);
+    };
+  }, [moveMenuRoId, updateMoveMenuLayout]);
+
   useEffect(() => {
     if (!moveMenuRoId) return;
-    const close = () => setMoveMenuRoId(null);
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
+    let detach: (() => void) | undefined;
+    const timer = window.setTimeout(() => {
+      const onPointerDown = (event: PointerEvent) => {
+        const target = event.target as Node;
+        if (moveMenuPortalRef.current?.contains(target)) return;
+        if (moveMenuAnchorRef.current?.contains(target)) return;
+        setMoveMenuRoId(null);
+      };
+      document.addEventListener('pointerdown', onPointerDown);
+      detach = () => document.removeEventListener('pointerdown', onPointerDown);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      detach?.();
+    };
   }, [moveMenuRoId]);
+
+  const toggleMoveMenu = (roId: string, anchor: HTMLElement, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (moveMenuRoId === roId) {
+      setMoveMenuRoId(null);
+      return;
+    }
+    moveMenuAnchorRef.current = anchor;
+    setMoveMenuRoId(roId);
+  };
 
   // Rule A Form submission: Default to 'unassigned' department
   const handleSubmitIntake = async (e: React.FormEvent) => {
@@ -466,18 +543,42 @@ export function DispatchBoard({
 
 
 
-  const moveTargets: { target: DispatchMoveTarget; label: string; icon?: React.ReactNode }[] = [
+  const moveTargets = useMemo((): { target: DispatchMoveTarget; label: string; icon?: React.ReactNode }[] => [
     { target: 'unassigned', label: 'Move to Queue', icon: <Inbox size={12} /> },
-    ...DEPARTMENTS.map((d) => ({ target: d.id as DispatchMoveTarget, label: `Move to ${d.label}`, icon: <d.icon size={12} /> })),
+    ...visibleDepartments.map((d) => ({ target: d.id as DispatchMoveTarget, label: `Move to ${d.label}`, icon: <d.icon size={12} /> })),
     { target: 'overnight', label: 'Move to Overnight', icon: <Moon size={12} /> },
-  ];
+  ], [visibleDepartments]);
 
-  const renderMoveMenu = (ro: DispatchRepairOrder) => {
-    if (moveMenuRoId !== ro.id) return null;
-    return (
+  const renderMoveMenuPortal = () => {
+    if (!moveMenuRoId || !moveMenuLayout) return null;
+    const ro = orders.find((o) => o.id === moveMenuRoId);
+    if (!ro) return null;
+
+    const style: React.CSSProperties =
+      moveMenuLayout.placement === 'below'
+        ? {
+            position: 'fixed',
+            zIndex: 9999,
+            left: moveMenuLayout.left,
+            width: moveMenuLayout.width,
+            top: moveMenuLayout.top,
+          }
+        : {
+            position: 'fixed',
+            zIndex: 9999,
+            left: moveMenuLayout.left,
+            width: moveMenuLayout.width,
+            top: moveMenuLayout.top,
+            transform: 'translateY(-100%)',
+          };
+
+    return createPortal(
       <div
-        className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-indigo-500/30 bg-slate-950 shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        ref={moveMenuPortalRef}
+        style={style}
+        className="rounded-xl border border-indigo-500/30 bg-slate-950 shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         role="menu"
       >
         <p className="px-3 py-2 text-[8px] font-black uppercase tracking-widest text-slate-500 border-b border-white/5">
@@ -489,15 +590,20 @@ export function DispatchBoard({
               key={String(target)}
               type="button"
               role="menuitem"
-              onClick={() => handleMoveRo(ro, target)}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-200 hover:bg-indigo-500/15 hover:text-white transition-colors"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMoveRo(ro, target);
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-200 hover:bg-indigo-500/15 hover:text-white transition-colors cursor-pointer"
             >
               <span className="text-indigo-400 shrink-0">{icon}</span>
               {label}
             </button>
           ))}
         </div>
-      </div>
+      </div>,
+      document.body
     );
   };
 
@@ -513,7 +619,7 @@ export function DispatchBoard({
           overnight && 'ring-1 ring-amber-500/40',
           moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50'
         )}
-        onClick={() => setMoveMenuRoId((id) => (id === ro.id ? null : ro.id))}
+        onClick={(e) => toggleMoveMenu(ro.id, e.currentTarget, e)}
       >
         <div className="flex items-center justify-between gap-1">
           <span className="text-[11px] font-black text-white tabular-nums truncate">RO {ro.roNumber}</span>
@@ -531,7 +637,6 @@ export function DispatchBoard({
           <span>T#{ro.techNumber}</span>
           <span>…{ro.vinLastEight}</span>
         </div>
-        {renderMoveMenu(ro)}
       </div>
     );
   };
@@ -549,13 +654,14 @@ export function DispatchBoard({
     return (
       <div
         key={ro.id}
+        data-dispatch-card
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
         className={cn(
           "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-pointer select-none w-full text-slate-100",
           isOvernight && "ring-1 ring-amber-500/30",
           moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30"
         )}
-        onClick={() => setMoveMenuRoId((id) => (id === ro.id ? null : ro.id))}
+        onClick={(e) => toggleMoveMenu(ro.id, e.currentTarget, e)}
       >
         {/* 1. HEADER SECTION (DYNAMIC HIERARCHY) */}
         <div className="flex justify-between items-start gap-2">
@@ -587,8 +693,8 @@ export function DispatchBoard({
             <button
               type="button"
               onClick={(e) => {
-                e.stopPropagation();
-                setMoveMenuRoId((id) => (id === ro.id ? null : ro.id));
+                const card = e.currentTarget.closest('[data-dispatch-card]') as HTMLElement | null;
+                toggleMoveMenu(ro.id, card ?? e.currentTarget, e);
               }}
               className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-950/50 border border-indigo-900/40 px-1.5 py-0.5 rounded hover:bg-indigo-900/40"
             >
@@ -715,7 +821,6 @@ export function DispatchBoard({
             <span>Done</span>
           </button>
         </div>
-        {renderMoveMenu(ro)}
       </div>
     );
   };
@@ -1028,7 +1133,7 @@ export function DispatchBoard({
             {/* Waiting Queue */}
             <div
               className={cn(
-                'lg:col-span-7 relative overflow-hidden rounded-2xl border flex flex-col min-h-[280px] transition-all duration-300 shadow-xl shadow-black/20',
+                'lg:col-span-7 relative overflow-visible rounded-2xl border flex flex-col min-h-[280px] transition-all duration-300 shadow-xl shadow-black/20',
                 'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80'
               )}
             >
@@ -1061,7 +1166,7 @@ export function DispatchBoard({
                 </div>
 
                 <div className={cn(
-                  'flex-1 flex gap-3 overflow-x-auto py-2 px-2 items-stretch min-h-[160px] rounded-xl transition-colors',
+                  'flex-1 flex gap-3 overflow-x-auto overflow-y-visible py-2 px-2 items-stretch min-h-[160px] rounded-xl transition-colors',
                   ticketsByColumn.unassigned.length === 0
                     ? 'border border-dashed border-slate-800/80 bg-slate-950/30'
                     : 'border border-slate-800/60 bg-slate-950/40'
@@ -1181,7 +1286,7 @@ export function DispatchBoard({
             </button>
 
             <div className="grid grid-cols-8 gap-1.5 flex-1 min-h-0 w-full h-full">
-              {DISPLAY_COLUMNS.map((col) => {
+              {displayColumns.map((col) => {
                 const list = ticketsByColumn[col.id] || [];
                 const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id];
                 const atCap = cap > 0 && list.length >= cap;
@@ -1225,6 +1330,7 @@ export function DispatchBoard({
           </div>
         </div>
       )}
+      {renderMoveMenuPortal()}
     </div>
   );
 }

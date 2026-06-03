@@ -25,6 +25,7 @@ const PARSE_ROUTE_TIMEOUT_MS = 4 * 60 * 1000;
 import type { Express, Request, Response } from 'express';
 import type OpenAI from 'openai';
 import { normalizeDmsProvider, parsePerformanceReport } from '../index.js';
+import { defaultDmsProviderForDealership } from '../../../src/constants/dealerDefaults.js';
 import { isScannedOrEmptyReportText, looksLikeDealerBuiltPerformanceReport } from '../pdfToImages.js';
 import { enrichReportTextFromPdf } from '../pdfOcr.js';
 import { parseDealerBuiltPerformanceWithOpenAI } from '../parsers/dealerbuiltPerformanceOpenAI.js';
@@ -34,20 +35,22 @@ import {
   parseDealerBuiltPerformanceDeterministic,
 } from '../parsers/dealerbuiltPerformance.js';
 import { performanceOpenAiJsonSchema } from '../schemas/performanceOpenAiSchema.js';
+import {
+  hasUsableOpenAIKey,
+  openAiFailureMessage,
+  openAiFailureStatus,
+  OPENAI_REQUIRED_MESSAGE,
+  rejectIfOpenAiUnavailable,
+} from '../requireOpenAi.js';
+
+
+function isPhantomPbsAdvisorName(name: string): boolean {
+  const n = name.toLowerCase().trim();
+  return n === 'frank' || n === 'lemmy' || n === 'jaryn' || n === 'jay';
+}
 
 type ExtractPdfText = (buffer: Buffer) => Promise<string>;
 type GetOpenAI = () => OpenAI;
-
-function hasUsableOpenAIKey(): boolean {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const isMaskedKey = !!(openaiKey && openaiKey.includes('*'));
-  return !!(
-    openaiKey &&
-    openaiKey.trim() !== '' &&
-    !openaiKey.includes('YOUR_') &&
-    !isMaskedKey
-  );
-}
 
 function validatePbsPerformance(
   parsed: any,
@@ -116,8 +119,6 @@ function validatePbsPerformance(
     } else if (ref.totals) {
       parsed.totals = ref.totals;
     }
-  } else if (ref?.advisors?.length > 0) {
-    return ref;
   }
 
   return parsed;
@@ -152,7 +153,15 @@ export function registerParsePerformanceRoute(
   }
 ) {
   app.post('/api/parse-performance', async (req: Request, res: Response) => {
-    const dmsProvider = normalizeDmsProvider(req.body?.dmsProvider);
+    if (rejectIfOpenAiUnavailable(res)) return;
+
+    const dealershipId =
+      typeof req.body?.dealershipId === 'string' ? req.body.dealershipId : undefined;
+    const dmsProvider = req.body?.dmsProvider
+      ? normalizeDmsProvider(req.body.dmsProvider)
+      : dealershipId
+        ? defaultDmsProviderForDealership(dealershipId)
+        : normalizeDmsProvider(undefined);
     const parseDeterministicPerformance = (reportText: string) =>
       parsePerformanceReport(reportText, dmsProvider);
 
@@ -181,71 +190,78 @@ export function registerParsePerformanceRoute(
           .json({ error: 'No performance data or PDF detected.' });
       }
 
+      const openai = deps.getOpenAIClient();
+
       if (isDealerBuiltReport) {
         const deterministic = text
           ? parseDealerBuiltPerformanceDeterministic(text)
           : { advisors: [], totals: null as any };
 
-        if (hasUsableOpenAIKey()) {
-          try {
-            const useVision = !!(pdfBuffer && isScannedPdf);
-            console.log(
-              `[DealerBuilt Performance] parse (deterministic=${deterministic.advisors.length}, vision=${useVision})`
-            );
-            const openai = deps.getOpenAIClient();
-            const aiResult = await withRouteTimeout(
-              parseDealerBuiltPerformanceWithOpenAI(openai, {
-                reportText: text || undefined,
-                pdfBuffer: useVision ? pdfBuffer : undefined,
-                useVision,
-              }),
-              PARSE_ROUTE_TIMEOUT_MS,
-              'DealerBuilt PDF parse'
-            );
+        try {
+          const useVision = !!(pdfBuffer && isScannedPdf);
+          console.log(
+            `[DealerBuilt Performance] OpenAI required (deterministic=${deterministic.advisors.length}, vision=${useVision})`
+          );
 
-            const merged = mergeDealerBuiltPerformanceResults(
-              deterministic,
-              aiResult
-            );
+          const aiResult = await withRouteTimeout(
+            parseDealerBuiltPerformanceWithOpenAI(openai, {
+              reportText: text || undefined,
+              pdfBuffer: useVision ? pdfBuffer : undefined,
+              useVision,
+            }),
+            PARSE_ROUTE_TIMEOUT_MS,
+            'DealerBuilt PDF parse'
+          );
 
-            if (merged.advisors.length > 0) {
-              return res.json({
-                ...validateDealerBuiltPerformance(merged),
-                isAiParsed: !!aiResult?.advisors?.length,
-                dmsProvider: 'dealerbuilt',
-              });
-            }
-          } catch (err: any) {
-            console.error('[DealerBuilt Performance] OpenAI error:', err);
-            if (deterministic.advisors.length > 0) {
-              return res.json({
-                ...validateDealerBuiltPerformance(deterministic),
-                isAiParsed: false,
-                dmsProvider: 'dealerbuilt',
-              });
-            }
-            const message =
-              err?.error?.message || err?.message || 'OpenAI parse failed';
+          if (!aiResult?.advisors?.length) {
             return res.status(502).json({
-              error: `DealerBuilt PDF parse failed: ${message}`,
+              error:
+                'OpenAI could not extract advisors from this DealerBuilt report. Check the PDF and try again.',
+              requiresOpenAi: true,
             });
           }
-        }
 
-        if (deterministic.advisors.length > 0) {
+          let merged = mergeDealerBuiltPerformanceResults(deterministic, aiResult);
+
+          const phantomOnly =
+            merged.advisors.length > 0 &&
+            merged.advisors.every((a) => isPhantomPbsAdvisorName(a.name));
+
+          if (phantomOnly && deterministic.advisors.length > 0) {
+            console.warn(
+              '[DealerBuilt Performance] Ignoring phantom PBS advisor names; using deterministic OCR parse.'
+            );
+            merged = {
+              advisors: deterministic.advisors,
+              totals: deterministic.totals ?? merged.totals,
+            };
+          } else if (phantomOnly) {
+            return res.status(502).json({
+              error:
+                'Parser returned legacy PBS demo names (Frank/Lemmy) instead of Ford service writers. Restart with `npm run dev`, confirm OPENAI_API_KEY is set, and set Admin → DMS → DealerBuilt.',
+              requiresOpenAi: true,
+            });
+          }
+
+          if (merged.advisors.length === 0) {
+            return res.status(502).json({
+              error: 'OpenAI parse completed but no valid advisors were found after validation.',
+              requiresOpenAi: true,
+            });
+          }
+
           return res.json({
-            ...validateDealerBuiltPerformance(deterministic),
-            isAiParsed: false,
+            ...validateDealerBuiltPerformance(merged),
+            isAiParsed: true,
             dmsProvider: 'dealerbuilt',
           });
+        } catch (err: unknown) {
+          console.error('[DealerBuilt Performance] OpenAI error:', err);
+          return res.status(openAiFailureStatus(err)).json({
+            error: `OpenAI parse failed: ${openAiFailureMessage(err)}`,
+            requiresOpenAi: true,
+          });
         }
-      }
-
-      if (!text && pdfBuffer && isDealerBuiltReport) {
-        return res.status(422).json({
-          error:
-            'This looks like a scanned DealerBuilt PDF. Add OPENAI_API_KEY to .env (or .env.local) and restart the server.',
-        });
       }
 
       if (!text) {
@@ -254,118 +270,64 @@ export function registerParsePerformanceRoute(
           .json({ error: 'No performance data or PDF detected.' });
       }
 
-      const validateAndReconcileTotals = (parsed: any) =>
-        isDealerBuiltReport
-          ? validateDealerBuiltPerformance(parsed)
-          : validatePbsPerformance(parsed, text, parseDeterministicPerformance);
-
-      if (!isDealerBuiltReport && hasUsableOpenAIKey()) {
-        try {
-          console.log(
-            '[OpenAI Performance Parser] Parsing report text using gpt-4o-mini...'
-          );
-          const openai = deps.getOpenAIClient();
-          const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
+      try {
+        console.log(
+          '[OpenAI Performance Parser] Parsing report text using gpt-4o-mini (required)...'
+        );
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
 For each service advisor cleanly identify:
-- name: Clean name (e.g. Frank, Lemmy)
-- soCount: Total physical repair orders or service orders completed
-- hrsSold: Total flat rate or sold hours billed
-- laborSold: Total labor sales revenue
-- grossLabor: Total labor gross profit dollars
-- partsSold: Total parts sales revenue
-- grossParts: Total parts gross profit dollars
-- totalSales: Combined total sales revenue (usually labor + parts)
-- gpPercent: Blended gross profit percentage (0 to 100)
-- elr: Effective labor rate (ELR)
+- name: Clean name from the report (never invent names)
+- soCount, hrsSold, laborSold, grossLabor, partsSold, grossParts, totalSales, gpPercent, elr
 
-Also overall mechanical department totals:
-- totalSales: Total combined sales
-- totalLabor: Total combined labor sales
-- totalGross: Total combined labor gross profit dollars
-- totalParts: Total combined parts sales
-- totalGrossParts: Total combined parts gross profit dollars
-- totalHrs: Total combined hours sold
+Also overall department totals: totalSales, totalLabor, totalGross, totalParts, totalGrossParts, totalHrs
 
-CRITICAL GUIDELINE: If the report text does not list individual advisor-specific breakdowns, you MUST distribute the totals proportionally among the two standard active advisors: 'Frank' (56%) and 'Lemmy' (44%). Do NOT treat system category/price code labels as advisors.`,
-              },
-              {
-                role: 'user',
-                content: `Parse this automotive performance/productivity report chunk and return structured JSON:\n\n${text}`,
-              },
-            ],
-            response_format: {
-              type: 'json_schema',
-              json_schema: performanceOpenAiJsonSchema,
+Do NOT treat pay types, price codes, or table headers as advisor names.`,
             },
-            temperature: 0,
-          });
-
-          const resContent = completion.choices[0]?.message?.content;
-          if (resContent) {
-            const parsed = JSON.parse(resContent);
-            return res.json(validateAndReconcileTotals(parsed));
-          }
-        } catch (err) {
-          console.error('[OpenAI Performance Parser] Error:', err);
-        }
-      }
-
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes('*'));
-      const hasGemini = !!(
-        geminiKey &&
-        geminiKey.trim() !== '' &&
-        !geminiKey.includes('YOUR_') &&
-        !isGeminiKeyMasked
-      );
-
-      if (!isDealerBuiltReport && hasGemini) {
-        try {
-          console.log(
-            '[Gemini Performance Parser] Parsing using gemini-2.0-flash...'
-          );
-          const client = deps.getAIClient();
-          const response = await client.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  {
-                    text: `Extract Service Advisor productivity metrics according to the required schema.`,
-                  },
-                  { text },
-                ],
-              },
-            ],
-            config: {
-              responseMimeType: 'application/json',
-              responseSchema: deps.performanceSchemaGemini,
-              temperature: 0,
+            {
+              role: 'user',
+              content: `Parse this automotive performance/productivity report chunk and return structured JSON:\n\n${text}`,
             },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: performanceOpenAiJsonSchema,
+          },
+          temperature: 0,
+        });
+
+        const resContent = completion.choices[0]?.message?.content;
+        if (!resContent) {
+          return res.status(502).json({
+            error: 'OpenAI returned an empty performance parse response.',
+            requiresOpenAi: true,
           });
-
-          if (response.text) {
-            const parsed = JSON.parse(response.text);
-            return res.json(validateAndReconcileTotals(parsed));
-          }
-        } catch (err) {
-          console.error('[Gemini Performance Parser] Error:', err);
         }
-      }
 
-      console.log(
-        `[Performance Parser Fallback] DMS=${dmsProvider} deterministic parse`
-      );
-      const deterministicResult = isDealerBuiltReport
-        ? parseDealerBuiltPerformanceDeterministic(text)
-        : parseDeterministicPerformance(text);
-      return res.json(deterministicResult);
+        const parsed = JSON.parse(resContent);
+        if (!parsed?.advisors?.length) {
+          return res.status(502).json({
+            error: 'OpenAI could not identify any advisors in this report.',
+            requiresOpenAi: true,
+          });
+        }
+
+        return res.json({
+          ...validatePbsPerformance(parsed, text, parseDeterministicPerformance),
+          isAiParsed: true,
+          dmsProvider,
+        });
+      } catch (err: unknown) {
+        console.error('[OpenAI Performance Parser] Error:', err);
+        return res.status(openAiFailureStatus(err)).json({
+          error: `OpenAI parse failed: ${openAiFailureMessage(err)}`,
+          requiresOpenAi: true,
+        });
+      }
     } catch (error: any) {
       console.error('API Error Performance:', error);
       res.status(500).json({
@@ -374,3 +336,6 @@ CRITICAL GUIDELINE: If the report text does not list individual advisor-specific
     }
   });
 }
+
+// re-export for tests
+export { hasUsableOpenAIKey, OPENAI_REQUIRED_MESSAGE };

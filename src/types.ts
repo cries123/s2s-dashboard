@@ -1,111 +1,18 @@
-import type { DmsProviderId } from './constants/dmsProviders';
 import { Timestamp } from "firebase/firestore";
 
-/** RBAC roles — `admin` is platform super-admin; enrollment starts as `pending`. */
-export type UserRole = 'admin' | 'manager' | 'advisor' | 'pending';
-
-/** @deprecated Legacy roles — normalized to RBAC roles in useAuth */
-export type LegacyRole = 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
-
-export type Role = UserRole | LegacyRole | 'admin';
-
-export type UserDepartment = 'sales' | 'service';
+export type Role = 'admin' | 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
-
-export interface Tenant {
-  tenantId: string;
-  name: string;
-  dmsProvider: DmsProviderId;
-  updatedAt?: Timestamp;
-}
-
-export interface AuditLogEntry {
-  id: string;
-  tenantId: string;
-  userId: string;
-  userEmail?: string;
-  username?: string;
-  action: string;
-  details: string;
-  timestamp: Timestamp;
-}
 
 export interface User {
   uid: string;
   email: string;
   username: string;
-  role: UserRole | LegacyRole | 'admin';
-  department?: UserDepartment;
-  /** Explicit approval flag (preferred over legacy `status`). */
-  approved?: boolean;
-  tenantId?: string;
+  role: Role;
   jobTitle: string;
   status: UserStatus;
   dealershipId?: string;
   isManager?: boolean;
   createdAt?: Timestamp;
-  preferences?: UserPreferences;
-}
-
-export type LandingTab =
-  | 'service-drive'
-  | 'appointments'
-  | 'alerts'
-  | 'search'
-  | 'add'
-  | 'dispatch'
-  | 'forecast'
-  | 'sales-performance'
-  | 'pot-of-gold'
-  | 'vin-search'
-  | 'admin'
-  | 'settings';
-
-export type ServiceDriveFilter = 'all' | 'service_due' | 'stale_followup';
-
-export type QueuePriorityProfile = 'balanced' | 'overdue_first' | 'never_contacted_first';
-
-export type CrmDensity = 'compact' | 'standard';
-
-export type LanguageFilter = 'all' | 'english' | 'spanish';
-
-export interface ServiceDrivePreferences {
-  openOnLogin: boolean;
-  defaultLandingTab: LandingTab;
-  defaultFilter: ServiceDriveFilter;
-  queuePriority: QueuePriorityProfile;
-}
-
-export interface ContactWorkflowPreferences {
-  followUpDays: number;
-  defaultOutcome: string;
-  autoCheckAppointmentSet: boolean;
-}
-
-export interface DashboardModulePreferences {
-  showWeatherWidget: boolean;
-  showOperationsKpis: boolean;
-  showOperationsProjections: boolean;
-  showAdvisorPerformance: boolean;
-  showTechEfficiency: boolean;
-  showArchiveTools: boolean;
-  showForecastTab: boolean;
-  showSalesPerformanceTab: boolean;
-  showVinSearchTab: boolean;
-  showPotOfGoldTab: boolean;
-}
-
-export interface CrmDisplayPreferences {
-  density: CrmDensity;
-  defaultLanguageFilter: LanguageFilter;
-  alertsOnlyDefault: boolean;
-}
-
-export interface UserPreferences {
-  serviceDrive: ServiceDrivePreferences;
-  contactWorkflow: ContactWorkflowPreferences;
-  dashboardModules: DashboardModulePreferences;
-  crmDisplay: CrmDisplayPreferences;
 }
 
 export interface Dealership {
@@ -115,27 +22,20 @@ export interface Dealership {
   createdAt: Timestamp;
 }
 
-export type DispatchProductionLaneId =
-  | 'lube'
-  | 'quick_service'
-  | 'ac_electrical'
-  | 'heavyline'
-  | 'diesel'
-  | 'trans'
-  | 'mobile_repair';
+export interface PerformanceAdvisorSlot {
+  id: string;
+  label: string;
+}
 
 export interface DealershipSettings {
   id: string;
   appointmentTarget: number;
   laborGrossTarget?: number;
   partsSalesTarget?: number;
-  enableDispatchTab?: boolean;
-  /** Pot of Gold / competition column config (slug id + display label) */
-  competitionAdvisors?: { id: string; label: string }[];
-  dmsProvider?: DmsProviderId;
-  dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
-  dispatchShowTodayLoad?: boolean;
-  dispatchBlockWhenFull?: boolean;
+  /** PBS Systems vs DealerBuilt report layouts */
+  dmsProvider?: 'pbs' | 'dealerbuilt';
+  /** Allowed service advisors for productivity imports (DealerBuilt) */
+  performanceAdvisorRoster?: PerformanceAdvisorSlot[];
   updatedAt: Timestamp;
 }
 
@@ -189,7 +89,7 @@ export interface Customer {
   lastContactUsername?: string;
   lastAcknowledgedCycle?: number;
   lastServiceDate?: string;
-  recentVisits?: ServiceVisit[];
+  recentVisits?: ServiceVisit[]; // Last few for quick display
   stopAlertInfo?: {
     reason: string;
     notes: string;
@@ -241,28 +141,22 @@ export interface DailyStat {
   };
 }
 
-export type DepartmentColumnId =
-  | 'lube'
-  | 'quick_service'
-  | 'ac_electrical'
-  | 'heavyline'
-  | 'diesel'
-  | 'trans'
-  | 'mobile_repair'
+export type DepartmentColumnId = 
+  | 'lube' 
+  | 'quick_service' 
+  | 'ac_electrical' 
+  | 'heavyline' 
+  | 'diesel' 
+  | 'trans' 
+  | 'mobile_repair' 
   | 'unassigned';
-
-export type DispatchLifecycleStatus = 'active' | 'overnight';
 
 export interface DispatchRepairOrder {
   id: string;
   roNumber: string;
   techNumber: string;
-  customerLastName?: string;
-  vinLastEight?: string;
-  customerId?: string;
+  vinLastEight: string;
   department: DepartmentColumnId;
-  currentLaneId?: DepartmentColumnId;
-  lifecycleStatus?: DispatchLifecycleStatus;
   status: 'WIP' | 'DIS' | 'POO' | 'WFA';
   isCompleted: boolean;
   dateCreated: string;
@@ -280,8 +174,9 @@ export interface DispatchRepairOrder {
 }
 
 export interface ArchivePayload {
-  targetYearMonth: string;
-  dateArchived: string;
+  // Allows explicit overrides like "2026-05" instead of forcing the current server month
+  targetYearMonth: string; 
+  dateArchived: string;       // Actual timestamp of action execution
   metricsSnapshot: {
     laborSales: number;
     laborGross: number;
@@ -292,17 +187,3 @@ export interface ArchivePayload {
   };
 }
 
-/** Why a customer appears on the Service Drive work queue */
-export type ServiceDriveReason = 'service_due' | 'stale_followup';
-
-export type ServiceDrivePriority = 'urgent' | 'high' | 'medium' | 'normal';
-
-/** Unified advisor work-queue row (service alerts + follow-ups) */
-export interface WorkQueueItem {
-  customer: Customer;
-  score: number;
-  reasons: ServiceDriveReason[];
-  daysOverdue: number;
-  daysSinceContact: number | null;
-  priority: ServiceDrivePriority;
-}

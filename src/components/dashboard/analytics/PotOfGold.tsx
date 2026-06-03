@@ -13,6 +13,7 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   getDealershipStaffConfig,
+  getTechnicianLabels,
   matchAdvisorSlot,
   slugifyStaffName,
   type CompetitionAdvisorSlot,
@@ -28,13 +29,15 @@ import {
   type TechPerformanceRow,
 } from '../../../lib/potOfGoldData';
 
-const TECHNICIANS = ['Daniel', 'Jon', 'Matthew', 'Jacinto', 'Ethan', 'Trevor'];
 
 const CHART_COLORS = ['#2e86c1', '#e74c3c', '#82ccdd', '#f39c12', '#9b59b6'];
 
 interface PotOfGoldProps {
   currentDealershipId: string;
-  dealershipSettings?: { competitionAdvisors?: CompetitionAdvisorSlot[] } | null;
+  dealershipSettings?: {
+    competitionAdvisors?: CompetitionAdvisorSlot[];
+    competitionTechnicians?: { id: string; label: string }[];
+  } | null;
 }
 
 export const PotOfGold: React.FC<PotOfGoldProps> = ({
@@ -42,8 +45,13 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
   dealershipSettings,
 }) => {
   const { user } = useAuth();
-  const competitionAdvisors = React.useMemo(
-    () => getDealershipStaffConfig(currentDealershipId, dealershipSettings).competitionAdvisors,
+  const staffConfig = React.useMemo(
+    () => getDealershipStaffConfig(currentDealershipId, dealershipSettings),
+    [currentDealershipId, dealershipSettings]
+  );
+  const competitionAdvisors = staffConfig.competitionAdvisors;
+  const TECHNICIANS = React.useMemo(
+    () => getTechnicianLabels(currentDealershipId, dealershipSettings),
     [currentDealershipId, dealershipSettings]
   );
   const advisorIds = React.useMemo(

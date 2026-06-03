@@ -15,7 +15,18 @@ import {
 } from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
-import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
+import { normalizeDmsProvider } from '../../../constants/dmsProviders';
+import {
+  defaultDmsProviderForDealership,
+  defaultPerformanceAdvisorRoster,
+} from '../../../constants/dealerDefaults';
+import {
+  cleanAdvisorName,
+  isPhantomPbsAdvisorName,
+  isRealAdvisorName,
+  matchesPerformanceAdvisorRoster,
+} from '../../../lib/advisorNameUtils';
+import type { PerformanceAdvisorSlot } from '../../../types';
 
 interface UpsellItem {
   code: string;
@@ -55,7 +66,12 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
-  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(() =>
+    defaultDmsProviderForDealership(currentDealershipId)
+  );
+  const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState<PerformanceAdvisorSlot[]>(() =>
+    defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
+  );
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -65,19 +81,35 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        setLaborTarget(docSnap.data().laborGrossTarget || 500000);
-        setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
+        const data = docSnap.data();
+        setLaborTarget(data.laborGrossTarget || 500000);
+        setDmsProvider(
+          data.dmsProvider
+            ? normalizeDmsProvider(data.dmsProvider as string)
+            : defaultDmsProviderForDealership(currentDealershipId)
+        );
+        const roster = Array.isArray(data.performanceAdvisorRoster)
+          ? data.performanceAdvisorRoster
+          : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
+        setPerformanceAdvisorRoster(roster);
+      } else {
+        setDmsProvider(defaultDmsProviderForDealership(currentDealershipId));
+        setPerformanceAdvisorRoster(defaultPerformanceAdvisorRoster(currentDealershipId) ?? []);
       }
     });
     return () => unsubscribe();
+  }, [currentDealershipId]);
+
+  useEffect(() => {
+    setDmsProvider(defaultDmsProviderForDealership(currentDealershipId));
+    setPerformanceAdvisorRoster(defaultPerformanceAdvisorRoster(currentDealershipId) ?? []);
   }, [currentDealershipId]);
 
   // realtime performance sync
   useEffect(() => {
     if (!user || !currentDealershipId) return;
 
-    const baseId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const docId = selectedMonth === 'active' ? baseId : `${baseId}_archive_${selectedMonth}`;
+    const docId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -107,60 +139,47 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     return () => unsubscribe();
   }, [user, currentDealershipId, selectedMonth]);
 
+  const effectiveDmsProvider: DmsProviderId =
+    dmsProvider || defaultDmsProviderForDealership(currentDealershipId);
+  const effectiveAdvisorRoster: PerformanceAdvisorSlot[] =
+    performanceAdvisorRoster.length > 0
+      ? performanceAdvisorRoster
+      : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
+
   const saveToFirestore = async (
     newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
     overwrite = false,
     targetMonthOverride?: string
-  ) => {
-    if (!user || !currentDealershipId) return;
+  ): Promise<{ advisorCount: number; skippedCount: number; targetMonth: string; advisors: AdvisorData[]; totals?: any }> => {
+    if (!user || !currentDealershipId) {
+      throw new Error('You must be signed in with a dealership selected to save performance data.');
+    }
     
     let updatedAdvisors: AdvisorData[] = [];
-    
-    // Helper to sanitize name to filter out obvious DMS category headings or false AI extractions
-    const isRealAdvisorName = (name: string): boolean => {
-      const n = name.toLowerCase().trim();
-      if (!n) return false;
-      if (n === 'jay') return false;
-      const badStarts = ["total", "parts", "labor", "sublet", "price code", "customer", "warranty", "internal", "page"];
-      if (badStarts.some(bad => n.startsWith(bad))) return false;
-      const exclusions = ["parts cro", "parts cempr", "parts i", "parts w", "labor c", "labor cemp", "labor i", "labor w", "labor wshop", "sublet csub", "sublet isub", "sublet wsub"];
-      if (exclusions.includes(n)) return false;
+    const incomingCount = newData.advisors?.length ?? 0;
+
+    const acceptAdvisor = (name: string): boolean => {
+      if (!isRealAdvisorName(name, effectiveDmsProvider)) return false;
+      if (effectiveDmsProvider === 'dealerbuilt' && isPhantomPbsAdvisorName(name)) return false;
+      if (!matchesPerformanceAdvisorRoster(name, effectiveAdvisorRoster)) return false;
       return true;
     };
 
-    // Helper to beautifully normalize/canonicalize advisor names
-    const cleanAdvisorName = (rawName: string): string => {
-      let name = rawName.toUpperCase().trim();
-      
-      // Handle the standard 3 active advisors for perfect matching
-      if (name.includes("FRANK")) return "Frank";
-      if (name.includes("LEMMY")) return "Lemmy";
-      if (name.includes("JARYN")) return "Jaryn";
-      
-      // Look for "Advisor <id> - <name>" pattern and extract <name>
-      const match = name.match(/Advisor\s+(?:\w+\s*-\s*)?([A-Z]+)/i);
-      if (match) {
-        const extracted = match[1].trim();
-        return extracted.charAt(0).toUpperCase() + extracted.slice(1).toLowerCase();
-      }
-      
-      const cleanWord = name.split(/[\s-]+/)[0] || '';
-      return cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();
-    };
+    const normalizeName = (rawName: string) => cleanAdvisorName(rawName, effectiveDmsProvider);
 
     if (overwrite) {
       updatedAdvisors = newData.advisors
-        .filter(a => isRealAdvisorName(a.name))
-        .map(a => ({ ...a, name: cleanAdvisorName(a.name) }));
+        .filter((a) => acceptAdvisor(a.name))
+        .map((a) => ({ ...a, name: normalizeName(a.name) }));
     } else {
       updatedAdvisors = [...advisors]
-        .filter(a => isRealAdvisorName(a.name))
-        .map(a => ({ ...a, name: cleanAdvisorName(a.name) }));
-      
-      newData.advisors.forEach(newAdvisor => {
-        if (!isRealAdvisorName(newAdvisor.name)) return;
-        const normalizedName = cleanAdvisorName(newAdvisor.name);
-        
+        .filter((a) => acceptAdvisor(a.name))
+        .map((a) => ({ ...a, name: normalizeName(a.name) }));
+
+      newData.advisors.forEach((newAdvisor) => {
+        if (!acceptAdvisor(newAdvisor.name)) return;
+        const normalizedName = normalizeName(newAdvisor.name);
+
         const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === normalizedName.toLowerCase().trim());
         
         if (idx !== -1) {
@@ -190,9 +209,26 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     }
 
     const targetMonth = targetMonthOverride || selectedMonth;
-    const baseId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const docId = targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
+    const docId = performanceDocId('advisorReports', currentDealershipId, targetMonth);
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+
+    const skippedCount = Math.max(0, incomingCount - updatedAdvisors.length);
+    if (incomingCount > 0 && updatedAdvisors.length === 0) {
+      const parsedNames = (newData.advisors ?? []).map((a) => a.name).join(', ');
+      const phantomPbsOnly = (newData.advisors ?? []).every((a) =>
+        isPhantomPbsAdvisorName(a.name)
+      );
+      let rosterHint = '';
+      if (phantomPbsOnly && effectiveDmsProvider === 'dealerbuilt') {
+        rosterHint =
+          ' The parser returned legacy PBS demo names (Frank/Lemmy), not your Ford advisors. Restart the app with `npm run dev` (not an old server process), confirm OPENAI_API_KEY is set, and verify Admin → DMS → DealerBuilt.';
+      } else if (effectiveAdvisorRoster.length > 0) {
+        rosterHint = ` None of the ${incomingCount} parsed advisor(s) matched your configured roster (${parsedNames}). Check Admin → DMS = DealerBuilt and the productivity advisor list.`;
+      } else {
+        rosterHint = ` All parsed advisors were rejected by validation rules (${parsedNames}).`;
+      }
+      throw new Error(`Import parsed ${incomingCount} advisor(s) but none could be saved.${rosterHint}`);
+    }
     
     try {
       await setDoc(docRef, {
@@ -207,6 +243,14 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       console.error('Error saving advisor performance:', error);
       throw error instanceof Error ? error : new Error('Failed to save performance data to Firestore.');
     }
+
+    return {
+      advisorCount: updatedAdvisors.length,
+      skippedCount,
+      targetMonth,
+      advisors: updatedAdvisors,
+      totals: newData.totals,
+    };
   };
 
   const resetPerformanceToDefaults = async () => {
@@ -294,6 +338,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     });
   };
 
+
+  const monthKeyFromIsoDate = (iso?: string | null): string | null => {
+    if (!iso || !/^\d{4}-\d{2}/.test(iso)) return null;
+    return iso.slice(0, 7);
+  };
+
+  /** When editing an archive month, always save to that month. */
+  const resolveImportTargetMonth = (
+    parsed: { reportStartDate?: string; reportEndDate?: string },
+    reportText: string
+  ): string => {
+    if (selectedMonth !== 'active') return selectedMonth;
+    const fromParsed =
+      monthKeyFromIsoDate(parsed.reportStartDate) ||
+      monthKeyFromIsoDate(parsed.reportEndDate);
+    if (fromParsed) return fromParsed;
+    const detected = detectDateRangeFromText(reportText);
+    if (detected?.start) {
+      const key = monthKeyFromIsoDate(detected.start);
+      if (key) return key;
+    }
+    return selectedMonth;
+  };
+
   const detectDateRangeFromText = (text: string): { start: string; end: string } | null => {
     if (!text) return null;
     const regexSlashRange = /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-\u2013\u2014to]+\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/;
@@ -361,7 +429,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     setImportStatus(null);
     setImportProgress(null);
 
-    const isDealerBuiltImport = dmsProvider === 'dealerbuilt';
+    const isDealerBuiltImport = effectiveDmsProvider === 'dealerbuilt';
 
     try {
       let reportText = '';
@@ -409,7 +477,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         response = await fetch('/api/parse-performance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(withDmsProvider({ dmsProvider }, payload)),
+          body: JSON.stringify(withDmsProvider({ dmsProvider: effectiveDmsProvider, dealershipId: currentDealershipId }, payload)),
           signal: controller.signal,
         });
       } catch (fetchErr: any) {
@@ -454,36 +522,55 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         throw new Error('Server returned an invalid data format. Please try again.');
       }
       
-      // Detect date range from PDF text
       const detectedDates = detectDateRangeFromText(reportText);
-      let targetMonth = selectedMonth;
-      if (detectedDates) {
+      if (detectedDates && !data.reportStartDate) {
         data = {
           ...data,
           reportStartDate: detectedDates.start,
-          reportEndDate: detectedDates.end
+          reportEndDate: detectedDates.end,
         };
-        // Auto-route to May archive if dates fall in May
-        if (detectedDates.start.startsWith('2026-05')) {
-          targetMonth = '2026-05';
-        }
       }
-      
-      // If this is a main productivity report (contains totals object), overwrite the advisor records completely 
-      // rather than merging as a delta, to cleanly eliminate any stale or corrupt duplicates in the database.
+
+      const targetMonth = resolveImportTargetMonth(data, reportText);
+
+      if (!data.advisors?.length) {
+        throw new Error(
+          'OpenAI did not return any advisors for this report. Confirm DMS is set to DealerBuilt (Ford) in Admin → Operations and retry.'
+        );
+      }
+
       const shouldOverwrite = !!data.totals;
       setImportProgress('Saving imported data...');
-      await saveToFirestore(data, shouldOverwrite, targetMonth);
-      
+      const saved = await saveToFirestore(data, shouldOverwrite, targetMonth);
+
+      if (saved.advisorCount === 0) {
+        throw new Error('Nothing was saved — no valid advisor rows after validation.');
+      }
+
+      // Refresh UI immediately (don't wait for Firestore listener)
+      setAdvisors(saved.advisors);
+      if (saved.totals) setTotals(saved.totals);
+
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
-      
-      let message = 'Report imported successfully!';
-      if (targetMonth === '2026-05' && selectedMonth === 'active') {
-        message = 'Detected May dates! Saved directly to May 2026 Saved Archive. June active tracker kept clean!';
-      } else if (hasUpsells && hasTotals) message = 'Productivity and Upsell data imported and merged!';
-      else if (hasUpsells) message = 'Upsell data imported and merged!';
-      else if (hasTotals) message = 'Productivity data imported!';
+      const archiveLabel =
+        targetMonth !== 'active'
+          ? targetMonth === '2026-05'
+            ? 'May 2026 archive'
+            : `${targetMonth} archive`
+          : 'active month';
+
+      let message = `Saved ${saved.advisorCount} advisor(s) to ${archiveLabel}.`;
+      if (saved.skippedCount > 0) {
+        message += ` (${saved.skippedCount} row(s) skipped — not on roster)`;
+      }
+      if (targetMonth !== selectedMonth && selectedMonth === 'active') {
+        message += ' Switch the month selector to view the archive you just updated.';
+      } else if (hasUpsells && hasTotals) {
+        message = `Productivity + upsell data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
+      } else if (hasTotals) {
+        message = `Productivity data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
+      }
 
       setImportStatus({ type: 'success', message });
       
