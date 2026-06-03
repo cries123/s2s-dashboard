@@ -25,6 +25,7 @@ import {
   toLocalDateString,
 } from '../../../lib/appointmentTracker';
 import { calculateAppointmentForecast, forecastGoalPercent } from '../../../lib/appointmentForecast';
+import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 
 interface AppointmentsProps {
   currentUser: User;
@@ -64,9 +65,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [targetValue, setTargetValue] = useState(20);
   const [laborTarget, setLaborTarget] = useState(500000);
   const [partsTarget, setPartsTarget] = useState(300000);
-  const [mtdGross, setMtdGross] = useState(0);
-  const [mtdPartsGross, setMtdPartsGross] = useState(0);
-  const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [pdfParsePreview, setPdfParsePreview] = useState<{
     fileName: string;
@@ -257,35 +255,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubPerf = onSnapshot(perfRef, (snap) => {
       if (snap.exists()) {
-        const data = snap.data();
-        setActivePerformanceData(data);
-        
-        // Calculate dynamic sums of advisor metrics
-        const rawAdvisors = data.advisors || [];
-        const computedGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (Number(curr.grossLabor) || Number(curr.laborGross) || 0), 0);
-        const computedLabor = rawAdvisors.reduce((acc: number, curr: any) => acc + (Number(curr.laborSold) || 0), 0);
-        const computedPartsGross = rawAdvisors.reduce((acc: number, curr: any) => acc + (Number(curr.grossParts) || 0), 0);
-
-        // If totals object is available, check for mismatch. Fallback to computed advisor sum if mismatched or totals are less.
-        if (data.totals) {
-          const lGross = Number(data.totals.totalGross) || 0;
-          const lLabor = Number(data.totals.totalLabor) || 0;
-          const pGross = Number(data.totals.totalGrossParts || data.totals.totalPartsGross) || 0;
-
-          if (computedGross > lGross || Math.abs(computedGross - lGross) > 10.0) {
-            setMtdGross(computedGross);
-            setMtdLaborSales(computedLabor);
-            setMtdPartsGross(computedPartsGross);
-          } else {
-            setMtdGross(lGross);
-            setMtdLaborSales(lLabor);
-            setMtdPartsGross(pGross);
-          }
-        } else {
-          setMtdGross(computedGross);
-          setMtdLaborSales(computedLabor);
-          setMtdPartsGross(computedPartsGross);
-        }
+        setActivePerformanceData(snap.data());
+      } else {
+        setActivePerformanceData(null);
       }
     });
 
@@ -551,15 +523,18 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     }
   };
 
+  const resolvedPerformance = resolvePerformanceTotalsFromDoc(activePerformanceData);
+
   const calculateMetrics = () => {
     return calculateAppointmentForecast({
       stats: allStats,
       dailyTarget: targetValue,
       laborTarget,
       partsTarget,
-      mtdGross,
-      mtdLaborSales,
-      mtdPartsGross,
+      mtdGross: resolvedPerformance?.totalGross ?? 0,
+      mtdLaborSales: resolvedPerformance?.totalLabor ?? 0,
+      mtdPartsGross: resolvedPerformance?.totalGrossParts ?? 0,
+      performanceReportEndDate: resolvedPerformance?.reportEndDate,
     });
   };
 
@@ -1196,18 +1171,16 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         onClose={() => setShowArchiveModal(false)}
         currentData={{
           totalThroughput: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-            activePerformanceData?.totals?.totalSales || 
-            ((activePerformanceData?.totals?.totalParts || 0) + (activePerformanceData?.totals?.totalLabor || mtdLaborSales || 0)) || 
-            0
+            resolvedPerformance?.totalSales ?? 0
           ),
           laborGross: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-            activePerformanceData?.totals?.totalGross || mtdGross || 0
+            resolvedPerformance?.totalGross ?? 0
           ),
           rawValues: {
-            laborSales: activePerformanceData?.totals?.totalLabor || mtdLaborSales || 0,
-            laborGross: activePerformanceData?.totals?.totalGross || mtdGross || 0,
-            partsSales: activePerformanceData?.totals?.totalParts || 0,
-            partsGross: activePerformanceData?.totals?.totalGrossParts || mtdPartsGross || 0,
+            laborSales: resolvedPerformance?.totalLabor ?? 0,
+            laborGross: resolvedPerformance?.totalGross ?? 0,
+            partsSales: resolvedPerformance?.totalParts ?? 0,
+            partsGross: resolvedPerformance?.totalGrossParts ?? 0,
             advisorBreakdown: activePerformanceData?.advisors || [],
             techBreakdown: activeTechData?.technicians || []
           }
