@@ -31,8 +31,8 @@ import {
   computeAdvisorMix,
   extractOperationsPayTypes,
   type AdvisorMixRow,
-  type OperationsPayTypeSummary,
 } from '../../../lib/operationsPayTypes';
+import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 
 interface UpsellItem {
   code: string;
@@ -70,7 +70,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [totals, setTotals] = useState<any>(null);
-  const [payTypes, setPayTypes] = useState<OperationsPayTypeSummary | null>(null);
+  const [reportStartDate, setReportStartDate] = useState<string | undefined>();
+  const [reportEndDate, setReportEndDate] = useState<string | undefined>();
   const [advisorMix, setAdvisorMix] = useState<AdvisorMixRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
@@ -135,15 +136,16 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           setAdvisors([]);
         }
         if (data.totals) setTotals(data.totals);
-        if (data.payTypes) setPayTypes(data.payTypes as OperationsPayTypeSummary);
-        else setPayTypes(null);
+        setReportStartDate(data.reportStartDate);
+        setReportEndDate(data.reportEndDate);
         if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
         else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
         else setAdvisorMix([]);
       } else {
         setAdvisors([]);
         setTotals(null);
-        setPayTypes(null);
+        setReportStartDate(undefined);
+        setReportEndDate(undefined);
         setAdvisorMix([]);
       }
       setLoading(false);
@@ -570,8 +572,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       // Refresh UI immediately (don't wait for Firestore listener)
       setAdvisors(saved.advisors);
       if (saved.totals) setTotals(saved.totals);
-      if (extractedPayTypes) setPayTypes(extractedPayTypes);
-
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
       const archiveLabel =
@@ -607,32 +607,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
   // Calculate totals and projections
   const getPerformanceMetrics = () => {
-    let baseTotals = totals;
-    
-    // Always compute or check based on the sum of advisors if advisors exist
-    if (advisors.length > 0) {
-      const computedGross = advisors.reduce((a, b) => a + (Number(b.grossLabor) || 0), 0);
-      const computedLabor = advisors.reduce((a, b) => a + (Number(b.laborSold) || 0), 0);
-      const computedParts = advisors.reduce((a, b) => a + (Number(b.partsSold) || 0), 0);
-      const computedGrossParts = advisors.reduce((a, b) => a + (Number(b.grossParts) || 0), 0);
-      const computedSales = computedLabor + computedParts;
-      const computedHrs = advisors.reduce((a, b) => a + (Number(b.hrsSold) || 0), 0);
-
-      // Reconcile and override baseTotals if missing, or if sum of advisors is higher or different due to partial category extraction (e.g. Customer Labor C instead of Total)
-      if (!baseTotals || Math.abs(baseTotals.totalGross - computedGross) > 10.0 || Math.abs(baseTotals.totalLabor - computedLabor) > 10.0 || computedGross > baseTotals.totalGross) {
-        baseTotals = {
-          totalGross: computedGross,
-          totalLabor: computedLabor,
-          totalParts: computedParts,
-          totalGrossParts: computedGrossParts,
-          totalSales: computedSales,
-          totalHrs: computedHrs,
-        };
-      } else {
-        // Even if baseTotals exists, verify totalSales is indeed Labor + Parts
-        baseTotals.totalSales = (Number(baseTotals.totalLabor) || 0) + (Number(baseTotals.totalParts) || 0);
-      }
-    }
+    const resolved = resolvePerformanceTotalsFromDoc({
+      advisors,
+      totals,
+      reportStartDate,
+      reportEndDate,
+    });
+    const baseTotals = resolved
+      ? {
+          totalGross: resolved.totalGross,
+          totalLabor: resolved.totalLabor,
+          totalParts: resolved.totalParts,
+          totalGrossParts: resolved.totalGrossParts,
+          totalSales: resolved.totalSales,
+          totalHrs: resolved.totalHrs,
+        }
+      : null;
 
     if (!baseTotals) return null;
 
@@ -888,26 +878,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </div>
 
 
-            {payTypes && (
-              <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Pay Type Mix (RO)</h4>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                      Customer pay portion: <span className="text-brand-secondary">{payTypes.customerPayPortionPercent}%</span>
-                    </p>
-                  </div>
-                </div>
-                <table className="w-full text-left text-xs">
-                  <thead><tr className="text-[9px] uppercase text-slate-500"><th className="py-2">Type</th><th className="text-right">ROs</th><th className="text-right">Mix</th><th className="text-right">ELR</th><th className="text-right">GP</th></tr></thead>
-                  <tbody>
-                    {([['Customer', payTypes.customer], ['Warranty', payTypes.warranty], ['Internal', payTypes.internal]] as const).map(([label, seg]) => (
-                      <tr key={label} className="text-white border-t border-slate-800"><td className="py-2">{label}</td><td className="text-right font-mono">{seg.roCount}</td><td className="text-right font-mono text-brand-secondary">{seg.mixPercent}%</td><td className="text-right font-mono">${seg.elr.toFixed(2)}</td><td className="text-right font-mono">{seg.gpPercent}%</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

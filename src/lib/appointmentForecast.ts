@@ -13,6 +13,8 @@ export interface AppointmentForecastInput {
   mtdGross: number;
   mtdLaborSales: number;
   mtdPartsGross: number;
+  /** Last day covered by the imported productivity report (ISO date). Pace uses working days through this date. */
+  performanceReportEndDate?: string;
   referenceDate?: Date;
 }
 
@@ -143,7 +145,19 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
   const currentShortfall = Math.max(0, monthTarget - mtdActual);
   const projectedShortfall = monthTarget - forecast;
 
-  const salesPaceDays = salesPaceWorkingDays(currentYear, currentMonth, todayDayNum, todayCount);
+  let grossPaceDay = todayDayNum;
+  if (input.performanceReportEndDate) {
+    const reportEnd = new Date(`${input.performanceReportEndDate}T12:00:00`);
+    if (
+      !Number.isNaN(reportEnd.getTime()) &&
+      reportEnd.getFullYear() === currentYear &&
+      reportEnd.getMonth() === currentMonth
+    ) {
+      grossPaceDay = Math.min(todayDayNum, reportEnd.getDate());
+    }
+  }
+
+  const salesPaceDays = salesPaceWorkingDays(currentYear, currentMonth, grossPaceDay, todayCount);
   const laborDailyAvg = input.mtdGross / salesPaceDays;
   const laborSalesDailyAvg = input.mtdLaborSales / salesPaceDays;
   const grossPaceTarget = Math.round((input.laborTarget / totalWorkingDays) * elapsedWorkingDays);
