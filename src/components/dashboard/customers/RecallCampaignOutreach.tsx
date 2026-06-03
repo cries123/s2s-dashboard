@@ -69,6 +69,26 @@ const DEFAULT_EMAIL_SUBJECT = 'Important: Open Safety Recall on Your Vehicle';
 
 const BATCH_SIZE = 200;
 
+function personalizeMessage(template: string, lead: RecallCampaignLead): string {
+  return template
+    .replace(/\{name\}/gi, lead.customerName || 'Owner')
+    .replace(/\{customer\}/gi, lead.customerName || 'Owner')
+    .replace(/\{year\}/gi, lead.year || '')
+    .replace(/\{make\}/gi, lead.make || '')
+    .replace(/\{model\}/gi, lead.model || '')
+    .replace(/\{campaign\}/gi, lead.campaignNumber || '');
+}
+
+function buildSmsLink(phone: string, body: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const e164 = digits.length === 10 ? `+1${digits}` : `+${digits}`;
+  return `sms:${e164}?body=${encodeURIComponent(body)}`;
+}
+
+function buildMailtoLink(email: string, subject: string, body: string): string {
+  return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 export function RecallCampaignOutreach({
   currentDealershipId,
   currentUserId,
@@ -83,8 +103,6 @@ export function RecallCampaignOutreach({
   const [message, setMessage] = useState(DEFAULT_SMS_TEMPLATE);
   const [emailSubject, setEmailSubject] = useState(DEFAULT_EMAIL_SUBJECT);
   const [outreachChannel, setOutreachChannel] = useState<'sms' | 'email'>('sms');
-  const [smsConfigured, setSmsConfigured] = useState(false);
-  const [emailConfigured, setEmailConfigured] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [defaultCampaign, setDefaultCampaign] = useState('9C2');
@@ -95,28 +113,6 @@ export function RecallCampaignOutreach({
 
   const notify = useCallback((text: string, isError = false) => {
     onNotifyRef.current?.(text, isError);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/outreach/status')
-      .then(async (r) => {
-        if (!r.ok) return null;
-        try {
-          return await r.json();
-        } catch {
-          return null;
-        }
-      })
-      .then((data) => {
-        if (cancelled || !data) return;
-        setSmsConfigured(!!data.smsConfigured);
-        setEmailConfigured(!!data.emailConfigured);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -306,44 +302,17 @@ export function RecallCampaignOutreach({
     setImporting(true);
     try {
       const reportText = await extractTextFromPDF(file);
-      let data: {
-        leads: Array<{
-          customerName: string;
-          phone: string | null;
-          email: string | null;
-          vin: string;
-          year: string;
-          make: string;
-          model: string;
-          campaignNumber: string;
-        }>;
-        meta: RecallCampaignParseMeta;
-        leadCount?: number;
-        duplicateCount?: number;
-        withPhone?: number;
-        withEmail?: number;
-      };
-
-      const response = await fetch('/api/parse-recall-campaign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText }),
-      });
-
-      if (response.ok) {
-        data = await response.json();
-      } else if (response.status === 404) {
-        const local = parseRecallCampaignReportText(reportText);
-        data = {
-          ...local,
-          leadCount: local.leads.length,
-          withPhone: local.leads.filter((l) => l.phone).length,
-          withEmail: local.leads.filter((l) => l.email).length,
-        };
-      } else {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to parse recall report');
+      const local = parseRecallCampaignReportText(reportText);
+      if (local.leads.length === 0) {
+        throw new Error('No recall customers found in this PDF. Check the file format.');
       }
+      const data = {
+        ...local,
+        leadCount: local.leads.length,
+        duplicateCount: local.duplicateCount,
+        withPhone: local.leads.filter((l) => l.phone).length,
+        withEmail: local.leads.filter((l) => l.email).length,
+      };
       const importBatchId = `batch_${Date.now()}`;
       await saveLeadsToFirestore(data.leads, data.meta, importBatchId);
       notify(
@@ -359,72 +328,94 @@ export function RecallCampaignOutreach({
     }
   };
 
+  const markLeadsContacted = async (leadIds: string[], channel: 'sms' | 'email') => {
+    if (leadIds.length === 0) return;
+    const colRef = collection(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'recallCampaignLeads'
+    );
+    const now = new Date().toISOString();
+    for (let i = 0; i < leadIds.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      for (const id of leadIds.slice(i, i + BATCH_SIZE)) {
+        batch.update(doc(colRef, id), {
+          outreachStatus: channel === 'sms' ? 'text_sent' : 'email_sent',
+          lastOutreachAt: now,
+          lastOutreachChannel: channel,
+        });
+      }
+      await batch.commit();
+    }
+  };
+
+  const openNativeOutreach = async (lead: RecallCampaignLead, channel: 'sms' | 'email') => {
+    const body = personalizeMessage(message, lead);
+    if (channel === 'sms') {
+      if (!lead.phone) {
+        notify('No phone number for this customer.', true);
+        return;
+      }
+      window.location.href = buildSmsLink(lead.phone, body);
+    } else {
+      if (!lead.email) {
+        notify('No email for this customer.', true);
+        return;
+      }
+      window.location.href = buildMailtoLink(lead.email, emailSubject, body);
+    }
+    await markLeadsContacted([lead.id], channel);
+    notify(`Opened ${channel === 'sms' ? 'Messages' : 'email'} for ${lead.customerName}.`);
+  };
+
+  const copyOutreachList = async (pool: RecallCampaignLead[], channel: 'sms' | 'email') => {
+    const lines = pool.map((l) => {
+      const contact = channel === 'sms' ? l.phone : l.email;
+      return `${l.customerName}\t${contact}`;
+    });
+    const clipboardText = `${message}\n\n---\n${lines.join('\n')}`;
+    try {
+      await navigator.clipboard.writeText(clipboardText);
+      notify(`Copied message and ${pool.length} contacts to clipboard.`);
+    } catch {
+      notify('Could not copy to clipboard. Use per-row Text/Email buttons instead.', true);
+    }
+  };
+
   const sendToRecipients = async (recipients: RecallCampaignLead[], channel: 'sms' | 'email') => {
-    if (recipients.length === 0) {
+    const pool = recipients.filter((l) => (channel === 'sms' ? l.phone : l.email));
+    if (pool.length === 0) {
       notify('No customers match this send action.', true);
-      return;
-    }
-    if (channel === 'sms' && !smsConfigured) {
-      notify('SMS not configured on server (Twilio env vars).', true);
-      return;
-    }
-    if (channel === 'email' && !emailConfigured) {
-      notify('Email not configured on server (SendGrid env vars).', true);
       return;
     }
 
     setSending(true);
     try {
-      const response = await fetch('/api/outreach/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel,
-          message,
-          subject: emailSubject,
-          recipients: recipients.map((l) => ({
-            id: l.id,
-            customerName: l.customerName,
-            phone: l.phone,
-            email: l.email,
-            year: l.year,
-            make: l.make,
-            model: l.model,
-            campaignNumber: l.campaignNumber,
-          })),
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Send failed');
-
-      const colRef = collection(
-        db,
-        'artifacts',
-        'hyundai-sales-to-service',
-        'public',
-        'data',
-        'recallCampaignLeads'
-      );
-      const now = new Date().toISOString();
-      for (let i = 0; i < result.results.length; i += BATCH_SIZE) {
-        const batch = writeBatch(db);
-        for (const row of result.results.slice(i, i + BATCH_SIZE)) {
-          if (!row.success) continue;
-          const lead = recipients.find((l) => l.id === row.id);
-          if (!lead) continue;
-          batch.update(doc(colRef, lead.id), {
-            outreachStatus: channel === 'sms' ? 'text_sent' : 'email_sent',
-            lastOutreachAt: now,
-            lastOutreachChannel: channel,
-          });
-        }
-        await batch.commit();
+      if (pool.length === 1) {
+        await openNativeOutreach(pool[0]!, channel);
+        clearSelection();
+        return;
       }
 
-      notify(`Sent ${result.sent} message(s). ${result.failed} failed.`);
+      await copyOutreachList(pool, channel);
+      await openNativeOutreach(pool[0]!, channel);
+
+      if (
+        window.confirm(
+          `Opened the first customer. Mark all ${pool.length} as contacted after you finish outreach?`
+        )
+      ) {
+        await markLeadsContacted(
+          pool.map((l) => l.id),
+          channel
+        );
+      }
       clearSelection();
     } catch (err: unknown) {
-      notify(err instanceof Error ? err.message : 'Bulk send failed', true);
+      notify(err instanceof Error ? err.message : 'Outreach failed', true);
     } finally {
       setSending(false);
     }
@@ -461,24 +452,19 @@ export function RecallCampaignOutreach({
       'data',
       'recallCampaignLeads'
     );
-    const ids = Array.from(selectedIds);
+    const ids: string[] = [...selectedIds];
     for (let i = 0; i < ids.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
-      ids.slice(i, i + BATCH_SIZE).forEach((id) => batch.delete(doc(colRef, id)));
+      for (const id of ids.slice(i, i + BATCH_SIZE)) {
+        batch.delete(doc(colRef, id));
+      }
       await batch.commit();
     }
     clearSelection();
     notify('Selected entries removed.');
   };
 
-  const personalizePreview = (lead: RecallCampaignLead) =>
-    message
-      .replace(/\{name\}/gi, lead.customerName || 'Owner')
-      .replace(/\{customer\}/gi, lead.customerName || 'Owner')
-      .replace(/\{year\}/gi, lead.year || '')
-      .replace(/\{make\}/gi, lead.make || '')
-      .replace(/\{model\}/gi, lead.model || '')
-      .replace(/\{campaign\}/gi, lead.campaignNumber || '');
+  const personalizePreview = (lead: RecallCampaignLead) => personalizeMessage(message, lead);
 
   return (
     <div className="space-y-6">
@@ -497,7 +483,7 @@ export function RecallCampaignOutreach({
             Pending Recall Outreach
           </h3>
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-            Import OEM recall lists — no customer profiles created
+            Import OEM recall lists — text/email via your phone or mail app (no Twilio required)
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -552,7 +538,7 @@ export function RecallCampaignOutreach({
         <div>
           <h4 className="text-sm font-black text-white uppercase tracking-widest">Outreach message</h4>
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-            Edit the text sent to customers by SMS or email. Use {'{name}'}, {'{year}'}, {'{make}'}, {'{model}'}, {'{campaign}'}.
+            Edit the message opened in your Messages or email app. Use {'{name}'}, {'{year}'}, {'{make}'}, {'{model}'}, {'{campaign}'}.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -580,16 +566,6 @@ export function RecallCampaignOutreach({
           >
             Email
           </button>
-          {!smsConfigured && outreachChannel === 'sms' && (
-            <span className="text-[9px] text-amber-500 font-bold uppercase self-center">
-              Twilio not configured on server
-            </span>
-          )}
-          {!emailConfigured && outreachChannel === 'email' && (
-            <span className="text-[9px] text-amber-500 font-bold uppercase self-center">
-              SendGrid not configured on server
-            </span>
-          )}
         </div>
 
         {outreachChannel === 'email' && (
@@ -624,11 +600,24 @@ export function RecallCampaignOutreach({
           </button>
           <button
             type="button"
+            onClick={() => {
+              const pool =
+                outreachChannel === 'sms'
+                  ? filteredLeads.filter((l) => l.phone)
+                  : filteredLeads.filter((l) => l.email);
+              void copyOutreachList(pool, outreachChannel);
+            }}
+            className="toolbar-btn"
+          >
+            Copy list
+          </button>
+          <button
+            type="button"
             onClick={() => handleSendToAll('sms')}
             disabled={sending || stats.withPhone === 0}
             className="toolbar-btn text-emerald-400 border-emerald-500/30"
           >
-            Text ALL ({stats.withPhone})
+            Text ALL on my phone ({stats.withPhone})
           </button>
           <button
             type="button"
@@ -636,7 +625,7 @@ export function RecallCampaignOutreach({
             disabled={sending || stats.withEmail === 0}
             className="toolbar-btn text-sky-400 border-sky-500/30"
           >
-            Email ALL ({stats.withEmail})
+            Email ALL in my app ({stats.withEmail})
           </button>
           <button
             type="button"
@@ -707,6 +696,7 @@ export function RecallCampaignOutreach({
                 <th className="p-3">Vehicle</th>
                 <th className="p-3">Campaign</th>
                 <th className="p-3">Status</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -765,6 +755,30 @@ export function RecallCampaignOutreach({
                       >
                         {lead.outreachStatus.replace('_', ' ')}
                       </span>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex gap-1">
+                        {lead.phone && (
+                          <button
+                            type="button"
+                            title="Text on my phone"
+                            onClick={() => void openNativeOutreach(lead, 'sms')}
+                            className="p-1.5 rounded-lg border border-slate-700 text-emerald-400 hover:bg-emerald-500/10"
+                          >
+                            <MessageSquare size={12} />
+                          </button>
+                        )}
+                        {lead.email && (
+                          <button
+                            type="button"
+                            title="Email in my app"
+                            onClick={() => void openNativeOutreach(lead, 'email')}
+                            className="p-1.5 rounded-lg border border-slate-700 text-sky-400 hover:bg-sky-500/10"
+                          >
+                            <Mail size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
