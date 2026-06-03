@@ -48,5 +48,8 @@ export function openAiFailureStatus(err: unknown): number {
 
 export function openAiFailureMessage(err: unknown): string {
   const anyErr = err as { message?: string; error?: { message?: string } };
-  return anyErr?.error?.message || anyErr?.message || String(err);
+  const raw = anyErr?.error?.message || anyErr?.message || String(err);
+  return raw
+    .replace(/sk-[a-zA-Z0-9_-]{4,}/gi, 'sk-***')
+    .replace(/OPENAI_API_KEY[=:\s]+[^\s]+/gi, 'OPENAI_API_KEY=[redacted]');
 }

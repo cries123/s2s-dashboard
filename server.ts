@@ -15,6 +15,7 @@ import {
   rejectIfOpenAiUnavailable,
   openAiFailureMessage,
   openAiFailureStatus,
+  hasUsableOpenAIKey,
 } from "./server/dms/requireOpenAi.js";
 import { registerMasterUserRoutes } from "./server/admin/registerMasterUserRoutes.js";
 import { getFirebaseAdminApp } from "./server/admin/initFirebaseAdmin.js";
@@ -180,10 +181,30 @@ export async function createApiApp() {
 
       console.log(`[Appointments Parser] DMS=${dmsProvider} text length ${text.length}`);
 
-      if (rejectIfOpenAiUnavailable(res)) return;
+      const returnDeterministic = () => {
+        const fallback = parseAppointmentsReport(text, dmsProvider);
+        if (fallback.total <= 0) return null;
+        return {
+          diagnosis: fallback.diagnosis || 0,
+          oilChange: fallback.oilChange || 0,
+          recall: fallback.recall || 0,
+          misc: fallback.misc || 0,
+          total: fallback.total || 0,
+          reportDate: parseAppointmentReportDeterministic(text).reportDate,
+          isAiParsed: false,
+          parseMethod: 'deterministic',
+          dmsProvider,
+        };
+      };
+
+      if (!hasUsableOpenAIKey()) {
+        const det = returnDeterministic();
+        if (det) return res.json(det);
+        if (rejectIfOpenAiUnavailable(res)) return;
+      }
 
       try {
-        console.log("[Appointments AI Parser] OpenAI gpt-4o-mini (required)...");
+        console.log("[Appointments AI Parser] OpenAI gpt-4o-mini...");
         const openai = getOpenAIClient();
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
@@ -244,9 +265,23 @@ export async function createApiApp() {
           dmsProvider,
         });
       } catch (aiErr: any) {
-        console.error("[Appointments AI Parser] OpenAI failed:", aiErr);
+        console.error("[Appointments AI Parser] OpenAI failed, trying deterministic fallback:", aiErr);
+        const fallback = parseAppointmentsReport(text, dmsProvider);
+        if (fallback.total > 0) {
+          return res.json({
+            diagnosis: fallback.diagnosis || 0,
+            oilChange: fallback.oilChange || 0,
+            recall: fallback.recall || 0,
+            misc: fallback.misc || 0,
+            total: fallback.total || 0,
+            reportDate: parseAppointmentReportDeterministic(text).reportDate,
+            isAiParsed: false,
+            parseMethod: 'deterministic',
+            dmsProvider,
+          });
+        }
         return res.status(openAiFailureStatus(aiErr)).json({
-          error: `OpenAI appointment parse failed: ${openAiFailureMessage(aiErr)}`,
+          error: `Could not parse appointments. ${openAiFailureMessage(aiErr)}`,
           requiresOpenAi: true,
         });
       }
