@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-
+import { looksLikeDealerBuiltPerformanceReport } from './pdfToImages.js';
 const execFileAsync = promisify(execFile);
 
 /** OCR scanned PDF pages when tesseract + poppler are available. */
@@ -53,7 +53,10 @@ export async function enrichReportTextFromPdf(
   buffer: Buffer | undefined,
   existingText: string
 ): Promise<string> {
-  if (existingText && existingText.replace(/\s+/g, ' ').trim().length >= 200) {
+  const trimmed = (existingText || '').replace(/\s+/g, ' ').trim();
+  const hasUsableDealerBuiltText =
+    trimmed.length >= 200 && looksLikeDealerBuiltPerformanceReport(trimmed);
+  if (hasUsableDealerBuiltText) {
     return existingText;
   }
   if (!buffer) return existingText;

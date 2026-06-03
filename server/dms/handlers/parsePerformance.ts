@@ -25,6 +25,7 @@ const PARSE_ROUTE_TIMEOUT_MS = 4 * 60 * 1000;
 import type { Express, Request, Response } from 'express';
 import type OpenAI from 'openai';
 import { normalizeDmsProvider, parsePerformanceReport } from '../index.js';
+import { defaultDmsProviderForDealership } from '../../../src/constants/dealerDefaults.js';
 import { isScannedOrEmptyReportText, looksLikeDealerBuiltPerformanceReport } from '../pdfToImages.js';
 import { enrichReportTextFromPdf } from '../pdfOcr.js';
 import { parseDealerBuiltPerformanceWithOpenAI } from '../parsers/dealerbuiltPerformanceOpenAI.js';
@@ -41,6 +42,12 @@ import {
   OPENAI_REQUIRED_MESSAGE,
   rejectIfOpenAiUnavailable,
 } from '../requireOpenAi.js';
+
+
+function isPhantomPbsAdvisorName(name: string): boolean {
+  const n = name.toLowerCase().trim();
+  return n === 'frank' || n === 'lemmy' || n === 'jaryn' || n === 'jay';
+}
 
 type ExtractPdfText = (buffer: Buffer) => Promise<string>;
 type GetOpenAI = () => OpenAI;
@@ -148,7 +155,13 @@ export function registerParsePerformanceRoute(
   app.post('/api/parse-performance', async (req: Request, res: Response) => {
     if (rejectIfOpenAiUnavailable(res)) return;
 
-    const dmsProvider = normalizeDmsProvider(req.body?.dmsProvider);
+    const dealershipId =
+      typeof req.body?.dealershipId === 'string' ? req.body.dealershipId : undefined;
+    const dmsProvider = req.body?.dmsProvider
+      ? normalizeDmsProvider(req.body.dmsProvider)
+      : dealershipId
+        ? defaultDmsProviderForDealership(dealershipId)
+        : normalizeDmsProvider(undefined);
     const parseDeterministicPerformance = (reportText: string) =>
       parsePerformanceReport(reportText, dmsProvider);
 
@@ -208,7 +221,27 @@ export function registerParsePerformanceRoute(
             });
           }
 
-          const merged = mergeDealerBuiltPerformanceResults(deterministic, aiResult);
+          let merged = mergeDealerBuiltPerformanceResults(deterministic, aiResult);
+
+          const phantomOnly =
+            merged.advisors.length > 0 &&
+            merged.advisors.every((a) => isPhantomPbsAdvisorName(a.name));
+
+          if (phantomOnly && deterministic.advisors.length > 0) {
+            console.warn(
+              '[DealerBuilt Performance] Ignoring phantom PBS advisor names; using deterministic OCR parse.'
+            );
+            merged = {
+              advisors: deterministic.advisors,
+              totals: deterministic.totals ?? merged.totals,
+            };
+          } else if (phantomOnly) {
+            return res.status(502).json({
+              error:
+                'Parser returned legacy PBS demo names (Frank/Lemmy) instead of Ford service writers. Restart with `npm run dev`, confirm OPENAI_API_KEY is set, and set Admin → DMS → DealerBuilt.',
+              requiresOpenAi: true,
+            });
+          }
 
           if (merged.advisors.length === 0) {
             return res.status(502).json({

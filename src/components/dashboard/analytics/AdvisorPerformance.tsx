@@ -15,7 +15,11 @@ import {
 } from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
-import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
+import { normalizeDmsProvider } from '../../../constants/dmsProviders';
+import {
+  defaultDmsProviderForDealership,
+  defaultPerformanceAdvisorRoster,
+} from '../../../constants/dealerDefaults';
 import {
   cleanAdvisorName,
   isPhantomPbsAdvisorName,
@@ -62,8 +66,12 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
-  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
-  const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState<PerformanceAdvisorSlot[]>([]);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(() =>
+    defaultDmsProviderForDealership(currentDealershipId)
+  );
+  const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState<PerformanceAdvisorSlot[]>(() =>
+    defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
+  );
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -73,16 +81,28 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
-        setLaborTarget(docSnap.data().laborGrossTarget || 500000);
-        setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
-        setPerformanceAdvisorRoster(
-          Array.isArray(docSnap.data().performanceAdvisorRoster)
-            ? docSnap.data().performanceAdvisorRoster
-            : []
+        const data = docSnap.data();
+        setLaborTarget(data.laborGrossTarget || 500000);
+        setDmsProvider(
+          data.dmsProvider
+            ? normalizeDmsProvider(data.dmsProvider as string)
+            : defaultDmsProviderForDealership(currentDealershipId)
         );
+        const roster = Array.isArray(data.performanceAdvisorRoster)
+          ? data.performanceAdvisorRoster
+          : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
+        setPerformanceAdvisorRoster(roster);
+      } else {
+        setDmsProvider(defaultDmsProviderForDealership(currentDealershipId));
+        setPerformanceAdvisorRoster(defaultPerformanceAdvisorRoster(currentDealershipId) ?? []);
       }
     });
     return () => unsubscribe();
+  }, [currentDealershipId]);
+
+  useEffect(() => {
+    setDmsProvider(defaultDmsProviderForDealership(currentDealershipId));
+    setPerformanceAdvisorRoster(defaultPerformanceAdvisorRoster(currentDealershipId) ?? []);
   }, [currentDealershipId]);
 
   // realtime performance sync
@@ -119,6 +139,13 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     return () => unsubscribe();
   }, [user, currentDealershipId, selectedMonth]);
 
+  const effectiveDmsProvider: DmsProviderId =
+    dmsProvider || defaultDmsProviderForDealership(currentDealershipId);
+  const effectiveAdvisorRoster: PerformanceAdvisorSlot[] =
+    performanceAdvisorRoster.length > 0
+      ? performanceAdvisorRoster
+      : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
+
   const saveToFirestore = async (
     newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
     overwrite = false,
@@ -132,13 +159,13 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const incomingCount = newData.advisors?.length ?? 0;
 
     const acceptAdvisor = (name: string): boolean => {
-      if (!isRealAdvisorName(name, dmsProvider)) return false;
-      if (dmsProvider === 'dealerbuilt' && isPhantomPbsAdvisorName(name)) return false;
-      if (!matchesPerformanceAdvisorRoster(name, performanceAdvisorRoster)) return false;
+      if (!isRealAdvisorName(name, effectiveDmsProvider)) return false;
+      if (effectiveDmsProvider === 'dealerbuilt' && isPhantomPbsAdvisorName(name)) return false;
+      if (!matchesPerformanceAdvisorRoster(name, effectiveAdvisorRoster)) return false;
       return true;
     };
 
-    const normalizeName = (rawName: string) => cleanAdvisorName(rawName, dmsProvider);
+    const normalizeName = (rawName: string) => cleanAdvisorName(rawName, effectiveDmsProvider);
 
     if (overwrite) {
       updatedAdvisors = newData.advisors
@@ -187,10 +214,19 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     const skippedCount = Math.max(0, incomingCount - updatedAdvisors.length);
     if (incomingCount > 0 && updatedAdvisors.length === 0) {
-      const rosterHint =
-        performanceAdvisorRoster.length > 0
-          ? ` None of the ${incomingCount} parsed advisor(s) matched your configured roster. Check Admin → DMS = DealerBuilt and the productivity advisor list.`
-          : ' All parsed advisors were rejected by validation rules.';
+      const parsedNames = (newData.advisors ?? []).map((a) => a.name).join(', ');
+      const phantomPbsOnly = (newData.advisors ?? []).every((a) =>
+        isPhantomPbsAdvisorName(a.name)
+      );
+      let rosterHint = '';
+      if (phantomPbsOnly && effectiveDmsProvider === 'dealerbuilt') {
+        rosterHint =
+          ' The parser returned legacy PBS demo names (Frank/Lemmy), not your Ford advisors. Restart the app with `npm run dev` (not an old server process), confirm OPENAI_API_KEY is set, and verify Admin → DMS → DealerBuilt.';
+      } else if (effectiveAdvisorRoster.length > 0) {
+        rosterHint = ` None of the ${incomingCount} parsed advisor(s) matched your configured roster (${parsedNames}). Check Admin → DMS = DealerBuilt and the productivity advisor list.`;
+      } else {
+        rosterHint = ` All parsed advisors were rejected by validation rules (${parsedNames}).`;
+      }
       throw new Error(`Import parsed ${incomingCount} advisor(s) but none could be saved.${rosterHint}`);
     }
     
@@ -393,7 +429,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     setImportStatus(null);
     setImportProgress(null);
 
-    const isDealerBuiltImport = dmsProvider === 'dealerbuilt';
+    const isDealerBuiltImport = effectiveDmsProvider === 'dealerbuilt';
 
     try {
       let reportText = '';
@@ -441,7 +477,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         response = await fetch('/api/parse-performance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(withDmsProvider({ dmsProvider }, payload)),
+          body: JSON.stringify(withDmsProvider({ dmsProvider: effectiveDmsProvider, dealershipId: currentDealershipId }, payload)),
           signal: controller.signal,
         });
       } catch (fetchErr: any) {
