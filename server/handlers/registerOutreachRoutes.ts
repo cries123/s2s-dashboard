@@ -162,7 +162,7 @@ export function registerOutreachRoutes(app: Express) {
           results.push({
             id: recipient.id,
             success: result.ok,
-            error: result.ok ? undefined : result.error,
+            error: result.ok ? undefined : (result as { ok: false; error: string }).error,
           });
         } else {
           if (!recipient.email) {
@@ -177,7 +177,7 @@ export function registerOutreachRoutes(app: Express) {
           results.push({
             id: recipient.id,
             success: result.ok,
-            error: result.ok ? undefined : result.error,
+            error: result.ok ? undefined : (result as { ok: false; error: string }).error,
           });
         }
       }

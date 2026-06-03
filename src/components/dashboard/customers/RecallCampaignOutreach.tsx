@@ -3,9 +3,7 @@ import {
   collection,
   doc,
   onSnapshot,
-  query,
   serverTimestamp,
-  where,
   writeBatch,
 } from 'firebase/firestore';
 import {
@@ -21,6 +19,8 @@ import {
   Square,
   Trash2,
   Users,
+  Plus,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../../firebase';
@@ -29,7 +29,10 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import {
   recallCampaignLeadDocId,
   type RecallCampaignParseMeta,
+  normalizeRecallEmail,
+  normalizeRecallPhone,
 } from '../../../lib/recallCampaignParser';
+import { RecallManualAddForm, type ManualRecallLeadInput } from './RecallManualAddForm';
 
 export interface RecallCampaignLead {
   id: string;
@@ -81,6 +84,9 @@ export function RecallCampaignOutreach({
   const [outreachChannel, setOutreachChannel] = useState<'sms' | 'email'>('sms');
   const [smsConfigured, setSmsConfigured] = useState(false);
   const [emailConfigured, setEmailConfigured] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [manualFormOpen, setManualFormOpen] = useState(false);
+  const [defaultCampaign, setDefaultCampaign] = useState('9C2');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const notify = useCallback(
@@ -99,28 +105,58 @@ export function RecallCampaignOutreach({
   }, []);
 
   useEffect(() => {
-    if (!currentDealershipId) return;
-    const q = query(
-      collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'recallCampaignLeads'),
-      where('dealershipId', '==', currentDealershipId)
+    if (!currentDealershipId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+
+    const colRef = collection(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'recallCampaignLeads'
     );
+
+    const applyRows = (docs: { id: string; data: () => Record<string, unknown> }[]) => {
+      const rows = docs
+        .map((d) => ({ id: d.id, ...d.data() }) as RecallCampaignLead)
+        .filter((l) => !l.dealershipId || l.dealershipId === currentDealershipId);
+      rows.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
+      setLeads(rows);
+      const campaign = rows.find((r) => r.campaignNumber)?.campaignNumber;
+      if (campaign) setDefaultCampaign(campaign);
+      setLoading(false);
+    };
+
+    const timeout = window.setTimeout(() => setLoading(false), 8000);
+
     const unsub = onSnapshot(
-      q,
+      colRef,
       (snap) => {
-        const rows = snap.docs.map(
-          (d) => ({ id: d.id, ...d.data() }) as RecallCampaignLead
-        );
-        rows.sort((a, b) => (a.customerName || '').localeCompare(b.customerName || ''));
-        setLeads(rows);
-        setLoading(false);
+        window.clearTimeout(timeout);
+        applyRows(snap.docs);
+        setLoadError(null);
       },
       (err) => {
+        window.clearTimeout(timeout);
         console.error('recallCampaignLeads listener error', err);
         setLoading(false);
+        setLoadError(
+          'Could not load recall list. Deploy Firestore rules for recallCampaignLeads, then refresh.'
+        );
         notify('Failed to load recall campaign list.', true);
       }
     );
-    return () => unsub();
+
+    return () => {
+      window.clearTimeout(timeout);
+      unsub();
+    };
   }, [currentDealershipId, notify]);
 
   const filteredLeads = useMemo(() => {
@@ -227,6 +263,28 @@ export function RecallCampaignOutreach({
     }
   };
 
+  const saveSingleLead = async (input: ManualRecallLeadInput) => {
+    const phone = normalizeRecallPhone(input.phone);
+    const email = normalizeRecallEmail(input.email);
+    await saveLeadsToFirestore(
+      [
+        {
+          customerName: input.customerName,
+          phone,
+          email,
+          vin: input.vin.toUpperCase(),
+          year: input.year,
+          make: input.make,
+          model: input.model,
+          campaignNumber: input.campaignNumber || defaultCampaign,
+        },
+      ],
+      { campaignNumber: input.campaignNumber || defaultCampaign },
+      `manual_${Date.now()}`
+    );
+    notify('Customer added to recall list.');
+  };
+
   const handleImportPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -258,18 +316,16 @@ export function RecallCampaignOutreach({
     }
   };
 
-  const handleBulkSend = async () => {
-    const selected = leads.filter((l) => selectedIds.has(l.id));
-    if (selected.length === 0) {
-      notify('Select at least one customer.', true);
+  const sendToRecipients = async (recipients: RecallCampaignLead[], channel: 'sms' | 'email') => {
+    if (recipients.length === 0) {
+      notify('No customers match this send action.', true);
       return;
     }
-
-    if (outreachChannel === 'sms' && !smsConfigured) {
+    if (channel === 'sms' && !smsConfigured) {
       notify('SMS not configured on server (Twilio env vars).', true);
       return;
     }
-    if (outreachChannel === 'email' && !emailConfigured) {
+    if (channel === 'email' && !emailConfigured) {
       notify('Email not configured on server (SendGrid env vars).', true);
       return;
     }
@@ -280,10 +336,10 @@ export function RecallCampaignOutreach({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channel: outreachChannel,
+          channel,
           message,
           subject: emailSubject,
-          recipients: selected.map((l) => ({
+          recipients: recipients.map((l) => ({
             id: l.id,
             customerName: l.customerName,
             phone: l.phone,
@@ -311,12 +367,12 @@ export function RecallCampaignOutreach({
         const batch = writeBatch(db);
         for (const row of result.results.slice(i, i + BATCH_SIZE)) {
           if (!row.success) continue;
-          const lead = selected.find((l) => l.id === row.id);
+          const lead = recipients.find((l) => l.id === row.id);
           if (!lead) continue;
           batch.update(doc(colRef, lead.id), {
-            outreachStatus: outreachChannel === 'sms' ? 'text_sent' : 'email_sent',
+            outreachStatus: channel === 'sms' ? 'text_sent' : 'email_sent',
             lastOutreachAt: now,
-            lastOutreachChannel: outreachChannel,
+            lastOutreachChannel: channel,
           });
         }
         await batch.commit();
@@ -329,6 +385,26 @@ export function RecallCampaignOutreach({
     } finally {
       setSending(false);
     }
+  };
+
+  const handleBulkSend = async () => {
+    const selected = leads.filter((l) => selectedIds.has(l.id));
+    await sendToRecipients(selected, outreachChannel);
+  };
+
+  const handleSendToAll = async (channel: 'sms' | 'email') => {
+    const pool =
+      channel === 'sms'
+        ? leads.filter((l) => l.phone)
+        : leads.filter((l) => l.email);
+    if (
+      !window.confirm(
+        `Send ${channel === 'sms' ? 'SMS' : 'email'} to ALL ${pool.length} customers with ${channel === 'sms' ? 'a phone number' : 'an email'}?`
+      )
+    ) {
+      return;
+    }
+    await sendToRecipients(pool, channel);
   };
 
   const handleDeleteSelected = async () => {
@@ -361,17 +437,6 @@ export function RecallCampaignOutreach({
       .replace(/\{model\}/gi, lead.model || '')
       .replace(/\{campaign\}/gi, lead.campaignNumber || '');
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <Loader2 className="animate-spin text-brand-secondary" size={28} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-          Loading recall campaign list...
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <input
@@ -392,16 +457,33 @@ export function RecallCampaignOutreach({
             Import OEM recall lists — no customer profiles created
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
-        >
-          {importing ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-          Import Recall PDF
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setManualFormOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 border border-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700"
+          >
+            <Plus size={14} />
+            Add Customer
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+          >
+            {importing ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
+            Import Recall PDF
+          </button>
+        </div>
       </div>
+
+      {loadError && (
+        <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-xs">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <p>{loadError}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
@@ -424,6 +506,12 @@ export function RecallCampaignOutreach({
       </div>
 
       <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-4">
+        <div>
+          <h4 className="text-sm font-black text-white uppercase tracking-widest">Outreach message</h4>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+            Edit the text sent to customers by SMS or email. Use {'{name}'}, {'{year}'}, {'{make}'}, {'{model}'}, {'{campaign}'}.
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -493,6 +581,22 @@ export function RecallCampaignOutreach({
           </button>
           <button
             type="button"
+            onClick={() => handleSendToAll('sms')}
+            disabled={sending || stats.withPhone === 0}
+            className="toolbar-btn text-emerald-400 border-emerald-500/30"
+          >
+            Text ALL ({stats.withPhone})
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSendToAll('email')}
+            disabled={sending || stats.withEmail === 0}
+            className="toolbar-btn text-sky-400 border-sky-500/30"
+          >
+            Email ALL ({stats.withEmail})
+          </button>
+          <button
+            type="button"
             onClick={handleBulkSend}
             disabled={sending || selectedIds.size === 0}
             className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
@@ -528,7 +632,12 @@ export function RecallCampaignOutreach({
         />
       </div>
 
-      {leads.length === 0 ? (
+      {loading ? (
+        <div className="py-16 text-center border border-slate-800 rounded-3xl">
+          <Loader2 className="animate-spin text-brand-secondary mx-auto mb-3" size={28} />
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Loading recall list...</p>
+        </div>
+      ) : leads.length === 0 ? (
         <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-3xl">
           <ShieldAlert size={40} className="mx-auto text-slate-700 mb-3" />
           <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
@@ -634,6 +743,13 @@ export function RecallCampaignOutreach({
           </motion.div>
         </AnimatePresence>
       )}
+
+      <RecallManualAddForm
+        open={manualFormOpen}
+        onClose={() => setManualFormOpen(false)}
+        onSave={saveSingleLead}
+        defaultCampaign={defaultCampaign}
+      />
 
       <style>{`
         .toolbar-btn {

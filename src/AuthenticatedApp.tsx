@@ -28,7 +28,7 @@ import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
+import { RecallsHub } from './components/dashboard/customers/RecallsHub';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
@@ -745,7 +745,12 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
+            <RecallsHub
+              onViewProfile={setSelectedProfile}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              currentUserId={user?.uid || ''}
+              onNotify={(msg, isError) => showNotification(msg, isError)}
+            />
           )}
 
           {activeTab === 'vin-search' && (
