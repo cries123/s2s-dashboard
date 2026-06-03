@@ -28,7 +28,7 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
+import { RecallsHub } from './components/dashboard/customers/RecallsHub';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -690,7 +690,12 @@ export default function App() {
           )}
 
           {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
+            <RecallsHub
+              onViewProfile={setSelectedProfile}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              currentUserId={currentUser?.uid || ''}
+              onNotify={(msg, isError) => showNotification(msg, isError)}
+            />
           )}
 
           {activeTab === 'pot-of-gold' && (

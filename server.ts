@@ -11,6 +11,8 @@ import fs from "fs";
 import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
 import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } from "./server/dms/index.js";
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
+import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
+import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
 import {
   rejectIfOpenAiUnavailable,
   openAiFailureMessage,
@@ -630,6 +632,13 @@ export async function createApiApp() {
     getAIClient,
     performanceSchemaGemini,
   });
+
+  registerParseRecallCampaignRoute(app, {
+    extractTextFromPDFBuffer,
+    getOpenAIClient,
+  });
+
+  registerOutreachRoutes(app);
 
   app.post("/api/gemini-parse-dms", async (req, res) => {
     let openaiFailureReason: 'openai_auth_failed' | 'openai_quota_exhausted' | 'openai_api_failed' | 'openai_key_masked' | null = null;
