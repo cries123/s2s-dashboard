@@ -16,6 +16,14 @@ import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  appointmentTrackerDocId,
+  dedupeDailyStatsByDate,
+  extractReportDateFromAppointmentPdf,
+  findDuplicateTrackerDocs,
+  toLocalDateString,
+} from '../../../lib/appointmentTracker';
+import { calculateAppointmentForecast, forecastGoalPercent } from '../../../lib/appointmentForecast';
 
 interface AppointmentsProps {
   currentUser: User;
@@ -931,12 +939,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       {/* Weekly Visual Calendar */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950/20 p-5 rounded-2xl border border-white/[0.03]">
-          <div className="flex flex-col items-center sm:items-start gap-3 sm:flex-row sm:items-center sm:gap-4 w-full sm:w-auto">
-            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2.5 text-center sm:text-left">
-              <CalendarIcon size={18} className="text-brand-primary shrink-0" /> 
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2.5">
+              <CalendarIcon size={18} className="text-brand-primary" /> 
               Weekly Performance Grid
             </h3>
-            <div className="flex items-center justify-center bg-slate-900/90 border border-white/5 rounded-xl p-1 shadow-inner mx-auto sm:mx-0">
+            <div className="flex items-center bg-slate-900/90 border border-white/5 rounded-xl p-1 shadow-inner">
               <button 
                 onClick={() => setWeekOffset(prev => prev - 1)}
                 className="p-1.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-200 cursor-pointer"
@@ -1147,34 +1155,33 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       </div>
 
       {/* Unified Executive Print & Audit Banner */}
-      <div className="bg-[#0b101f] border border-white/5 p-4 md:p-6 rounded-3xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 md:gap-5 shadow-xl mb-4 relative overflow-hidden group no-print">
+      <div className="bg-[#0b101f] border border-white/5 p-6 rounded-3xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-xl mb-4 relative overflow-hidden group no-print">
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/[0.01] rounded-full blur-[50px] pointer-events-none" />
         
-        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4 w-full lg:flex-1 min-w-0">
+        <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 shrink-0">
             <PieChart size={20} />
           </div>
-          <div className="flex-1 min-w-0 text-center sm:text-left">
-            <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-start gap-2">
+          <div>
+            <div className="flex items-center gap-2">
               <h4 className="text-xs font-black text-white uppercase tracking-wider">Supervisory Ops Metrics & Audit</h4>
               {selectedMonth !== 'active' ? (
                 allowArchiveEditing ? (
-                  <span className="inline-flex items-center justify-center px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest rounded-full gap-1 animate-pulse">
+                  <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 animate-pulse">
                     <span>🔓 Archive Edit Unlocked</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center justify-center px-2.5 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[8px] font-black uppercase tracking-widest rounded-full gap-1">
+                  <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
                     <span>🔒 Saved Archive</span>
                   </span>
                 )
               ) : (
-                <span className="inline-flex items-center justify-center px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest rounded-full gap-1.5">
-                  <span className="leading-none">●</span>
-                  <span className="leading-none">Live Tracking</span>
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
+                  <span>● Live Tracking</span>
                 </span>
               )}
             </div>
-            <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wide leading-relaxed">
+            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wide">
               {selectedMonth === 'active' 
                 ? "Active performance workspace for the current month. Save last month's figures first before restarting."
                 : allowArchiveEditing
@@ -1186,9 +1193,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         </div>
 
         {/* Dynamic Controls Grid */}
-        <div className="flex flex-col gap-3 w-full lg:w-auto shrink-0">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           {/* Month Period Dropdown */}
-          <div className="flex flex-col gap-1 w-full">
+          <div className="flex flex-col gap-1 flex-1 sm:flex-initial">
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">View Period</span>
             <select
               value={selectedMonth}
@@ -1196,7 +1203,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 setSelectedMonth(e.target.value);
                 setAllowArchiveEditing(false); // automatically reset to locked on toggle
               }}
-              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all w-full lg:min-w-[150px]"
+              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all min-w-[150px]"
             >
               <option value="active">June 2026 (Active)</option>
               <option value="2026-05">May 2026 (Saved)</option>
@@ -1204,13 +1211,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             </select>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full">
+          <div className="flex items-end gap-3 flex-1 sm:flex-initial mt-4 sm:mt-0 pt-1 lg:pt-0">
             {/* Lock / Unlock Archive Editing */}
             {selectedMonth !== 'active' && (
               <button
                 onClick={() => setAllowArchiveEditing(!allowArchiveEditing)}
                 className={cn(
-                  "min-h-[44px] h-11 px-4 md:px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 rounded-xl touch-manipulation",
+                  "h-11 px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
                   allowArchiveEditing 
                     ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
                     : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
@@ -1226,18 +1233,17 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             {selectedMonth === 'active' && (
               <button
                 onClick={() => setShowArchiveModal(true)}
-                className="min-h-[44px] h-auto md:h-11 px-4 md:px-6 py-3 md:py-0 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 touch-manipulation leading-snug text-center"
+                className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
                 title="Configure custom destination archive period and restart workspace"
               >
-                <Archive size={13} className="shrink-0" />
-                <span className="md:hidden">Archive &amp; Restart</span>
-                <span className="hidden md:inline">Archive &amp; Restart Monthly</span>
+                <Archive size={13} />
+                Archive & Restart Monthly
               </button>
             )}
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="min-h-[44px] h-11 px-4 md:px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 touch-manipulation"
+              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
             >
               <Printer size={13} />
               Print Report
