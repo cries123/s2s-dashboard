@@ -18,6 +18,7 @@ import {
 } from "./server/dms/requireOpenAi.js";
 import { registerMasterUserRoutes } from "./server/admin/registerMasterUserRoutes.js";
 import { getFirebaseAdminApp } from "./server/admin/initFirebaseAdmin.js";
+import { extractOperationsPayTypes } from "./src/lib/operationsPayTypes.ts";
 
 dotenv.config();
 getFirebaseAdminApp();

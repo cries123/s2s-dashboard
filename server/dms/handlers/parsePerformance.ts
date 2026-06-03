@@ -42,6 +42,12 @@ import {
   OPENAI_REQUIRED_MESSAGE,
   rejectIfOpenAiUnavailable,
 } from '../requireOpenAi.js';
+import { extractOperationsPayTypes } from '../../../src/lib/operationsPayTypes.ts';
+
+function withPayTypes(payload: Record<string, unknown>, reportText: string) {
+  const payTypes = extractOperationsPayTypes(reportText);
+  return payTypes ? { ...payload, payTypes } : payload;
+}
 
 
 function isPhantomPbsAdvisorName(name: string): boolean {
@@ -250,11 +256,7 @@ export function registerParsePerformanceRoute(
             });
           }
 
-          return res.json({
-            ...validateDealerBuiltPerformance(merged),
-            isAiParsed: true,
-            dmsProvider: 'dealerbuilt',
-          });
+          return res.json(withPayTypes({ ...validateDealerBuiltPerformance(merged), isAiParsed: true, dmsProvider: 'dealerbuilt' }, text));
         } catch (err: unknown) {
           console.error('[DealerBuilt Performance] OpenAI error:', err);
           return res.status(openAiFailureStatus(err)).json({
@@ -316,11 +318,7 @@ Do NOT treat pay types, price codes, or table headers as advisor names.`,
           });
         }
 
-        return res.json({
-          ...validatePbsPerformance(parsed, text, parseDeterministicPerformance),
-          isAiParsed: true,
-          dmsProvider,
-        });
+        return res.json(withPayTypes({ ...validatePbsPerformance(parsed, text, parseDeterministicPerformance), isAiParsed: true, dmsProvider }, text));
       } catch (err: unknown) {
         console.error('[OpenAI Performance Parser] Error:', err);
         return res.status(openAiFailureStatus(err)).json({
