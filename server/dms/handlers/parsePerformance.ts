@@ -159,8 +159,6 @@ export function registerParsePerformanceRoute(
   }
 ) {
   app.post('/api/parse-performance', async (req: Request, res: Response) => {
-    if (rejectIfOpenAiUnavailable(res)) return;
-
     const dealershipId =
       typeof req.body?.dealershipId === 'string' ? req.body.dealershipId : undefined;
     const dmsProvider = req.body?.dmsProvider
@@ -196,14 +194,25 @@ export function registerParsePerformanceRoute(
           .json({ error: 'No performance data or PDF detected.' });
       }
 
-      const openai = deps.getOpenAIClient();
-
       if (isDealerBuiltReport) {
         const deterministic = text
           ? parseDealerBuiltPerformanceDeterministic(text)
           : { advisors: [], totals: null as any };
 
+        if (!hasUsableOpenAIKey()) {
+          if (deterministic.advisors.length > 0) {
+            return res.json(
+              withPayTypes(
+                { ...validateDealerBuiltPerformance(deterministic), isAiParsed: false, parseMethod: 'deterministic', dmsProvider: 'dealerbuilt' },
+                text
+              )
+            );
+          }
+          if (rejectIfOpenAiUnavailable(res)) return;
+        }
+
         try {
+          const openai = deps.getOpenAIClient();
           const useVision = !!(pdfBuffer && isScannedPdf);
           console.log(
             `[DealerBuilt Performance] OpenAI required (deterministic=${deterministic.advisors.length}, vision=${useVision})`
@@ -272,10 +281,12 @@ export function registerParsePerformanceRoute(
           .json({ error: 'No performance data or PDF detected.' });
       }
 
-      try {
+      if (hasUsableOpenAIKey()) {
+        try {
         console.log(
-          '[OpenAI Performance Parser] Parsing report text using gpt-4o-mini (required)...'
+          '[OpenAI Performance Parser] Parsing report text using gpt-4o-mini...'
         );
+        const openai = deps.getOpenAIClient();
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
@@ -320,12 +331,33 @@ Do NOT treat pay types, price codes, or table headers as advisor names.`,
 
         return res.json(withPayTypes({ ...validatePbsPerformance(parsed, text, parseDeterministicPerformance), isAiParsed: true, dmsProvider }, text));
       } catch (err: unknown) {
-        console.error('[OpenAI Performance Parser] Error:', err);
-        return res.status(openAiFailureStatus(err)).json({
-          error: `OpenAI parse failed: ${openAiFailureMessage(err)}`,
-          requiresOpenAi: true,
-        });
+        console.error('[OpenAI Performance Parser] Error, falling back to deterministic PBS parser:', err);
       }
+      }
+
+      const deterministic = parseDeterministicPerformance(text);
+      if (deterministic?.advisors?.length || deterministic?.totals) {
+        return res.json(
+          withPayTypes(
+            {
+              ...validatePbsPerformance(deterministic, text, parseDeterministicPerformance),
+              isAiParsed: false,
+              parseMethod: 'deterministic',
+              dmsProvider,
+            },
+            text
+          )
+        );
+      }
+
+      if (!hasUsableOpenAIKey()) {
+        return res.status(422).json({ error: OPENAI_REQUIRED_MESSAGE, requiresOpenAi: true });
+      }
+
+      return res.status(502).json({
+        error: 'Could not parse this PBS productivity report. Check the PDF and try again.',
+        requiresOpenAi: true,
+      });
     } catch (error: any) {
       console.error('API Error Performance:', error);
       res.status(500).json({
