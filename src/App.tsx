@@ -148,7 +148,7 @@ export default function App() {
   const [minLoading, setMinLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('add');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
@@ -495,7 +495,7 @@ export default function App() {
                     {activeTab === 'manager'
                       ? `Manager: ${managerSubTab === 'operations' ? 'Operations' : managerSubTab === 'preferences' ? 'Preferences' : 'Team'}`
                       : activeTab === 'admin'
-                      ? `Admin: ${adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                      ? `Admin: ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -575,6 +575,17 @@ export default function App() {
                           isActive={activeTab === 'admin' && adminSubTab === 'users'}
                         >
                           User Settings
+                        </NavLink>
+                        <NavLink
+                          href="/admin/master-users"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('master-users');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'master-users'}
+                        >
+                          Master Users
                         </NavLink>
                         <NavLink
                           href="/admin/logs"

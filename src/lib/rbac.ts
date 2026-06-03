@@ -226,3 +226,64 @@ export function canModifyUser(actor: User | null | undefined, target: User): boo
     target.isManager !== true
   );
 }
+
+
+export type ManagerAdminPermission = 'admin' | 'manager';
+
+/** Admin → User Settings: managers can only be Manager or elevated to System Admin. */
+export function managerAdminPermissionFromUser(user: User): ManagerAdminPermission {
+  return user.role === 'admin' ? 'admin' : 'manager';
+}
+
+export function buildManagerAdminRolePatch(permission: ManagerAdminPermission): Partial<User> {
+  if (permission === 'admin') {
+    return { role: 'admin', isManager: true, approved: true, status: 'approved' };
+  }
+  return { role: 'manager', isManager: true, approved: true, status: 'approved' };
+}
+
+export type MasterPermissionRole =
+  | 'admin'
+  | 'manager'
+  | 'advisor-service'
+  | 'advisor-sales'
+  | 'pending';
+
+export function masterPermissionFromUser(user: User): MasterPermissionRole {
+  if (user.role === 'admin') return 'admin';
+  if (user.role === 'manager' || user.role === 'Manager' || user.isManager === true) return 'manager';
+  if (isPendingUser(user)) return 'pending';
+  if (user.department === 'sales') return 'advisor-sales';
+  return 'advisor-service';
+}
+
+export function buildMasterPermissionPatch(permission: MasterPermissionRole): Partial<User> {
+  switch (permission) {
+    case 'admin':
+      return { role: 'admin', isManager: true, approved: true, status: 'approved' };
+    case 'manager':
+      return { role: 'manager', isManager: true, approved: true, status: 'approved' };
+    case 'advisor-service':
+      return {
+        role: 'advisor',
+        department: 'service',
+        isManager: false,
+        approved: true,
+        status: 'approved',
+      };
+    case 'advisor-sales':
+      return {
+        role: 'advisor',
+        department: 'sales',
+        isManager: false,
+        approved: true,
+        status: 'approved',
+      };
+    case 'pending':
+      return { role: 'pending', approved: false, status: 'pending', isManager: false };
+  }
+}
+
+export function canAccessMasterUserSettings(user: User | null | undefined): boolean {
+  return canAccessPrimaryAdminSettings(user);
+}

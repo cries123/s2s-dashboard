@@ -147,7 +147,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 export default function AuthenticatedApp() {
   const { user, loading: authLoading } = useAuth();
 const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('appointments');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
@@ -521,7 +521,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
               {activeTab === 'manager'
                 ? `Manager · ${managerSubTab === 'operations' ? 'Operations' : managerSubTab === 'preferences' ? 'Preferences' : 'Team'}`
                 : activeTab === 'admin'
-                ? `Admin · ${adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                ? `Admin · ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                 : availableTabs.find(t => t.id === activeTab)?.label ?? 'S2S'}
             </p>
           </div>
@@ -609,6 +609,17 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                       >
                         <NavLink href="/admin/users" onClick={() => { setActiveTab('admin'); setAdminSubTab('users'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'users'}>
                           User Settings
+                        </NavLink>
+                        <NavLink
+                          href="/admin/master-users"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('master-users');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'master-users'}
+                        >
+                          Master Users
                         </NavLink>
                         <NavLink href="/admin/logs" onClick={() => { setActiveTab('admin'); setAdminSubTab('logs'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'logs'}>
                           Audit Logs

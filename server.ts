@@ -11,8 +11,11 @@ import fs from "fs";
 import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
 import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } from "./server/dms/index.js";
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
+import { registerMasterUserRoutes } from "./server/admin/registerMasterUserRoutes.js";
+import { getFirebaseAdminApp } from "./server/admin/initFirebaseAdmin.js";
 
 dotenv.config();
+getFirebaseAdminApp();
 
 // Helper sleep function for Sequential Throttling
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -593,6 +596,8 @@ async function startServer() {
     }
     return openaiClient;
   }
+
+  registerMasterUserRoutes(app);
 
   registerParsePerformanceRoute(app, {
     extractTextFromPDFBuffer,

@@ -33,6 +33,7 @@ import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
+import { MasterUserSettings } from './MasterUserSettings';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
@@ -49,6 +50,9 @@ import {
   isPendingStaffEnrollment,
   isPrimaryAdmin,
   isProtectedUser,
+  buildManagerAdminRolePatch,
+  managerAdminPermissionFromUser,
+  type ManagerAdminPermission,
 } from '../../../lib/rbac';
 import { getTenantProfile, tenantIdFromDealershipId } from '../../../lib/tenants';
 import {
@@ -58,7 +62,7 @@ import {
 } from '../../../lib/dealershipStaff';
 
 
-type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences';
+type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users';
 
 function getPanelSectionMeta(
   subTab: AdminSubTab,
@@ -86,6 +90,12 @@ function getPanelSectionMeta(
         title: 'User Settings',
         description: 'Manage system permission tiers, account access, and registration flows.',
       };
+    case 'master-users':
+      return {
+        eyebrow: scope,
+        title: 'Master User Settings',
+        description: 'Edit every account across all dealerships — email, password, permissions.',
+      };
     case 'logs':
       return {
         eyebrow: scope,
@@ -107,8 +117,8 @@ interface AdminPanelProps {
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences') => void;
+  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users';
+  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users') => void;
   onNavigateTab?: (tab: LandingTab) => void;
   onDealershipChange?: (dealershipId: string) => void;
 }
@@ -752,18 +762,53 @@ export default function AdminPanel({
     }
   };
 
-  const updateUserRole = async (uid: string, role: Role, userToUpdate?: User) => {
+  const updateManagerAdminPermission = async (
+    uid: string,
+    permission: ManagerAdminPermission,
+    userToUpdate?: User
+  ) => {
     try {
       if (!currentUser) return;
-      
-      // Safety check
+
       if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
         onError?.("Managers cannot modify other managers.");
         return;
       }
 
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
-      await updateDoc(userRef, { role, isManager: role === 'Manager' || role === 'admin' });
+      await updateDoc(userRef, buildManagerAdminRolePatch(permission));
+
+      await logSystemAction(
+        "User Role Updated",
+        `Updated permission of user ${userToUpdate?.username || uid} to ${permission}`,
+        'settings',
+        currentUser.email,
+        currentUser.username,
+        currentUser.dealershipId
+      );
+    } catch (error) {
+      onError?.("Permission denied. Insufficient administrative level.");
+      console.error("Error updating manager permission:", error);
+    }
+  };
+
+
+  const updateStaffRole = async (uid: string, role: Role, userToUpdate?: User) => {
+    try {
+      if (!currentUser) return;
+
+      if (!isPlatformAdmin(currentUser) && (userToUpdate?.isManager || userToUpdate?.role === 'manager')) {
+        onError?.("Managers cannot modify other managers.");
+        return;
+      }
+
+      const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', uid);
+      const isSales = role === 'Salesperson';
+      await updateDoc(userRef, {
+        role: 'advisor',
+        department: isSales ? 'sales' : 'service',
+        isManager: false,
+      });
 
       await logSystemAction(
         "User Role Updated",
@@ -1397,6 +1442,10 @@ export default function AdminPanel({
         </div>
       )}
 
+      {subTab === 'master-users' && panelMode === 'admin' && (
+        <MasterUserSettings onSuccess={onSuccess} onError={onError} />
+      )}
+
       {/* USER SETTINGS / ROLES PANEL */}
       {subTab === 'users' && (
         <div className="space-y-8 animate-in fade-in duration-300">
@@ -1499,20 +1548,36 @@ export default function AdminPanel({
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <select 
-                              value={user.role}
-                              onChange={(e) => updateUserRole(user.uid, e.target.value as Role, user)}
-                              className={cn(
-                                "bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary",
-                                user.role === 'admin' ? "text-brand-primary" : "text-slate-400"
-                              )}
-                            >
-                              <option value="admin">System Admin</option>
-                              <option value="Manager">Manager</option>
-                              <option value="Salesperson">Sales Professional</option>
-                              <option value="Service Advisor">Service Advisor</option>
-                              <option value="Staff">Staff</option>
-                            </select>
+                            {panelMode === 'admin' ? (
+                              <select
+                                value={managerAdminPermissionFromUser(user)}
+                                onChange={(e) =>
+                                  updateManagerAdminPermission(
+                                    user.uid,
+                                    e.target.value as ManagerAdminPermission,
+                                    user
+                                  )
+                                }
+                                className={cn(
+                                  'bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary',
+                                  user.role === 'admin' ? 'text-brand-primary' : 'text-slate-400'
+                                )}
+                              >
+                                <option value="manager">Manager</option>
+                                <option value="admin">System Admin</option>
+                              </select>
+                            ) : (
+                              <select
+                                value={user.role}
+                                onChange={(e) => updateStaffRole(user.uid, e.target.value as Role, user)}
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary text-slate-400"
+                              >
+                                <option value="advisor">Service Advisor</option>
+                                <option value="Staff">Staff</option>
+                                <option value="Salesperson">Sales Professional</option>
+                                <option value="Service Advisor">Service Advisor (legacy)</option>
+                              </select>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
