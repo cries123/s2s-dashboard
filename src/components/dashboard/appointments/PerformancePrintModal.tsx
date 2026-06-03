@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Printer, X, FileText, Loader2, BarChart2, TrendingUp, ShieldAlert, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
+import { dedupeDailyStatsByDate } from '../../../lib/appointmentTracker';
 
 // Helper: US Federal Holidays definitions
 const isFederalHoliday = (date: Date): boolean => {
@@ -180,8 +181,11 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
 
     // 3. Subscribe to Appointments
     const apptPath = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const apptRef = collection(db, apptPath);
-    const unsubAppts = onSnapshot(apptRef, (snap) => {
+    const apptQuery =
+      currentDealershipId === 'hyundai'
+        ? collection(db, apptPath)
+        : query(collection(db, apptPath), where('dealershipId', '==', currentDealershipId));
+    const unsubAppts = onSnapshot(apptQuery, (snap) => {
       let stats = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       stats = stats.filter(s => {
         if (currentDealershipId === 'hyundai') {
@@ -189,7 +193,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
         }
         return s.dealershipId === currentDealershipId;
       });
-      setAppointments(stats);
+      setAppointments(dedupeDailyStatsByDate(stats, currentDealershipId || 'hyundai'));
     }, (err) => {
       console.error("Print Modal failed to subscribe to appointments:", err);
     });

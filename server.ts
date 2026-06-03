@@ -8,6 +8,7 @@ import admin from "firebase-admin";
 import { getApps, initializeApp, getApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
+import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
 
 dotenv.config();
 
@@ -168,7 +169,17 @@ async function startServer() {
 
       console.log(`[Appointments Parser] Received text of length ${text.length}`);
 
-      // Attempt AI parsing with Gemini first if configured
+      const isPbsAppointmentReport = /Appointment Details Report/i.test(text) && /\bFor\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}/i.test(text);
+
+      if (isPbsAppointmentReport) {
+        const parsed = parseAppointmentReportDeterministic(text);
+        console.log("[Appointments Parser] PBS deterministic result:", parsed);
+        if (parsed.total > 0) {
+          return res.json({ ...parsed, isAiParsed: false });
+        }
+      }
+
+      // Attempt AI parsing with Gemini if configured and PBS parser found nothing
       const geminiKey = process.env.GEMINI_API_KEY;
       const isGeminiKeyMasked = !!(geminiKey && geminiKey.includes("*"));
       const hasGemini = !!(geminiKey && geminiKey.trim() !== "" && !geminiKey.includes("YOUR_") && !isGeminiKeyMasked);
@@ -184,17 +195,7 @@ async function startServer() {
                 role: "user",
                 parts: [
                   {
-                    text: "Analyze the attached Service Appointment Details Report. Your task is to count and categorize each unique appointment listed in the document.\n\n" +
-                          "Rules & Context:\n" +
-                          "- An appointment represents a single vehicle visit/booking. It corresponds to an entry with a customer name, appointment time, and Confirmation Key (usually starting with 'X06' or similar).\n" +
-                          "- Strenuously avoid counting every individual line or service listed as a unique appointment. An appointment can have multiple service lines, but it is still only ONE single appointment. Across the 6 pages of this report, there are only about 20 actual unique appointments.\n" +
-                          "- Find all unique confirmation keys or unique customer entries to identify separate appointments.\n" +
-                          "- Categorize each unique appointment into exactly ONE category based on its primary service description:\n" +
-                          "  1. 'recall': Contains terms like 'RECALL', 'CAMPAIGN', 'ECU SW UPDATE', 'SAFETY', or bulletins. Priority: Highest.\n" +
-                          "  2. 'oilChange': oil and filter changes, lube, complimentary maintenance, tire rotation, etc.\n" +
-                          "  3. 'diagnosis': check engine lights, check noises, vehicle lost power, inspect and advise, warnings, diagnostics, etc.\n" +
-                          "  4. 'misc': default for empty services, car washes, factory required maintenance (if no detail), or any other service types.\n\n" +
-                          "Ensure the sum of the four categories equals the 'total'. Return only the structured schema JSON."
+                    text: "Analyze the attached Service Appointment Details Report. Count only appointments that have scheduled service lines in the Services field (ignore blank walk-ins). Categorize: diagnosis (customer states / check and advise) beats recall (campaign/recall codes) beats oil (full synthetic / complimentary maintenance) beats misc."
                   },
                   { text }
                 ]
@@ -205,26 +206,11 @@ async function startServer() {
               responseSchema: {
                 type: Type.OBJECT,
                 properties: {
-                  diagnosis: {
-                    type: Type.INTEGER,
-                    description: "Count of diagnostic, check noise, warnings, inspect and advise, or warning light appointments."
-                  },
-                  oilChange: {
-                    type: Type.INTEGER,
-                    description: "Count of oil and filter change, maintenance, tire rotation, lube, or fluid services."
-                  },
-                  recall: {
-                    type: Type.INTEGER,
-                    description: "Count of safety recalls, campaigns, software/ECU updates, or emissions bulletins."
-                  },
-                  misc: {
-                    type: Type.INTEGER,
-                    description: "Count of miscellaneous other appointments (wash requested, empty service, other repairs, antitheft prot, etc.)"
-                  },
-                  total: {
-                    type: Type.INTEGER,
-                    description: "Sum of unique appointments (must equal diagnosis + oilChange + recall + misc)."
-                  }
+                  diagnosis: { type: Type.INTEGER },
+                  oilChange: { type: Type.INTEGER },
+                  recall: { type: Type.INTEGER },
+                  misc: { type: Type.INTEGER },
+                  total: { type: Type.INTEGER }
                 },
                 required: ["diagnosis", "oilChange", "recall", "misc", "total"]
               },
@@ -241,7 +227,9 @@ async function startServer() {
               recall: parsed.recall || 0,
               misc: parsed.misc || 0,
               total: parsed.total || 0,
-              isAiParsed: true
+              reportDate: parseAppointmentReportDeterministic(text).reportDate,
+              isAiParsed: true,
+              parseMethod: 'ai',
             });
           }
         } catch (aiErr: any) {
@@ -249,97 +237,13 @@ async function startServer() {
         }
       }
 
-      // DETERMINISTIC FALLBACK PARSER
-      console.log("[Appointments Parser] Executing high-accuracy deterministic fallback parsing pipeline");
-      let diagnosis = 0;
-      let oilChange = 0;
-      let recall = 0;
-      let misc = 0;
-
-      // Extract all unique confirmation keys (e.g. X06FZ2QQQK, XO6POK5ZXK, X060O61KVT, X06X0S1CNH...)
-      // Robust confirmation matching: starts with letter 'X', followed by 9 alphanumeric characters
-      const confKeysSet = new Set<string>();
-      const keyPattern = /\b(X[A-Z0-9]{9})\b/gi;
-      let match;
-      while ((match = keyPattern.exec(text)) !== null) {
-        confKeysSet.add(match[1].toUpperCase());
+      const fallbackParsed = parseAppointmentReportDeterministic(text);
+      if (fallbackParsed.total > 0) {
+        return res.json({ ...fallbackParsed, isAiParsed: false });
       }
 
-      const confKeys = Array.from(confKeysSet);
-
-      if (confKeys.length > 0) {
-        console.log(`[Deterministic Parser] Found ${confKeys.length} unique confirmation keys. Segmenting document text...`);
-        for (const key of confKeys) {
-          const keyIdx = text.toUpperCase().indexOf(key);
-          if (keyIdx === -1) continue;
-
-          // Extract up to 1200 characters following the key, truncated before the next confirmation key starts
-          let block = text.substring(keyIdx, keyIdx + 1200).toUpperCase();
-          for (const otherKey of confKeys) {
-            if (otherKey === key) continue;
-            const otherIdx = block.indexOf(otherKey);
-            if (otherIdx !== -1) {
-              block = block.substring(0, otherIdx);
-            }
-          }
-
-          // Scan the segment for key indicators to categorize the appointment
-          const isRecall = block.includes("RECALL") || block.includes("CAMPAIGN") || block.includes("UPDATE") || block.includes("BULLETIN") || block.includes("ECU");
-          const isOil = block.includes("OIL") || block.includes("FILTER") || block.includes("MAINTENANCE") || block.includes("LUBE") || block.includes("ROTATION");
-          const isDiag = block.includes("CHECK") || block.includes("NOISE") || block.includes("INSPECTION") || block.includes("DIAG") || block.includes("WARN") || block.includes("LIGHT") || block.includes("LOST POWER") || block.includes("ADVISE");
-
-          if (isRecall) {
-            recall++;
-          } else if (isOil) {
-            oilChange++;
-          } else if (isDiag) {
-            diagnosis++;
-          } else {
-            misc++;
-          }
-        }
-      } else {
-        // Fallback if no keys found structure: split raw lines
-        console.log("[Deterministic Parser] No confirmation keys found. Estimating based on line heuristics.");
-        const lines = text.split('\n');
-        let rawCount = 0;
-        for (const line of lines) {
-          const l = line.toUpperCase();
-          if (!l.trim()) continue;
-
-          const hasTime = /\b\d{1,2}:\d{2}\s*(AM|PM)?\b/i.test(line);
-          const hasVin = /\b[A-Z0-9]{17}\b/.test(line);
-          if (hasTime && hasVin) {
-            rawCount++;
-            const isOil = l.includes("OIL") || l.includes("FILTER") || l.includes("MAINTENANCE") || l.includes("LUBE");
-            const isRecall = l.includes("RECALL") || l.includes("CAMPAIGN") || l.includes("UPDATE");
-            const isDiag = l.includes("CHECK") || l.includes("NOISE") || l.includes("INSPECTION") || l.includes("DIAG") || l.includes("WARN") || l.includes("LIGHT");
-
-            if (isOil) oilChange++;
-            else if (isRecall) recall++;
-            else if (isDiag) diagnosis++;
-            else misc++;
-          }
-        }
-        
-        // Final ultimate fail-safe numbers so it matches a standard 10-25 range instead of inflating 100+
-        if (oilChange === 0 && recall === 0 && diagnosis === 0 && misc === 0) {
-          oilChange = 8;
-          recall = 6;
-          diagnosis = 3;
-          misc = 3;
-        }
-      }
-
-      const total = oilChange + recall + diagnosis + misc;
-
-      res.json({
-        diagnosis,
-        oilChange,
-        recall,
-        misc,
-        total,
-        isAiParsed: false
+      res.status(422).json({
+        error: "No appointments with scheduled services found in this PDF. Use a PBS Appointment Details report for the selected day.",
       });
     } catch (error: any) {
       console.error("API Error Appointments:", error);
