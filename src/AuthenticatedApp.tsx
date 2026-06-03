@@ -44,6 +44,7 @@ import {
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
+import { buildMobileNavSections } from './lib/mobileNavSections';
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
 import {
   type AdminSubTab,
@@ -264,6 +265,18 @@ function DashboardShell({ user }: { user: User }) {
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
 
+  const mobileNavSections = React.useMemo(
+    () =>
+      buildMobileNavSections({
+        user,
+        modules,
+        currentDealershipId,
+        enableDispatchTab: dealershipSettings?.enableDispatchTab !== false,
+        activeAlertsCount,
+      }),
+    [user, modules, currentDealershipId, dealershipSettings?.enableDispatchTab, activeAlertsCount]
+  );
+
   // If current activeTab is hidden, fallback to first available.
   // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
@@ -293,7 +306,6 @@ function DashboardShell({ user }: { user: User }) {
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   const showNotification = (text: string, isError = false) => {
     setNotification({ text, isError });
@@ -339,7 +351,7 @@ function DashboardShell({ user }: { user: User }) {
   const currentUser = user;
 
   return (
-    <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white relative overflow-x-hidden">
+    <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white relative overflow-x-hidden md:overflow-x-visible">
       {/* Aesthetic Background Elements */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-primary/5 blur-[120px] rounded-full animate-pulse" />
@@ -577,62 +589,6 @@ function DashboardShell({ user }: { user: User }) {
             </p>
           </div>
 
-          {/* Mobile full menu sheet (opened from bottom nav "More") */}
-          <div className="md:hidden">
-            <div className="relative">
-              
-              <AnimatePresence>
-                {isMobileNavOpen && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-[90]" 
-                      onClick={() => setIsMobileNavOpen(false)} 
-                    />
-                    <motion.div 
-                      initial={{ opacity: 0, y: 24 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 24 }}
-                      className="fixed inset-x-0 bottom-0 z-[100] max-h-[min(70vh,520px)] overflow-y-auto rounded-t-3xl bg-slate-900 border border-white/10 border-b-0 shadow-[0_-20px_50px_rgba(0,0,0,0.5)] pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:absolute md:inset-auto md:bottom-auto md:left-1/2 md:-translate-x-1/2 md:top-full md:mt-2 md:w-56 md:max-h-[80vh] md:rounded-2xl md:pb-0 md:pb-0"
-                    >
-                      <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
-                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Navigation</span>
-                      </div>
-                      {availableTabs.map(tab => (
-                        <button
-                          key={tab.id}
-                          onClick={() => {
-                            setActiveTab(tab.id as any);
-                            if (tab.id === 'manager') {
-                              setManagerSubTab('operations');
-                            }
-                            if (tab.id === 'admin') {
-                              setAdminSubTab('users');
-                            }
-                            setIsMobileNavOpen(false);
-                          }}
-                          className={cn(
-                            "w-full flex items-center justify-between px-4 py-3.5 text-[9px] font-black uppercase tracking-widest text-left hover:bg-white/5 transition-colors border-b border-white/5 last:border-0",
-                            activeTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400"
-                          )}
-                        >
-                          <div className="flex items-center gap-2">
-                            <tab.icon size={14} className={activeTab === tab.id ? "text-brand-primary" : "text-slate-500"} />
-                            {tab.label}
-                          </div>
-                          {tab.badge !== undefined && tab.badge > 0 && (
-                            <span className="bg-rose-500 text-white px-1.5 py-0.5 rounded-full text-[8px]">
-                              {tab.badge}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </motion.div>
-                  </>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
           {/* Profile Section */}
           <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10 relative">
             {canAccessPrimaryAdminSettings(currentUser) && (
@@ -866,12 +822,17 @@ function DashboardShell({ user }: { user: User }) {
 
       <MobileBottomNav
         activeTab={activeTab}
-        onNavigate={(tab) => {
+        managerSubTab={managerSubTab}
+        sections={mobileNavSections}
+        onNavigate={({ tab, managerSubTab: nextManagerSubTab }) => {
           setActiveTab(tab as typeof activeTab);
-          setIsMobileNavOpen(false);
+          if (nextManagerSubTab) {
+            setManagerSubTab(nextManagerSubTab);
+            if (nextManagerSubTab === 'team') {
+              setManagerDashboardSubTab('users');
+            }
+          }
         }}
-        onOpenMenu={() => setIsMobileNavOpen(true)}
-        alertBadge={activeAlertsCount}
       />
     </div>
   );
