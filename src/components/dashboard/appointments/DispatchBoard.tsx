@@ -2,12 +2,26 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
-import { DepartmentColumnId, DispatchRepairOrder } from '../../../types';
+import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
+import { mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
+import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
+import {
+  appointmentTrackerDoc,
+  legacyAppointmentTrackerDoc,
+  resolveAppointmentCount,
+} from '../../../lib/appointmentTracker';
+import {
+  buildDispatchMoveUpdate,
+  buildOvernightQueuePatch,
+  isOvernightRo,
+  normalizeDispatchOrder,
+  type DispatchMoveTarget,
+} from '../../../lib/dispatchTransitions';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  GripVertical, Check, Wrench
+  Check, Wrench, Monitor, X, UserSearch, Inbox, MapPin, Moon
 } from 'lucide-react';
 
 // 1. Color System Configuration & Status Tokens
@@ -28,12 +42,19 @@ const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: any }[] = [
   { id: 'mobile_repair', label: 'Mobile Fleet', icon: Wrench },
 ];
 
+const DISPLAY_COLUMNS: { id: DepartmentColumnId; label: string; shortLabel: string; icon: typeof Layers }[] = [
+  { id: 'unassigned', label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
+  ...DEPARTMENTS.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
+];
+
 export function DispatchBoard({ 
   currentDealershipId,
+  customers = [],
   showNotification
 }: { 
   key?: string;
   currentDealershipId: string;
+  customers?: Customer[];
   showNotification?: (msg: string, isError?: boolean) => void;
 }) {
   const { user } = useAuth();
@@ -42,19 +63,24 @@ export function DispatchBoard({
   const [orders, setOrders] = useState<DispatchRepairOrder[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   
-  // Drag & drop interactive feedback states
-  const [draggedRoId, setDraggedRoId] = useState<string | null>(null);
-  const [overColumnId, setOverColumnId] = useState<DepartmentColumnId | null>(null);
+  const [moveMenuRoId, setMoveMenuRoId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Completed items view states
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
+  const [isDisplayMode, setIsDisplayMode] = useState<boolean>(false);
 
   // Form states
   const [roNumber, setRoNumber] = useState('');
   const [techNumber, setTechNumber] = useState('');
+  const [customerFirstName, setCustomerFirstName] = useState('');
+  const [customerLastName, setCustomerLastName] = useState('');
   const [vinLastEight, setVinLastEight] = useState('');
+  const [tagNumber, setTagNumber] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [dealershipSettings, setDealershipSettings] = useState<Partial<DealershipSettings> | null>(null);
+  const [todayApptCount, setTodayApptCount] = useState(0);
   const [initialStatus, setInitialStatus] = useState<'WIP' | 'DIS' | 'POO' | 'WFA'>('WIP');
   const [quickComplete, setQuickComplete] = useState(false);
 
@@ -62,6 +88,112 @@ export function DispatchBoard({
   const currentSystemDate = useMemo(() => {
     return new Date().toLocaleDateString('en-CA'); // Accurate timezone local YYYY-MM-DD
   }, []);
+
+  useEffect(() => {
+    if (!isDisplayMode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDisplayMode(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, [isDisplayMode]);
+
+  const openDisplayMode = async () => {
+    setShowCompleted(false);
+    setIsDisplayMode(true);
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen is optional; fixed overlay still works in-window.
+    }
+  };
+
+  const closeDisplayMode = () => {
+    setIsDisplayMode(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  };
+
+
+  const laneCapacity = useMemo(
+    () => mergeLaneCapacity(dealershipSettings?.dispatchLaneCapacity),
+    [dealershipSettings?.dispatchLaneCapacity]
+  );
+  const showTodayLoad = dealershipSettings?.dispatchShowTodayLoad !== false;
+  const blockWhenFull = !!dealershipSettings?.dispatchBlockWhenFull;
+  const apptGoal = dealershipSettings?.appointmentTarget ?? 20;
+
+  const matchCandidates = useMemo(
+    () => findCustomersByLastName(customers, customerLastName),
+    [customers, customerLastName]
+  );
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    const settingsRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'dealershipSettings',
+      currentDealershipId
+    );
+    return onSnapshot(settingsRef, (snap) => {
+      setDealershipSettings(snap.exists() ? (snap.data() as DealershipSettings) : null);
+    });
+  }, [currentDealershipId]);
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+
+    let tenantData: { count?: number; dealershipId?: string } | null = null;
+    let legacyData: { count?: number; dealershipId?: string } | null = null;
+
+    const syncCount = () => {
+      setTodayApptCount(
+        resolveAppointmentCount(
+          currentDealershipId,
+          tenantData ?? undefined,
+          legacyData ?? undefined
+        )
+      );
+    };
+
+    const unsubTenant = onSnapshot(
+      appointmentTrackerDoc(db, currentDealershipId, currentSystemDate),
+      (snap) => {
+        tenantData = snap.exists() ? (snap.data() as { count?: number; dealershipId?: string }) : null;
+        syncCount();
+      }
+    );
+
+    const unsubLegacy =
+      currentDealershipId === 'hyundai'
+        ? onSnapshot(legacyAppointmentTrackerDoc(db, currentSystemDate), (snap) => {
+            legacyData = snap.exists() ? (snap.data() as { count?: number; dealershipId?: string }) : null;
+            syncCount();
+          })
+        : () => {};
+
+    return () => {
+      unsubTenant();
+      unsubLegacy();
+    };
+  }, [currentDealershipId, currentSystemDate]);
 
   // Sync / Stream Board State from Firestore
   useEffect(() => {
@@ -76,11 +208,10 @@ export function DispatchBoard({
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetchedOrders: DispatchRepairOrder[] = [];
-      snapshot.forEach((doc) => {
-        fetchedOrders.push({
-          ...(doc.data() as Omit<DispatchRepairOrder, 'id'>),
-          id: doc.id
-        });
+      snapshot.forEach((docSnap) => {
+        fetchedOrders.push(
+          normalizeDispatchOrder(docSnap.data() as Omit<DispatchRepairOrder, 'id'>, docSnap.id)
+        );
       });
 
       setOrders(fetchedOrders);
@@ -88,8 +219,8 @@ export function DispatchBoard({
 
       // Rule C: Overnight carryover retention logic.
       // If any active (non-completed) ticket is from an earlier date and is not in 'unassigned', sweep it back.
-      const carryoversToReset = fetchedOrders.filter(ro => {
-        return !ro.isCompleted && ro.dateCreated < currentSystemDate && ro.department !== 'unassigned';
+      const carryoversToReset = fetchedOrders.filter((ro) => {
+        return !ro.isCompleted && isOvernightRo(ro, currentSystemDate) && ro.department !== 'unassigned';
       });
 
       if (carryoversToReset.length > 0) {
@@ -99,10 +230,7 @@ export function DispatchBoard({
         const batch = writeBatch(db);
         carryoversToReset.forEach(ro => {
           const docRef = doc(db, path, ro.id);
-          batch.update(docRef, {
-            department: 'unassigned',
-            lastUpdated: new Date().toISOString()
-          });
+          batch.update(docRef, buildOvernightQueuePatch());
         });
         
         batch.commit()
@@ -127,59 +255,67 @@ export function DispatchBoard({
     return () => unsubscribe();
   }, [currentDealershipId, currentSystemDate]);
 
-  // Handle Drag Events
-  const handleDragStart = (e: React.DragEvent, roId: string) => {
-    setDraggedRoId(roId);
-    e.dataTransfer.setData('text/plain', roId);
-    e.dataTransfer.effectAllowed = 'move';
+  const countInLane = (lane: DepartmentColumnId, excludeId?: string) =>
+    (orders.filter((o) => !o.isCompleted && o.department === lane && o.id !== excludeId)).length;
+
+  const isLaneAtCapacity = (lane: DepartmentColumnId, excludeId?: string) => {
+    if (lane === 'unassigned') return false;
+    const cap = laneCapacity[lane as DispatchProductionLane];
+    if (!cap || cap <= 0) return false;
+    return countInLane(lane, excludeId) >= cap;
   };
 
-  const handleDragEnd = () => {
-    setDraggedRoId(null);
-    setOverColumnId(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent, columnId: DepartmentColumnId) => {
-    e.preventDefault();
-    if (overColumnId !== columnId) {
-      setOverColumnId(columnId);
+  const handleMoveRo = async (ro: DispatchRepairOrder, target: DispatchMoveTarget) => {
+    const laneTarget = target === 'overnight' ? 'unassigned' : target;
+    const overnightVehicle = isOvernightRo(ro, currentSystemDate);
+    if (
+      laneTarget !== 'unassigned' &&
+      blockWhenFull &&
+      isLaneAtCapacity(laneTarget, ro.id) &&
+      !overnightVehicle
+    ) {
+      showNotification?.(
+        `${DEPARTMENTS.find((d) => d.id === laneTarget)?.label || 'Lane'} is at capacity.`,
+        true
+      );
+      return;
     }
-  };
-
-  const handleDragLeave = () => {
-    setOverColumnId(null);
-  };
-
-  // Rule B: Complete state transition and database mutation
-  const handleCardDropped = async (roId: string, targetLane: DepartmentColumnId) => {
-    if (!roId) return;
     try {
-      const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
-      await updateDoc(roRef, {
-        department: targetLane,
-        lastUpdated: new Date().toISOString()
-      });
-    } catch (err: any) {
-      console.error('[Dispatch] Drop mutation error:', err);
+      const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
+      await updateDoc(roRef, buildDispatchMoveUpdate(ro, target, currentSystemDate));
+      setMoveMenuRoId(null);
       if (showNotification) {
-        showNotification('Failed to route dispatch card.', true);
+        const label =
+          target === 'overnight'
+            ? 'Overnight (Queue)'
+            : target === 'unassigned'
+              ? 'Waiting Queue'
+              : DEPARTMENTS.find((d) => d.id === target)?.label || target;
+        showNotification(`RO #${ro.roNumber} moved to ${label}.`);
       }
+    } catch (err: unknown) {
+      console.error('[Dispatch] Move mutation error:', err);
+      showNotification?.('Failed to move dispatch card.', true);
     }
   };
 
-  const handleDrop = (e: React.DragEvent, targetLane: DepartmentColumnId) => {
-    e.preventDefault();
-    const roId = e.dataTransfer.getData('text/plain');
-    handleCardDropped(roId, targetLane);
-    setOverColumnId(null);
-    setDraggedRoId(null);
-  };
+  useEffect(() => {
+    if (!moveMenuRoId) return;
+    const close = () => setMoveMenuRoId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [moveMenuRoId]);
 
   // Rule A Form submission: Default to 'unassigned' department
   const handleSubmitIntake = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roNumber.trim() || !techNumber.trim() || !vinLastEight.trim()) {
-      if (showNotification) showNotification('Please fill out all required fields.', true);
+    const ro = roNumber.trim();
+    const tech = techNumber.trim();
+    const ln = customerLastName.trim();
+    const tag = tagNumber.trim();
+
+    if (!ro || !tech || !ln || !tag) {
+      showNotification?.('RO number, last name, tech number, and tag number are required.', true);
       return;
     }
 
@@ -188,25 +324,59 @@ export function DispatchBoard({
       const newRoId = doc(collection(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders')).id;
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', newRoId);
 
+      let crmMatch = selectedCustomer;
+      if (!crmMatch && matchCandidates.length === 1) {
+        crmMatch = matchCandidates[0];
+      }
+      if (!crmMatch && matchCandidates.length > 1) {
+        showNotification?.('Multiple CRM matches — select a customer below before queueing.', true);
+        setSubmitting(false);
+        return;
+      }
+
+      const fn = customerFirstName.trim();
+      const vin = vinLastEight.trim().toUpperCase();
+      const displayName = [fn, ln].filter(Boolean).join(' ');
+
       const payload: DispatchRepairOrder = {
         id: newRoId,
-        roNumber: roNumber.trim(),
-        techNumber: techNumber.trim(),
-        vinLastEight: vinLastEight.toUpperCase().trim(),
-        department: 'unassigned', // Rule A: Default Intake goes strictly to Waiting for Dispatch tray
+        roNumber: ro,
+        techNumber: tech,
+        tagNumber: tag,
+        customerLastName: ln,
+        customerName: displayName,
+        department: 'unassigned',
+        currentLaneId: 'unassigned',
+        lifecycleStatus: 'active',
         status: initialStatus,
         isCompleted: quickComplete,
         dateCreated: currentSystemDate,
         lastUpdated: new Date().toISOString(),
-        dealershipId: currentDealershipId
+        dealershipId: currentDealershipId,
+        ...(crmMatch ? enrichDispatchFromCustomer(crmMatch) : {}),
       };
+
+      payload.roNumber = ro;
+      payload.techNumber = tech;
+      payload.tagNumber = tag;
+      payload.customerLastName = ln;
+      payload.customerName = fn
+        ? `${fn} ${ln}`.trim()
+        : (payload.customerName || ln);
+      if (vin) {
+        payload.vinLastEight = vin;
+      }
 
       await setDoc(docRef, payload);
 
       // Reset form states
       setRoNumber('');
       setTechNumber('');
+      setCustomerFirstName('');
+      setCustomerLastName('');
       setVinLastEight('');
+      setTagNumber('');
+      setSelectedCustomer(null);
       setInitialStatus('WIP');
       setQuickComplete(false);
 
@@ -294,9 +464,81 @@ export function DispatchBoard({
     return acc;
   }, [activeTickets]);
 
+
+
+  const moveTargets: { target: DispatchMoveTarget; label: string; icon?: React.ReactNode }[] = [
+    { target: 'unassigned', label: 'Move to Queue', icon: <Inbox size={12} /> },
+    ...DEPARTMENTS.map((d) => ({ target: d.id as DispatchMoveTarget, label: `Move to ${d.label}`, icon: <d.icon size={12} /> })),
+    { target: 'overnight', label: 'Move to Overnight', icon: <Moon size={12} /> },
+  ];
+
+  const renderMoveMenu = (ro: DispatchRepairOrder) => {
+    if (moveMenuRoId !== ro.id) return null;
+    return (
+      <div
+        className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-indigo-500/30 bg-slate-950 shadow-2xl shadow-black/50 overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+        role="menu"
+      >
+        <p className="px-3 py-2 text-[8px] font-black uppercase tracking-widest text-slate-500 border-b border-white/5">
+          Route RO #{ro.roNumber}
+        </p>
+        <div className="max-h-52 overflow-y-auto py-1">
+          {moveTargets.map(({ target, label, icon }) => (
+            <button
+              key={String(target)}
+              type="button"
+              role="menuitem"
+              onClick={() => handleMoveRo(ro, target)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-200 hover:bg-indigo-500/15 hover:text-white transition-colors"
+            >
+              <span className="text-indigo-400 shrink-0">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDisplayCard = (ro: DispatchRepairOrder) => {
+    const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
+    const overnight = isOvernightRo(ro, currentSystemDate);
+    return (
+      <div
+        key={ro.id}
+        style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
+        className={cn(
+          'relative bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-pointer select-none space-y-0.5',
+          overnight && 'ring-1 ring-amber-500/40',
+          moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50'
+        )}
+        onClick={() => setMoveMenuRoId((id) => (id === ro.id ? null : ro.id))}
+      >
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-black text-white tabular-nums truncate">RO {ro.roNumber}</span>
+          <span
+            className="text-[8px] font-black uppercase px-1 py-0.5 rounded shrink-0"
+            style={{ backgroundColor: statusInfo.hex, color: statusInfo.text }}
+          >
+            {ro.status}
+          </span>
+        </div>
+        <p className="text-[9px] font-bold text-slate-300 truncate uppercase">
+          {ro.customerName || ro.model || 'Guest'}
+        </p>
+        <div className="flex items-center justify-between text-[8px] font-mono text-slate-500">
+          <span>T#{ro.techNumber}</span>
+          <span>…{ro.vinLastEight}</span>
+        </div>
+        {renderMoveMenu(ro)}
+      </div>
+    );
+  };
+
   const renderRoCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
-    const isOvernight = ro.dateCreated < currentSystemDate;
+    const isOvernight = isOvernightRo(ro, currentSystemDate);
 
     // Check if it's an internal dealership vehicle
     const isInternalAsset = 
@@ -307,15 +549,13 @@ export function DispatchBoard({
     return (
       <div
         key={ro.id}
-        draggable
-        onDragStart={(e) => handleDragStart(e, ro.id)}
-        onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
         className={cn(
-          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 active:cursor-grabbing p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-grab select-none w-full text-slate-100",
-          draggedRoId === ro.id && "opacity-30 scale-95 border-dashed border-indigo-500",
-          isOvernight && "ring-1 ring-amber-500/30"
+          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-pointer select-none w-full text-slate-100",
+          isOvernight && "ring-1 ring-amber-500/30",
+          moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30"
         )}
+        onClick={() => setMoveMenuRoId((id) => (id === ro.id ? null : ro.id))}
       >
         {/* 1. HEADER SECTION (DYNAMIC HIERARCHY) */}
         <div className="flex justify-between items-start gap-2">
@@ -344,8 +584,17 @@ export function DispatchBoard({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <GripVertical size={13} className="text-slate-650 group-hover:text-slate-400 transition-colors cursor-grab" />
-            
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMoveMenuRoId((id) => (id === ro.id ? null : ro.id));
+              }}
+              className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-950/50 border border-indigo-900/40 px-1.5 py-0.5 rounded hover:bg-indigo-900/40"
+            >
+              <MapPin size={11} /> Move
+            </button>
+
             {isOvernight && (
               <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
                 Overnight
@@ -363,10 +612,6 @@ export function DispatchBoard({
                     setConfirmDeleteId(null);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
                   className="text-[9px] font-black uppercase text-rose-400 bg-rose-950/80 border border-rose-900/40 px-1 py-0.5 rounded hover:bg-rose-900/80 transition-all cursor-pointer relative z-20 animate-pulse"
                 >
                   Delete?
@@ -379,10 +624,6 @@ export function DispatchBoard({
                     setConfirmDeleteId(null);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                  }}
                   className="text-[9px] font-black uppercase text-slate-400 bg-slate-950 border border-slate-805 px-1 py-0.5 rounded hover:bg-slate-800 transition-all cursor-pointer relative z-20"
                 >
                   No
@@ -397,11 +638,7 @@ export function DispatchBoard({
                   setConfirmDeleteId(ro.id);
                 }}
                 onMouseDown={(e) => {
-                  e.stopPropagation(); // Avoid triggering any drag initiates
-                }}
-                onDragStart={(e) => {
                   e.stopPropagation();
-                  e.preventDefault();
                 }}
                 className="text-slate-600 hover:text-rose-450 p-0.5 rounded transition-all duration-200 cursor-pointer relative z-20"
                 title="Delete from Board"
@@ -428,7 +665,7 @@ export function DispatchBoard({
               {isInternalAsset ? `STOCK: ${ro.stockNumber || 'N/A'}` : `TAG: ${ro.tagNumber || 'N/A'}`}
             </span>
             <span className="font-mono text-slate-400 text-[10px] block">
-              VIN: ...{ro.vinLastEight}
+              {ro.vinLastEight ? `VIN …${ro.vinLastEight}` : `Last: ${displayCustomerLastName(ro)}`}
             </span>
           </div>
 
@@ -478,6 +715,7 @@ export function DispatchBoard({
             <span>Done</span>
           </button>
         </div>
+        {renderMoveMenu(ro)}
       </div>
     );
   };
@@ -496,7 +734,30 @@ export function DispatchBoard({
             Streamlining shop capacity by routing tickets structurally across production department bays.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {showTodayLoad && (
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-black uppercase tracking-wider">
+              <Calendar size={13} className="text-indigo-400 shrink-0" />
+              <span className="text-slate-400">Today</span>
+              <span className="text-white tabular-nums">{activeTickets.filter((o) => o.dateCreated === currentSystemDate).length}</span>
+              <span className="text-slate-600">active ROs</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-emerald-400 tabular-nums">{todayApptCount}</span>
+              <span className="text-slate-500">appts logged</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-slate-400">goal {apptGoal}</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={openDisplayMode}
+            disabled={loading || showCompleted}
+            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
+          >
+            <Monitor size={13} />
+            <span>Display Preview</span>
+          </button>
+          
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
             className={cn(
@@ -535,7 +796,7 @@ export function DispatchBoard({
                   <tr className="border-b border-slate-810 text-[9.5px] font-black uppercase text-slate-500 tracking-wider">
                     <th className="py-2.5 px-3">RO #</th>
                     <th className="py-2.5 px-3">Tech #</th>
-                    <th className="py-2.5 px-3">VIN (Last 8)</th>
+                    <th className="py-2.5 px-3">Last Name</th>
                     <th className="py-2.5 px-3">Routed Dept</th>
                     <th className="py-2.5 px-3">Date Completed</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
@@ -548,7 +809,7 @@ export function DispatchBoard({
                       <tr key={ro.id} className="hover:bg-slate-850/30 transition-colors">
                         <td className="py-3 px-3 font-bold text-slate-200">RO {ro.roNumber}</td>
                         <td className="py-3 px-3 font-mono font-bold text-slate-300">{ro.techNumber}</td>
-                        <td className="py-3 px-3 font-mono text-slate-400">{ro.vinLastEight}</td>
+                        <td className="py-3 px-3 font-bold text-slate-300 uppercase">{displayCustomerLastName(ro)}</td>
                         <td className="py-3 px-3">
                           <span className="bg-slate-950 text-slate-400 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-slate-800">
                             {deptLabel}
@@ -575,133 +836,254 @@ export function DispatchBoard({
         /* Horizontal top intake + scrollable list and vertical stack of department rows */
         <div className="space-y-6 w-full pb-10">
           
-          {/* TOP CONTAINER ribbon for Intake & Waiting Queue */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full items-stretch">
-            
-            {/* FAST INTAKE FORM (lg:col-span-5) */}
-            <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-850 p-5 rounded-2xl flex flex-col justify-between shadow-lg space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-850 pb-2.5">
-                <Plus size={14} className="text-indigo-400" />
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Fast Intake Control Panel</span>
-              </div>
-              
-              <form onSubmit={handleSubmitIntake} className="grid grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">RO Number *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. 883719" 
-                    value={roNumber}
-                    onChange={(e) => setRoNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all font-semibold focus:ring-1 focus:ring-indigo-500/20" 
-                    required 
-                  />
+          {/* TOP CONTAINER — Intake & Waiting Queue */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full items-stretch">
+
+            {/* Fast Intake */}
+            <div className="lg:col-span-5 relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-indigo-950/30 shadow-xl shadow-black/20">
+              <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl" />
+              <div className="relative p-5 sm:p-6 flex flex-col gap-5">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-400/20 shrink-0">
+                    <Plus size={16} className="text-indigo-300" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Fast Intake</h2>
+                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                      Enter customer name, RO details, and tag — last name can match CRM.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Tech ID *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. 402" 
-                    value={techNumber}
-                    onChange={(e) => setTechNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all font-mono font-bold focus:ring-1 focus:ring-indigo-500/20" 
-                    required 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">VIN Last 8 *</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. G2054992" 
-                    maxLength={8} 
-                    value={vinLastEight}
-                    onChange={(e) => setVinLastEight(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-800 transition-all uppercase font-mono font-bold focus:ring-1 focus:ring-indigo-500/20" 
-                    required 
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block">Initial Status</label>
-                  <select
-                    value={initialStatus}
-                    onChange={(e) => setInitialStatus(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-indigo-500/50 outline-none rounded-xl px-3 py-2 text-xs text-slate-300 font-bold uppercase tracking-wide cursor-pointer focus:ring-1 focus:ring-indigo-500/20"
-                  >
-                    {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
-                      <option key={val} value={val} className="font-semibold uppercase text-xs bg-slate-950 text-white">
-                        {info.label} ({val})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="col-span-2 flex items-center justify-between gap-2 pt-2 select-none border-t border-slate-850">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id="quickComplete" 
-                      checked={quickComplete}
-                      onChange={(e) => setQuickComplete(e.target.checked)}
-                      className="rounded bg-slate-950 border-slate-850 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer" 
-                    />
-                    <label htmlFor="quickComplete" className="text-xs text-slate-400 hover:text-slate-200 font-semibold cursor-pointer">
-                      Mark Completed
-                    </label>
+                <form onSubmit={handleSubmitIntake} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">First Name <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        placeholder="Maria"
+                        value={customerFirstName}
+                        onChange={(e) => setCustomerFirstName(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5 flex items-center gap-1">
+                        <UserSearch size={10} className="text-indigo-400/80" />
+                        Last Name <span className="text-rose-400/90">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Martinez"
+                        value={customerLastName}
+                        onChange={(e) => {
+                          setCustomerLastName(e.target.value);
+                          setSelectedCustomer(null);
+                        }}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
+                        required
+                      />
+                    </div>
                   </div>
 
-                  <button 
-                    type="submit" 
-                    disabled={submitting}
-                    className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-black text-[10px] py-2 px-4.5 rounded-xl uppercase tracking-wider transition-all duration-300 shadow-md flex items-center justify-center gap-1.5 shrink-0"
-                  >
-                    {submitting ? (
-                      <RefreshCw className="animate-spin" size={13} />
-                    ) : (
-                      <Plus size={13} />
-                    )}
-                    <span>Queue Ticket</span>
-                  </button>
-                </div>
-              </form>
+                  {selectedCustomer && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-950/30 border border-emerald-500/25">
+                      <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
+                      <p className="text-[10px] font-bold text-emerald-200/90 truncate">
+                        CRM linked · {selectedCustomer.firstName} {selectedCustomer.lastName}
+                        {selectedCustomer.model ? ` · ${selectedCustomer.year || ''} ${selectedCustomer.model}` : ''}
+                      </p>
+                    </div>
+                  )}
+
+                  {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && !selectedCustomer && (
+                    <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
+                        CRM matches
+                      </p>
+                      <div className="max-h-28 overflow-y-auto p-1.5 space-y-1">
+                        {matchCandidates.slice(0, 6).map((cust) => (
+                          <button
+                            key={cust.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCustomer(cust);
+                              setCustomerFirstName(cust.firstName || '');
+                              setCustomerLastName(cust.lastName);
+                              setVinLastEight(cust.vinLast8 || '');
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
+                          >
+                            <span className="font-bold text-white">{cust.firstName} {cust.lastName}</span>
+                            <span className="text-slate-500 block mt-0.5 font-mono text-[9px]">
+                              {[cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()].filter(Boolean).join(' · ')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
+                    <p className="text-[9px] text-amber-400/80 pl-0.5 font-medium">No CRM match — ticket will use the name you entered.</p>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">RO Number <span className="text-rose-400/90">*</span></label>
+                    <input
+                      type="text"
+                      placeholder="883719"
+                      value={roNumber}
+                      onChange={(e) => setRoNumber(e.target.value)}
+                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">VIN Last 8 <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="G2054992"
+                      maxLength={8}
+                      value={vinLastEight}
+                      onChange={(e) => setVinLastEight(e.target.value.toUpperCase())}
+                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-mono font-bold uppercase tracking-wider"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tech Number <span className="text-rose-400/90">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="402"
+                        value={techNumber}
+                        onChange={(e) => setTechNumber(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-mono font-bold tabular-nums"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tag Number <span className="text-rose-400/90">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="A-142"
+                        value={tagNumber}
+                        onChange={(e) => setTagNumber(e.target.value)}
+                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Status <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
+                    <div className="relative">
+                      <span
+                        className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
+                        style={{ backgroundColor: DISPATCH_STATUS_COLORS[initialStatus].hex }}
+                      />
+                      <select
+                        value={initialStatus}
+                        onChange={(e) => setInitialStatus(e.target.value as typeof initialStatus)}
+                        className="w-full appearance-none bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg pl-7 pr-8 py-2.5 text-[11px] text-slate-200 font-bold uppercase tracking-wide cursor-pointer focus:ring-2 focus:ring-indigo-500/15"
+                      >
+                        {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
+                          <option key={val} value={val} className="bg-slate-950 text-white">
+                            {info.label} ({val})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/[0.06]">
+                    <label className="flex items-center gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        id="quickComplete"
+                        checked={quickComplete}
+                        onChange={(e) => setQuickComplete(e.target.checked)}
+                        className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500/30 w-4 h-4 cursor-pointer"
+                      />
+                      <span className="text-[10px] text-slate-500 group-hover:text-slate-300 font-semibold transition-colors">
+                        Mark completed on intake
+                      </span>
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 shadow-lg shadow-indigo-950/40 transition-all duration-200"
+                    >
+                      {submitting ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
+                      Queue Ticket
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
 
-            {/* WAITING FOR DISPATCH HORIZONTAL BAR (lg:col-span-7) */}
-            <div 
-              onDragOver={(e) => handleDragOver(e, 'unassigned')}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, 'unassigned')}
+            {/* Waiting Queue */}
+            <div
               className={cn(
-                "lg:col-span-7 bg-slate-900 border border-slate-850 p-5 rounded-2xl flex flex-col justify-between shadow-lg transition-all duration-300 relative",
-                overColumnId === 'unassigned' && "bg-slate-850/80 border-indigo-500/50 shadow-inner"
+                'lg:col-span-7 relative overflow-hidden rounded-2xl border flex flex-col min-h-[280px] transition-all duration-300 shadow-xl shadow-black/20',
+                'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80'
               )}
             >
-              <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <ClipboardList size={14} className="text-indigo-400" />
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Waiting for Dispatch Queue</span>
-                </div>
-                <span className="bg-indigo-950 text-indigo-300 border border-indigo-900 px-2.5 py-0.5 rounded-full text-[10px] font-black">
-                  Queue: {ticketsByColumn.unassigned.length}
-                </span>
-              </div>
-
-              {/* Overflow scrollable horizontal flex content */}
-              <div className="flex-1 flex gap-4 overflow-x-auto py-3 items-center no-scrollbar min-h-[148px] mt-2 scroll-smooth border border-dashed border-slate-950/80 rounded-xl px-3 bg-slate-950/20">
-                {ticketsByColumn.unassigned.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-6 text-slate-600">
-                    <HelpCircle size={18} className="mb-1 text-slate-800" />
-                    <p className="text-[10px] font-black uppercase tracking-wider">All tickets dispatched to lanes.</p>
-                  </div>
-                ) : (
-                  ticketsByColumn.unassigned.map(ro => (
-                    <div key={ro.id} className="w-[285px] shrink-0">
-                      {renderRoCard(ro)}
+              <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/5 blur-3xl" />
+              <div className="relative p-5 sm:p-6 flex flex-col flex-1 gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      'p-2.5 rounded-xl border shrink-0',
+                      ticketsByColumn.unassigned.length > 0
+                        ? 'bg-amber-500/10 border-amber-400/25'
+                        : 'bg-slate-800/50 border-slate-700/50'
+                    )}>
+                      <Inbox size={16} className={ticketsByColumn.unassigned.length > 0 ? 'text-amber-300' : 'text-slate-500'} />
                     </div>
-                  ))
-                )}
+                    <div className="min-w-0">
+                      <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em] truncate">Waiting Queue</h2>
+                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tap a card → Move to route into a production lane</p>
+                    </div>
+                  </div>
+                  <div className={cn(
+                    'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-black tabular-nums',
+                    ticketsByColumn.unassigned.length > 0
+                      ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
+                      : 'bg-slate-950/80 border-slate-800 text-slate-500'
+                  )}>
+                    <span className="text-[8px] uppercase tracking-widest opacity-70">Queue</span>
+                    <span className="text-sm leading-none">{ticketsByColumn.unassigned.length}</span>
+                  </div>
+                </div>
+
+                <div className={cn(
+                  'flex-1 flex gap-3 overflow-x-auto py-2 px-2 items-stretch min-h-[160px] rounded-xl transition-colors',
+                  ticketsByColumn.unassigned.length === 0
+                    ? 'border border-dashed border-slate-800/80 bg-slate-950/30'
+                    : 'border border-slate-800/60 bg-slate-950/40'
+                )}>
+                  {ticketsByColumn.unassigned.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8 px-4 text-center">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center">
+                        <CheckCircle2 size={22} className="text-emerald-500/70" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Queue is clear</p>
+                        <p className="text-[10px] text-slate-600 mt-1 max-w-[220px]">All tickets are routed to production lanes.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    ticketsByColumn.unassigned.map((ro) => (
+                      <div key={ro.id} className="w-[260px] sm:w-[280px] shrink-0 py-1">
+                        {renderRoCard(ro)}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
 
@@ -711,17 +1093,11 @@ export function DispatchBoard({
           <div className="flex flex-col gap-4 w-full">
             {DEPARTMENTS.map((dept) => {
               const list = ticketsByColumn[dept.id] || [];
-              const isOver = overColumnId === dept.id;
-
               return (
                 <div 
                   key={dept.id} 
-                  onDragOver={(e) => handleDragOver(e, dept.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, dept.id)}
                   className={cn(
                     "bg-gradient-to-r from-slate-900/60 to-slate-900/30 border border-slate-850 rounded-2xl p-4.5 flex flex-col md:flex-row md:items-center gap-5 w-full transition-all duration-300 shadow-md relative",
-                    isOver && "from-slate-850/80 to-slate-900/80 border-dashed border-indigo-500/60 scale-[1.002] shadow-lg shadow-indigo-950/25",
                     list.length > 0 ? "border-slate-800/80 bg-slate-900/40" : "border-slate-900/60"
                   )}
                 >
@@ -735,9 +1111,19 @@ export function DispatchBoard({
                         {dept.label}
                       </h3>
                     </div>
-                    <span className="bg-slate-950 text-slate-400 border border-slate-800 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
-                      {list.length} {list.length === 1 ? 'ticket' : 'tickets'}
-                    </span>
+                    {(() => {
+                      const cap = laneCapacity[dept.id];
+                      const atCap = cap > 0 && list.length >= cap;
+                      return (
+                        <span className={cn(
+                          'border px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider tabular-nums',
+                          atCap ? 'bg-rose-950/50 text-rose-400 border-rose-900/50' : 'bg-slate-950 text-slate-400 border-slate-800'
+                        )}>
+                          {cap > 0 ? `${list.length}/${cap}` : list.length} {list.length === 1 ? 'ticket' : 'tickets'}
+                          {atCap ? ' · FULL' : ''}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Horizontal Scroll Area for active cards */}
@@ -745,7 +1131,7 @@ export function DispatchBoard({
                     {list.length === 0 ? (
                       <div className="flex items-center gap-2 text-slate-600 py-6 px-3 border border-dashed border-slate-950/60 rounded-xl w-full">
                         <HelpCircle size={14} className="text-slate-700" />
-                        <p className="text-[10px] font-black uppercase tracking-wider">Vacant Lane — drag an RO card here to schedule</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider">Vacant lane — tap a queue card and Move to schedule</p>
                       </div>
                     ) : (
                       list.map((ro) => (
@@ -773,6 +1159,70 @@ export function DispatchBoard({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {isDisplayMode && (
+        <div
+          className="fixed inset-0 z-[9999] bg-slate-950 text-slate-100 flex items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Dispatch display preview"
+        >
+          <div className="relative w-full h-full max-w-[1920px] max-h-[1080px] flex flex-col p-2 box-border">
+            <button
+              type="button"
+              onClick={closeDisplayMode}
+              className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:border-slate-500 opacity-40 hover:opacity-100 transition-opacity"
+              title="Exit display preview (Esc)"
+            >
+              <X size={12} />
+              Exit
+            </button>
+
+            <div className="grid grid-cols-8 gap-1.5 flex-1 min-h-0 w-full h-full">
+              {DISPLAY_COLUMNS.map((col) => {
+                const list = ticketsByColumn[col.id] || [];
+                const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id];
+                const atCap = cap > 0 && list.length >= cap;
+                return (
+                  <div
+                    key={col.id}
+                    className={cn(
+                      'flex flex-col min-w-0 min-h-0 rounded-xl border bg-slate-900/60 overflow-hidden',
+                      'border-slate-800/80'
+                    )}
+                  >
+                    <div className="shrink-0 px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <col.icon size={11} className="text-indigo-400 shrink-0" />
+                        <span className="text-[9px] font-black uppercase tracking-wide truncate leading-tight">
+                          {col.shortLabel}
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          'text-[8px] font-black tabular-nums px-1.5 py-0.5 rounded shrink-0',
+                          atCap ? 'bg-rose-950 text-rose-400' : 'bg-slate-800 text-slate-400'
+                        )}
+                      >
+                        {cap > 0 ? `${list.length}/${cap}` : list.length}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-1.5 space-y-1.5">
+                      {list.length === 0 ? (
+                        <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-4 px-1">
+                          —
+                        </p>
+                      ) : (
+                        list.map((ro) => renderDisplayCard(ro))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>

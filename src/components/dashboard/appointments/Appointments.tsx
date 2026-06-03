@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
+  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField, deleteDoc 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
@@ -15,11 +15,22 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  appointmentTrackerDocId,
+  dedupeDailyStatsByDate,
+  extractReportDateFromAppointmentPdf,
+  findDuplicateTrackerDocs,
+  toLocalDateString,
+} from '../../../lib/appointmentTracker';
 
 interface AppointmentsProps {
   currentUser: User;
   currentDealershipId: string;
+  modulePrefs?: import('../../../types').DashboardModulePreferences;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -46,12 +57,7 @@ interface FirestoreErrorInfo {
 }
 
 export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset();
-    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
-    return localDate.toISOString().split('T')[0];
-  });
+  const [selectedDate, setSelectedDate] = useState(() => toLocalDateString(new Date()));
   const [dailyCount, setDailyCount] = useState<string>('');
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +70,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [mtdPartsGross, setMtdPartsGross] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
+  const [pdfParsePreview, setPdfParsePreview] = useState<{
+    fileName: string;
+    reportDate: string;
+    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number };
+    total: number;
+    parseMethod?: string;
+  } | null>(null);
   const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
   const [showManualBreakdownEntry, setShowManualBreakdownEntry] = useState(false);
   const [manualBreakdown, setManualBreakdown] = useState({
@@ -81,6 +95,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [activePerformanceData, setActivePerformanceData] = useState<any>(null);
   const [activeTechData, setActiveTechData] = useState<any>(null);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
+  const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
 
   const handleArchiveAndReset = async (payload: {
     targetYearMonth: string;
@@ -237,6 +252,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
+        setDmsProvider(normalizeDmsProvider(data.dmsProvider as string));
       }
     });
 
@@ -334,8 +350,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         return s.dealershipId === currentDealershipId;
       });
 
+      rawTrackerStatsRef.current = stats;
+      stats = dedupeDailyStatsByDate(stats, currentDealershipId || 'hyundai');
       setAllStats(stats);
-      
+
       const currentStat = stats.find(s => s.date === selectedDate);
       setDailyCount(currentStat ? currentStat.count.toString() : '');
       setLoading(false);
@@ -361,21 +379,46 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     setShowManualBreakdownEntry(true);
   };
 
+  const saveAppointmentDay = async (
+    date: string,
+    totalCount: number,
+    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
+    source: 'pdf' | 'manual'
+  ) => {
+    const dealershipId = currentDealershipId || 'hyundai';
+    const docId = appointmentTrackerDocId(dealershipId, date);
+    const basePath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker'] as const;
+
+    const duplicates = findDuplicateTrackerDocs(rawTrackerStatsRef.current, dealershipId, date);
+    await Promise.all(
+      duplicates.map((row) => deleteDoc(doc(db, ...basePath, row.id)))
+    );
+
+    await setDoc(doc(db, ...basePath, docId), {
+      date,
+      count: totalCount,
+      dealershipId,
+      breakdown,
+      source,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser!.uid,
+    });
+
+    if (date !== selectedDate) {
+      setSelectedDate(date);
+    }
+    setDailyCount(totalCount.toString());
+    setManualBreakdown(breakdown);
+  };
+
   const confirmManualSave = async () => {
     const totalCount = Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0) as number;
     
     setSaving(true);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${selectedDate}`;
+    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${appointmentTrackerDocId(currentDealershipId || 'hyundai', selectedDate)}`;
     try {
-      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
-        date: selectedDate,
-        count: totalCount,
-        dealershipId: currentDealershipId || 'hyundai',
-        breakdown: manualBreakdown,
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUser.uid
-      }, { merge: true });
-      
+      await saveAppointmentDay(selectedDate, totalCount, manualBreakdown, 'manual');
+
       await logSystemAction(
         "Appointments Updated",
         `Updated scheduled appointment count to ${totalCount} for date ${selectedDate} with customized service breakdown`,
@@ -385,7 +428,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         currentUser.dealershipId
       );
       
-      setDailyCount(totalCount.toString());
       setShowManualBreakdownEntry(false);
       onSuccess?.(`Recorded ${totalCount} appointments with breakdown for ${selectedDate}.`);
     } catch (err) {
@@ -408,76 +450,99 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     });
   };
 
+  const applyPdfBreakdown = async (
+    targetDate: string,
+    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
+    totalCount: number,
+    fileLabel: string
+  ) => {
+    await saveAppointmentDay(targetDate, totalCount, breakdown, 'pdf');
+    onSuccess?.(
+      `Updated ${targetDate} with ${totalCount} appointments from ${fileLabel} (replaced previous count): ` +
+        `${breakdown.oilChange} oil, ${breakdown.diagnosis} diag, ${breakdown.recall} recall, ${breakdown.misc} misc.`
+    );
+  };
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
 
     setIsUploadingPdf(true);
-    
+
     try {
-      const reportText = await extractTextFromPDF(file);
-      
+      const [reportText, pdfBase64] = await Promise.all([
+        extractTextFromPDF(file),
+        fileToBase64(file),
+      ]);
+
       const response = await fetch('/api/parse-appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText })
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText, pdfBase64 })),
       });
 
       if (!response.ok) {
         let errorMessage = 'Failed to analyze report';
         const contentType = response.headers.get('content-type');
-        
         if (contentType && contentType.includes('application/json')) {
           try {
             const errorData = await response.json();
             errorMessage = errorData.error || errorMessage;
-          } catch (e) {
+          } catch {
             errorMessage = `Server Error (${response.status}): Malformed error response.`;
           }
         } else {
-          const text = await response.text();
-          console.error('Server returned non-JSON error:', text.substring(0, 200));
+          const errText = await response.text();
+          console.error('Server returned non-JSON error:', errText.substring(0, 200));
           errorMessage = `Server Error (${response.status}): ${response.statusText}.`;
         }
         throw new Error(errorMessage);
       }
 
-      let rawData;
-      try {
-        rawData = await response.json();
-      } catch (e) {
-        console.error('Failed to parse successful response as JSON:', e);
-        throw new Error('Server returned an invalid data format. Please try again.');
-      }
-      
+      const rawData = await response.json();
       const breakdown = {
         diagnosis: rawData.diagnosis || 0,
         oilChange: rawData.oilChange || 0,
         recall: rawData.recall || 0,
-        misc: rawData.misc || 0
+        misc: rawData.misc || 0,
       };
-
-      // Ensure total count matches the sum of breakdown to avoid confusion
       const sumBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
       const totalCount = sumBreakdown > 0 ? sumBreakdown : (rawData.total || 0);
+      if (totalCount === 0) {
+        throw new Error(`No appointments found in this PDF. Use a ${dmsProvider === 'dealerbuilt' ? 'DealerBuilt' : 'PBS'} appointment report for the selected day.`);
+      }
 
-      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
-        date: selectedDate,
-        count: totalCount,
-        dealershipId: currentDealershipId || 'hyundai',
+      const reportDate =
+        rawData.reportDate ||
+        extractReportDateFromAppointmentPdf(reportText) ||
+        selectedDate;
+
+      setPdfParsePreview({
+        fileName: file.name,
+        reportDate,
         breakdown,
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUser.uid
-      }, { merge: true });
-      
-      setDailyCount(totalCount.toString());
-      onSuccess?.(`AI Parsing Success: Identified ${totalCount} appointments.`);
+        total: totalCount,
+        parseMethod: rawData.parseMethod || (rawData.isAiParsed ? 'ai' : 'deterministic'),
+      });
     } catch (err: any) {
-      console.error("PDF Parse Error:", err);
-      onError?.(err.message || "Failed to analyze PDF report.");
+      console.error('PDF Parse Error:', err);
+      onError?.(err.message || 'Failed to analyze PDF report.');
     } finally {
       setIsUploadingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
+    }
+  };
+
+  const confirmPdfParsePreview = async () => {
+    if (!pdfParsePreview || !currentUser) return;
+    setIsUploadingPdf(true);
+    try {
+      await applyPdfBreakdown(pdfParsePreview.reportDate, pdfParsePreview.breakdown, pdfParsePreview.total, pdfParsePreview.fileName);
+      setPdfParsePreview(null);
+    } catch (err: any) {
+      onError?.(err.message || 'Failed to save parsed appointments.');
+    } finally {
+      setIsUploadingPdf(false);
     }
   };
 
@@ -637,7 +702,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateString(d);
       const stat = allStats.find(s => s.date === dateStr);
       return {
         date: dateStr,
@@ -662,13 +727,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateString(d));
   };
 
   const handleNextDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateString(d));
   };
 
   return (
@@ -918,10 +983,15 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               <button 
                 onClick={() => pdfInputRef.current?.click()}
                 disabled={isUploadingPdf}
-                className="w-full h-12 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 shadow-inner"
+                className="w-full min-h-12 flex flex-col items-center justify-center gap-1 py-3 px-4 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 shadow-inner"
               >
-                {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
-                Extract Daily Schedule PDF
+                <span className="flex items-center gap-2">
+                  {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
+                  Import Appointment Details PDF
+                </span>
+                <span className="text-[8px] font-bold text-emerald-500/70 normal-case tracking-normal text-center leading-snug">
+                  Oil = full synthetic or complimentary · Diagnosis = customer states · Recall = campaign
+                </span>
               </button>
             </div>
           </div>
@@ -1110,7 +1180,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                   </button>
                 ) : (
                   <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
-                    *Categorization based on PDF text analysis logic
+                    *Oil = full synthetic / complimentary · Diagnosis = customer states · Recall = campaign/bulletin
                   </p>
                 )}
               </div>
@@ -1300,6 +1370,56 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         selectedMonth={selectedMonth}
         allowArchiveEditing={allowArchiveEditing}
       />
+
+
+      {/* PDF parse preview */}
+      <AnimatePresence>
+        {pdfParsePreview && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+              onClick={() => setPdfParsePreview(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
+            >
+              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Confirm PDF Import</h3>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 truncate">{pdfParsePreview.fileName}</p>
+              <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest mb-6">
+                Updates {new Date(pdfParsePreview.reportDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — replaces existing count
+              </p>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {[
+                  { key: 'oilChange', label: 'Oil Changes', val: pdfParsePreview.breakdown.oilChange },
+                  { key: 'diagnosis', label: 'Diagnosis', val: pdfParsePreview.breakdown.diagnosis },
+                  { key: 'recall', label: 'Recalls', val: pdfParsePreview.breakdown.recall },
+                  { key: 'misc', label: 'Misc', val: pdfParsePreview.breakdown.misc },
+                ].map((row) => (
+                  <div key={row.key} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{row.label}</p>
+                    <p className="text-2xl font-black text-white">{row.val}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-center text-3xl font-black text-brand-primary mb-2">{pdfParsePreview.total}</p>
+              <p className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest mb-6">Total Appointments</p>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setPdfParsePreview(null)} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-[10px] font-black uppercase tracking-widest">Cancel</button>
+                <button type="button" onClick={confirmPdfParsePreview} disabled={isUploadingPdf} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
+                  Apply Counts
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Executive Print / PDF Modal */}
       <PerformancePrintModal 

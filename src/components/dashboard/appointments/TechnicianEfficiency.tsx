@@ -5,6 +5,9 @@ import {
 import { db } from '../../../firebase';
 import { User } from '../../../types';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { 
   FileUp, Clock, User as UserIcon, Gauge, Plus, Trash2, Loader2, 
   CheckCircle2, TrendingUp, UserPlus, Edit2, Save, RotateCcw, Sparkles 
@@ -39,6 +42,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   const [technicians, setTechnicians] = useState<TechnicianData[]>([]);
   const [loading, setLoading] = useState(true);
   const [parsing, setParsing] = useState(false);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [isDragOver, setIsDragOver] = useState(false);
   const [editingTechIndex, setEditingTechIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<TechnicianData | null>(null);
@@ -135,6 +139,17 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   };
 
   // Real-time Firestore sync
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
+    return onSnapshot(settingsRef, (snap) => {
+      if (snap.exists()) {
+        setDmsProvider(normalizeDmsProvider(snap.data().dmsProvider as string));
+      }
+    });
+  }, [currentDealershipId]);
+
   useEffect(() => {
     if (!currentDealershipId) return;
 
@@ -223,7 +238,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       const response = await fetch('/api/parse-technician-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfBase64, reportText: extractedText })
+        body: JSON.stringify(withDmsProvider({ dmsProvider }, { pdfBase64, reportText: extractedText }))
       });
 
       const resData = await response.json();

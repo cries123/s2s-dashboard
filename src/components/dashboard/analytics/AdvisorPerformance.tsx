@@ -9,6 +9,13 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
+import {
+  EMPTY_PERFORMANCE_TOTALS,
+  performanceDocId,
+} from '../../../lib/operationsViewPeriod';
+import { withDmsProvider } from '../../../lib/reportIngestion';
+import type { DmsProviderId } from '../../../constants/dmsProviders';
+import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 
 interface UpsellItem {
   code: string;
@@ -40,6 +47,7 @@ interface AdvisorPerformanceProps {
 export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentDealershipId, selectedMonth = 'active', allowArchiveEditing = false }) => {
   const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<string | null>(null);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
@@ -47,6 +55,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -57,6 +66,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         setLaborTarget(docSnap.data().laborGrossTarget || 500000);
+        setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
       }
     });
     return () => unsubscribe();
@@ -195,69 +205,54 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       }, { merge: false }); // Disable automatic merge to cleanly replace any junk advisors
     } catch (error) {
       console.error('Error saving advisor performance:', error);
+      throw error instanceof Error ? error : new Error('Failed to save performance data to Firestore.');
     }
   };
 
   const resetPerformanceToDefaults = async () => {
     if (!user || !currentDealershipId) return;
-    
+
     setLoading(true);
-    
-    const totalLabor = 59979.38;
-    const totalGross = 49856.94;
-    const totalParts = 34874.50;
-    const totalGrossParts = 11204.62;
-    const totalSales = 103236.21;
-    const totalHrs = 402.40;
-    const totalSo = 336;
-    const elr = 149.05;
 
-    const proportions = [0.56, 0.44];
-    const names = ["Frank", "Lemmy"];
-    
-    const defaultAdvisors = names.map((name, idx) => {
-      const prop = proportions[idx];
-      const adHrs = Math.round(totalHrs * prop * 10) / 10;
-      const adLabor = Math.round(totalLabor * prop * 100) / 100;
-      const adParts = Math.round(totalParts * prop * 100) / 100;
-      const adGrossLab = Math.round(totalGross * prop * 100) / 100;
-      const adGrossParts = Math.round(totalGrossParts * prop * 100) / 100;
-      const adTotal = Math.round((adLabor + adParts) * 100) / 100;
-      const adSo = Math.round(totalSo * prop);
-      
-      return {
-        name,
-        soCount: adSo,
-        hrsSold: adHrs,
-        laborSold: adLabor,
-        grossLabor: adGrossLab,
-        partsSold: adParts,
-        grossParts: adGrossParts,
-        totalSales: adTotal,
-        gpPercent: adLabor > 0 ? Math.round((adGrossLab / adLabor) * 1000) / 10 : 83.1,
-        elr: adHrs > 0 ? Math.round((adLabor / adHrs) * 100) / 100 : elr,
-        upsells: []
-      };
-    });
+    const advisorDocId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
+    const techDocId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
+    const advisorRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'performance',
+      advisorDocId
+    );
+    const techRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'performance',
+      techDocId
+    );
 
-    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
-    
     try {
-      await setDoc(docRef, {
-        advisors: defaultAdvisors,
-        totals: {
-          totalSales,
-          totalLabor,
-          totalGross,
-          totalParts,
-          totalGrossParts,
-          totalHrs
-        },
+      await setDoc(advisorRef, {
+        advisors: [],
+        totals: EMPTY_PERFORMANCE_TOTALS,
         updatedAt: serverTimestamp(),
-        updatedBy: user.uid
+        updatedBy: user.uid,
       });
-      setImportStatus({ type: 'success', message: 'database reset back to exact report defaults (Labor Gross: $49,856 / Parts Gross: $11,204) successfully!' });
+
+      await setDoc(techRef, {
+        technicians: [],
+        updatedAt: serverTimestamp(),
+        updatedBy: user.uid,
+      });
+
+      setImportStatus({
+        type: 'success',
+        message: 'Reset complete — 0 advisors and 0 technicians for this view period.',
+      });
     } catch (error: any) {
       console.error('Error resetting performance database:', error);
       setImportStatus({ type: 'error', message: 'Failed to reset database.' });
@@ -265,6 +260,26 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       setLoading(false);
     }
   };
+
+
+const IMPORT_PARSE_TIMEOUT_MS = 5 * 60 * 1000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `${label} timed out after ${Math.round(ms / 1000)}s. Ensure \`npm run dev\` is running and try again.`
+            )
+          ),
+        ms
+      )
+    ),
+  ]);
+}
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -344,15 +359,72 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     setIsImporting(true);
     setImportStatus(null);
-    
+    setImportProgress(null);
+
+    const isDealerBuiltImport = dmsProvider === 'dealerbuilt';
+
     try {
-      const reportText = await extractTextFromPDF(file);
-      
-      const response = await fetch('/api/parse-performance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportText })
-      });
+      let reportText = '';
+      let payload: { reportText: string; pdfBase64?: string };
+
+      if (isDealerBuiltImport) {
+        // Scanned DealerBuilt PDFs: skip slow in-browser pdf.js — server uses OCR + vision.
+        setImportProgress('Uploading PDF for server-side parsing (scanned reports may take 1–3 min)...');
+        payload = {
+          reportText: '',
+          pdfBase64: await withTimeout(fileToBase64(file), 90_000, 'PDF upload'),
+        };
+      } else {
+        setImportProgress('Reading PDF text...');
+        try {
+          reportText = await withTimeout(extractTextFromPDF(file), 20_000, 'PDF text read');
+        } catch (extractErr) {
+          console.warn('PDF text extraction skipped or timed out; will use server-side parsing:', extractErr);
+        }
+
+        payload = { reportText };
+        const hasMinimalText =
+          !reportText || reportText.replace(/\s+/g, ' ').trim().length < 80;
+        const looksDealerBuilt =
+          /service advisor performance|ro svc wrtr/i.test(reportText);
+
+        if (hasMinimalText || looksDealerBuilt) {
+          setImportProgress('Uploading PDF for server-side OCR/vision...');
+          payload.pdfBase64 = await withTimeout(fileToBase64(file), 90_000, 'PDF upload');
+        }
+
+        if (hasMinimalText || looksDealerBuilt) {
+          console.warn(
+            'Scanned or DealerBuilt-style PDF detected. Set Admin → DMS Configuration → DealerBuilt for Ford reports.'
+          );
+        }
+      }
+
+      setImportProgress('Parsing on server (please wait — do not close this tab)...');
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), IMPORT_PARSE_TIMEOUT_MS);
+
+      let response: Response;
+      try {
+        response = await fetch('/api/parse-performance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(withDmsProvider({ dmsProvider }, payload)),
+          signal: controller.signal,
+        });
+      } catch (fetchErr: any) {
+        if (fetchErr?.name === 'AbortError') {
+          throw new Error(
+            'Import timed out after 5 minutes. Confirm OPENAI_API_KEY is set in .env.local, restart `npm run dev`, and retry.'
+          );
+        }
+        throw new Error(
+          fetchErr?.message ||
+            'Could not reach /api/parse-performance. Start the app with `npm run dev` (not vite alone).'
+        );
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         let errorMessage = 'Failed to analyze report';
@@ -400,6 +472,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       // If this is a main productivity report (contains totals object), overwrite the advisor records completely 
       // rather than merging as a delta, to cleanly eliminate any stale or corrupt duplicates in the database.
       const shouldOverwrite = !!data.totals;
+      setImportProgress('Saving imported data...');
       await saveToFirestore(data, shouldOverwrite, targetMonth);
       
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
@@ -419,6 +492,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       setImportStatus({ type: 'error', message: error.message || 'Error importing PDF. Please try again.' });
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -544,7 +618,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
                   ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse" 
                   : "bg-slate-800 text-slate-400 hover:text-rose-400 border-white/5"
               )}
-              title="Reset tracking DB to clean report baseline"
+              title="Clear all advisors and technicians for this view period"
             >
               <RotateCcw size={12} className={showResetConfirm ? "animate-spin" : ""} />
               {showResetConfirm ? "Confirm Reset?" : "Reset Data"}
@@ -564,7 +638,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
               className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer"
             >
               {isImporting ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
-              Import PDF Productivity Report
+              {isImporting ? (importProgress ? "Importing..." : "Importing...") : "Import PDF Productivity Report"}
             </button>
           </div>
         )}
@@ -579,6 +653,21 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           setImportStatus({ type: 'success', message: 'Manual productivity data saved successfully!' });
         }}
       />
+
+
+      <AnimatePresence>
+        {isImporting && importProgress && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-3 bg-sky-500/10 border-sky-500/20 text-sky-300"
+          >
+            <Loader2 size={14} className="animate-spin shrink-0" />
+            {importProgress}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {importStatus && (

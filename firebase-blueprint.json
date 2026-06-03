@@ -152,7 +152,15 @@
     },
     "artifacts/hyundai-sales-to-service/public/data/users": {
       "schema": "User",
-      "description": "User profiles and enrollment status"
+      "description": "User profiles, RBAC roles, tenant linkage, and enrollment status"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/tenants": {
+      "schema": "Tenant",
+      "description": "Dealership group tenant profiles (Nissan/Mazda, Ford/Lincoln, Hyundai) with DMS configuration"
+    },
+    "artifacts/hyundai-sales-to-service/public/data/logs": {
+      "schema": "AuditLogEntry",
+      "description": "Tenant-isolated audit logs for manager control panel"
     },
     "artifacts/hyundai-sales-to-service/public/data/performance/potOfGold": {
       "schema": "PotOfGoldConfig",

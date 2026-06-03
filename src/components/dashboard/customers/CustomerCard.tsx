@@ -7,6 +7,8 @@ import { cn } from '../../../lib/utils';
 import { calculateServiceCycle, getNextServiceMilestone } from '../../../lib/alerts';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
+import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
+import { usePreferences } from '../../../context/PreferencesContext';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -25,17 +27,12 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   onRefresh,
   isAlert 
 }) => {
-  const [isLogging, setIsLogging] = useState(false);
+  const { preferences } = usePreferences();
   const [showMaintenance, setShowMaintenance] = useState(false);
-  const [outcome, setOutcome] = useState('Answered');
-  const [notes, setNotes] = useState('');
-  const [appointmentSet, setAppointmentSet] = useState(false);
 
   const lastVisit = customer.recentVisits?.[0];
 
-  const handleLogCall = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLogging(true);
+  const handleLogCall = async ({ outcome, notes, appointmentSet }: { outcome: string; notes: string; appointmentSet: boolean }) => {
     const path = `customers/${customer.id}/contactLog`;
     try {
       // Log to subcollection
@@ -60,8 +57,6 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         serviceAlertTriggered: false
       });
 
-      setNotes('');
-      setAppointmentSet(false);
       if (onRefresh) onRefresh(`Logged ${outcome} and cleared alert for ${customer.firstName}.`);
     } catch (err) {
       console.error(err);
@@ -70,8 +65,6 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
       } catch (formattedErr: any) {
         if (onRefresh) onRefresh(formattedErr.message, true);
       }
-    } finally {
-      setIsLogging(false);
     }
   };
 
@@ -91,7 +84,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const maintenanceTasks = getRecommendedServices(monthsOwned);
 
   return (
-    <div className="card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-100 dark:bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl">
+    <div className={cn("card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-100 dark:bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl", preferences.crmDisplay.density === "compact" && "text-[95%]")}>
       <div className="p-5">
         <div className="flex justify-between items-start gap-3">
           <div className="flex-1">
@@ -243,55 +236,14 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
 
       {isAlert && (
         <div className="p-6 pt-0 bg-slate-900/30 border-t border-slate-800/50">
-          <form onSubmit={handleLogCall} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Outcome</label>
-                <select 
-                  value={outcome}
-                  onChange={e => setOutcome(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
-                >
-                  <option>Answered</option>
-                  <option>Left Voicemail</option>
-                  <option>No Answer</option>
-                  <option>Wrong Number</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Next Step</label>
-                <select 
-                  value={appointmentSet ? 'true' : 'false'}
-                  onChange={e => setAppointmentSet(e.target.value === 'true')}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] font-bold text-white focus:outline-none focus:ring-1 focus:ring-brand-primary"
-                >
-                  <option value="false">Follow Up</option>
-                  <option value="true">Set Appt</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <textarea 
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] font-medium text-slate-300 h-20 resize-none focus:outline-none focus:ring-1 focus:ring-brand-primary" 
-                placeholder="Brief summary of interaction..."
-              ></textarea>
-            </div>
-            <button 
-              type="submit" 
-              disabled={isLogging}
-              className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50"
-            >
-              {isLogging ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 className="animate-spin" size={14} /> Synchronizing...
-                </span>
-              ) : (
-                'Update & Clear Alert'
-              )}
-            </button>
-          </form>
+          <div className="pt-4">
+            <ContactLogQuickForm
+              defaultOutcome={preferences.contactWorkflow.defaultOutcome}
+              autoCheckAppointmentSet={preferences.contactWorkflow.autoCheckAppointmentSet}
+              onSubmit={handleLogCall}
+              submitLabel="Update & Clear Alert"
+            />
+          </div>
         </div>
       )}
     </div>

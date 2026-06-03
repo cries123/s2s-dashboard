@@ -85,7 +85,15 @@
 
   /* Section Spacing */
   .section-container {
-    @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12;
+    @apply max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 md:py-12;
+  }
+
+  .app-main-with-mobile-nav {
+    @apply pb-24 md:pb-10;
+  }
+
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
   }
 
   .no-scrollbar::-webkit-scrollbar {

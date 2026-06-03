@@ -11,48 +11,45 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
-
-interface PerformanceRow {
-  code: string;
-  desc: string;
-  frank: number;
-  lemmy: number;
-}
-
-interface TechPerformanceRow {
-  code: string;
-  desc: string;
-  [key: string]: string | number;
-}
+import {
+  getDealershipStaffConfig,
+  matchAdvisorSlot,
+  slugifyStaffName,
+  type CompetitionAdvisorSlot,
+} from '../../../lib/dealershipStaff';
+import {
+  POT_OF_GOLD_OP_CODES,
+  buildEmptyAdvisorRows,
+  buildEmptyTechRows,
+  mergeAdvisorRowsFromFirestore,
+  zeroAdvisorCounts,
+  advisorCount,
+  type AdvisorPerformanceRow,
+  type TechPerformanceRow,
+} from '../../../lib/potOfGoldData';
 
 const TECHNICIANS = ['Daniel', 'Jon', 'Matthew', 'Jacinto', 'Ethan', 'Trevor'];
-const ADVISORS = ['frank', 'lemmy'];
 
-const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
-  { code: 'AF', desc: 'ENGINE AIR FILTER', frank: 0, lemmy: 0 },
-  { code: 'ALIGN', desc: 'PERFORM 2/4 WHEEL ALIGNMENT', frank: 0, lemmy: 0 },
-  { code: 'BAT', desc: 'BATTERY REPLACEMENT', frank: 0, lemmy: 0 },
-  { code: 'BFR', desc: 'BRAKE FLUID SERVICE', frank: 0, lemmy: 0 },
-  { code: 'CAF', desc: 'CABIN AIR FILTER', frank: 0, lemmy: 0 },
-  { code: 'CE', desc: 'COOLING SYSTEM EXCHANGE', frank: 0, lemmy: 0 },
-  { code: 'FB', desc: 'FRONT BRAKE PAD/RESURFACE', frank: 0, lemmy: 0 },
-  { code: 'FSC', desc: 'MOC ENHANCE FUEL SYSTEM', frank: 0, lemmy: 0 },
-  { code: 'GDI', desc: 'GDI FUEL/AIR INDUCTION', frank: 0, lemmy: 0 },
-  { code: 'RB', desc: 'REAR BRAKE PAD/SERVICE', frank: 0, lemmy: 0 },
-  { code: 'TIRE1', desc: 'MOUNT AND BALANCE 1 TIRE', frank: 0, lemmy: 0 },
-  { code: 'TIRE2', desc: 'MOUNT AND BALANCE 2 TIRES', frank: 0, lemmy: 0 },
-  { code: 'TIRE3', desc: 'MOUNT AND BALANCE 3 TIRES', frank: 0, lemmy: 0 },
-  { code: 'TIRE4', desc: 'MOUNT AND BALANCE 4 TIRES', frank: 0, lemmy: 0 },
-  { code: 'TS', desc: 'TRANSMISSION SERVICE', frank: 0, lemmy: 0 },
-  { code: 'CCC', desc: 'COMBUSTION CHAMBER CLEANING', frank: 0, lemmy: 0 }
-];
+const CHART_COLORS = ['#2e86c1', '#e74c3c', '#82ccdd', '#f39c12', '#9b59b6'];
 
 interface PotOfGoldProps {
   currentDealershipId: string;
+  dealershipSettings?: { competitionAdvisors?: CompetitionAdvisorSlot[] } | null;
 }
 
-export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
+export const PotOfGold: React.FC<PotOfGoldProps> = ({
+  currentDealershipId,
+  dealershipSettings,
+}) => {
   const { user } = useAuth();
+  const competitionAdvisors = React.useMemo(
+    () => getDealershipStaffConfig(currentDealershipId, dealershipSettings).competitionAdvisors,
+    [currentDealershipId, dealershipSettings]
+  );
+  const advisorIds = React.useMemo(
+    () => competitionAdvisors.map((a) => a.id),
+    [competitionAdvisors]
+  );
   const [selectedMonth, setSelectedMonth] = useState<string>('active');
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,17 +58,15 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [advData, setAdvData] = useState<PerformanceRow[]>(INITIAL_PERFORMANCE_DATA);
-  const [techData, setTechData] = useState<TechPerformanceRow[]>(() => 
-    INITIAL_PERFORMANCE_DATA.map(d => {
-      const base: TechPerformanceRow = { code: d.code, desc: d.desc };
-      TECHNICIANS.forEach(t => base[t] = 0);
-      return base;
-    })
+  const [advData, setAdvData] = useState<AdvisorPerformanceRow[]>(() =>
+    buildEmptyAdvisorRows(competitionAdvisors)
+  );
+  const [techData, setTechData] = useState<TechPerformanceRow[]>(() =>
+    buildEmptyTechRows(TECHNICIANS)
   );
   const [prices, setPrices] = useState<Record<string, number>>(() => {
     const p: Record<string, number> = {};
-    INITIAL_PERFORMANCE_DATA.forEach(d => p[d.code] = 0);
+    POT_OF_GOLD_OP_CODES.forEach((d) => { p[d.code] = 0; });
     return p;
   });
 
@@ -86,17 +81,14 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.advData) setAdvData(data.advData);
+        if (data.advData) {
+          setAdvData(mergeAdvisorRowsFromFirestore(data.advData, competitionAdvisors));
+        }
         if (data.techData) setTechData(data.techData);
         if (data.prices) setPrices(data.prices);
       } else {
-        // Reset to initial if no data yet for this dealership
-        setAdvData(INITIAL_PERFORMANCE_DATA);
-        setTechData(INITIAL_PERFORMANCE_DATA.map(d => {
-          const base: TechPerformanceRow = { code: d.code, desc: d.desc };
-          TECHNICIANS.forEach(t => base[t] = 0);
-          return base;
-        }));
+        setAdvData(buildEmptyAdvisorRows(competitionAdvisors));
+        setTechData(buildEmptyTechRows(TECHNICIANS));
       }
       setIsLoading(false);
     }, (error) => {
@@ -104,7 +96,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [user, currentDealershipId, selectedMonth]);
+  }, [user, currentDealershipId, selectedMonth, competitionAdvisors]);
 
   const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any }) => {
     if (!user || !currentDealershipId) return;
@@ -131,24 +123,32 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
   // Calculations
   const calculateAdvisorTotals = () => {
-    let frank = 0, lemmy = 0, grand = 0;
-    advData.forEach(row => {
-      frank += row.frank;
-      lemmy += row.lemmy;
-      grand += row.frank + row.lemmy;
+    const totals: Record<string, number> = {};
+    advisorIds.forEach((id) => { totals[id] = 0; });
+    let grand = 0;
+    advData.forEach((row) => {
+      advisorIds.forEach((id) => {
+        const val = Number(row[id]) || 0;
+        totals[id] += val;
+        grand += val;
+      });
     });
-    return { frank, lemmy, grand };
+    return { totals, grand };
   };
 
   const calculateAdvisorEarnings = () => {
-    let frank = 0, lemmy = 0, grand = 0;
-    advData.forEach(row => {
+    const earnings: Record<string, number> = {};
+    advisorIds.forEach((id) => { earnings[id] = 0; });
+    let grand = 0;
+    advData.forEach((row) => {
       const price = prices[row.code] || 0;
-      frank += row.frank * price;
-      lemmy += row.lemmy * price;
-      grand += (row.frank + row.lemmy) * price;
+      advisorIds.forEach((id) => {
+        const amt = (Number(row[id]) || 0) * price;
+        earnings[id] += amt;
+        grand += amt;
+      });
     });
-    return { frank, lemmy, grand };
+    return { earnings, grand };
   };
 
   const calculateTechTotals = () => {
@@ -233,17 +233,15 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
       
       // Map data to Pot of Gold structure
       if (data.advisors && data.advisors.length > 0) {
-        const newAdvData = advData.map(row => {
+        const newAdvData = advData.map((row) => {
           const base = { ...row };
-          data.advisors.forEach((aiAdv: any) => {
-            const advisorKey = aiAdv.name.toLowerCase().includes('frank') ? 'frank' :
-                               aiAdv.name.toLowerCase().includes('lemmy') ? 'lemmy' : null;
-            
+          data.advisors.forEach((aiAdv: { name: string; upsells?: { code: string; count: number }[] }) => {
+            const advisorKey =
+              matchAdvisorSlot(aiAdv.name, competitionAdvisors) ??
+              slugifyStaffName(aiAdv.name);
             if (advisorKey && aiAdv.upsells) {
-              const upsell = aiAdv.upsells.find((u: any) => u.code === row.code);
-              if (upsell) {
-                (base as any)[advisorKey] = Number(upsell.count) || 0;
-              }
+              const upsell = aiAdv.upsells.find((u) => u.code === row.code);
+              if (upsell) base[advisorKey] = Number(upsell.count) || 0;
             }
           });
           return base;
@@ -264,23 +262,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   };
 
   const handleClearData = async () => {
-    const freshAdvData = INITIAL_PERFORMANCE_DATA.map(d => ({ ...d }));
-    const freshTechData = INITIAL_PERFORMANCE_DATA.map(d => {
-      const base: TechPerformanceRow = { code: d.code, desc: d.desc };
-      TECHNICIANS.forEach(t => base[t] = 0);
-      return base;
-    });
-    
+    const freshAdvData = zeroAdvisorCounts(
+      buildEmptyAdvisorRows(competitionAdvisors),
+      advisorIds
+    );
+    const freshTechData = buildEmptyTechRows(TECHNICIANS);
+
     await saveToFirestore({ advData: freshAdvData, techData: freshTechData });
     setSuccessMessage('All statistics have been reset successfully');
     setShowClearConfirm(false);
   };
 
-  const chartData = advData.map(d => ({
-    name: d.code,
-    Frank: d.frank,
-    Lemmy: d.lemmy
-  }));
+  const chartData = advData.map((d) => {
+    const point: Record<string, string | number> = { name: d.code };
+    competitionAdvisors.forEach((a) => {
+      point[a.label] = Number(d[a.id]) || 0;
+    });
+    return point;
+  });
 
   if (isLoading) {
     return (
@@ -444,8 +443,12 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
           {[
             { label: 'Shop Upsells', value: advTotals.grand, icon: Zap, color: 'text-brand-primary' },
-            { label: 'Frank Total', value: advTotals.frank, icon: Users, color: 'text-slate-200' },
-            { label: 'Lemmy Total', value: advTotals.lemmy, icon: Users, color: 'text-slate-200' },
+            ...competitionAdvisors.map((a) => ({
+              label: `${a.label} Total`,
+              value: advTotals.totals[a.id] ?? 0,
+              icon: Users,
+              color: 'text-slate-200',
+            })),
             { label: 'Pot of Gold', value: `$${advEarnings.grand.toLocaleString()}`, icon: DollarSign, color: 'text-emerald-400', highlight: true },
           ].map((stat, i) => (
             <div key={i} className={cn(
@@ -573,8 +576,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     <tr className="border-b border-slate-800 bg-slate-900/50">
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-24">Code</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Frank</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Lemmy</th>
+{competitionAdvisors.map((a) => (
+                      <th key={a.id} className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">{a.label}</th>
+                    ))}
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Total</th>
                     </tr>
                   </thead>
@@ -587,40 +591,26 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                         <td className="px-6 py-4">
                           <p className="text-xs font-bold text-slate-300">{row.desc}</p>
                         </td>
-                        <td className="px-6 py-2 text-center">
-                          <input 
-                            type="number"
-                            value={row.frank}
-                            disabled={selectedMonth !== 'active'}
-                            onChange={(e) => {
-                              const val = Number(e.target.value) || 0;
-                              const newData = advData.map((d, index) => 
-                                index === i ? { ...d, frank: val } : d
-                              );
-                              setAdvData(newData);
-                              saveToFirestore({ advData: newData });
-                            }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
-                          />
-                        </td>
-                        <td className="px-6 py-2 text-center">
-                          <input 
-                            type="number"
-                            value={row.lemmy}
-                            disabled={selectedMonth !== 'active'}
-                            onChange={(e) => {
-                              const val = Number(e.target.value) || 0;
-                              const newData = advData.map((d, index) => 
-                                index === i ? { ...d, lemmy: val } : d
-                              );
-                              setAdvData(newData);
-                              saveToFirestore({ advData: newData });
-                            }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
-                          />
-                        </td>
+                        {competitionAdvisors.map((a) => (
+                          <td key={a.id} className="px-6 py-2 text-center">
+                            <input
+                              type="number"
+                              value={Number(row[a.id]) || 0}
+                              disabled={selectedMonth !== 'active'}
+                              onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
+                                const newData = advData.map((d, index) =>
+                                  index === i ? { ...d, [a.id]: val } : d
+                                );
+                                setAdvData(newData);
+                                saveToFirestore({ advData: newData });
+                              }}
+                              className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
+                            />
+                          </td>
+                        ))}
                         <td className="px-6 py-4 text-center">
-                          <span className="text-sm font-black text-brand-secondary">{row.frank + row.lemmy}</span>
+                          <span className="text-sm font-black text-brand-secondary">{advisorCount(row, advisorIds)}</span>
                         </td>
                       </tr>
                     ))}
@@ -628,8 +618,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                   <tfoot>
                     <tr className="bg-slate-900 border-t-2 border-slate-700">
                       <td colSpan={2} className="px-6 py-6 text-[10px] font-black text-white uppercase tracking-widest italic">Advisor Grand Totals</td>
-                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.frank}</td>
-                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.lemmy}</td>
+{competitionAdvisors.map((a) => (
+                      <td key={a.id} className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.totals[a.id] ?? 0}</td>
+                    ))}
                       <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{advTotals.grand}</td>
                     </tr>
                   </tfoot>
@@ -639,8 +630,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               {/* Advisor Earnings Card */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {[
-                   { name: 'Frank', val: advEarnings.frank },
-                   { name: 'Lemmy', val: advEarnings.lemmy },
+                   ...competitionAdvisors.map((a) => ({
+                     name: a.label,
+                     val: advEarnings.earnings[a.id] ?? 0,
+                   })),
                    { name: 'Total Payout', val: advEarnings.grand, primary: true }
                  ].map((earn, idx) => (
                    <div key={idx} className={cn(
@@ -745,7 +738,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {INITIAL_PERFORMANCE_DATA.map(d => (
+                  {POT_OF_GOLD_OP_CODES.map(d => (
                     <div key={d.code} className="flex items-center justify-between p-4 bg-slate-950/50 border border-slate-800 rounded-2xl hover:border-slate-700 transition-colors">
                        <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-700">
@@ -848,9 +841,14 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                         />
                         <Legend />
-                        <Bar dataKey="Frank" fill="#2e86c1" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="Lemmy" fill="#e74c3c" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="Jaryn" fill="#82ccdd" radius={[4, 4, 0, 0]} />
+                        {competitionAdvisors.map((a, idx) => (
+                          <Bar
+                            key={a.id}
+                            dataKey={a.label}
+                            fill={CHART_COLORS[idx % CHART_COLORS.length]}
+                            radius={[4, 4, 0, 0]}
+                          />
+                        ))}
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

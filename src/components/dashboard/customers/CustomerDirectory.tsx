@@ -1,13 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { Search, ListFilter, Users, CalendarDays, Loader2, ChevronRight } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, Users, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Customer, User } from '../../../types';
 import CustomerCard from './CustomerCard';
 import { cn } from '../../../lib/utils';
+import {
+  directoryMakeFiltersForDealership,
+  DirectoryMakeFilter,
+  matchesDirectoryMakeFilter,
+} from '../../../lib/directoryMakeFilters';
 
 interface CustomerDirectoryProps {
   customers: Customer[];
   currentUser: User;
+  currentDealershipId: string;
   onViewProfile: (customer: Customer) => void;
   onViewLog: (customer: Customer) => void;
   onRefresh: (msg: string, isError?: boolean) => void;
@@ -16,14 +22,26 @@ interface CustomerDirectoryProps {
 export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   customers,
   currentUser,
+  currentDealershipId,
   onViewProfile,
   onViewLog,
   onRefresh
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState(24);
-  const [filterCategory, setFilterCategory] = useState<'All' | 'Hyundai' | 'Other'>('All');
+  const [filterCategory, setFilterCategory] = useState<DirectoryMakeFilter>('All');
   const [sortBy, setSortBy] = useState<'Recent' | 'Visits'>('Recent');
+
+  const makeFilters = useMemo(
+    () => directoryMakeFiltersForDealership(currentDealershipId),
+    [currentDealershipId]
+  );
+
+  useEffect(() => {
+    if (!makeFilters.includes(filterCategory)) {
+      setFilterCategory('All');
+    }
+  }, [makeFilters, filterCategory]);
 
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
