@@ -136,6 +136,22 @@ export interface DealershipSettings {
   dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
   dispatchShowTodayLoad?: boolean;
   dispatchBlockWhenFull?: boolean;
+  /** Days between service reminders (default 180). */
+  serviceAlertIntervalDays?: number;
+  /** Enrollment join code shown at signup (falls back to constants.ts). */
+  enrollmentJoinCode?: string;
+  weatherLat?: number;
+  weatherLon?: number;
+  weatherDisplayCity?: string;
+  enablePotOfGoldTab?: boolean;
+  enableForecastTab?: boolean;
+  enableSalesPerformanceTab?: boolean;
+  enableVinSearchTab?: boolean;
+  competitionTechnicians?: { id: string; label: string }[];
+  /** Advisor names seeded on performance archive reset. */
+  performanceAdvisorRoster?: { id: string; label: string }[];
+  potOfGoldUpsellPrices?: { code: string; desc: string; defaultPrice?: number }[];
+  hiddenDispatchLanes?: DispatchProductionLaneId[];
   updatedAt: Timestamp;
 }
 

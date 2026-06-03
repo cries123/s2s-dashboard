@@ -4,7 +4,7 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail 
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { cn } from '../../lib/utils';
 import { 
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { TENANT_PROFILES } from '../../lib/tenants';
 import { dealershipIdFromTenantId } from '../../lib/tenants';
+import { resolveEnrollmentJoinCode } from '../../lib/dealershipSettingsUtils';
 import type { UserDepartment } from '../../types';
 import { logAuditAction } from '../../services/loggingService';
 
@@ -23,8 +24,27 @@ export default function LoginView() {
   const [username, setUsername] = useState('');
   const [tenantId, setTenantId] = useState('');
   const [department, setDepartment] = useState<UserDepartment | 'manager' | ''>('');
+  const [joinCode, setJoinCode] = useState('');
+  const [joinCodesByDealership, setJoinCodesByDealership] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(
+          collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings')
+        );
+        const map: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          map[d.id] = resolveEnrollmentJoinCode(d.id, d.data() as any);
+        });
+        setJoinCodesByDealership(map);
+      } catch {
+        /* fallback to constants at validation time */
+      }
+    })();
+  }, []);
 
   const showMessage = (text: string, isError = false) => {
     setMessage({ text, isError });
@@ -56,6 +76,13 @@ export default function LoginView() {
       }
 
       const isPrimaryAdmin = email.toLowerCase() === 'admin@hyundai.com';
+      if (!isPrimaryAdmin) {
+        const dealershipIdForCode = dealershipIdFromTenantId(profile.tenantId);
+        const expected = joinCodesByDealership[dealershipIdForCode] || resolveEnrollmentJoinCode(dealershipIdForCode, null);
+        if (expected && joinCode.trim().toUpperCase() !== expected) {
+          throw new Error('Invalid enrollment join code for this dealership.');
+        }
+      }
       const isManagerEnrollment = department === 'manager';
       
       const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -235,6 +262,17 @@ export default function LoginView() {
                       <option value="manager">Manager</option>
                     </select>
                   </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="input-label">Enrollment Join Code</label>
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                    required
+                    className="input-field uppercase font-mono tracking-widest"
+                    placeholder="Provided by your manager"
+                  />
                 </div>
                 <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
                   <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={16} />

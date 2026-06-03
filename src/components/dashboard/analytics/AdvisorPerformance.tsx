@@ -55,6 +55,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
+  const [partsTarget, setPartsTarget] = useState(300000);
   const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -66,6 +67,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         setLaborTarget(docSnap.data().laborGrossTarget || 500000);
+        setPartsTarget(docSnap.data().partsSalesTarget || 300000);
         setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
       }
     });
@@ -774,6 +776,28 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                     <span className="text-[9px] text-slate-500 uppercase tracking-widest">Daily Avg</span>
                     <span className="text-slate-200">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
                   </div>
+                </div>
+              </div>
+            </div>
+
+
+            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <div className="p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
+                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">
+                  <span>Labor gross vs goal</span>
+                  <span>${(metrics.totalGross || 0).toLocaleString()} / ${laborTarget.toLocaleString()}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, ((metrics.totalGross || 0) / Math.max(1, laborTarget)) * 100)}%` }} />
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl border border-brand-secondary/20 bg-brand-secondary/5">
+                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-brand-secondary mb-2">
+                  <span>Parts gross vs goal</span>
+                  <span>${(metrics.totalGrossParts || 0).toLocaleString()} / ${partsTarget.toLocaleString()}</span>
+                </div>
+                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-secondary" style={{ width: `${Math.min(100, ((metrics.totalGrossParts || 0) / Math.max(1, partsTarget)) * 100)}%` }} />
                 </div>
               </div>
             </div>

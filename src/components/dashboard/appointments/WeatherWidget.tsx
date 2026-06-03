@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, CloudRain, Sun, Thermometer, Wind, Loader2 } from 'lucide-react';
 
-export const WeatherWidget: React.FC = () => {
+interface WeatherWidgetProps {
+  lat?: number;
+  lon?: number;
+  displayCity?: string;
+}
+
+export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
+  lat = 34.953,
+  lon = -120.4357,
+  displayCity = 'Santa Maria, CA',
+}) => {
   const [weather, setWeather] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Current Santa Maria Coordinates
-    const lat = 34.9530;
-    const lon = -120.4357;
+    // coordinates from dealership settings
     
     // Using Open-Meteo (Free, no API key required)
     const fetchWeather = async () => {
@@ -33,7 +42,7 @@ export const WeatherWidget: React.FC = () => {
     fetchWeather();
     const interval = setInterval(fetchWeather, 300000); // Update every 5 mins
     return () => clearInterval(interval);
-  }, []);
+  }, [lat, lon]);
 
   const getWeatherIcon = (code: number) => {
     if (code === 0) return <Sun className="text-amber-400" size={32} />;
@@ -64,7 +73,7 @@ export const WeatherWidget: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">Santa Maria, CA</span>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">{displayCity}</span>
           </div>
           <h3 className="text-4xl font-black text-white tracking-tighter">
             {Math.round(weather.temperature_2m)}°F

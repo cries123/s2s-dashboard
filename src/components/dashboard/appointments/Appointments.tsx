@@ -18,6 +18,7 @@ import { cn } from '../../../lib/utils';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
+import { getDealershipStaffConfig } from '../../../lib/dealershipStaff';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   appointmentTrackerDocId,
@@ -71,6 +72,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
+  const [dealershipSettingsRef, setDealershipSettingsRef] = useState<Record<string, unknown> | null>(null);
   const [pdfParsePreview, setPdfParsePreview] = useState<{
     fileName: string;
     reportDate: string;
@@ -174,11 +176,22 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
  
       // 4. NOW RESET ACTIVE COPIES
       // Reset active advisors to clean empty sheet
-      const initialAdvisors = [
-        { name: "Frank", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
-        { name: "Lemmy", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
-        { name: "Jaryn", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] }
-      ];
+      const initialAdvisors = getDealershipStaffConfig(
+        currentDealershipId,
+        dealershipSettingsRef
+      ).performanceAdvisorRoster.map((a) => ({
+        name: a.label,
+        soCount: 0,
+        hrsSold: 0,
+        laborSold: 0,
+        grossLabor: 0,
+        partsSold: 0,
+        grossParts: 0,
+        totalSales: 0,
+        gpPercent: 0,
+        elr: 0,
+        upsells: [] as string[],
+      }));
       await setDoc(activeRef, {
         advisors: initialAdvisors,
         totals: {
@@ -253,6 +266,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
         setDmsProvider(normalizeDmsProvider(data.dmsProvider as string));
+        setDealershipSettingsRef(data);
       }
     });
 

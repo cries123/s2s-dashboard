@@ -29,7 +29,8 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
 
-import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
+import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
+import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
 import {
@@ -147,7 +148,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 export default function AuthenticatedApp() {
   const { user, loading: authLoading } = useAuth();
 const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appointments' | 'admin' | 'manager' | 'vin-search' | 'pot-of-gold' | 'forecast' | 'dispatch' | 'sales-performance'>('appointments');
-  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users'>('users');
+  const [adminSubTab, setAdminSubTab] = useState<'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history'>('users');
   const [managerSubTab, setManagerSubTab] = useState<'operations' | 'preferences' | 'team'>('operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
@@ -198,7 +199,12 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
 
   const { customers, loading: customersLoading } = useCustomers(currentDealershipId || undefined, user?.role === 'admin');
 
-  const activeAlertsCount = customers.filter(isServiceAlertActive).length;
+  const mergedDealershipSettings = mergeDealershipSettings(
+    currentDealershipId || 'hyundai',
+    dealershipSettings
+  );
+  const serviceAlerts = useServiceAlertInterval(mergedDealershipSettings.serviceAlertIntervalDays);
+  const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
   // Filter tabs - Pot of Gold (Competition) only for Hyundai
@@ -521,7 +527,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
               {activeTab === 'manager'
                 ? `Manager · ${managerSubTab === 'operations' ? 'Operations' : managerSubTab === 'preferences' ? 'Preferences' : 'Team'}`
                 : activeTab === 'admin'
-                ? `Admin · ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                ? `Admin · ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'ai-usage' ? 'AI Usage' : adminSubTab === 'import-history' ? 'Imports' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
                 : availableTabs.find(t => t.id === activeTab)?.label ?? 'S2S'}
             </p>
           </div>
@@ -621,6 +627,28 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
                         >
                           Master Users
                         </NavLink>
+                        <NavLink
+                          href="/admin/ai-usage"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('ai-usage');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'ai-usage'}
+                        >
+                          AI Usage
+                        </NavLink>
+                        <NavLink
+                          href="/admin/import-history"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('import-history');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'import-history'}
+                        >
+                          Import History
+                        </NavLink>
                         <NavLink href="/admin/logs" onClick={() => { setActiveTab('admin'); setAdminSubTab('logs'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'logs'}>
                           Audit Logs
                         </NavLink>
@@ -693,7 +721,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
 
           {activeTab === 'appointments' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              {modules.showWeatherWidget && <WeatherWidget />}
+              {modules.showWeatherWidget && <WeatherWidget lat={mergedDealershipSettings.weatherLat} lon={mergedDealershipSettings.weatherLon} displayCity={mergedDealershipSettings.weatherDisplayCity} />}
               <Appointments 
                 currentUser={currentUser} 
                 currentDealershipId={currentDealershipId || 'hyundai'}
@@ -719,7 +747,7 @@ const [activeTab, setActiveTab] = useState<'add' | 'search' | 'alerts' | 'appoin
 
 
           {activeTab === 'pot-of-gold' && (
-            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} />
+            <PotOfGold key={currentDealershipId || 'hyundai'} currentDealershipId={currentDealershipId || 'hyundai'} dealershipSettings={dealershipSettings} />
           )}
 
           {activeTab === 'forecast' && (

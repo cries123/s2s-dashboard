@@ -42,10 +42,15 @@ const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: any }[] = [
   { id: 'mobile_repair', label: 'Mobile Fleet', icon: Wrench },
 ];
 
-const DISPLAY_COLUMNS: { id: DepartmentColumnId; label: string; shortLabel: string; icon: typeof Layers }[] = [
-  { id: 'unassigned', label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
-  ...DEPARTMENTS.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
-];
+const BASE_DEPARTMENTS = DEPARTMENTS;
+
+function buildDisplayColumns(hidden: DepartmentColumnId[] = []) {
+  const visible = BASE_DEPARTMENTS.filter((d) => !hidden.includes(d.id as DepartmentColumnId));
+  return [
+    { id: 'unassigned' as DepartmentColumnId, label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
+    ...visible.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
+  ];
+}
 
 export function DispatchBoard({ 
   currentDealershipId,
@@ -135,6 +140,10 @@ export function DispatchBoard({
   const showTodayLoad = dealershipSettings?.dispatchShowTodayLoad !== false;
   const blockWhenFull = !!dealershipSettings?.dispatchBlockWhenFull;
   const apptGoal = dealershipSettings?.appointmentTarget ?? 20;
+  const displayColumns = useMemo(
+    () => buildDisplayColumns(dealershipSettings?.hiddenDispatchLanes ?? []),
+    [dealershipSettings?.hiddenDispatchLanes]
+  );
 
   const matchCandidates = useMemo(
     () => findCustomersByLastName(customers, customerLastName),
@@ -1181,7 +1190,7 @@ export function DispatchBoard({
             </button>
 
             <div className="grid grid-cols-8 gap-1.5 flex-1 min-h-0 w-full h-full">
-              {DISPLAY_COLUMNS.map((col) => {
+              {displayColumns.map((col) => {
                 const list = ticketsByColumn[col.id] || [];
                 const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id];
                 const atCap = cap > 0 && list.length >= cap;
