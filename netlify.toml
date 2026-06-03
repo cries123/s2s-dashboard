@@ -1,9 +1,24 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin", "canvas"]
+
+[functions.api]
+  timeout = 120
+
+# API routes must be proxied to the serverless function BEFORE the SPA fallback.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
 
 [[redirects]]
   from = "/*"
