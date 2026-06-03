@@ -89,7 +89,18 @@
   }
 
   .app-main-with-mobile-nav {
-    @apply pb-24 md:pb-10;
+    @apply pb-24 md:pb-10 overflow-x-hidden;
+  }
+
+  @media (max-width: 767px) {
+    .app-main-with-mobile-nav {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .app-main-with-mobile-nav::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   .touch-target {
