@@ -16,6 +16,13 @@ import {
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
+import {
+  cleanAdvisorName,
+  isPhantomPbsAdvisorName,
+  isRealAdvisorName,
+  matchesPerformanceAdvisorRoster,
+} from '../../../lib/advisorNameUtils';
+import type { PerformanceAdvisorSlot } from '../../../types';
 
 interface UpsellItem {
   code: string;
@@ -55,8 +62,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
-  const [partsTarget, setPartsTarget] = useState(300000);
   const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
+  const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState<PerformanceAdvisorSlot[]>([]);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -67,7 +74,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         setLaborTarget(docSnap.data().laborGrossTarget || 500000);
-        setPartsTarget(docSnap.data().partsSalesTarget || 300000);
         setDmsProvider(normalizeDmsProvider(docSnap.data().dmsProvider as string));
       }
     });
@@ -117,52 +123,29 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     if (!user || !currentDealershipId) return;
     
     let updatedAdvisors: AdvisorData[] = [];
-    
-    // Helper to sanitize name to filter out obvious DMS category headings or false AI extractions
-    const isRealAdvisorName = (name: string): boolean => {
-      const n = name.toLowerCase().trim();
-      if (!n) return false;
-      if (n === 'jay') return false;
-      const badStarts = ["total", "parts", "labor", "sublet", "price code", "customer", "warranty", "internal", "page"];
-      if (badStarts.some(bad => n.startsWith(bad))) return false;
-      const exclusions = ["parts cro", "parts cempr", "parts i", "parts w", "labor c", "labor cemp", "labor i", "labor w", "labor wshop", "sublet csub", "sublet isub", "sublet wsub"];
-      if (exclusions.includes(n)) return false;
+
+    const acceptAdvisor = (name: string): boolean => {
+      if (!isRealAdvisorName(name, dmsProvider)) return false;
+      if (dmsProvider === 'dealerbuilt' && isPhantomPbsAdvisorName(name)) return false;
+      if (!matchesPerformanceAdvisorRoster(name, performanceAdvisorRoster)) return false;
       return true;
     };
 
-    // Helper to beautifully normalize/canonicalize advisor names
-    const cleanAdvisorName = (rawName: string): string => {
-      let name = rawName.toUpperCase().trim();
-      
-      // Handle the standard 3 active advisors for perfect matching
-      if (name.includes("FRANK")) return "Frank";
-      if (name.includes("LEMMY")) return "Lemmy";
-      if (name.includes("JARYN")) return "Jaryn";
-      
-      // Look for "Advisor <id> - <name>" pattern and extract <name>
-      const match = name.match(/Advisor\s+(?:\w+\s*-\s*)?([A-Z]+)/i);
-      if (match) {
-        const extracted = match[1].trim();
-        return extracted.charAt(0).toUpperCase() + extracted.slice(1).toLowerCase();
-      }
-      
-      const cleanWord = name.split(/[\s-]+/)[0] || '';
-      return cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();
-    };
+    const normalizeName = (rawName: string) => cleanAdvisorName(rawName, dmsProvider);
 
     if (overwrite) {
       updatedAdvisors = newData.advisors
-        .filter(a => isRealAdvisorName(a.name))
-        .map(a => ({ ...a, name: cleanAdvisorName(a.name) }));
+        .filter((a) => acceptAdvisor(a.name))
+        .map((a) => ({ ...a, name: normalizeName(a.name) }));
     } else {
       updatedAdvisors = [...advisors]
-        .filter(a => isRealAdvisorName(a.name))
-        .map(a => ({ ...a, name: cleanAdvisorName(a.name) }));
-      
-      newData.advisors.forEach(newAdvisor => {
-        if (!isRealAdvisorName(newAdvisor.name)) return;
-        const normalizedName = cleanAdvisorName(newAdvisor.name);
-        
+        .filter((a) => acceptAdvisor(a.name))
+        .map((a) => ({ ...a, name: normalizeName(a.name) }));
+
+      newData.advisors.forEach((newAdvisor) => {
+        if (!acceptAdvisor(newAdvisor.name)) return;
+        const normalizedName = normalizeName(newAdvisor.name);
+
         const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === normalizedName.toLowerCase().trim());
         
         if (idx !== -1) {
@@ -776,28 +759,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                     <span className="text-[9px] text-slate-500 uppercase tracking-widest">Daily Avg</span>
                     <span className="text-slate-200">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
                   </div>
-                </div>
-              </div>
-            </div>
-
-
-            <div className="col-span-full grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-              <div className="p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
-                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-2">
-                  <span>Labor gross vs goal</span>
-                  <span>${(metrics.totalGross || 0).toLocaleString()} / ${laborTarget.toLocaleString()}</span>
-                </div>
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, ((metrics.totalGross || 0) / Math.max(1, laborTarget)) * 100)}%` }} />
-                </div>
-              </div>
-              <div className="p-4 rounded-2xl border border-brand-secondary/20 bg-brand-secondary/5">
-                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-brand-secondary mb-2">
-                  <span>Parts gross vs goal</span>
-                  <span>${(metrics.totalGrossParts || 0).toLocaleString()} / ${partsTarget.toLocaleString()}</span>
-                </div>
-                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-secondary" style={{ width: `${Math.min(100, ((metrics.totalGrossParts || 0) / Math.max(1, partsTarget)) * 100)}%` }} />
                 </div>
               </div>
             </div>

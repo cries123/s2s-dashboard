@@ -477,6 +477,13 @@ export function mergeDealerBuiltPerformanceResults(
   if (ai) {
     for (const row of ai.advisors) {
       const fixed = fixDealerBuiltLaborGrossSwap(normalizeDealerBuiltPerformanceAdvisor(row));
+      const phantomPbs = ['frank', 'lemmy', 'jaryn', 'jay'];
+      if (
+        deterministic.advisors.length >= 2 &&
+        phantomPbs.includes(fixed.name.toLowerCase().trim())
+      ) {
+        continue;
+      }
       const key = normalizeAdvisorKey(fixed.name);
       const det = [...merged.entries()].find(([k]) =>
         k.includes(key.slice(0, 4)) || key.includes(k.slice(0, 4))
@@ -501,12 +508,21 @@ export function mergeDealerBuiltPerformanceResults(
   }
 
   const advisors = [...merged.values()].sort((a, b) => b.laborSold - a.laborSold);
+  const summed = sumAdvisorTotals(advisors);
+  const detLabor = deterministic.totals?.totalLabor ?? 0;
+  const aiLabor = ai?.totals?.totalLabor ?? 0;
   const totals =
-    ai?.totals?.totalLabor && ai.totals.totalLabor > 100000
-      ? ai.totals
+    advisors.length >= 2 && summed.totalLabor > 0
+      ? Math.abs(detLabor - summed.totalLabor) < Math.abs(aiLabor - summed.totalLabor)
+        ? deterministic.totals?.totalLabor
+          ? deterministic.totals
+          : summed
+        : aiLabor > 0 && Math.abs(aiLabor - summed.totalLabor) < detLabor * 0.15
+          ? ai!.totals!
+          : summed
       : deterministic.totals?.totalLabor
         ? deterministic.totals
-        : sumAdvisorTotals(advisors);
+        : summed;
 
   return { advisors, totals };
 }
