@@ -27,6 +27,7 @@ import { db } from '../../../firebase';
 import { cn } from '../../../lib/utils';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import {
+  parseRecallCampaignReportText,
   recallCampaignLeadDocId,
   type RecallCampaignParseMeta,
   normalizeRecallEmail,
@@ -89,19 +90,33 @@ export function RecallCampaignOutreach({
   const [defaultCampaign, setDefaultCampaign] = useState('9C2');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const notify = useCallback(
-    (text: string, isError = false) => onNotify?.(text, isError),
-    [onNotify]
-  );
+  const onNotifyRef = useRef(onNotify);
+  onNotifyRef.current = onNotify;
+
+  const notify = useCallback((text: string, isError = false) => {
+    onNotifyRef.current?.(text, isError);
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
     fetch('/api/outreach/status')
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) return null;
+        try {
+          return await r.json();
+        } catch {
+          return null;
+        }
+      })
       .then((data) => {
+        if (cancelled || !data) return;
         setSmsConfigured(!!data.smsConfigured);
         setEmailConfigured(!!data.emailConfigured);
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -146,10 +161,10 @@ export function RecallCampaignOutreach({
         window.clearTimeout(timeout);
         console.error('recallCampaignLeads listener error', err);
         setLoading(false);
+        setLeads([]);
         setLoadError(
           'Could not load recall list. Deploy Firestore rules for recallCampaignLeads, then refresh.'
         );
-        notify('Failed to load recall campaign list.', true);
       }
     );
 
@@ -157,7 +172,7 @@ export function RecallCampaignOutreach({
       window.clearTimeout(timeout);
       unsub();
     };
-  }, [currentDealershipId, notify]);
+  }, [currentDealershipId]);
 
   const filteredLeads = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -291,16 +306,44 @@ export function RecallCampaignOutreach({
     setImporting(true);
     try {
       const reportText = await extractTextFromPDF(file);
+      let data: {
+        leads: Array<{
+          customerName: string;
+          phone: string | null;
+          email: string | null;
+          vin: string;
+          year: string;
+          make: string;
+          model: string;
+          campaignNumber: string;
+        }>;
+        meta: RecallCampaignParseMeta;
+        leadCount?: number;
+        duplicateCount?: number;
+        withPhone?: number;
+        withEmail?: number;
+      };
+
       const response = await fetch('/api/parse-recall-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reportText }),
       });
-      if (!response.ok) {
+
+      if (response.ok) {
+        data = await response.json();
+      } else if (response.status === 404) {
+        const local = parseRecallCampaignReportText(reportText);
+        data = {
+          ...local,
+          leadCount: local.leads.length,
+          withPhone: local.leads.filter((l) => l.phone).length,
+          withEmail: local.leads.filter((l) => l.email).length,
+        };
+      } else {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to parse recall report');
       }
-      const data = await response.json();
       const importBatchId = `batch_${Date.now()}`;
       await saveLeadsToFirestore(data.leads, data.meta, importBatchId);
       notify(

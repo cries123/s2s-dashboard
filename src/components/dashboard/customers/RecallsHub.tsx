@@ -1,8 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, Component, type ErrorInfo, type ReactNode, useCallback } from 'react';
 import { cn } from '../../../lib/utils';
 import { Customer } from '../../../types';
 import { VehicleRecalls } from './VehicleRecalls';
 import { RecallCampaignOutreach } from './RecallCampaignOutreach';
+
+class RecallOutreachErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[RecallsHub] Recall outreach render failed:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
 
 interface RecallsHubProps {
   onViewProfile?: (customer: Customer) => void;
@@ -18,6 +38,13 @@ export function RecallsHub({
   onNotify,
 }: RecallsHubProps) {
   const [activeView, setActiveView] = useState<'campaign' | 'nhtsa'>('campaign');
+
+  const handleNotify = useCallback(
+    (message: string, isError?: boolean) => onNotify?.(message, isError),
+    [onNotify]
+  );
+
+  const nhtsaFallback = <VehicleRecalls onViewProfile={onViewProfile} />;
 
   return (
     <div className="space-y-6">
@@ -49,13 +76,15 @@ export function RecallsHub({
       </div>
 
       {activeView === 'campaign' ? (
-        <RecallCampaignOutreach
-          currentDealershipId={currentDealershipId}
-          currentUserId={currentUserId}
-          onNotify={onNotify}
-        />
+        <RecallOutreachErrorBoundary fallback={nhtsaFallback}>
+          <RecallCampaignOutreach
+            currentDealershipId={currentDealershipId}
+            currentUserId={currentUserId}
+            onNotify={handleNotify}
+          />
+        </RecallOutreachErrorBoundary>
       ) : (
-        <VehicleRecalls onViewProfile={onViewProfile} />
+        nhtsaFallback
       )}
     </div>
   );
