@@ -343,67 +343,123 @@ export default function ManagerDashboard({
             {loadingUsers ? (
               <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-brand-primary" /></div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      <th className="p-4">User</th>
-                      <th className="p-4">Department</th>
-                      <th className="p-4">Role</th>
-                      <th className="p-4">Status</th>
-                      <th className="p-4">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((u) => (
-                      <tr key={u.uid} className="border-b border-white/5 hover:bg-white/[0.02]">
-                        <td className="p-4">
-                          <p className="font-bold text-white text-sm">{u.username}</p>
-                          <p className="text-[10px] text-slate-500">{u.email}</p>
-                        </td>
-                        <td className="p-4">
-                          <select
-                            value={u.department || 'service'}
-                            onChange={(e) => setUserDepartment(u, e.target.value as UserDepartment)}
-                            className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white"
-                          >
-                            <option value="sales">Sales</option>
-                            <option value="service">Service</option>
-                          </select>
-                        </td>
-                        <td className="p-4">
-                          <select
-                            value={u.role === 'Manager' ? 'manager' : u.role}
-                            onChange={(e) => setUserRole(u, e.target.value as 'advisor' | 'manager' | 'pending')}
-                            className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="advisor">Advisor</option>
-                            <option value="manager">Manager</option>
-                          </select>
-                        </td>
-                        <td className="p-4">
+              <>
+                <div className="md:hidden p-3 space-y-3">
+                  {filteredUsers.map((u) => {
+                    const isApproved = u.approved !== false && u.status !== 'pending';
+                    return (
+                      <div key={u.uid} className="rounded-2xl border border-white/5 bg-slate-900/50 p-4 space-y-3">
+                        <div className="min-w-0">
+                          <p className="font-bold text-white text-sm break-words">{u.username}</p>
+                          <p className="text-[10px] text-slate-500 break-all">{u.email}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Department</p>
+                            <select
+                              value={u.department || 'service'}
+                              onChange={(e) => setUserDepartment(u, e.target.value as UserDepartment)}
+                              className="w-full bg-slate-900 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                            >
+                              <option value="sales">Sales</option>
+                              <option value="service">Service</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Role</p>
+                            <select
+                              value={u.role === 'Manager' ? 'manager' : u.role}
+                              onChange={(e) => setUserRole(u, e.target.value as 'advisor' | 'manager' | 'pending')}
+                              className="w-full bg-slate-900 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="advisor">Advisor</option>
+                              <option value="manager">Manager</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 pt-1">
                           <span className={cn(
-                            'text-[10px] font-black uppercase px-2 py-1 rounded-full',
-                            u.approved !== false && u.status !== 'pending' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                            'text-[10px] font-black uppercase px-2.5 py-1 rounded-full shrink-0',
+                            isApproved ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
                           )}>
-                            {u.approved !== false && u.status !== 'pending' ? 'Approved' : 'Pending'}
+                            {isApproved ? 'Approved' : 'Pending'}
                           </span>
-                        </td>
-                        <td className="p-4">
                           <button
                             type="button"
-                            onClick={() => setApproval(u, !(u.approved !== false && u.status !== 'pending'))}
-                            className="text-[10px] font-black uppercase text-brand-primary hover:underline"
+                            onClick={() => setApproval(u, !isApproved)}
+                            className="text-[10px] font-black uppercase text-brand-primary hover:underline touch-manipulation min-h-[44px] px-2"
                           >
                             Toggle Approval
                           </button>
-                        </td>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        <th className="p-4">User</th>
+                        <th className="p-4">Department</th>
+                        <th className="p-4">Role</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((u) => (
+                        <tr key={u.uid} className="border-b border-white/5 hover:bg-white/[0.02]">
+                          <td className="p-4">
+                            <p className="font-bold text-white text-sm">{u.username}</p>
+                            <p className="text-[10px] text-slate-500">{u.email}</p>
+                          </td>
+                          <td className="p-4">
+                            <select
+                              value={u.department || 'service'}
+                              onChange={(e) => setUserDepartment(u, e.target.value as UserDepartment)}
+                              className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white"
+                            >
+                              <option value="sales">Sales</option>
+                              <option value="service">Service</option>
+                            </select>
+                          </td>
+                          <td className="p-4">
+                            <select
+                              value={u.role === 'Manager' ? 'manager' : u.role}
+                              onChange={(e) => setUserRole(u, e.target.value as 'advisor' | 'manager' | 'pending')}
+                              className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="advisor">Advisor</option>
+                              <option value="manager">Manager</option>
+                            </select>
+                          </td>
+                          <td className="p-4">
+                            <span className={cn(
+                              'text-[10px] font-black uppercase px-2 py-1 rounded-full',
+                              u.approved !== false && u.status !== 'pending' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                            )}>
+                              {u.approved !== false && u.status !== 'pending' ? 'Approved' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <button
+                              type="button"
+                              onClick={() => setApproval(u, !(u.approved !== false && u.status !== 'pending'))}
+                              className="text-[10px] font-black uppercase text-brand-primary hover:underline"
+                            >
+                              Toggle Approval
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>

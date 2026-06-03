@@ -11,53 +11,48 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
-import {
-  getDealershipStaffConfig,
-  getTechnicianLabels,
-  matchAdvisorSlot,
-  slugifyStaffName,
-  type CompetitionAdvisorSlot,
-} from '../../../lib/dealershipStaff';
-import {
-  POT_OF_GOLD_OP_CODES,
-  buildEmptyAdvisorRows,
-  buildEmptyTechRows,
-  mergeAdvisorRowsFromFirestore,
-  zeroAdvisorCounts,
-  advisorCount,
-  type AdvisorPerformanceRow,
-  type TechPerformanceRow,
-} from '../../../lib/potOfGoldData';
 
+interface PerformanceRow {
+  code: string;
+  desc: string;
+  frank: number;
+  lemmy: number;
+}
 
-const CHART_COLORS = ['#2e86c1', '#e74c3c', '#82ccdd', '#f39c12', '#9b59b6'];
+interface TechPerformanceRow {
+  code: string;
+  desc: string;
+  [key: string]: string | number;
+}
+
+const TECHNICIANS = ['Daniel', 'Jon', 'Matthew', 'Jacinto', 'Ethan', 'Trevor'];
+const ADVISORS = ['frank', 'lemmy'];
+
+const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
+  { code: 'AF', desc: 'ENGINE AIR FILTER', frank: 0, lemmy: 0 },
+  { code: 'ALIGN', desc: 'PERFORM 2/4 WHEEL ALIGNMENT', frank: 0, lemmy: 0 },
+  { code: 'BAT', desc: 'BATTERY REPLACEMENT', frank: 0, lemmy: 0 },
+  { code: 'BFR', desc: 'BRAKE FLUID SERVICE', frank: 0, lemmy: 0 },
+  { code: 'CAF', desc: 'CABIN AIR FILTER', frank: 0, lemmy: 0 },
+  { code: 'CE', desc: 'COOLING SYSTEM EXCHANGE', frank: 0, lemmy: 0 },
+  { code: 'FB', desc: 'FRONT BRAKE PAD/RESURFACE', frank: 0, lemmy: 0 },
+  { code: 'FSC', desc: 'MOC ENHANCE FUEL SYSTEM', frank: 0, lemmy: 0 },
+  { code: 'GDI', desc: 'GDI FUEL/AIR INDUCTION', frank: 0, lemmy: 0 },
+  { code: 'RB', desc: 'REAR BRAKE PAD/SERVICE', frank: 0, lemmy: 0 },
+  { code: 'TIRE1', desc: 'MOUNT AND BALANCE 1 TIRE', frank: 0, lemmy: 0 },
+  { code: 'TIRE2', desc: 'MOUNT AND BALANCE 2 TIRES', frank: 0, lemmy: 0 },
+  { code: 'TIRE3', desc: 'MOUNT AND BALANCE 3 TIRES', frank: 0, lemmy: 0 },
+  { code: 'TIRE4', desc: 'MOUNT AND BALANCE 4 TIRES', frank: 0, lemmy: 0 },
+  { code: 'TS', desc: 'TRANSMISSION SERVICE', frank: 0, lemmy: 0 },
+  { code: 'CCC', desc: 'COMBUSTION CHAMBER CLEANING', frank: 0, lemmy: 0 }
+];
 
 interface PotOfGoldProps {
   currentDealershipId: string;
-  dealershipSettings?: {
-    competitionAdvisors?: CompetitionAdvisorSlot[];
-    competitionTechnicians?: { id: string; label: string }[];
-  } | null;
 }
 
-export const PotOfGold: React.FC<PotOfGoldProps> = ({
-  currentDealershipId,
-  dealershipSettings,
-}) => {
+export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
-  const staffConfig = React.useMemo(
-    () => getDealershipStaffConfig(currentDealershipId, dealershipSettings),
-    [currentDealershipId, dealershipSettings]
-  );
-  const competitionAdvisors = staffConfig.competitionAdvisors;
-  const TECHNICIANS = React.useMemo(
-    () => getTechnicianLabels(currentDealershipId, dealershipSettings),
-    [currentDealershipId, dealershipSettings]
-  );
-  const advisorIds = React.useMemo(
-    () => competitionAdvisors.map((a) => a.id),
-    [competitionAdvisors]
-  );
   const [selectedMonth, setSelectedMonth] = useState<string>('active');
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -66,15 +61,17 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [advData, setAdvData] = useState<AdvisorPerformanceRow[]>(() =>
-    buildEmptyAdvisorRows(competitionAdvisors)
-  );
-  const [techData, setTechData] = useState<TechPerformanceRow[]>(() =>
-    buildEmptyTechRows(TECHNICIANS)
+  const [advData, setAdvData] = useState<PerformanceRow[]>(INITIAL_PERFORMANCE_DATA);
+  const [techData, setTechData] = useState<TechPerformanceRow[]>(() => 
+    INITIAL_PERFORMANCE_DATA.map(d => {
+      const base: TechPerformanceRow = { code: d.code, desc: d.desc };
+      TECHNICIANS.forEach(t => base[t] = 0);
+      return base;
+    })
   );
   const [prices, setPrices] = useState<Record<string, number>>(() => {
     const p: Record<string, number> = {};
-    POT_OF_GOLD_OP_CODES.forEach((d) => { p[d.code] = 0; });
+    INITIAL_PERFORMANCE_DATA.forEach(d => p[d.code] = 0);
     return p;
   });
 
@@ -89,14 +86,17 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.advData) {
-          setAdvData(mergeAdvisorRowsFromFirestore(data.advData, competitionAdvisors));
-        }
+        if (data.advData) setAdvData(data.advData);
         if (data.techData) setTechData(data.techData);
         if (data.prices) setPrices(data.prices);
       } else {
-        setAdvData(buildEmptyAdvisorRows(competitionAdvisors));
-        setTechData(buildEmptyTechRows(TECHNICIANS));
+        // Reset to initial if no data yet for this dealership
+        setAdvData(INITIAL_PERFORMANCE_DATA);
+        setTechData(INITIAL_PERFORMANCE_DATA.map(d => {
+          const base: TechPerformanceRow = { code: d.code, desc: d.desc };
+          TECHNICIANS.forEach(t => base[t] = 0);
+          return base;
+        }));
       }
       setIsLoading(false);
     }, (error) => {
@@ -104,7 +104,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [user, currentDealershipId, selectedMonth, competitionAdvisors]);
+  }, [user, currentDealershipId, selectedMonth]);
 
   const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any }) => {
     if (!user || !currentDealershipId) return;
@@ -131,32 +131,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
 
   // Calculations
   const calculateAdvisorTotals = () => {
-    const totals: Record<string, number> = {};
-    advisorIds.forEach((id) => { totals[id] = 0; });
-    let grand = 0;
-    advData.forEach((row) => {
-      advisorIds.forEach((id) => {
-        const val = Number(row[id]) || 0;
-        totals[id] += val;
-        grand += val;
-      });
+    let frank = 0, lemmy = 0, grand = 0;
+    advData.forEach(row => {
+      frank += row.frank;
+      lemmy += row.lemmy;
+      grand += row.frank + row.lemmy;
     });
-    return { totals, grand };
+    return { frank, lemmy, grand };
   };
 
   const calculateAdvisorEarnings = () => {
-    const earnings: Record<string, number> = {};
-    advisorIds.forEach((id) => { earnings[id] = 0; });
-    let grand = 0;
-    advData.forEach((row) => {
+    let frank = 0, lemmy = 0, grand = 0;
+    advData.forEach(row => {
       const price = prices[row.code] || 0;
-      advisorIds.forEach((id) => {
-        const amt = (Number(row[id]) || 0) * price;
-        earnings[id] += amt;
-        grand += amt;
-      });
+      frank += row.frank * price;
+      lemmy += row.lemmy * price;
+      grand += (row.frank + row.lemmy) * price;
     });
-    return { earnings, grand };
+    return { frank, lemmy, grand };
   };
 
   const calculateTechTotals = () => {
@@ -241,15 +233,17 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
       
       // Map data to Pot of Gold structure
       if (data.advisors && data.advisors.length > 0) {
-        const newAdvData = advData.map((row) => {
+        const newAdvData = advData.map(row => {
           const base = { ...row };
-          data.advisors.forEach((aiAdv: { name: string; upsells?: { code: string; count: number }[] }) => {
-            const advisorKey =
-              matchAdvisorSlot(aiAdv.name, competitionAdvisors) ??
-              slugifyStaffName(aiAdv.name);
+          data.advisors.forEach((aiAdv: any) => {
+            const advisorKey = aiAdv.name.toLowerCase().includes('frank') ? 'frank' :
+                               aiAdv.name.toLowerCase().includes('lemmy') ? 'lemmy' : null;
+            
             if (advisorKey && aiAdv.upsells) {
-              const upsell = aiAdv.upsells.find((u) => u.code === row.code);
-              if (upsell) base[advisorKey] = Number(upsell.count) || 0;
+              const upsell = aiAdv.upsells.find((u: any) => u.code === row.code);
+              if (upsell) {
+                (base as any)[advisorKey] = Number(upsell.count) || 0;
+              }
             }
           });
           return base;
@@ -270,24 +264,23 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
   };
 
   const handleClearData = async () => {
-    const freshAdvData = zeroAdvisorCounts(
-      buildEmptyAdvisorRows(competitionAdvisors),
-      advisorIds
-    );
-    const freshTechData = buildEmptyTechRows(TECHNICIANS);
-
+    const freshAdvData = INITIAL_PERFORMANCE_DATA.map(d => ({ ...d }));
+    const freshTechData = INITIAL_PERFORMANCE_DATA.map(d => {
+      const base: TechPerformanceRow = { code: d.code, desc: d.desc };
+      TECHNICIANS.forEach(t => base[t] = 0);
+      return base;
+    });
+    
     await saveToFirestore({ advData: freshAdvData, techData: freshTechData });
     setSuccessMessage('All statistics have been reset successfully');
     setShowClearConfirm(false);
   };
 
-  const chartData = advData.map((d) => {
-    const point: Record<string, string | number> = { name: d.code };
-    competitionAdvisors.forEach((a) => {
-      point[a.label] = Number(d[a.id]) || 0;
-    });
-    return point;
-  });
+  const chartData = advData.map(d => ({
+    name: d.code,
+    Frank: d.frank,
+    Lemmy: d.lemmy
+  }));
 
   if (isLoading) {
     return (
@@ -370,7 +363,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
       </AnimatePresence>
 
       {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 border border-slate-800 p-8 md:p-12">
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 border border-slate-800 p-5 md:p-12">
         <div className="absolute top-0 right-0 p-8 opacity-10">
           <Trophy size={120} className="text-brand-primary" />
         </div>
@@ -448,15 +441,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
         </div>
 
         {/* Global Summary Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-8 md:mt-10">
           {[
             { label: 'Shop Upsells', value: advTotals.grand, icon: Zap, color: 'text-brand-primary' },
-            ...competitionAdvisors.map((a) => ({
-              label: `${a.label} Total`,
-              value: advTotals.totals[a.id] ?? 0,
-              icon: Users,
-              color: 'text-slate-200',
-            })),
+            { label: 'Frank Total', value: advTotals.frank, icon: Users, color: 'text-slate-200' },
+            { label: 'Lemmy Total', value: advTotals.lemmy, icon: Users, color: 'text-slate-200' },
             { label: 'Pot of Gold', value: `$${advEarnings.grand.toLocaleString()}`, icon: DollarSign, color: 'text-emerald-400', highlight: true },
           ].map((stat, i) => (
             <div key={i} className={cn(
@@ -584,9 +573,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
                     <tr className="border-b border-slate-800 bg-slate-900/50">
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-24">Code</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</th>
-{competitionAdvisors.map((a) => (
-                      <th key={a.id} className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">{a.label}</th>
-                    ))}
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Frank</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Lemmy</th>
                       <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Total</th>
                     </tr>
                   </thead>
@@ -599,26 +587,40 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
                         <td className="px-6 py-4">
                           <p className="text-xs font-bold text-slate-300">{row.desc}</p>
                         </td>
-                        {competitionAdvisors.map((a) => (
-                          <td key={a.id} className="px-6 py-2 text-center">
-                            <input
-                              type="number"
-                              value={Number(row[a.id]) || 0}
-                              disabled={selectedMonth !== 'active'}
-                              onChange={(e) => {
-                                const val = Number(e.target.value) || 0;
-                                const newData = advData.map((d, index) =>
-                                  index === i ? { ...d, [a.id]: val } : d
-                                );
-                                setAdvData(newData);
-                                saveToFirestore({ advData: newData });
-                              }}
-                              className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
-                            />
-                          </td>
-                        ))}
+                        <td className="px-6 py-2 text-center">
+                          <input 
+                            type="number"
+                            value={row.frank}
+                            disabled={selectedMonth !== 'active'}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
+                              const newData = advData.map((d, index) => 
+                                index === i ? { ...d, frank: val } : d
+                              );
+                              setAdvData(newData);
+                              saveToFirestore({ advData: newData });
+                            }}
+                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
+                          />
+                        </td>
+                        <td className="px-6 py-2 text-center">
+                          <input 
+                            type="number"
+                            value={row.lemmy}
+                            disabled={selectedMonth !== 'active'}
+                            onChange={(e) => {
+                              const val = Number(e.target.value) || 0;
+                              const newData = advData.map((d, index) => 
+                                index === i ? { ...d, lemmy: val } : d
+                              );
+                              setAdvData(newData);
+                              saveToFirestore({ advData: newData });
+                            }}
+                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
+                          />
+                        </td>
                         <td className="px-6 py-4 text-center">
-                          <span className="text-sm font-black text-brand-secondary">{advisorCount(row, advisorIds)}</span>
+                          <span className="text-sm font-black text-brand-secondary">{row.frank + row.lemmy}</span>
                         </td>
                       </tr>
                     ))}
@@ -626,9 +628,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
                   <tfoot>
                     <tr className="bg-slate-900 border-t-2 border-slate-700">
                       <td colSpan={2} className="px-6 py-6 text-[10px] font-black text-white uppercase tracking-widest italic">Advisor Grand Totals</td>
-{competitionAdvisors.map((a) => (
-                      <td key={a.id} className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.totals[a.id] ?? 0}</td>
-                    ))}
+                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.frank}</td>
+                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.lemmy}</td>
                       <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{advTotals.grand}</td>
                     </tr>
                   </tfoot>
@@ -638,10 +639,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
               {/* Advisor Earnings Card */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  {[
-                   ...competitionAdvisors.map((a) => ({
-                     name: a.label,
-                     val: advEarnings.earnings[a.id] ?? 0,
-                   })),
+                   { name: 'Frank', val: advEarnings.frank },
+                   { name: 'Lemmy', val: advEarnings.lemmy },
                    { name: 'Total Payout', val: advEarnings.grand, primary: true }
                  ].map((earn, idx) => (
                    <div key={idx} className={cn(
@@ -660,24 +659,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
 
           {activeSubTab === 'technicians' && (
             <div className="space-y-6">
-              <div className="overflow-x-auto rounded-3xl border border-slate-800 bg-slate-900/30">
-                <table className="w-full text-left border-collapse">
+              <div className="-mx-1 sm:mx-0 max-w-[100vw] sm:max-w-none overflow-x-auto no-scrollbar rounded-3xl border border-slate-800 bg-slate-900/30">
+                <table className="w-full min-w-[560px] text-left border-collapse">
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-900/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Service Code</th>
+                      <th className="sticky left-0 z-10 bg-slate-900/95 px-3 md:px-6 py-3 md:py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest min-w-[100px]">Service Code</th>
                       {TECHNICIANS.map(t => (
-                        <th key={t} className="px-4 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">{t}</th>
+                        <th key={t} className="px-2 md:px-4 py-3 md:py-4 text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest text-center min-w-[52px] max-w-[64px] truncate">{t}</th>
                       ))}
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Total</th>
+                      <th className="px-3 md:px-6 py-3 md:py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center min-w-[56px]">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {techData.map((row, rIdx) => (
                       <tr key={row.code} className="hover:bg-slate-800/20 transition-colors">
-                        <td className="px-6 py-4">
+                        <td className="sticky left-0 z-[1] bg-slate-900/95 px-3 md:px-6 py-3 md:py-4 min-w-[100px]">
                           <div className="flex flex-col">
-                            <span className="text-xs font-black text-white">{row.code}</span>
-                            <span className="text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{row.desc}</span>
+                            <span className="text-[10px] md:text-xs font-black text-white">{row.code}</span>
+                            <span className="text-[8px] md:text-[9px] font-bold text-slate-500 uppercase leading-snug">{row.desc}</span>
                           </div>
                         </td>
                          {TECHNICIANS.map(t => (
@@ -746,7 +745,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {POT_OF_GOLD_OP_CODES.map(d => (
+                  {INITIAL_PERFORMANCE_DATA.map(d => (
                     <div key={d.code} className="flex items-center justify-between p-4 bg-slate-950/50 border border-slate-800 rounded-2xl hover:border-slate-700 transition-colors">
                        <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-700">
@@ -849,14 +848,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({
                           itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
                         />
                         <Legend />
-                        {competitionAdvisors.map((a, idx) => (
-                          <Bar
-                            key={a.id}
-                            dataKey={a.label}
-                            fill={CHART_COLORS[idx % CHART_COLORS.length]}
-                            radius={[4, 4, 0, 0]}
-                          />
-                        ))}
+                        <Bar dataKey="Frank" fill="#2e86c1" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Lemmy" fill="#e74c3c" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="Jaryn" fill="#82ccdd" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

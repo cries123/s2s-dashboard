@@ -578,16 +578,8 @@ function DashboardShell({ user }: { user: User }) {
 
           </nav>
 
-          {/* Mobile: current page label (nav via bottom bar) */}
-          <div className="flex-1 md:hidden flex justify-center items-center min-w-0 px-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate text-center">
-              {activeTab === 'manager'
-                ? `Manager · ${managerSubTab === 'operations' ? 'Operations' : managerSubTab === 'preferences' ? 'Preferences' : 'Team'}`
-                : activeTab === 'admin'
-                ? `Admin · ${adminSubTab === 'master-users' ? 'Master Users' : adminSubTab === 'ai-usage' ? 'AI Usage' : adminSubTab === 'import-history' ? 'Imports' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
-                : availableTabs.find(t => t.id === activeTab)?.label ?? 'S2S'}
-            </p>
-          </div>
+          {/* Mobile header: page title hidden — bottom nav shows section */}
+          <div className="flex-1 md:hidden min-w-0" aria-hidden="true" />
 
           {/* Profile Section */}
           <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10 relative">

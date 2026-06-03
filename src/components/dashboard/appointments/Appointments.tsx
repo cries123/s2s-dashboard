@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField, deleteDoc 
+  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
@@ -15,22 +15,11 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
-import { withDmsProvider } from '../../../lib/reportIngestion';
-import type { DmsProviderId } from '../../../constants/dmsProviders';
-import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  appointmentTrackerDocId,
-  dedupeDailyStatsByDate,
-  extractReportDateFromAppointmentPdf,
-  findDuplicateTrackerDocs,
-  toLocalDateString,
-} from '../../../lib/appointmentTracker';
 
 interface AppointmentsProps {
   currentUser: User;
   currentDealershipId: string;
-  modulePrefs?: import('../../../types').DashboardModulePreferences;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -57,7 +46,12 @@ interface FirestoreErrorInfo {
 }
 
 export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
-  const [selectedDate, setSelectedDate] = useState(() => toLocalDateString(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const localDate = new Date(now.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+  });
   const [dailyCount, setDailyCount] = useState<string>('');
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,14 +64,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [mtdPartsGross, setMtdPartsGross] = useState(0);
   const [mtdLaborSales, setMtdLaborSales] = useState(0);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
-  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
-  const [pdfParsePreview, setPdfParsePreview] = useState<{
-    fileName: string;
-    reportDate: string;
-    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number };
-    total: number;
-    parseMethod?: string;
-  } | null>(null);
   const [showBreakdown, setShowBreakdown] = useState<DailyStat | null>(null);
   const [showManualBreakdownEntry, setShowManualBreakdownEntry] = useState(false);
   const [manualBreakdown, setManualBreakdown] = useState({
@@ -95,7 +81,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [activePerformanceData, setActivePerformanceData] = useState<any>(null);
   const [activeTechData, setActiveTechData] = useState<any>(null);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
-  const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
 
   const handleArchiveAndReset = async (payload: {
     targetYearMonth: string;
@@ -252,7 +237,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
-        setDmsProvider(normalizeDmsProvider(data.dmsProvider as string));
       }
     });
 
@@ -350,10 +334,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         return s.dealershipId === currentDealershipId;
       });
 
-      rawTrackerStatsRef.current = stats;
-      stats = dedupeDailyStatsByDate(stats, currentDealershipId || 'hyundai');
       setAllStats(stats);
-
+      
       const currentStat = stats.find(s => s.date === selectedDate);
       setDailyCount(currentStat ? currentStat.count.toString() : '');
       setLoading(false);
@@ -379,46 +361,21 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     setShowManualBreakdownEntry(true);
   };
 
-  const saveAppointmentDay = async (
-    date: string,
-    totalCount: number,
-    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
-    source: 'pdf' | 'manual'
-  ) => {
-    const dealershipId = currentDealershipId || 'hyundai';
-    const docId = appointmentTrackerDocId(dealershipId, date);
-    const basePath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker'] as const;
-
-    const duplicates = findDuplicateTrackerDocs(rawTrackerStatsRef.current, dealershipId, date);
-    await Promise.all(
-      duplicates.map((row) => deleteDoc(doc(db, ...basePath, row.id)))
-    );
-
-    await setDoc(doc(db, ...basePath, docId), {
-      date,
-      count: totalCount,
-      dealershipId,
-      breakdown,
-      source,
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUser!.uid,
-    });
-
-    if (date !== selectedDate) {
-      setSelectedDate(date);
-    }
-    setDailyCount(totalCount.toString());
-    setManualBreakdown(breakdown);
-  };
-
   const confirmManualSave = async () => {
     const totalCount = Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0) as number;
     
     setSaving(true);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${appointmentTrackerDocId(currentDealershipId || 'hyundai', selectedDate)}`;
+    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${selectedDate}`;
     try {
-      await saveAppointmentDay(selectedDate, totalCount, manualBreakdown, 'manual');
-
+      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
+        date: selectedDate,
+        count: totalCount,
+        dealershipId: currentDealershipId || 'hyundai',
+        breakdown: manualBreakdown,
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.uid
+      }, { merge: true });
+      
       await logSystemAction(
         "Appointments Updated",
         `Updated scheduled appointment count to ${totalCount} for date ${selectedDate} with customized service breakdown`,
@@ -428,6 +385,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         currentUser.dealershipId
       );
       
+      setDailyCount(totalCount.toString());
       setShowManualBreakdownEntry(false);
       onSuccess?.(`Recorded ${totalCount} appointments with breakdown for ${selectedDate}.`);
     } catch (err) {
@@ -450,99 +408,76 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     });
   };
 
-  const applyPdfBreakdown = async (
-    targetDate: string,
-    breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
-    totalCount: number,
-    fileLabel: string
-  ) => {
-    await saveAppointmentDay(targetDate, totalCount, breakdown, 'pdf');
-    onSuccess?.(
-      `Updated ${targetDate} with ${totalCount} appointments from ${fileLabel} (replaced previous count): ` +
-        `${breakdown.oilChange} oil, ${breakdown.diagnosis} diag, ${breakdown.recall} recall, ${breakdown.misc} misc.`
-    );
-  };
-
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentUser) return;
+    if (!file) return;
 
     setIsUploadingPdf(true);
-
+    
     try {
-      const [reportText, pdfBase64] = await Promise.all([
-        extractTextFromPDF(file),
-        fileToBase64(file),
-      ]);
-
+      const reportText = await extractTextFromPDF(file);
+      
       const response = await fetch('/api/parse-appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(withDmsProvider({ dmsProvider }, { reportText, pdfBase64 })),
+        body: JSON.stringify({ reportText })
       });
 
       if (!response.ok) {
         let errorMessage = 'Failed to analyze report';
         const contentType = response.headers.get('content-type');
+        
         if (contentType && contentType.includes('application/json')) {
           try {
             const errorData = await response.json();
             errorMessage = errorData.error || errorMessage;
-          } catch {
+          } catch (e) {
             errorMessage = `Server Error (${response.status}): Malformed error response.`;
           }
         } else {
-          const errText = await response.text();
-          console.error('Server returned non-JSON error:', errText.substring(0, 200));
+          const text = await response.text();
+          console.error('Server returned non-JSON error:', text.substring(0, 200));
           errorMessage = `Server Error (${response.status}): ${response.statusText}.`;
         }
         throw new Error(errorMessage);
       }
 
-      const rawData = await response.json();
+      let rawData;
+      try {
+        rawData = await response.json();
+      } catch (e) {
+        console.error('Failed to parse successful response as JSON:', e);
+        throw new Error('Server returned an invalid data format. Please try again.');
+      }
+      
       const breakdown = {
         diagnosis: rawData.diagnosis || 0,
         oilChange: rawData.oilChange || 0,
         recall: rawData.recall || 0,
-        misc: rawData.misc || 0,
+        misc: rawData.misc || 0
       };
+
+      // Ensure total count matches the sum of breakdown to avoid confusion
       const sumBreakdown = Object.values(breakdown).reduce((a, b) => a + b, 0);
       const totalCount = sumBreakdown > 0 ? sumBreakdown : (rawData.total || 0);
-      if (totalCount === 0) {
-        throw new Error(`No appointments found in this PDF. Use a ${dmsProvider === 'dealerbuilt' ? 'DealerBuilt' : 'PBS'} appointment report for the selected day.`);
-      }
 
-      const reportDate =
-        rawData.reportDate ||
-        extractReportDateFromAppointmentPdf(reportText) ||
-        selectedDate;
-
-      setPdfParsePreview({
-        fileName: file.name,
-        reportDate,
+      await setDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker', selectedDate), {
+        date: selectedDate,
+        count: totalCount,
+        dealershipId: currentDealershipId || 'hyundai',
         breakdown,
-        total: totalCount,
-        parseMethod: rawData.parseMethod || (rawData.isAiParsed ? 'ai' : 'deterministic'),
-      });
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser.uid
+      }, { merge: true });
+      
+      setDailyCount(totalCount.toString());
+      onSuccess?.(`AI Parsing Success: Identified ${totalCount} appointments.`);
     } catch (err: any) {
-      console.error('PDF Parse Error:', err);
-      onError?.(err.message || 'Failed to analyze PDF report.');
+      console.error("PDF Parse Error:", err);
+      onError?.(err.message || "Failed to analyze PDF report.");
     } finally {
       setIsUploadingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
-    }
-  };
-
-  const confirmPdfParsePreview = async () => {
-    if (!pdfParsePreview || !currentUser) return;
-    setIsUploadingPdf(true);
-    try {
-      await applyPdfBreakdown(pdfParsePreview.reportDate, pdfParsePreview.breakdown, pdfParsePreview.total, pdfParsePreview.fileName);
-      setPdfParsePreview(null);
-    } catch (err: any) {
-      onError?.(err.message || 'Failed to save parsed appointments.');
-    } finally {
-      setIsUploadingPdf(false);
     }
   };
 
@@ -702,7 +637,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
-      const dateStr = toLocalDateString(d);
+      const dateStr = d.toISOString().split('T')[0];
       const stat = allStats.find(s => s.date === dateStr);
       return {
         date: dateStr,
@@ -727,13 +662,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const handlePrevDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    setSelectedDate(toLocalDateString(d));
+    setSelectedDate(d.toISOString().split('T')[0]);
   };
 
   const handleNextDay = () => {
     const d = new Date(selectedDate + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    setSelectedDate(toLocalDateString(d));
+    setSelectedDate(d.toISOString().split('T')[0]);
   };
 
   return (
@@ -983,15 +918,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               <button 
                 onClick={() => pdfInputRef.current?.click()}
                 disabled={isUploadingPdf}
-                className="w-full min-h-12 flex flex-col items-center justify-center gap-1 py-3 px-4 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 shadow-inner"
+                className="w-full h-12 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 text-emerald-400 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 shadow-inner"
               >
-                <span className="flex items-center gap-2">
-                  {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
-                  Import Appointment Details PDF
-                </span>
-                <span className="text-[8px] font-bold text-emerald-500/70 normal-case tracking-normal text-center leading-snug">
-                  Oil = full synthetic or complimentary · Diagnosis = customer states · Recall = campaign
-                </span>
+                {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
+                Extract Daily Schedule PDF
               </button>
             </div>
           </div>
@@ -1180,7 +1110,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                   </button>
                 ) : (
                   <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
-                    *Oil = full synthetic / complimentary · Diagnosis = customer states · Recall = campaign/bulletin
+                    *Categorization based on PDF text analysis logic
                   </p>
                 )}
               </div>
@@ -1217,33 +1147,34 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       </div>
 
       {/* Unified Executive Print & Audit Banner */}
-      <div className="bg-[#0b101f] border border-white/5 p-6 rounded-3xl flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 shadow-xl mb-4 relative overflow-hidden group no-print">
+      <div className="bg-[#0b101f] border border-white/5 p-4 md:p-6 rounded-3xl flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 md:gap-5 shadow-xl mb-4 relative overflow-hidden group no-print">
         <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/[0.01] rounded-full blur-[50px] pointer-events-none" />
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4 w-full lg:flex-1 min-w-0">
           <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 shrink-0">
             <PieChart size={20} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0 text-center sm:text-left">
+            <div className="flex flex-col items-center sm:flex-row sm:items-center sm:justify-start gap-2">
               <h4 className="text-xs font-black text-white uppercase tracking-wider">Supervisory Ops Metrics & Audit</h4>
               {selectedMonth !== 'active' ? (
                 allowArchiveEditing ? (
-                  <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 animate-pulse">
+                  <span className="inline-flex items-center justify-center px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest rounded-full gap-1 animate-pulse">
                     <span>🔓 Archive Edit Unlocked</span>
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
+                  <span className="inline-flex items-center justify-center px-2.5 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[8px] font-black uppercase tracking-widest rounded-full gap-1">
                     <span>🔒 Saved Archive</span>
                   </span>
                 )
               ) : (
-                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
-                  <span>● Live Tracking</span>
+                <span className="inline-flex items-center justify-center px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest rounded-full gap-1.5">
+                  <span className="leading-none">●</span>
+                  <span className="leading-none">Live Tracking</span>
                 </span>
               )}
             </div>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wide">
+            <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wide leading-relaxed">
               {selectedMonth === 'active' 
                 ? "Active performance workspace for the current month. Save last month's figures first before restarting."
                 : allowArchiveEditing
@@ -1255,9 +1186,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         </div>
 
         {/* Dynamic Controls Grid */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-col gap-3 w-full lg:w-auto shrink-0">
           {/* Month Period Dropdown */}
-          <div className="flex flex-col gap-1 flex-1 sm:flex-initial">
+          <div className="flex flex-col gap-1 w-full">
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">View Period</span>
             <select
               value={selectedMonth}
@@ -1265,7 +1196,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 setSelectedMonth(e.target.value);
                 setAllowArchiveEditing(false); // automatically reset to locked on toggle
               }}
-              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all min-w-[150px]"
+              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all w-full lg:min-w-[150px]"
             >
               <option value="active">June 2026 (Active)</option>
               <option value="2026-05">May 2026 (Saved)</option>
@@ -1273,13 +1204,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             </select>
           </div>
 
-          <div className="flex items-end gap-3 flex-1 sm:flex-initial mt-4 sm:mt-0 pt-1 lg:pt-0">
+          <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full">
             {/* Lock / Unlock Archive Editing */}
             {selectedMonth !== 'active' && (
               <button
                 onClick={() => setAllowArchiveEditing(!allowArchiveEditing)}
                 className={cn(
-                  "h-11 px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
+                  "min-h-[44px] h-11 px-4 md:px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 rounded-xl touch-manipulation",
                   allowArchiveEditing 
                     ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
                     : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
@@ -1295,17 +1226,18 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             {selectedMonth === 'active' && (
               <button
                 onClick={() => setShowArchiveModal(true)}
-                className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+                className="min-h-[44px] h-auto md:h-11 px-4 md:px-6 py-3 md:py-0 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 touch-manipulation leading-snug text-center"
                 title="Configure custom destination archive period and restart workspace"
               >
-                <Archive size={13} />
-                Archive & Restart Monthly
+                <Archive size={13} className="shrink-0" />
+                <span className="md:hidden">Archive &amp; Restart</span>
+                <span className="hidden md:inline">Archive &amp; Restart Monthly</span>
               </button>
             )}
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              className="min-h-[44px] h-11 px-4 md:px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 touch-manipulation"
             >
               <Printer size={13} />
               Print Report
@@ -1370,56 +1302,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         selectedMonth={selectedMonth}
         allowArchiveEditing={allowArchiveEditing}
       />
-
-
-      {/* PDF parse preview */}
-      <AnimatePresence>
-        {pdfParsePreview && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
-              onClick={() => setPdfParsePreview(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
-            >
-              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Confirm PDF Import</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 truncate">{pdfParsePreview.fileName}</p>
-              <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest mb-6">
-                Updates {new Date(pdfParsePreview.reportDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — replaces existing count
-              </p>
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                {[
-                  { key: 'oilChange', label: 'Oil Changes', val: pdfParsePreview.breakdown.oilChange },
-                  { key: 'diagnosis', label: 'Diagnosis', val: pdfParsePreview.breakdown.diagnosis },
-                  { key: 'recall', label: 'Recalls', val: pdfParsePreview.breakdown.recall },
-                  { key: 'misc', label: 'Misc', val: pdfParsePreview.breakdown.misc },
-                ].map((row) => (
-                  <div key={row.key} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
-                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{row.label}</p>
-                    <p className="text-2xl font-black text-white">{row.val}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="text-center text-3xl font-black text-brand-primary mb-2">{pdfParsePreview.total}</p>
-              <p className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest mb-6">Total Appointments</p>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setPdfParsePreview(null)} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-[10px] font-black uppercase tracking-widest">Cancel</button>
-                <button type="button" onClick={confirmPdfParsePreview} disabled={isUploadingPdf} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2">
-                  {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                  Apply Counts
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Executive Print / PDF Modal */}
       <PerformancePrintModal 
