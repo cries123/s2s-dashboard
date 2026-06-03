@@ -72,6 +72,29 @@ function countWorkingDaysInMonth(year: number, month: number, throughDayInclusiv
   return { totalWorkingDays, elapsedWorkingDays, remainingWorkingDays };
 }
 
+function isWorkingDay(year: number, month: number, day: number): boolean {
+  const dayOfWeek = new Date(year, month, day).getDay();
+  return dayOfWeek >= 1 && dayOfWeek <= 5;
+}
+
+/** Working days elapsed for sales pace — excludes in-progress today when nothing logged yet. */
+function salesPaceWorkingDays(
+  year: number,
+  month: number,
+  todayDayNum: number,
+  todayCount: number
+): number {
+  const { elapsedWorkingDays } = countWorkingDaysInMonth(year, month, todayDayNum);
+  if (
+    todayCount === 0 &&
+    isWorkingDay(year, month, todayDayNum) &&
+    elapsedWorkingDays > 1
+  ) {
+    return elapsedWorkingDays - 1;
+  }
+  return Math.max(1, elapsedWorkingDays);
+}
+
 /** Month-to-date appointment forecast using Mon–Fri working-day pace. */
 export function calculateAppointmentForecast(input: AppointmentForecastInput): AppointmentForecastMetrics {
   const today = input.referenceDate ?? new Date();
@@ -87,6 +110,7 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
 
   const monthStatsToDate = monthStats.filter((s) => s.date <= todayStr);
   const mtdActual = monthStatsToDate.reduce((acc, s) => acc + (s.count || 0), 0);
+  const todayCount = monthStatsToDate.find((s) => s.date === todayStr)?.count ?? 0;
 
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
@@ -105,8 +129,10 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
     todayDayNum
   );
 
-  const activeElapsedWorkingDays = Math.max(1, elapsedWorkingDays);
-  const avgDaily = mtdActual / activeElapsedWorkingDays;
+  // Appointment pace = average on days with logged volume (matches weekly grid intuition).
+  const daysWithLoggedVolume = monthStatsToDate.filter((s) => (s.count || 0) > 0).length;
+  const apptPaceDays = Math.max(1, daysWithLoggedVolume);
+  const avgDaily = mtdActual / apptPaceDays;
   const forecast = Math.round(mtdActual + avgDaily * remainingWorkingDays);
 
   const dailyTarget = input.dailyTarget;
@@ -117,14 +143,15 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
   const currentShortfall = Math.max(0, monthTarget - mtdActual);
   const projectedShortfall = monthTarget - forecast;
 
-  const laborDailyAvg = input.mtdGross / activeElapsedWorkingDays;
-  const laborSalesDailyAvg = input.mtdLaborSales / activeElapsedWorkingDays;
+  const salesPaceDays = salesPaceWorkingDays(currentYear, currentMonth, todayDayNum, todayCount);
+  const laborDailyAvg = input.mtdGross / salesPaceDays;
+  const laborSalesDailyAvg = input.mtdLaborSales / salesPaceDays;
   const grossPaceTarget = Math.round((input.laborTarget / totalWorkingDays) * elapsedWorkingDays);
   const grossForecast = Math.round(input.mtdGross + laborDailyAvg * remainingWorkingDays);
   const laborSalesForecast = Math.round(input.mtdLaborSales + laborSalesDailyAvg * remainingWorkingDays);
   const grossVariance = input.mtdGross - grossPaceTarget;
 
-  const partsDailyAvg = input.mtdPartsGross / activeElapsedWorkingDays;
+  const partsDailyAvg = input.mtdPartsGross / salesPaceDays;
   const partsPaceTarget = Math.round((input.partsTarget / totalWorkingDays) * elapsedWorkingDays);
   const partsForecast = Math.round(input.mtdPartsGross + partsDailyAvg * remainingWorkingDays);
   const partsVariance = input.mtdPartsGross - partsPaceTarget;
