@@ -21,6 +21,7 @@ import {
   dedupeDailyStatsByDate,
   extractReportDateFromAppointmentPdf,
   findDuplicateTrackerDocs,
+  listDuplicateTrackerDocIds,
   toLocalDateString,
 } from '../../../lib/appointmentTracker';
 import { calculateAppointmentForecast, forecastGoalPercent } from '../../../lib/appointmentForecast';
@@ -345,8 +346,19 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         return s.dealershipId === currentDealershipId;
       });
 
+      const dealershipId = currentDealershipId || 'hyundai';
       rawTrackerStatsRef.current = stats;
-      stats = dedupeDailyStatsByDate(stats, currentDealershipId || 'hyundai');
+
+      // Remove legacy duplicate docs so MTD matches the weekly grid (e.g. 39 not 87).
+      const duplicateIds = listDuplicateTrackerDocIds(stats, dealershipId);
+      if (duplicateIds.length > 0) {
+        const basePath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker'] as const;
+        void Promise.all(duplicateIds.map((id) => deleteDoc(doc(db, ...basePath, id)))).catch(
+          (err) => console.warn('[Appointments] Duplicate tracker cleanup failed:', err)
+        );
+      }
+
+      stats = dedupeDailyStatsByDate(stats, dealershipId);
       setAllStats(stats);
 
       const currentStat = stats.find(s => s.date === selectedDate);

@@ -130,8 +130,26 @@ export function findDuplicateTrackerDocs(
   dealershipId: string,
   date: string
 ): DailyStat[] {
-  const canonicalId = canonicalTrackerDocId(dealershipId, date);
-  return stats.filter((s) => s.date === date && s.id !== canonicalId);
+  const forDate = stats.filter((s) => s.date === date);
+  if (forDate.length <= 1) return [];
+  const kept = dedupeDailyStatsByDate(forDate, dealershipId)[0];
+  if (!kept) return [];
+  return forDate.filter((s) => s.id !== kept.id);
+}
+
+/** All Firestore doc ids that duplicate a canonical day row (safe to delete). */
+export function listDuplicateTrackerDocIds(
+  stats: DailyStat[],
+  dealershipId: string
+): string[] {
+  const ids = new Set<string>();
+  const dates = new Set(stats.map((s) => s.date).filter(Boolean));
+  for (const date of dates) {
+    for (const dup of findDuplicateTrackerDocs(stats, dealershipId, date)) {
+      ids.add(dup.id);
+    }
+  }
+  return [...ids];
 }
 
 export function trackerDocRef(db: Firestore, dealershipId: string, date: string) {
