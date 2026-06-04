@@ -13,6 +13,7 @@ import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } 
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
 import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
 import { registerParseSalesNoteRoute } from "./server/handlers/parseSalesNote.js";
+import { registerAiConfigRoute } from "./server/handlers/aiConfig.js";
 import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
 import {
   rejectIfOpenAiUnavailable,
@@ -113,8 +114,10 @@ export async function createApiApp() {
   });
 
   // API Routes
+  registerAiConfigRoute(app);
+
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", env: process.env.NODE_ENV, hasKey: false });
+    res.json({ status: "ok", env: process.env.NODE_ENV });
   });
 
   // NHTSA Proxies to avoid CORS/403 issues
