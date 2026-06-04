@@ -10,24 +10,24 @@ View your app in AI Studio: https://ai.studio/apps/4e6bb5c0-3499-41a1-983e-16467
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js
 
+1. Install dependencies: `npm install`
+2. Copy env template and add secrets locally (never commit):
+   ```bash
+   cp .env.example .env.local
+   ```
+   Set `OPENAI_API_KEY` in **`.env.local`** only.
+3. Run the app: `npm run dev`
 
-1. Install dependencies:
-   `npm install`
-2. Copy [.env.example](.env.example) to `.env.local` and set:
-   - `OPENAI_API_KEY` — PDF parsing (productivity, appointments, DMS reports)
-   - `GEMINI_API_KEY` — optional Gemini fallbacks
-3. Run the app:
-   `npm run dev`
+## Production (Netlify)
 
-## Deploy (Netlify)
+1. Open your site → **Site configuration** → **Environment variables**
+2. Add `OPENAI_API_KEY` with scope **Functions** (and redeploy)
+3. Do **not** add OpenAI keys as `VITE_*` variables — they must stay server-side
 
-The API runs as a Netlify Function (`/.netlify/functions/api`). **Environment variables in `.env.local` are not used in production.**
+## API key security
 
-1. Netlify → **Site configuration** → **Environment variables**
-2. Add `OPENAI_API_KEY` with your full OpenAI key (no asterisks; copy it when created)
-3. Scope: **Functions** (or All scopes)
-4. **Deploy** → trigger a new deploy so functions pick up the new value
-
-If localhost works but the live site shows an invalid API key error, Netlify still has an old or wrong `OPENAI_API_KEY` — update it there, not in the repo.
+- `.env`, `.env.local`, and real keys are **gitignored** and must never be pushed to GitHub
+- OpenAI calls run through `/api/*` server routes, not the browser
+- If a key was ever exposed, revoke it at [OpenAI API keys](https://platform.openai.com/api-keys) and create a new one
