@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 
 export const OPENAI_REQUIRED_MESSAGE =
-  'OpenAI is required to parse DMS reports. Locally: add OPENAI_API_KEY to .env (or .env.local) and run npm run dev. Production (Netlify): Site settings → Environment variables → set OPENAI_API_KEY (Functions scope), then redeploy.';
+  'AI parsing is not configured on the server. In Netlify: Site configuration → Environment variables → add OPENAI_API_KEY (Functions scope), redeploy, and retry. Keys are never stored in the app or browser — only on the hosting server.';
 
 export function hasUsableOpenAIKey(): boolean {
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -55,7 +55,7 @@ export function openAiFailureMessage(err: unknown): string {
     lower.includes('invalid_api_key') ||
     lower.includes('authentication')
   ) {
-    return 'The server OpenAI API key was rejected. Update OPENAI_API_KEY in Netlify environment variables (Site settings → Environment variables, Functions scope) or in .env locally, redeploy, and try again.';
+    return 'The server OpenAI API key was rejected. Update OPENAI_API_KEY in Netlify → Environment variables (Functions scope), redeploy, and try again.';
   }
   return raw
     .replace(/sk-proj-[a-zA-Z0-9_*-]+/gi, 'sk-proj-***')
