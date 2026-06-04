@@ -84,8 +84,9 @@ function getPanelSectionMeta(
     case 'operations':
       return {
         eyebrow: scope,
-        title: 'Dealership Operations Settings',
-        description: 'Configure dealership daily throughput, gross parts & labor dollar targets.',
+        title: 'Dealership Operations & CRM Import',
+        description:
+          'Bulk-import customer CSVs into Firestore and configure daily throughput, labor, and parts targets.',
       };
     case 'preferences':
       return {

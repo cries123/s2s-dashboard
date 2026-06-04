@@ -12,7 +12,7 @@ export type AppTab =
   | 'recalls'
   | 'sales-performance';
 
-export type AdminSubTab = 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
+export type AdminSubTab = 'operations' | 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -36,8 +36,9 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
   '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
   '/manager/logs': { activeTab: 'manager', managerSubTab: 'logs' },
-  // Legacy admin operation settings URL → manager operations
-  '/admin/operation-settings': { activeTab: 'manager', managerSubTab: 'operations' },
+  '/admin/operations': { activeTab: 'admin', adminSubTab: 'operations' },
+  // Legacy admin operation settings URL → CRM import & ops targets
+  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'operations' },
   '/admin/user-settings': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/users': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/master-users': { activeTab: 'admin', adminSubTab: 'master-users' },
@@ -76,6 +77,8 @@ export function buildAppPath(state: AppRouteState): string {
 
   if (state.activeTab === 'admin') {
     switch (state.adminSubTab) {
+      case 'operations':
+        return '/admin/operations';
       case 'master-users':
         return '/admin/master-users';
       case 'ai-usage':

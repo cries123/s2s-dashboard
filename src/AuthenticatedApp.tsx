@@ -617,6 +617,17 @@ function DashboardShell({ user }: { user: User }) {
                         exit={{ opacity: 0, y: 6, scale: 0.95 }}
                         className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[60] py-1.5 p-1"
                       >
+                        <NavLink
+                          href="/admin/operations"
+                          onClick={() => {
+                            setActiveTab('admin');
+                            setAdminSubTab('operations');
+                            setIsAdminMenuOpen(false);
+                          }}
+                          isActive={activeTab === 'admin' && adminSubTab === 'operations'}
+                        >
+                          CRM Import & Targets
+                        </NavLink>
                         <NavLink href="/admin/users" onClick={() => { setActiveTab('admin'); setAdminSubTab('users'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'users'}>
                           User Settings
                         </NavLink>

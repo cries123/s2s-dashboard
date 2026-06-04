@@ -48,7 +48,7 @@ export function ImportHistoryPanel() {
         CRM & archive imports
       </div>
       <p className="text-xs text-slate-500 max-w-2xl">
-        Historical import and archive payloads written to the audit imports collection.
+        Historical import and archive payloads written to the audit imports collection. To run a new bulk CRM import, open Admin → CRM Import & Targets (or /admin/operations).
       </p>
       <div className="card-base border border-white/5 overflow-hidden">
         <div className="overflow-x-auto max-h-[560px]">
