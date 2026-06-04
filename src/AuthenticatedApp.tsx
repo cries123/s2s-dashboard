@@ -29,6 +29,7 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
 import { RecallsPage } from './components/dashboard/customers/RecallsPage';
+import { ServiceBundleMenuPreviewModal } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
@@ -164,6 +165,7 @@ function DashboardShell({ user }: { user: User }) {
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+  const [bundleMenuOpen, setBundleMenuOpen] = useState(false);
   const adminMenuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -488,6 +490,14 @@ function DashboardShell({ user }: { user: User }) {
               >
                 Recalls
               </NavLink>
+              <button
+                type="button"
+                onClick={() => setBundleMenuOpen(true)}
+                className="flex items-center justify-between w-full px-3 py-2 text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all text-slate-300 hover:bg-[#00c7dd]/10 hover:text-[#00c7dd] border border-transparent hover:border-[#00c7dd]/25"
+              >
+                <span>Bundle Menus</span>
+                <span className="text-[8px] font-black bg-[#00c7dd]/20 text-[#00c7dd] px-1.5 py-0.5 rounded-full">Preview</span>
+              </button>
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
@@ -848,6 +858,8 @@ function DashboardShell({ user }: { user: User }) {
           onDelete={handleDeleteCustomer}
         />
       )}
+
+      <ServiceBundleMenuPreviewModal open={bundleMenuOpen} onClose={() => setBundleMenuOpen(false)} />
 
       <MobileBottomNav
         activeTab={activeTab}

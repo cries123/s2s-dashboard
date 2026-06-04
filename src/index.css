@@ -124,3 +124,18 @@
 .modal-content {
   @apply bg-surface-card border border-surface-border rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden animate-zoom-in;
 }
+
+@media print {
+  body * { visibility: hidden; }
+  [role="dialog"], [role="dialog"] * { visibility: visible; }
+  [role="dialog"] {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    transform: none !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}
