@@ -2,7 +2,7 @@ import type { PerformanceParseResult } from '../types';
 import { parseDealerBuiltPerformanceDeterministic } from './dealerbuiltPerformance.js';
 import {
   parseSaleTypeRowAmounts,
-  repairGrossWhenMirrorsSales,
+  repairMisidentifiedGross,
 } from './saleTypeRowAmounts.js';
 
 export function parsePBSPerformanceReport(reportText: string): PerformanceParseResult {
@@ -79,7 +79,7 @@ export function parsePBSPerformanceReport(reportText: string): PerformanceParseR
             const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
             const { sales, gross } = parseSaleTypeRowAmounts(clean);
             laborSoldVal = sales;
-            grossLaborVal = repairGrossWhenMirrorsSales(gross, sales, clean);
+            grossLaborVal = repairMisidentifiedGross(gross, sales, clean, Math.round(soCountVal));
           }
         }
       }
@@ -91,7 +91,7 @@ export function parsePBSPerformanceReport(reportText: string): PerformanceParseR
             const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
             const { sales, gross } = parseSaleTypeRowAmounts(clean);
             partsSoldVal = sales;
-            grossPartsVal = repairGrossWhenMirrorsSales(gross, sales, clean);
+            grossPartsVal = repairMisidentifiedGross(gross, sales, clean, Math.round(soCountVal));
           }
         }
       }

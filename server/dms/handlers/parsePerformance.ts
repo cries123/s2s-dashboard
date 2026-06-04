@@ -43,6 +43,7 @@ import {
   rejectIfOpenAiUnavailable,
 } from '../requireOpenAi.js';
 import { extractOperationsPayTypes } from '../../../src/lib/operationsPayTypes.ts';
+import { looksLikeAvgPerRo, looksLikeGpPercent } from '../parsers/saleTypeRowAmounts.js';
 
 function withPayTypes(payload: Record<string, unknown>, reportText: string) {
   const payTypes = extractOperationsPayTypes(reportText);
@@ -80,19 +81,44 @@ function validatePbsPerformance(
       const pSold = a.partsSold !== undefined ? Number(a.partsSold) : 0;
       let gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
       let gParts = a.grossParts !== undefined ? Number(a.grossParts) : 0;
-      const hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
+      let hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
+      let elrVal = a.elr !== undefined ? Number(a.elr) : 0;
+      const soCount = a.soCount !== undefined ? Math.round(Number(a.soCount)) : 0;
 
       const refAdvisor = ref.advisors?.find(
         (r: any) => r.name?.toLowerCase() === normName.toLowerCase()
       );
-      if (
-        refAdvisor &&
-        lSold > 0 &&
-        (gLab <= 0 || Math.abs(gLab - lSold) < 0.02 || gLab / lSold > 0.995)
-      ) {
-        const refGross = Number(refAdvisor.grossLabor) || 0;
-        if (refGross > 0 && refGross < lSold * 0.995) {
-          gLab = refGross;
+      if (refAdvisor) {
+        if (
+          lSold > 0 &&
+          (gLab <= 0 ||
+            Math.abs(gLab - lSold) < 0.02 ||
+            gLab / lSold > 0.995 ||
+            looksLikeAvgPerRo(gLab, lSold, soCount) ||
+            (gLab > 0 && gLab < lSold * 0.2 && looksLikeGpPercent(gLab)))
+        ) {
+          const refGross = Number(refAdvisor.grossLabor) || 0;
+          if (refGross > 0 && !looksLikeAvgPerRo(refGross, lSold, soCount)) {
+            gLab = refGross;
+          }
+        }
+        if (soCount > 0 && lSold > 0 && !hSold) {
+          hSold = Number(refAdvisor.hrsSold) || hSold;
+        }
+        if (
+          lSold > 0 &&
+          (elrVal <= 0 ||
+            looksLikeAvgPerRo(elrVal, lSold, soCount) ||
+            (hSold <= 0 && elrVal > 0))
+        ) {
+          const refElr = Number(refAdvisor.elr) || 0;
+          if (refElr > 0 && !looksLikeAvgPerRo(refElr, lSold, soCount)) {
+            elrVal = refElr;
+          } else if (hSold > 0) {
+            elrVal = Math.round((lSold / hSold) * 100) / 100;
+          } else {
+            elrVal = 0;
+          }
         }
       }
       if (
@@ -126,8 +152,8 @@ function validatePbsPerformance(
               ? Math.round((gLab / lSold) * 1000) / 10
               : 0,
         elr:
-          a.elr !== undefined
-            ? Number(a.elr)
+          elrVal > 0
+            ? elrVal
             : hSold > 0
               ? Math.round((lSold / hSold) * 100) / 100
               : 0,
@@ -361,7 +387,7 @@ export function registerParsePerformanceRoute(
               content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
 For each service advisor cleanly identify:
 - name: Clean name from the report (never invent names)
-- soCount, hrsSold, laborSold (Sale Type Sales column), grossLabor (Sale Type Gross column — NOT sales, NOT cost), partsSold, grossParts, totalSales, gpPercent, elr
+- soCount, hrsSold, laborSold (Sale Type Sales column), grossLabor (Sale Type Gross column — NOT sales, NOT cost, NOT Lab Sold Avg/SO, NOT GP%), partsSold, grossParts, totalSales, gpPercent, elr (Effective Labor Rate — NOT Avg/SO per RO)
 
 Also overall department totals: totalSales, totalLabor, totalGross, totalParts, totalGrossParts, totalHrs
 
