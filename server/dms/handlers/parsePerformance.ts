@@ -78,8 +78,33 @@ function validatePbsPerformance(
       const normName = cleanName(a.name);
       const lSold = a.laborSold !== undefined ? Number(a.laborSold) : 0;
       const pSold = a.partsSold !== undefined ? Number(a.partsSold) : 0;
-      const gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
+      let gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
+      let gParts = a.grossParts !== undefined ? Number(a.grossParts) : 0;
       const hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
+
+      const refAdvisor = ref.advisors?.find(
+        (r: any) => r.name?.toLowerCase() === normName.toLowerCase()
+      );
+      if (
+        refAdvisor &&
+        lSold > 0 &&
+        (gLab <= 0 || Math.abs(gLab - lSold) < 0.02 || gLab / lSold > 0.995)
+      ) {
+        const refGross = Number(refAdvisor.grossLabor) || 0;
+        if (refGross > 0 && refGross < lSold * 0.995) {
+          gLab = refGross;
+        }
+      }
+      if (
+        refAdvisor &&
+        pSold > 0 &&
+        (gParts <= 0 || Math.abs(gParts - pSold) < 0.02 || gParts / pSold > 0.995)
+      ) {
+        const refPartsGross = Number(refAdvisor.grossParts) || 0;
+        if (refPartsGross > 0 && refPartsGross < pSold * 0.995) {
+          gParts = refPartsGross;
+        }
+      }
 
       return {
         ...a,
@@ -89,7 +114,7 @@ function validatePbsPerformance(
         laborSold: lSold,
         grossLabor: gLab,
         partsSold: pSold,
-        grossParts: a.grossParts !== undefined ? Number(a.grossParts) : 0,
+        grossParts: gParts,
         totalSales:
           a.totalSales !== undefined
             ? Number(a.totalSales)
@@ -111,15 +136,43 @@ function validatePbsPerformance(
     });
 
     if (parsed.totals) {
+      let totalLabor = Number(parsed.totals.totalLabor) || 0;
+      let totalGross = Number(parsed.totals.totalGross) || 0;
+      let totalParts = Number(parsed.totals.totalParts) || 0;
+      let totalGrossParts = Number(parsed.totals.totalGrossParts) || 0;
+
+      if (
+        ref.totals &&
+        totalLabor > 0 &&
+        (totalGross <= 0 ||
+          Math.abs(totalGross - totalLabor) < 0.02 ||
+          totalGross / totalLabor > 0.995)
+      ) {
+        const refGross = Number(ref.totals.totalGross) || 0;
+        if (refGross > 0 && refGross < totalLabor * 0.995) {
+          totalGross = refGross;
+        }
+      }
+      if (
+        ref.totals &&
+        totalParts > 0 &&
+        (totalGrossParts <= 0 ||
+          Math.abs(totalGrossParts - totalParts) < 0.02 ||
+          totalGrossParts / totalParts > 0.995)
+      ) {
+        const refPartsGross = Number(ref.totals.totalGrossParts) || 0;
+        if (refPartsGross > 0 && refPartsGross < totalParts * 0.995) {
+          totalGrossParts = refPartsGross;
+        }
+      }
+
       parsed.totals = {
         totalSales:
-          Number(parsed.totals.totalSales) ||
-          Number(parsed.totals.totalLabor || 0) +
-            Number(parsed.totals.totalParts || 0),
-        totalLabor: Number(parsed.totals.totalLabor) || 0,
-        totalGross: Number(parsed.totals.totalGross) || 0,
-        totalParts: Number(parsed.totals.totalParts) || 0,
-        totalGrossParts: Number(parsed.totals.totalGrossParts) || 0,
+          Number(parsed.totals.totalSales) || totalLabor + totalParts,
+        totalLabor,
+        totalGross,
+        totalParts,
+        totalGrossParts,
         totalHrs: Number(parsed.totals.totalHrs) || 0,
       };
     } else if (ref.totals) {
@@ -308,7 +361,7 @@ export function registerParsePerformanceRoute(
               content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
 For each service advisor cleanly identify:
 - name: Clean name from the report (never invent names)
-- soCount, hrsSold, laborSold, grossLabor, partsSold, grossParts, totalSales, gpPercent, elr
+- soCount, hrsSold, laborSold (Sale Type Sales column), grossLabor (Sale Type Gross column — NOT sales, NOT cost), partsSold, grossParts, totalSales, gpPercent, elr
 
 Also overall department totals: totalSales, totalLabor, totalGross, totalParts, totalGrossParts, totalHrs
 

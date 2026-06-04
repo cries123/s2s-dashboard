@@ -1,5 +1,9 @@
 import type { PerformanceParseResult } from '../types';
 import { parseDealerBuiltPerformanceDeterministic } from './dealerbuiltPerformance.js';
+import {
+  parseSaleTypeRowAmounts,
+  repairGrossWhenMirrorsSales,
+} from './saleTypeRowAmounts.js';
 
 export function parsePBSPerformanceReport(reportText: string): PerformanceParseResult {
   // Setup default totals first
@@ -73,8 +77,9 @@ export function parsePBSPerformanceReport(reportText: string): PerformanceParseR
           const nums = line.match(/[\d,]+(?:\.\d+)?/g);
           if (nums && nums.length >= 3) {
             const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-            laborSoldVal = clean[0];
-            grossLaborVal = clean[2];
+            const { sales, gross } = parseSaleTypeRowAmounts(clean);
+            laborSoldVal = sales;
+            grossLaborVal = repairGrossWhenMirrorsSales(gross, sales, clean);
           }
         }
       }
@@ -84,8 +89,9 @@ export function parsePBSPerformanceReport(reportText: string): PerformanceParseR
           const nums = line.match(/[\d,]+(?:\.\d+)?/g);
           if (nums && nums.length >= 3) {
             const clean = nums.map(n => parseFloat(n.replace(/,/g, '')));
-            partsSoldVal = clean[0];
-            grossPartsVal = clean[2];
+            const { sales, gross } = parseSaleTypeRowAmounts(clean);
+            partsSoldVal = sales;
+            grossPartsVal = repairGrossWhenMirrorsSales(gross, sales, clean);
           }
         }
       }
