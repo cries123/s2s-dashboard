@@ -184,9 +184,15 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     const normalizeName = (rawName: string) => cleanAdvisorName(rawName, effectiveDmsProvider);
 
+    let acceptedIncoming = 0;
+
     if (overwrite) {
       updatedAdvisors = newData.advisors
-        .filter((a) => acceptAdvisor(a.name))
+        .filter((a) => {
+          if (!acceptAdvisor(a.name)) return false;
+          acceptedIncoming += 1;
+          return true;
+        })
         .map((a) => ({ ...a, name: normalizeName(a.name) }));
     } else {
       updatedAdvisors = [...advisors]
@@ -195,6 +201,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
       newData.advisors.forEach((newAdvisor) => {
         if (!acceptAdvisor(newAdvisor.name)) return;
+        acceptedIncoming += 1;
         const normalizedName = normalizeName(newAdvisor.name);
 
         const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === normalizedName.toLowerCase().trim());
@@ -229,8 +236,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const docId = performanceDocId('advisorReports', currentDealershipId, targetMonth);
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
 
-    const skippedCount = Math.max(0, incomingCount - updatedAdvisors.length);
-    if (incomingCount > 0 && updatedAdvisors.length === 0) {
+    const skippedCount = Math.max(0, incomingCount - acceptedIncoming);
+    if (incomingCount > 0 && acceptedIncoming === 0) {
       const parsedNames = (newData.advisors ?? []).map((a) => a.name).join(', ');
       const phantomPbsOnly = (newData.advisors ?? []).every((a) =>
         isPhantomPbsAdvisorName(a.name)
@@ -251,6 +258,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     try {
       await setDoc(docRef, {
+        dealershipId: currentDealershipId,
         advisors: updatedAdvisors,
         ...(newData.totals && { totals: newData.totals }),
         ...(newData.reportStartDate && { reportStartDate: newData.reportStartDate }),
@@ -360,28 +368,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   };
 
 
-  const monthKeyFromIsoDate = (iso?: string | null): string | null => {
-    if (!iso || !/^\d{4}-\d{2}/.test(iso)) return null;
-    return iso.slice(0, 7);
-  };
-
-  /** When editing an archive month, always save to that month. */
-  const resolveImportTargetMonth = (
-    parsed: { reportStartDate?: string; reportEndDate?: string },
-    reportText: string
-  ): string => {
-    if (selectedMonth !== 'active') return selectedMonth;
-    const fromParsed =
-      monthKeyFromIsoDate(parsed.reportStartDate) ||
-      monthKeyFromIsoDate(parsed.reportEndDate);
-    if (fromParsed) return fromParsed;
-    const detected = detectDateRangeFromText(reportText);
-    if (detected?.start) {
-      const key = monthKeyFromIsoDate(detected.start);
-      if (key) return key;
-    }
-    return selectedMonth;
-  };
+  /** Always save to the month selected in the Operations workspace (active or archive). */
+  const resolveImportTargetMonth = (): string => selectedMonth;
 
   const detectDateRangeFromText = (text: string): { start: string; end: string } | null => {
     if (!text) return null;
@@ -552,7 +540,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         };
       }
 
-      const targetMonth = resolveImportTargetMonth(data, reportText);
+      const targetMonth = resolveImportTargetMonth();
 
       if (!data.advisors?.length) {
         throw new Error(
@@ -572,6 +560,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       // Refresh UI immediately (don't wait for Firestore listener)
       setAdvisors(saved.advisors);
       if (saved.totals) setTotals(saved.totals);
+      if (data.reportStartDate) setReportStartDate(data.reportStartDate);
+      if (data.reportEndDate) setReportEndDate(data.reportEndDate);
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
       const archiveLabel =
@@ -585,9 +575,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       if (saved.skippedCount > 0) {
         message += ` (${saved.skippedCount} row(s) skipped — not on roster)`;
       }
-      if (targetMonth !== selectedMonth && selectedMonth === 'active') {
-        message += ' Switch the month selector to view the archive you just updated.';
-      } else if (hasUpsells && hasTotals) {
+      if (hasUpsells && hasTotals) {
         message = `Productivity + upsell data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
       } else if (hasTotals) {
         message = `Productivity data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;

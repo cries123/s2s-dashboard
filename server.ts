@@ -12,6 +12,7 @@ import { parseAppointmentReportDeterministic } from "./server/parsers/appointmen
 import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } from "./server/dms/index.js";
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
 import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
+import { registerParseSalesNoteRoute } from "./server/handlers/parseSalesNote.js";
 import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
 import {
   rejectIfOpenAiUnavailable,
@@ -637,6 +638,8 @@ export async function createApiApp() {
     extractTextFromPDFBuffer,
     getOpenAIClient,
   });
+
+  registerParseSalesNoteRoute(app, { getOpenAIClient });
 
   registerOutreachRoutes(app);
 
