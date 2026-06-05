@@ -29,7 +29,7 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import LoginView from './components/auth/LoginView';
 import { RecallsPage } from './components/dashboard/customers/RecallsPage';
-import { ServiceBundleMenuPreviewModal } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
+import { ServiceBundleMenuBoard } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
@@ -165,7 +165,6 @@ function DashboardShell({ user }: { user: User }) {
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
-  const [bundleMenuOpen, setBundleMenuOpen] = useState(false);
   const adminMenuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -283,7 +282,7 @@ function DashboardShell({ user }: { user: User }) {
   // If current activeTab is hidden, fallback to first available.
   // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
-    if (activeTab === 'admin' || activeTab === 'manager') return;
+    if (activeTab === 'admin' || activeTab === 'manager' || activeTab === 'bundle-menus') return;
     if (!availableTabs.find(t => t.id === activeTab)) {
       setActiveTab('appointments');
     }
@@ -352,6 +351,14 @@ function DashboardShell({ user }: { user: User }) {
   }
 
   const currentUser = user;
+
+  if (activeTab === 'bundle-menus') {
+    return (
+      <div className="fixed inset-0 z-[200] h-[100dvh] w-screen overflow-hidden bg-[#0e1011]">
+        <ServiceBundleMenuBoard tvMode onClose={() => setActiveTab('appointments')} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white relative overflow-x-hidden md:overflow-x-visible">
@@ -490,14 +497,13 @@ function DashboardShell({ user }: { user: User }) {
               >
                 Recalls
               </NavLink>
-              <button
-                type="button"
-                onClick={() => setBundleMenuOpen(true)}
-                className="flex items-center justify-between w-full px-3 py-2 text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all text-slate-300 hover:bg-[#00c7dd]/10 hover:text-[#00c7dd] border border-transparent hover:border-[#00c7dd]/25"
+              <NavLink
+                href="/service/bundle-menus"
+                onClick={() => setActiveTab('bundle-menus')}
+                isActive={activeTab === 'bundle-menus'}
               >
-                <span>Bundle Menus</span>
-                <span className="text-[8px] font-black bg-[#00c7dd]/20 text-[#00c7dd] px-1.5 py-0.5 rounded-full">Preview</span>
-              </button>
+                Bundle Menus (TV)
+              </NavLink>
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
@@ -858,8 +864,6 @@ function DashboardShell({ user }: { user: User }) {
           onDelete={handleDeleteCustomer}
         />
       )}
-
-      <ServiceBundleMenuPreviewModal open={bundleMenuOpen} onClose={() => setBundleMenuOpen(false)} />
 
       <MobileBottomNav
         activeTab={activeTab}

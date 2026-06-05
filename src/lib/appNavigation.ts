@@ -10,7 +10,8 @@ export type AppTab =
   | 'forecast'
   | 'dispatch'
   | 'recalls'
-  | 'sales-performance';
+  | 'sales-performance'
+  | 'bundle-menus';
 
 export type AdminSubTab = 'operations' | 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
@@ -28,6 +29,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/service/alerts': { activeTab: 'alerts' },
   '/service/dispatch': { activeTab: 'dispatch' },
   '/service/recalls': { activeTab: 'recalls' },
+  '/service/bundle-menus': { activeTab: 'bundle-menus' },
   '/competitions/pot-of-gold': { activeTab: 'pot-of-gold' },
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
@@ -114,6 +116,8 @@ export function buildAppPath(state: AppRouteState): string {
       return '/reports/sales-performance';
     case 'forecast':
       return '/reports/forecast';
+    case 'bundle-menus':
+      return '/service/bundle-menus';
     default:
       return '/sales/onboard';
   }
