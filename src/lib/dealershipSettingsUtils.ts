@@ -21,6 +21,7 @@ export function mergeDealershipSettings(
     laborGrossTarget: raw?.laborGrossTarget ?? 500_000,
     partsSalesTarget: raw?.partsSalesTarget ?? 300_000,
     enableDispatchTab: raw?.enableDispatchTab !== false,
+    enableBundleMenus: raw?.enableBundleMenus === true,
     enablePotOfGoldTab: raw?.enablePotOfGoldTab !== false,
     enableForecastTab: raw?.enableForecastTab !== false,
     enableSalesPerformanceTab: raw?.enableSalesPerformanceTab !== false,
@@ -50,6 +51,13 @@ export function resolveEnrollmentJoinCode(
 ): string {
   const merged = mergeDealershipSettings(dealershipId, settings);
   return (merged.enrollmentJoinCode || '').trim().toUpperCase();
+}
+
+export function isBundleMenusEnabled(
+  settings: Partial<DealershipSettings> | null | undefined
+): boolean {
+  const merged = mergeDealershipSettings(settings?.id || 'hyundai', settings);
+  return merged.enableBundleMenus === true;
 }
 
 export function isNavFeatureEnabled(

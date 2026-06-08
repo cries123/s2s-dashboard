@@ -44,6 +44,8 @@ export interface DealershipSettings {
   /** Tech number → display name for dispatch board cards */
   dispatchTechRoster?: PerformanceAdvisorSlot[];
   enableDispatchTab?: boolean;
+  /** Hyundai Essential Bundle TV menus — off until enabled per dealership */
+  enableBundleMenus?: boolean;
   enablePotOfGoldTab?: boolean;
   enableForecastTab?: boolean;
   enableSalesPerformanceTab?: boolean;

@@ -1415,6 +1415,33 @@ export default function AdminPanel({
                             </button>
                           </div>
 
+                          <div className="flex items-center justify-between p-3.5 bg-slate-950/80 rounded-xl border border-white/5 shadow-inner">
+                            <div className="space-y-0.5 pr-2">
+                              <span className="text-xs font-black text-white uppercase tracking-wide block">Service Bundle Menus (TV)</span>
+                              <span className="text-[10px] text-slate-400 font-medium leading-normal block">
+                                Show Hyundai Essential Bundle menus in Service navigation and TV display mode.
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const on = !!dealershipSettings[d.id]?.enableBundleMenus;
+                                updateSetting(d.id, { enableBundleMenus: !on });
+                              }}
+                              className={cn(
+                                'w-11 h-6 rounded-full transition-colors relative focus:outline-none shrink-0',
+                                dealershipSettings[d.id]?.enableBundleMenus ? 'bg-brand-primary' : 'bg-slate-800'
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
+                                  dealershipSettings[d.id]?.enableBundleMenus ? 'translate-x-5' : 'translate-x-0'
+                                )}
+                              />
+                            </button>
+                          </div>
+
                           {/* Dispatch lane capacity */}
                           <div className="space-y-3 pt-3 border-t border-white/5">
                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Dispatch Lane Capacity</label>
