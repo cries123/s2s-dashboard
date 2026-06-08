@@ -39,6 +39,7 @@ export function mergeDealershipSettings(
     dispatchShowTodayLoad: raw?.dispatchShowTodayLoad !== false,
     dispatchBlockWhenFull: raw?.dispatchBlockWhenFull === true,
     hiddenDispatchLanes: raw?.hiddenDispatchLanes ?? [],
+    dispatchTechRoster: raw?.dispatchTechRoster,
     updatedAt: raw?.updatedAt as DealershipSettings['updatedAt'],
   };
 }
