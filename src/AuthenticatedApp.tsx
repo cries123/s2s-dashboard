@@ -32,7 +32,7 @@ import { RecallsPage } from './components/dashboard/customers/RecallsPage';
 import { ServiceBundleMenuBoard } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
-import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
+import { isBundleMenusEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
 import {
@@ -242,6 +242,7 @@ function DashboardShell({ user }: { user: User }) {
     currentDealershipId || 'hyundai',
     dealershipSettings
   );
+  const bundleMenusEnabled = isBundleMenusEnabled(mergedDealershipSettings);
   const serviceAlerts = useServiceAlertInterval(mergedDealershipSettings.serviceAlertIntervalDays);
   const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
@@ -282,11 +283,16 @@ function DashboardShell({ user }: { user: User }) {
   // If current activeTab is hidden, fallback to first available.
   // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
-    if (activeTab === 'admin' || activeTab === 'manager' || activeTab === 'bundle-menus') return;
+    if (activeTab === 'admin' || activeTab === 'manager') return;
+    if (activeTab === 'bundle-menus' && !bundleMenusEnabled) {
+      setActiveTab('appointments');
+      return;
+    }
+    if (activeTab === 'bundle-menus') return;
     if (!availableTabs.find(t => t.id === activeTab)) {
       setActiveTab('appointments');
     }
-  }, [currentDealershipId, activeTab, availableTabs]);
+  }, [currentDealershipId, activeTab, availableTabs, bundleMenusEnabled]);
 
   React.useEffect(() => {
     if (prefsLoading || landingApplied) return;
@@ -352,7 +358,7 @@ function DashboardShell({ user }: { user: User }) {
 
   const currentUser = user;
 
-  if (activeTab === 'bundle-menus') {
+  if (activeTab === 'bundle-menus' && bundleMenusEnabled) {
     return (
       <div className="fixed inset-0 z-[200] h-[100dvh] w-screen overflow-hidden bg-[#0e1011]">
         <ServiceBundleMenuBoard tvMode onClose={() => setActiveTab('appointments')} />
@@ -464,7 +470,7 @@ function DashboardShell({ user }: { user: User }) {
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls' || (bundleMenusEnabled && activeTab === 'bundle-menus')}
             >
               <NavLink 
                 href="/service/directory" 
@@ -497,13 +503,15 @@ function DashboardShell({ user }: { user: User }) {
               >
                 Recalls
               </NavLink>
-              <NavLink
-                href="/service/bundle-menus"
-                onClick={() => setActiveTab('bundle-menus')}
-                isActive={activeTab === 'bundle-menus'}
-              >
-                Bundle Menus (TV)
-              </NavLink>
+              {bundleMenusEnabled && (
+                <NavLink
+                  href="/service/bundle-menus"
+                  onClick={() => setActiveTab('bundle-menus')}
+                  isActive={activeTab === 'bundle-menus'}
+                >
+                  Bundle Menus (TV)
+                </NavLink>
+              )}
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
