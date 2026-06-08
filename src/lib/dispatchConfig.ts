@@ -31,3 +31,10 @@ export function mergeLaneCapacity(
 ): Record<DispatchProductionLane, number> {
   return { ...DEFAULT_DISPATCH_LANE_CAPACITY, ...configured };
 }
+
+export const DISPATCH_STATUS_COLORS = {
+  WIP: { label: 'Work In Progress', hex: '#FACC15', text: '#1E293B' },
+  DIS: { label: 'Down In Shop', hex: '#EF4444', text: '#FFFFFF' },
+  POO: { label: 'Parts on Order', hex: '#EC4899', text: '#FFFFFF' },
+  WFA: { label: 'Waiting for Authorization', hex: '#F97316', text: '#FFFFFF' },
+} as const;

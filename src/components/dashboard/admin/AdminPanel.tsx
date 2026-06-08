@@ -331,18 +331,27 @@ export default function AdminPanel({
 
   const [localTechnicians, setLocalTechnicians] = useState<Record<string, CompetitionTechnicianSlot[]>>({});
   const [localPerformanceRoster, setLocalPerformanceRoster] = useState<Record<string, PerformanceAdvisorSlot[]>>({});
+  const [localDispatchTechRoster, setLocalDispatchTechRoster] = useState<Record<string, PerformanceAdvisorSlot[]>>({});
 
   useEffect(() => {
     if (Object.keys(dealershipSettings).length === 0) return;
     const techNext: Record<string, CompetitionTechnicianSlot[]> = {};
     const perfNext: Record<string, PerformanceAdvisorSlot[]> = {};
+    const dispatchTechNext: Record<string, PerformanceAdvisorSlot[]> = {};
     Object.entries(dealershipSettings).forEach(([id, data]: [string, any]) => {
       const cfg = getDealershipStaffConfig(id, data);
       techNext[id] = cfg.competitionTechnicians;
       perfNext[id] = cfg.performanceAdvisorRoster;
+      dispatchTechNext[id] = data.dispatchTechRoster?.length
+        ? data.dispatchTechRoster
+        : cfg.competitionTechnicians.map((t, idx) => ({
+            id: String(6400 + idx),
+            label: t.label,
+          }));
     });
     setLocalTechnicians((prev) => ({ ...prev, ...techNext }));
     setLocalPerformanceRoster((prev) => ({ ...prev, ...perfNext }));
+    setLocalDispatchTechRoster((prev) => ({ ...prev, ...dispatchTechNext }));
   }, [dealershipSettings]);
 
   const commitTechnicians = (id: string) => {
@@ -424,6 +433,46 @@ export default function AdminPanel({
     setLocalPerformanceRoster((prev) => {
       const list = [...(prev[dealershipId] || [])];
       if (list.length <= 1) return prev;
+      list.splice(index, 1);
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const commitDispatchTechRoster = (id: string) => {
+    const rows = localDispatchTechRoster[id] || [];
+    updateSetting(id, { dispatchTechRoster: rows });
+  };
+
+  const updateDispatchTechRoster = (
+    dealershipId: string,
+    index: number,
+    field: 'id' | 'label',
+    value: string
+  ) => {
+    setLocalDispatchTechRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      const current = { ...list[index] };
+      if (field === 'label') {
+        current.label = value;
+      } else {
+        current.id = value.trim();
+      }
+      list[index] = current;
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const addDispatchTechRoster = (dealershipId: string) => {
+    setLocalDispatchTechRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
+      list.push({ id: '', label: '' });
+      return { ...prev, [dealershipId]: list };
+    });
+  };
+
+  const removeDispatchTechRoster = (dealershipId: string, index: number) => {
+    setLocalDispatchTechRoster((prev) => {
+      const list = [...(prev[dealershipId] || [])];
       list.splice(index, 1);
       return { ...prev, [dealershipId]: list };
     });
@@ -1446,6 +1495,57 @@ export default function AdminPanel({
                                   />
                                 </button>
                               </label>
+                            </div>
+                            <div className="space-y-2 pt-2 border-t border-white/5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">
+                                Dispatch tech roster
+                              </label>
+                              <p className="text-[10px] text-slate-500 leading-relaxed">
+                                Map DMS tech numbers to display names on dispatch cards. ID = tech number, Label = name.
+                              </p>
+                              <div className="space-y-2">
+                                {(localDispatchTechRoster[d.id] || []).map((row, idx) => (
+                                  <div key={`dispatch-tech-${idx}`} className="flex gap-2 items-center">
+                                    <input
+                                      type="text"
+                                      placeholder="Tech #"
+                                      value={row.id}
+                                      onChange={(e) => updateDispatchTechRoster(d.id, idx, 'id', e.target.value)}
+                                      className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-mono text-white"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="Display name"
+                                      value={row.label}
+                                      onChange={(e) => updateDispatchTechRoster(d.id, idx, 'label', e.target.value)}
+                                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-bold text-white"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeDispatchTechRoster(d.id, idx)}
+                                      className="text-[9px] font-black uppercase text-rose-400 px-2"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => addDispatchTechRoster(d.id)}
+                                  className="px-3 py-1.5 bg-slate-800 text-[9px] font-black uppercase tracking-widest text-white rounded-lg border border-slate-700"
+                                >
+                                  Add Tech
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => commitDispatchTechRoster(d.id)}
+                                  className="px-3 py-1.5 bg-brand-primary/20 text-[9px] font-black uppercase tracking-widest text-brand-primary rounded-lg border border-brand-primary/30"
+                                >
+                                  Save Tech Roster
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>

@@ -3,10 +3,15 @@ import { createPortal } from 'react-dom';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
-import { mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
+import { mergeLaneCapacity, DispatchProductionLane, DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
 import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
+import { dispatchTechRosterFromSettings, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
+import { DispatchMetricsBar } from './DispatchMetricsBar';
+import { DispatchMobileBoard, type MobileDispatchTab } from './DispatchMobileBoard';
+import { DispatchIntakeForm, DispatchIntakePanel } from './DispatchIntakeForm';
 import {
   appointmentTrackerDoc,
   legacyAppointmentTrackerDoc,
@@ -22,18 +27,27 @@ import {
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  Check, Wrench, Monitor, X, UserSearch, Inbox, MapPin, Moon
+  Check, Wrench, Monitor, X, Inbox, MapPin, Moon
 } from 'lucide-react';
 
-// 1. Color System Configuration & Status Tokens
-export const DISPATCH_STATUS_COLORS = {
-  WIP: { label: "Work In Progress", hex: "#FACC15", text: "#1E293B" },        // Yellow
-  DIS: { label: "Down In Shop", hex: "#EF4444", text: "#FFFFFF" },           // Red
-  POO: { label: "Parts on Order", hex: "#EC4899", text: "#FFFFFF" },         // Pink
-  WFA: { label: "Waiting for Authorization", hex: "#F97316", text: "#FFFFFF" } // Orange
-};
+function playQueueAlert() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.value = 0.06;
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+    setTimeout(() => ctx.close(), 300);
+  } catch {
+    // Audio not available in this browser context
+  }
+}
 
-const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: any }[] = [
+const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: typeof Layers }[] = [
   { id: 'lube', label: 'Lube Unit', icon: Layers },
   { id: 'quick_service', label: 'Quick Service', icon: Sparkles },
   { id: 'ac_electrical', label: 'AC / Electrical', icon: AlertTriangle },
@@ -80,6 +94,16 @@ export function DispatchBoard({
   } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [mobileLaneTab, setMobileLaneTab] = useState<MobileDispatchTab>('unassigned');
+  const [draggingRoId, setDraggingRoId] = useState<string | null>(null);
+  const [dragOverLane, setDragOverLane] = useState<DispatchMoveTarget | null>(null);
+  const [displayCycleIndex, setDisplayCycleIndex] = useState(0);
+  const [showTvExit, setShowTvExit] = useState(true);
+  const [queuePulse, setQueuePulse] = useState(false);
+  const prevQueueCountRef = useRef(0);
+  const tvExitTimerRef = useRef<number | null>(null);
+
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   // Completed items view states
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
@@ -102,27 +126,6 @@ export function DispatchBoard({
   const currentSystemDate = useMemo(() => {
     return new Date().toLocaleDateString('en-CA'); // Accurate timezone local YYYY-MM-DD
   }, []);
-
-  useEffect(() => {
-    if (!isDisplayMode) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsDisplayMode(false);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => undefined);
-      }
-    };
-  }, [isDisplayMode]);
 
   const openDisplayMode = async () => {
     setShowCompleted(false);
@@ -157,6 +160,52 @@ export function DispatchBoard({
     () => DEPARTMENTS.filter((d) => !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)),
     [dealershipSettings?.hiddenDispatchLanes]
   );
+
+  const dispatchTechRoster = useMemo(
+    () => dispatchTechRosterFromSettings(dealershipSettings),
+    [dealershipSettings]
+  );
+
+  const resolveTechLabel = useCallback(
+    (techNum: string) => resolveTechDisplayName(techNum, dispatchTechRoster),
+    [dispatchTechRoster]
+  );
+
+  useEffect(() => {
+    if (!isDisplayMode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    setShowTvExit(true);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDisplayMode(false);
+      }
+    };
+    const onMouseMove = () => {
+      setShowTvExit(true);
+      if (tvExitTimerRef.current) window.clearTimeout(tvExitTimerRef.current);
+      tvExitTimerRef.current = window.setTimeout(() => setShowTvExit(false), 4000);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousemove', onMouseMove);
+    onMouseMove();
+
+    const cycleTimer = window.setInterval(() => {
+      setDisplayCycleIndex((prev) => (prev + 1) % Math.max(displayColumns.length, 1));
+    }, 12_000);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      if (tvExitTimerRef.current) window.clearTimeout(tvExitTimerRef.current);
+      window.clearInterval(cycleTimer);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, [isDisplayMode, displayColumns.length]);
 
 
   const matchCandidates = useMemo(
@@ -321,6 +370,45 @@ export function DispatchBoard({
       showNotification?.('Failed to move dispatch card.', true);
     }
   };
+
+  const handleDragStart = (e: React.DragEvent, roId: string) => {
+    if (!isDesktop) return;
+    e.dataTransfer.setData('text/ro-id', roId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingRoId(roId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingRoId(null);
+    setDragOverLane(null);
+  };
+
+  const handleLaneDragOver = (e: React.DragEvent, lane: DispatchMoveTarget) => {
+    if (!isDesktop || !draggingRoId) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverLane(lane);
+  };
+
+  const handleLaneDrop = (e: React.DragEvent, target: DispatchMoveTarget) => {
+    if (!isDesktop) return;
+    e.preventDefault();
+    setDragOverLane(null);
+    const roId = e.dataTransfer.getData('text/ro-id');
+    if (!roId) return;
+    const ro = orders.find((o) => o.id === roId);
+    if (ro) handleMoveRo(ro, target);
+    setDraggingRoId(null);
+  };
+
+  const laneDropProps = (target: DispatchMoveTarget) =>
+    isDesktop
+      ? {
+          onDragOver: (e: React.DragEvent) => handleLaneDragOver(e, target),
+          onDragLeave: () => setDragOverLane((prev) => (prev === target ? null : prev)),
+          onDrop: (e: React.DragEvent) => handleLaneDrop(e, target),
+        }
+      : {};
 
   const updateMoveMenuLayout = useCallback(() => {
     const anchor = moveMenuAnchorRef.current;
@@ -541,6 +629,16 @@ export function DispatchBoard({
     return acc;
   }, [activeTickets]);
 
+  useEffect(() => {
+    const queueCount = ticketsByColumn.unassigned.length;
+    if (queueCount > prevQueueCountRef.current && prevQueueCountRef.current > 0) {
+      setQueuePulse(true);
+      if (isDisplayMode) playQueueAlert();
+      window.setTimeout(() => setQueuePulse(false), 2500);
+    }
+    prevQueueCountRef.current = queueCount;
+  }, [ticketsByColumn.unassigned.length, isDisplayMode]);
+
 
 
   const moveTargets = useMemo((): { target: DispatchMoveTarget; label: string; icon?: React.ReactNode }[] => [
@@ -610,14 +708,19 @@ export function DispatchBoard({
   const renderDisplayCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const overnight = isOvernightRo(ro, currentSystemDate);
+    const techLabel = resolveTechLabel(ro.techNumber);
     return (
       <div
         key={ro.id}
+        draggable={isDesktop}
+        onDragStart={(e) => handleDragStart(e, ro.id)}
+        onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
         className={cn(
           'relative bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-pointer select-none space-y-0.5',
           overnight && 'ring-1 ring-amber-500/40',
-          moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50'
+          moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50',
+          draggingRoId === ro.id && 'opacity-50'
         )}
         onClick={(e) => toggleMoveMenu(ro.id, e.currentTarget, e)}
       >
@@ -634,7 +737,7 @@ export function DispatchBoard({
           {ro.customerName || ro.model || 'Guest'}
         </p>
         <div className="flex items-center justify-between text-[8px] font-mono text-slate-500">
-          <span>T#{ro.techNumber}</span>
+          <span className="truncate">{techLabel}</span>
           <span>…{ro.vinLastEight}</span>
         </div>
       </div>
@@ -644,6 +747,7 @@ export function DispatchBoard({
   const renderRoCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const isOvernight = isOvernightRo(ro, currentSystemDate);
+    const techLabel = resolveTechLabel(ro.techNumber);
 
     // Check if it's an internal dealership vehicle
     const isInternalAsset = 
@@ -655,11 +759,15 @@ export function DispatchBoard({
       <div
         key={ro.id}
         data-dispatch-card
+        draggable={isDesktop}
+        onDragStart={(e) => handleDragStart(e, ro.id)}
+        onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
         className={cn(
           "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-pointer select-none w-full text-slate-100",
           isOvernight && "ring-1 ring-amber-500/30",
-          moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30"
+          moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30",
+          draggingRoId === ro.id && "opacity-50 scale-[0.98]"
         )}
         onClick={(e) => toggleMoveMenu(ro.id, e.currentTarget, e)}
       >
@@ -778,7 +886,7 @@ export function DispatchBoard({
           <div className="bg-slate-950/30 p-2 rounded border border-slate-800/40">
             <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Assigned Tech</span>
             <span className="text-slate-200 font-medium block mt-0.5 truncate">
-              Tech #{ro.techNumber}
+              {techLabel}
             </span>
             <span className="text-slate-400 text-[10px] block truncate">
               Dept: {DEPARTMENTS.find(d => d.id === ro.department)?.label || 'Unassigned'}
@@ -787,11 +895,18 @@ export function DispatchBoard({
         </div>
 
         {/* 4. ACTIONS & STATUS SELECT */}
-        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
+        <div
+          className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <div className="relative inline-flex items-center w-[125px] sm:w-[135px]">
             <select
               value={ro.status}
-              onChange={(e) => handleUpdateStatus(ro.id, e.target.value as any)}
+              onChange={(e) => handleUpdateStatus(ro.id, e.target.value as typeof ro.status)}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               className="text-[10px] font-black uppercase tracking-wider w-full px-2 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 outline-none cursor-pointer focus:border-indigo-500 transition-all appearance-none text-left"
               style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '3px' }}
             >
@@ -814,7 +929,10 @@ export function DispatchBoard({
 
           <button
             type="button"
-            onClick={() => handleToggleComplete(ro, true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleComplete(ro, true);
+            }}
             className="flex items-center gap-1 bg-slate-950 hover:bg-emerald-950/60 hover:text-emerald-400 border border-slate-800 hover:border-emerald-900/60 px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all duration-300 select-none cursor-pointer"
           >
             <Check size={11} className="text-emerald-500" />
@@ -824,6 +942,33 @@ export function DispatchBoard({
       </div>
     );
   };
+
+  const intakeFormElement = (
+    <DispatchIntakeForm
+      customerFirstName={customerFirstName}
+      setCustomerFirstName={setCustomerFirstName}
+      customerLastName={customerLastName}
+      setCustomerLastName={setCustomerLastName}
+      roNumber={roNumber}
+      setRoNumber={setRoNumber}
+      vinLastEight={vinLastEight}
+      setVinLastEight={setVinLastEight}
+      techNumber={techNumber}
+      setTechNumber={setTechNumber}
+      tagNumber={tagNumber}
+      setTagNumber={setTagNumber}
+      initialStatus={initialStatus}
+      setInitialStatus={setInitialStatus}
+      quickComplete={quickComplete}
+      setQuickComplete={setQuickComplete}
+      submitting={submitting}
+      selectedCustomer={selectedCustomer}
+      setSelectedCustomer={setSelectedCustomer}
+      matchCandidates={matchCandidates}
+      dispatchTechRoster={dispatchTechRoster}
+      onSubmit={handleSubmitIntake}
+    />
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-slate-200">
@@ -877,6 +1022,26 @@ export function DispatchBoard({
           </button>
         </div>
       </div>
+
+      {!loading && !showCompleted && (
+        <>
+          <div className="hidden md:block">
+            <DispatchMetricsBar
+              orders={orders}
+              currentSystemDate={currentSystemDate}
+              isOvernight={(ro) => isOvernightRo(ro, currentSystemDate)}
+            />
+          </div>
+          <div className="md:hidden">
+            <DispatchMetricsBar
+              orders={orders}
+              currentSystemDate={currentSystemDate}
+              isOvernight={(ro) => isOvernightRo(ro, currentSystemDate)}
+              compact
+            />
+          </div>
+        </>
+      )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -939,203 +1104,26 @@ export function DispatchBoard({
         </div>
       ) : (
         /* Horizontal top intake + scrollable list and vertical stack of department rows */
-        <div className="space-y-6 w-full pb-10">
+        <>
+        <div className="hidden md:block space-y-6 w-full pb-10">
           
           {/* TOP CONTAINER — Intake & Waiting Queue */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 w-full items-stretch">
 
             {/* Fast Intake */}
-            <div className="lg:col-span-5 relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-indigo-950/30 shadow-xl shadow-black/20">
-              <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl" />
-              <div className="relative p-5 sm:p-6 flex flex-col gap-5">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-xl bg-indigo-500/15 border border-indigo-400/20 shrink-0">
-                    <Plus size={16} className="text-indigo-300" />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Fast Intake</h2>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
-                      Enter customer name, RO details, and tag — last name can match CRM.
-                    </p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSubmitIntake} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">First Name <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
-                      <input
-                        type="text"
-                        placeholder="Maria"
-                        value={customerFirstName}
-                        onChange={(e) => setCustomerFirstName(e.target.value)}
-                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5 flex items-center gap-1">
-                        <UserSearch size={10} className="text-indigo-400/80" />
-                        Last Name <span className="text-rose-400/90">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Martinez"
-                        value={customerLastName}
-                        onChange={(e) => {
-                          setCustomerLastName(e.target.value);
-                          setSelectedCustomer(null);
-                        }}
-                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {selectedCustomer && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-950/30 border border-emerald-500/25">
-                      <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
-                      <p className="text-[10px] font-bold text-emerald-200/90 truncate">
-                        CRM linked · {selectedCustomer.firstName} {selectedCustomer.lastName}
-                        {selectedCustomer.model ? ` · ${selectedCustomer.year || ''} ${selectedCustomer.model}` : ''}
-                      </p>
-                    </div>
-                  )}
-
-                  {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && !selectedCustomer && (
-                    <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
-                        CRM matches
-                      </p>
-                      <div className="max-h-28 overflow-y-auto p-1.5 space-y-1">
-                        {matchCandidates.slice(0, 6).map((cust) => (
-                          <button
-                            key={cust.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCustomer(cust);
-                              setCustomerFirstName(cust.firstName || '');
-                              setCustomerLastName(cust.lastName);
-                              setVinLastEight(cust.vinLast8 || '');
-                            }}
-                            className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
-                          >
-                            <span className="font-bold text-white">{cust.firstName} {cust.lastName}</span>
-                            <span className="text-slate-500 block mt-0.5 font-mono text-[9px]">
-                              {[cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()].filter(Boolean).join(' · ')}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
-                    <p className="text-[9px] text-amber-400/80 pl-0.5 font-medium">No CRM match — ticket will use the name you entered.</p>
-                  )}
-
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">RO Number <span className="text-rose-400/90">*</span></label>
-                    <input
-                      type="text"
-                      placeholder="883719"
-                      value={roNumber}
-                      onChange={(e) => setRoNumber(e.target.value)}
-                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">VIN Last 8 <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
-                    <input
-                      type="text"
-                      placeholder="G2054992"
-                      maxLength={8}
-                      value={vinLastEight}
-                      onChange={(e) => setVinLastEight(e.target.value.toUpperCase())}
-                      className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-mono font-bold uppercase tracking-wider"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tech Number <span className="text-rose-400/90">*</span></label>
-                      <input
-                        type="text"
-                        placeholder="402"
-                        value={techNumber}
-                        onChange={(e) => setTechNumber(e.target.value)}
-                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-mono font-bold tabular-nums"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Tag Number <span className="text-rose-400/90">*</span></label>
-                      <input
-                        type="text"
-                        placeholder="A-142"
-                        value={tagNumber}
-                        onChange={(e) => setTagNumber(e.target.value)}
-                        className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">Status <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span></label>
-                    <div className="relative">
-                      <span
-                        className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full pointer-events-none"
-                        style={{ backgroundColor: DISPATCH_STATUS_COLORS[initialStatus].hex }}
-                      />
-                      <select
-                        value={initialStatus}
-                        onChange={(e) => setInitialStatus(e.target.value as typeof initialStatus)}
-                        className="w-full appearance-none bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg pl-7 pr-8 py-2.5 text-[11px] text-slate-200 font-bold uppercase tracking-wide cursor-pointer focus:ring-2 focus:ring-indigo-500/15"
-                      >
-                        {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
-                          <option key={val} value={val} className="bg-slate-950 text-white">
-                            {info.label} ({val})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/[0.06]">
-                    <label className="flex items-center gap-2.5 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        id="quickComplete"
-                        checked={quickComplete}
-                        onChange={(e) => setQuickComplete(e.target.checked)}
-                        className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500/30 w-4 h-4 cursor-pointer"
-                      />
-                      <span className="text-[10px] text-slate-500 group-hover:text-slate-300 font-semibold transition-colors">
-                        Mark completed on intake
-                      </span>
-                    </label>
-
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 shadow-lg shadow-indigo-950/40 transition-all duration-200"
-                    >
-                      {submitting ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
-                      Queue Ticket
-                    </button>
-                  </div>
-                </form>
-              </div>
+            <div className="lg:col-span-5">
+              <DispatchIntakePanel>{intakeFormElement}</DispatchIntakePanel>
             </div>
 
             {/* Waiting Queue */}
             <div
               className={cn(
                 'lg:col-span-7 relative overflow-visible rounded-2xl border flex flex-col min-h-[280px] transition-all duration-300 shadow-xl shadow-black/20',
-                'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80'
+                'border-white/[0.08] bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/80',
+                dragOverLane === 'unassigned' && 'ring-2 ring-indigo-500/50',
+                queuePulse && 'ring-2 ring-amber-400/60 animate-pulse'
               )}
+              {...laneDropProps('unassigned')}
             >
               <div className="pointer-events-none absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-violet-500/5 blur-3xl" />
               <div className="relative p-5 sm:p-6 flex flex-col flex-1 gap-4">
@@ -1194,17 +1182,19 @@ export function DispatchBoard({
 
           </div>
 
-          {/* LOWER CANVAS: 7 Main Structural Production Departments as Rows */}
+          {/* LOWER CANVAS: production departments as rows (respects hidden lanes) */}
           <div className="flex flex-col gap-4 w-full">
-            {DEPARTMENTS.map((dept) => {
+            {visibleDepartments.map((dept) => {
               const list = ticketsByColumn[dept.id] || [];
               return (
                 <div 
                   key={dept.id} 
                   className={cn(
                     "bg-gradient-to-r from-slate-900/60 to-slate-900/30 border border-slate-850 rounded-2xl p-4.5 flex flex-col md:flex-row md:items-center gap-5 w-full transition-all duration-300 shadow-md relative",
-                    list.length > 0 ? "border-slate-800/80 bg-slate-900/40" : "border-slate-900/60"
+                    list.length > 0 ? "border-slate-800/80 bg-slate-900/40" : "border-slate-900/60",
+                    dragOverLane === dept.id && "ring-2 ring-indigo-500/40 border-indigo-500/30"
                   )}
+                  {...laneDropProps(dept.id)}
                 >
                   {/* Department Title, Icon, and Ticket Count */}
                   <div className="flex items-center justify-between md:flex-col md:items-start md:justify-center gap-1.5 md:w-48 shrink-0 border-b md:border-b-0 md:border-r border-slate-800/80 pb-3 md:pb-0 md:pr-4 select-none">
@@ -1253,7 +1243,10 @@ export function DispatchBoard({
 
           {/* QUICK LEGEND & COLOR CODE */}
           <div className="bg-slate-900 border border-slate-850 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 select-none">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status Color Codes:</span>
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status Color Codes</span>
+              <p className="text-[9px] text-slate-600 font-medium">Desktop: drag cards between lanes · Mobile: tap card → Move</p>
+            </div>
             <div className="flex flex-wrap gap-4 text-[10px] font-bold">
               {Object.entries(DISPATCH_STATUS_COLORS).map(([code, info]) => (
                 <div key={code} className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
@@ -1265,6 +1258,17 @@ export function DispatchBoard({
           </div>
 
         </div>
+
+        <DispatchMobileBoard
+          activeTab={mobileLaneTab}
+          onTabChange={setMobileLaneTab}
+          displayColumns={displayColumns}
+          ticketsByColumn={ticketsByColumn}
+          laneCapacity={laneCapacity}
+          renderCard={renderRoCard}
+          intakeForm={<DispatchIntakePanel>{intakeFormElement}</DispatchIntakePanel>}
+        />
+        </>
       )}
 
       {isDisplayMode && (
@@ -1278,25 +1282,38 @@ export function DispatchBoard({
             <button
               type="button"
               onClick={closeDisplayMode}
-              className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:border-slate-500 opacity-40 hover:opacity-100 transition-opacity"
+              className={cn(
+                'absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:border-slate-500 transition-opacity duration-500',
+                showTvExit ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              )}
               title="Exit display preview (Esc)"
             >
               <X size={12} />
               Exit
             </button>
 
+            {queuePulse && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-[9px] font-black uppercase tracking-wider text-amber-200 animate-pulse">
+                New ticket in queue
+              </div>
+            )}
+
             <div className="grid grid-cols-8 gap-1.5 flex-1 min-h-0 w-full h-full">
-              {displayColumns.map((col) => {
+              {displayColumns.map((col, columnIndex) => {
                 const list = ticketsByColumn[col.id] || [];
-                const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id];
+                const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id as DispatchProductionLane];
                 const atCap = cap > 0 && list.length >= cap;
+                const isCycleFocus = columnIndex === displayCycleIndex;
+                const isQueueColumn = col.id === 'unassigned';
                 return (
                   <div
                     key={col.id}
                     className={cn(
-                      'flex flex-col min-w-0 min-h-0 rounded-xl border bg-slate-900/60 overflow-hidden',
-                      'border-slate-800/80'
+                      'flex flex-col min-w-0 min-h-0 rounded-xl border bg-slate-900/60 overflow-hidden transition-all duration-500',
+                      isCycleFocus ? 'ring-2 ring-indigo-400/50 border-indigo-400/40 scale-[1.01]' : 'border-slate-800/80',
+                      isQueueColumn && queuePulse && 'ring-2 ring-amber-400/60 animate-pulse'
                     )}
+                    {...laneDropProps(col.id)}
                   >
                     <div className="shrink-0 px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center justify-between gap-1">
                       <div className="flex items-center gap-1 min-w-0">
