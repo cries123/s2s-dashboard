@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, query, where, deleteField, deleteDoc 
+  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
@@ -17,6 +17,7 @@ import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  addDaysToDateString,
   appointmentTrackerDocId,
   dedupeDailyStatsByDate,
   extractReportDateFromAppointmentPdf,
@@ -24,7 +25,11 @@ import {
   listDuplicateTrackerDocIds,
   toLocalDateString,
 } from '../../../lib/appointmentTracker';
-import { calculateAppointmentForecast, forecastGoalPercent } from '../../../lib/appointmentForecast';
+import {
+  buildEffectiveAppointmentStats,
+  calculateAppointmentForecast,
+  forecastGoalPercent,
+} from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 
 interface AppointmentsProps {
@@ -299,13 +304,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     if (!currentDealershipId) return;
 
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const isAdminUser = currentUser.role === 'admin';
-    
-    // For non-admins, Firestore REQUIRES the query to match the security rules.
-    // If rules say you can only see your dealership, you MUST query with that filter.
-    const q = isAdminUser 
-      ? collection(db, path)
-      : query(collection(db, path), where('dealershipId', '==', currentDealershipId));
+    const q = collection(db, path);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyStat));
@@ -344,17 +343,26 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   }, [selectedDate, currentDealershipId]);
 
   const handleSave = async () => {
-    let countNum = parseInt(dailyCount);
-    if (isNaN(countNum)) countNum = 0;
-    
-    // Default manual breakdown to match total count if no specific breakdown is entered yet
-    // But since we want to ask them, we'll open the modal first
-    setManualBreakdown({
-      diagnosis: 0,
-      oilChange: 0,
-      recall: 0,
-      misc: 0
-    });
+    const countNum = parseInt(dailyCount, 10);
+    const existing = allStats.find((s) => s.date === selectedDate);
+
+    if (existing?.breakdown) {
+      setManualBreakdown(existing.breakdown);
+    } else if (!Number.isNaN(countNum) && countNum > 0) {
+      setManualBreakdown({
+        diagnosis: 0,
+        oilChange: 0,
+        recall: 0,
+        misc: countNum,
+      });
+    } else {
+      setManualBreakdown({
+        diagnosis: 0,
+        oilChange: 0,
+        recall: 0,
+        misc: 0,
+      });
+    }
     setShowManualBreakdownEntry(true);
   };
 
@@ -525,9 +533,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
   const resolvedPerformance = resolvePerformanceTotalsFromDoc(activePerformanceData);
 
+  const effectiveStats = React.useMemo(
+    () => buildEffectiveAppointmentStats(allStats, selectedDate, dailyCount),
+    [allStats, selectedDate, dailyCount]
+  );
+
   const calculateMetrics = () => {
     return calculateAppointmentForecast({
-      stats: allStats,
+      stats: effectiveStats,
       dailyTarget: targetValue,
       laborTarget,
       partsTarget,
@@ -559,7 +572,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
       const dateStr = toLocalDateString(d);
-      const stat = allStats.find(s => s.date === dateStr);
+      const stat = effectiveStats.find(s => s.date === dateStr);
       return {
         date: dateStr,
         label: d.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -581,15 +594,11 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   };
 
   const handlePrevDay = () => {
-    const d = new Date(selectedDate + 'T00:00:00');
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(addDaysToDateString(selectedDate, -1));
   };
 
   const handleNextDay = () => {
-    const d = new Date(selectedDate + 'T00:00:00');
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(addDaysToDateString(selectedDate, 1));
   };
 
   return (
@@ -896,6 +905,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                  key={day.date}
                  onClick={() => {
                    setSelectedDate(day.date);
+                   setDailyCount(day.count > 0 ? day.count.toString() : (fullDayData ? '0' : ''));
                    if (fullDayData?.breakdown) {
                      setShowBreakdown(fullDayData);
                    }

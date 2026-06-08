@@ -5,6 +5,28 @@ export interface DailyCountStat {
   count: number;
 }
 
+/**
+ * Merge unsaved daily volume entry into tracker stats so forecast/grid reflect
+ * what the user is typing before they click save.
+ */
+export function buildEffectiveAppointmentStats(
+  stats: DailyCountStat[],
+  selectedDate: string,
+  dailyCountInput: string
+): DailyCountStat[] {
+  const trimmed = dailyCountInput.trim();
+  if (trimmed === '') return stats;
+
+  const parsed = parseInt(trimmed, 10);
+  if (Number.isNaN(parsed)) return stats;
+
+  const savedCount = stats.find((s) => s.date === selectedDate)?.count;
+  if (savedCount === parsed) return stats;
+
+  const without = stats.filter((s) => s.date !== selectedDate);
+  return [...without, { date: selectedDate, count: parsed }];
+}
+
 export interface AppointmentForecastInput {
   stats: DailyCountStat[];
   dailyTarget: number;
