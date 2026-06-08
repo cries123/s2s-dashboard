@@ -17,14 +17,21 @@ const firebaseConfig = {
   apiKey: envOrApplet('apiKey', import.meta.env.VITE_FIREBASE_API_KEY),
   authDomain: envOrApplet('authDomain', import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
   projectId: envOrApplet('projectId', import.meta.env.VITE_FIREBASE_PROJECT_ID),
-  databaseId:
-    import.meta.env.VITE_FIREBASE_DATABASE_ID?.trim() ||
-    appletConfig.firestoreDatabaseId ||
-    undefined,
+  databaseId: (() => {
+    const fromEnv = import.meta.env.VITE_FIREBASE_DATABASE_ID?.trim();
+    if (fromEnv) return fromEnv;
+    if (import.meta.env.DEV && appletConfig.firestoreDatabaseId) {
+      return appletConfig.firestoreDatabaseId;
+    }
+    return undefined;
+  })(),
   storageBucket: envOrApplet('storageBucket', import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
   messagingSenderId: envOrApplet('messagingSenderId', import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
   appId: envOrApplet('appId', import.meta.env.VITE_FIREBASE_APP_ID),
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID?.trim() || appletConfig.measurementId || undefined,
+  measurementId:
+    import.meta.env.VITE_FIREBASE_MEASUREMENT_ID?.trim() ||
+    (import.meta.env.DEV ? appletConfig.measurementId : undefined) ||
+    undefined,
 };
 
 if (!firebaseConfig.apiKey) {
