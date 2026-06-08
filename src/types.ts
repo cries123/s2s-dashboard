@@ -27,6 +27,11 @@ export interface PerformanceAdvisorSlot {
   label: string;
 }
 
+export type DispatchProductionLaneId = Exclude<
+  DepartmentColumnId,
+  'unassigned'
+>;
+
 export interface DealershipSettings {
   id: string;
   appointmentTarget: number;
@@ -36,6 +41,25 @@ export interface DealershipSettings {
   dmsProvider?: 'pbs' | 'dealerbuilt';
   /** Allowed service advisors for productivity imports (DealerBuilt) */
   performanceAdvisorRoster?: PerformanceAdvisorSlot[];
+  /** Tech number → display name for dispatch board cards */
+  dispatchTechRoster?: PerformanceAdvisorSlot[];
+  enableDispatchTab?: boolean;
+  enablePotOfGoldTab?: boolean;
+  enableForecastTab?: boolean;
+  enableSalesPerformanceTab?: boolean;
+  enableVinSearchTab?: boolean;
+  serviceAlertIntervalDays?: number;
+  enrollmentJoinCode?: string;
+  weatherLat?: number;
+  weatherLon?: number;
+  weatherDisplayCity?: string;
+  competitionAdvisors?: { id: string; label: string }[];
+  competitionTechnicians?: { id: string; label: string }[];
+  potOfGoldUpsellPrices?: { code: string; desc: string; defaultPrice: number }[];
+  dispatchLaneCapacity?: Partial<Record<DispatchProductionLaneId, number>>;
+  dispatchShowTodayLoad?: boolean;
+  dispatchBlockWhenFull?: boolean;
+  hiddenDispatchLanes?: DispatchProductionLaneId[];
   updatedAt: Timestamp;
 }
 
@@ -151,17 +175,25 @@ export type DepartmentColumnId =
   | 'mobile_repair' 
   | 'unassigned';
 
+export type DispatchLifecycleStatus = 'active' | 'overnight';
+
+export type DispatchStatus = 'WIP' | 'DIS' | 'POO' | 'WFA';
+
 export interface DispatchRepairOrder {
   id: string;
   roNumber: string;
   techNumber: string;
-  vinLastEight: string;
+  vinLastEight?: string;
   department: DepartmentColumnId;
-  status: 'WIP' | 'DIS' | 'POO' | 'WFA';
+  currentLaneId?: DepartmentColumnId;
+  lifecycleStatus?: DispatchLifecycleStatus;
+  status: DispatchStatus;
   isCompleted: boolean;
   dateCreated: string;
   lastUpdated: string;
   dealershipId: string;
+  customerId?: string;
+  customerLastName?: string;
   customerName?: string;
   phoneNumber?: string;
   accountName?: string;
