@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
+import { EmptyState } from '../../ui/EmptyState';
 
 interface TechnicianData {
   techName: string;
@@ -656,13 +657,10 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               <p className="text-xs uppercase font-black tracking-widest">Synchronizing Performance Tables...</p>
             </div>
           ) : technicians.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 border border-dashed border-white/5 rounded-3xl min-h-[300px] bg-white/[0.01]">
-              <Clock size={36} className="text-slate-600 mb-4" />
-              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">No performance logs recorded</h3>
-              <p className="text-[10px] text-slate-500 text-center max-w-[340px] font-medium leading-relaxed">
-                Upload a technician performance PDF report to auto-parse details, or register a technician manually using the "Add Technician" button above to track efficiency metrics.
-              </p>
-            </div>
+            <EmptyState
+              title="No technician data yet"
+              description='Upload a technician summary PDF or use "Add technician" to start tracking flagged hours and efficiency.'
+            />
           ) : (
             <div className="bg-slate-900/40 border border-white/5 rounded-3xl overflow-hidden shadow-inner">
               <div className="overflow-x-auto">

@@ -200,7 +200,8 @@ export function canAccessPrimaryAdminSettings(user: User | null | undefined): bo
 }
 
 export function canSwitchDealership(user: User | null | undefined): boolean {
-  return isPrimaryAdmin(user);
+  if (!user) return false;
+  return isPrimaryAdmin(user) || isPlatformAdmin(user) || user.role === 'admin';
 }
 
 export function isPendingManagerEnrollment(user: User): boolean {

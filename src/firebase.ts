@@ -1,25 +1,54 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getAnalytics } from 'firebase/analytics';
+import appletConfig from '../firebase-applet-config.json';
 
-const firebaseConfig = { 
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY, 
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, 
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, 
-  databaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, 
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID, 
-  appId: import.meta.env.VITE_FIREBASE_APP_ID, 
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID 
+function envOrApplet(key: keyof typeof appletConfig, envValue: string | undefined): string {
+  if (envValue && envValue.trim()) return envValue.trim();
+  if (import.meta.env.DEV) {
+    const value = appletConfig[key];
+    return typeof value === 'string' ? value : '';
+  }
+  return '';
+}
+
+const firebaseConfig = {
+  apiKey: envOrApplet('apiKey', import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain: envOrApplet('authDomain', import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId: envOrApplet('projectId', import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  databaseId:
+    import.meta.env.VITE_FIREBASE_DATABASE_ID?.trim() ||
+    appletConfig.firestoreDatabaseId ||
+    undefined,
+  storageBucket: envOrApplet('storageBucket', import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: envOrApplet('messagingSenderId', import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId: envOrApplet('appId', import.meta.env.VITE_FIREBASE_APP_ID),
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID?.trim() || appletConfig.measurementId || undefined,
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.databaseId);
-export const auth = getAuth(app);
-export const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
+if (!firebaseConfig.apiKey) {
+  throw new Error(
+    'Firebase is not configured. Add VITE_FIREBASE_* to .env.local for local development.'
+  );
+}
 
-// Debugging: Log active project context
+const app = initializeApp(firebaseConfig);
+export const db = firebaseConfig.databaseId
+  ? getFirestore(app, firebaseConfig.databaseId)
+  : getFirestore(app);
+export const auth = getAuth(app);
+
+let analytics: ReturnType<typeof getAnalytics> | null = null;
+if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+  try {
+    analytics = getAnalytics(app);
+  } catch {
+    analytics = null;
+  }
+}
+export { analytics };
+
 if (import.meta.env.DEV) {
-  console.log(`[Firebase] Initialized with Project ID: ${firebaseConfig.projectId}`);
+  console.log(`[Firebase] Project: ${firebaseConfig.projectId}`);
 }

@@ -1758,38 +1758,48 @@ export default function AdminPanel({
                 </span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {pendingUsers.map(user => (
-                  <div key={user.uid} className="card-base p-6 border-amber-500/20 bg-amber-500/5 ring-1 ring-amber-500/10">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-sm font-black text-white leading-tight">{user.username}</h4>
-                        <p className="text-[10px] font-bold text-slate-500 mt-0.5">{user.email}</p>
-                        <div className="flex items-center gap-2 mt-3">
-                          <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-black uppercase tracking-widest">
-                            {user.jobTitle}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <button 
-                          onClick={() => updateUserStatus(user.uid, 'approved', user)}
-                          className="p-2 bg-brand-primary text-white rounded-xl hover:scale-105 transition-all shadow-lg shadow-brand-primary/20"
-                          title="Approve User"
-                        >
-                          <UserCheck size={16} />
-                        </button>
-                        <button 
-                          onClick={() => rejectPendingUser(user)}
-                          className="p-2 bg-slate-800 text-rose-500 rounded-xl hover:scale-105 transition-all"
-                          title="Reject User"
-                        >
-                          <UserX size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="card-base overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="crm-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Title</th>
+                        <th className="text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingUsers.map((user) => (
+                        <tr key={user.uid}>
+                          <td className="font-medium">{user.username}</td>
+                          <td className="crm-label">{user.email}</td>
+                          <td>{user.jobTitle || '—'}</td>
+                          <td className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => updateUserStatus(user.uid, 'approved', user)}
+                                className="btn-primary px-3 py-1.5 text-xs"
+                                title="Approve user"
+                              >
+                                <UserCheck size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => rejectPendingUser(user)}
+                                className="btn-secondary px-3 py-1.5 text-xs text-rose-600"
+                                title="Reject user"
+                              >
+                                <UserX size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

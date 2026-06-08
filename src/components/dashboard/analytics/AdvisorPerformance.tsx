@@ -9,6 +9,7 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
+import { EmptyState } from '../../ui/EmptyState';
 import {
   EMPTY_PERFORMANCE_TOTALS,
   performanceDocId,
@@ -777,16 +778,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       </AnimatePresence>
 
       {!advisors.length && !isImporting && (
-        <div className="flex flex-col items-center justify-center py-20 bg-slate-900/10 rounded-3xl border-2 border-dashed border-slate-800/50">
-          <BarChart3 size={48} className="text-slate-800 mb-4" />
-          <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Awaiting PDF Data</p>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-4 text-brand-primary text-xs font-black uppercase tracking-widest hover:underline"
-          >
-            Click here to select file
-          </button>
-        </div>
+        <EmptyState
+          title="No productivity data yet"
+          description="Import a PBS or DealerBuilt productivity PDF to populate advisor labor, parts, and gross totals for this month."
+          action={
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-primary">
+              Import productivity PDF
+            </button>
+          }
+        />
       )}
 
       <AnimatePresence>

@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Customer, User } from '../../../types';
 import CustomerCard from './CustomerCard';
 import { cn } from '../../../lib/utils';
+import { PageHeader } from '../../layout/PageHeader';
+import { DataTable } from '../../ui/DataTable';
+import { EmptyState } from '../../ui/EmptyState';
 import {
   directoryMakeFiltersForDealership,
   DirectoryMakeFilter,
@@ -136,78 +139,70 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     return { totalROs, topCustomer, maxROs };
   }, [customers]);
 
+  const tableColumns = [
+    {
+      key: 'name',
+      header: 'Customer',
+      render: (c: Customer) => (
+        <div>
+          <p className="font-medium">{c.firstName} {c.lastName}</p>
+          <p className="crm-label text-xs">{c.phone || 'No phone'}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'vehicle',
+      header: 'Vehicle',
+      render: (c: Customer) => (
+        <span className="text-sm">{c.year ? `${c.year} ` : ''}{c.make} {c.model}</span>
+      ),
+    },
+    { key: 'vin', header: 'VIN (last 8)', render: (c: Customer) => <span className="font-mono text-xs">{c.vinLast8}</span> },
+    {
+      key: 'visits',
+      header: 'Visits',
+      className: 'text-right',
+      render: (c: Customer) => <span className="tabular-nums">{c.recentVisits?.length || 0}</span>,
+    },
+    {
+      key: 'last',
+      header: 'Last service',
+      render: (c: Customer) => (
+        <span className="crm-label">{c.lastServiceDate ? String(c.lastServiceDate).slice(0, 10) : '—'}</span>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Directory Header & Stats */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 pb-8 border-b border-white/5">
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-primary/10 flex items-center justify-center">
-              <Users className="text-brand-primary" size={18} />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em]">Operational Database</span>
-              <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[8px] font-black rounded border border-white/5 uppercase tracking-widest italic">
-                Archive: 2015 - 2026
-              </span>
-            </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Customer directory"
+        description="Search and open customer profiles, service history, and contact logs."
+        breadcrumbs={[{ label: 'Service' }, { label: 'Directory' }]}
+        actions={
+          <div className="flex gap-2 text-sm">
+            <span className="badge badge-info">{customers.length} customers</span>
+            <span className="badge badge-info">{stats.totalROs} ROs</span>
           </div>
-          <h2 className="text-5xl font-black text-white tracking-tighter uppercase italic">
-            Customer <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-primary to-brand-secondary">Directory</span>
-          </h2>
-          <p className="text-slate-500 mt-2 font-medium leading-relaxed max-w-lg">
-            Access and manage the complete synchronization records for your dealership's customer base.
-          </p>
-        </div>
+        }
+      />
 
-        <div className="flex flex-wrap gap-4 w-full lg:w-auto">
-          <div className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[140px] group hover:border-brand-primary/30 transition-all">
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-primary transition-colors">Customers</span>
-            <span className="text-3xl font-black text-white leading-none tracking-tight">{customers.length}</span>
-          </div>
-          <div className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[140px] group hover:border-brand-primary/30 transition-all">
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-primary transition-colors">RO Count</span>
-            <span className="text-3xl font-black text-white leading-none tracking-tight">{stats.totalROs}</span>
-          </div>
-          <button 
-            onClick={() => stats.topCustomer && onViewProfile(stats.topCustomer)}
-            disabled={!stats.topCustomer}
-            className="bg-slate-900/50 backdrop-blur-md border border-white/5 px-6 py-4 rounded-3xl flex flex-col min-w-[160px] group hover:border-brand-secondary/50 hover:bg-brand-secondary/5 transition-all cursor-pointer text-left disabled:cursor-not-allowed"
-          >
-            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-brand-secondary transition-colors">Top Visitor</span>
-            {stats.topCustomer ? (
-              <div>
-                <span className="text-lg font-black text-white block truncate w-32 uppercase italic group-hover:text-brand-secondary transition-colors">
-                  {stats.topCustomer.lastName}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  {stats.maxROs} Visits
-                </span>
-              </div>
-            ) : (
-              <span className="text-3xl font-black text-white italic">N/A</span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Toolbar - Search and Filtration */}
-      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center bg-white/[0.02] backdrop-blur-xl p-2 rounded-[2rem] border border-white/5 shadow-2xl">
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center card-base p-3">
         <div className="relative flex-1">
-          <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-brand-primary/50 group-focus-within:text-brand-primary transition-colors" size={20} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             type="text"
-            placeholder="Filter by name, phone, VIN, or model..."
+            placeholder="Search name, phone, VIN, model..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setVisibleCount(24);
             }}
-            className="w-full bg-transparent border-none rounded-2xl pl-14 pr-6 py-5 text-white placeholder:text-slate-600 focus:outline-none focus:ring-0 font-bold text-sm tracking-tight"
+            className="input-field pl-9"
           />
         </div>
-        
-        <div className="flex flex-wrap items-center gap-1 bg-slate-950 p-1.5 rounded-[1.5rem] border border-white/5 justify-center lg:justify-start">
+
+        <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg border" style={{ borderColor: 'var(--color-surface-border)' }}>
            <div className="flex items-center gap-1">
              {['All', 'Hyundai', 'Other'].map(cat => (
                <button 
@@ -253,29 +248,29 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
       {/* Results Grid */}
       <AnimatePresence mode="wait">
         {filteredCustomers.length === 0 ? (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="p-32 text-center border-2 border-dashed border-slate-800 rounded-[3rem] bg-slate-900/10"
-          >
-            <div className="w-24 h-24 bg-slate-900 rounded-3xl flex items-center justify-center mx-auto mb-8 text-slate-700 border border-slate-800">
-              <Search size={40} />
-            </div>
-            <h3 className="text-2xl font-black text-white uppercase tracking-tight">Zero Matches Found</h3>
-            <p className="text-slate-500 mt-3 max-w-sm mx-auto font-medium italic">
-              Ensure the VIN or name is correct. Our database is synchronized with realtime records.
-            </p>
-            <button 
-              onClick={() => { setSearchQuery(''); setFilterCategory('All'); }}
-              className="mt-8 px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
-            >
-              Reset All Filters
-            </button>
-          </motion.div>
+          <EmptyState
+            title="No customers match your search"
+            description="Try a different name, phone number, or VIN. Clear filters to see the full directory."
+            action={
+              <button type="button" onClick={() => { setSearchQuery(''); setFilterCategory('All'); }} className="btn-secondary">
+                Clear filters
+              </button>
+            }
+          />
         ) : (
-          <div className="space-y-12">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
+          <div className="space-y-6">
+            <div className="hidden lg:block">
+              <DataTable
+                columns={tableColumns}
+                data={displayCustomers}
+                rowKey={(c) => c.id}
+                onRowClick={onViewProfile}
+              />
+              <p className="crm-label mt-2 px-1">
+                Showing {displayCustomers.length} of {filteredCustomers.length} matches
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:hidden">
               {displayCustomers.map((c, idx) => (
                 <motion.div
                   key={c.id}
