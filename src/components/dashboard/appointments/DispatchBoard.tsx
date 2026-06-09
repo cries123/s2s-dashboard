@@ -38,6 +38,10 @@ import {
   buildPreviewDispatchOrders,
   PREVIEW_DEALERSHIP_SETTINGS,
 } from '../../../lib/previewFixtures';
+import {
+  filterDispatchOrdersForDealership,
+  isDispatchOrderForDealership,
+} from '../../../lib/dispatchDealershipScope';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -348,11 +352,12 @@ export function DispatchBoard({
         );
       });
 
-      setOrders(fetchedOrders);
+      const scopedOrders = filterDispatchOrdersForDealership(fetchedOrders, currentDealershipId);
+      setOrders(scopedOrders);
       setLoading(false);
 
       // Rule C: Overnight carryover — move active lane tickets to Down in Shop.
-      const carryoversToReset = fetchedOrders.filter((ro) =>
+      const carryoversToReset = scopedOrders.filter((ro) =>
         shouldSweepOvernightCarryover(ro, currentSystemDate)
       );
 
@@ -387,6 +392,17 @@ export function DispatchBoard({
     return () => unsubscribe();
   }, [currentDealershipId, currentSystemDate]);
 
+  const assertDispatchScope = useCallback(
+    (ro: DispatchRepairOrder): boolean => {
+      if (!currentDealershipId || isDispatchOrderForDealership(ro, currentDealershipId)) {
+        return true;
+      }
+      showNotification?.('This ticket belongs to another dealership.', true);
+      return false;
+    },
+    [currentDealershipId, showNotification]
+  );
+
   const countInLane = (lane: DepartmentColumnId, excludeId?: string) =>
     (orders.filter((o) => !o.isCompleted && o.department === lane && o.id !== excludeId)).length;
 
@@ -398,6 +414,8 @@ export function DispatchBoard({
   };
 
   const handleMoveRo = async (ro: DispatchRepairOrder, target: DispatchMoveTarget) => {
+    if (!assertDispatchScope(ro)) return;
+
     const laneTarget = target === 'overnight' ? 'down_in_shop' : target;
     const overnightVehicle = isOvernightRo(ro, currentSystemDate);
     if (
@@ -663,6 +681,8 @@ export function DispatchBoard({
 
   // Toggle card completion (Rule B triggers immediate removal from active arrays)
   const handleToggleComplete = async (ro: DispatchRepairOrder, completed: boolean) => {
+    if (!assertDispatchScope(ro)) return;
+
     if (isPreviewMode) {
       setOrders((prev) =>
         prev.map((order) =>
@@ -694,6 +714,9 @@ export function DispatchBoard({
 
   // Quick Action: Toggling Status directly from the card
   const handleUpdateStatus = async (roId: string, newStatus: DispatchStatus) => {
+    const ro = orders.find((order) => order.id === roId);
+    if (ro && !assertDispatchScope(ro)) return;
+
     if (isPreviewMode) {
       setOrders((prev) =>
         prev.map((order) =>
@@ -718,6 +741,8 @@ export function DispatchBoard({
 
   // Remove card entirely
   const handleDeleteCard = async (ro: DispatchRepairOrder) => {
+    if (!assertDispatchScope(ro)) return;
+
     if (isPreviewMode) {
       setOrders((prev) => prev.filter((order) => order.id !== ro.id));
       showNotification?.(`RO #${ro.roNumber} removed.`);

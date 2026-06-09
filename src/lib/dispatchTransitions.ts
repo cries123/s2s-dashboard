@@ -43,6 +43,7 @@ export function normalizeDispatchOrder(
     id,
     department,
     currentLaneId: department,
+    dealershipId: data.dealershipId,
     status: normalizeDispatchStatus(data.status),
     lifecycleStatus: data.lifecycleStatus ?? 'active',
     isWaiting: !!data.isWaiting,

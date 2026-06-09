@@ -173,8 +173,28 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
     }
 
+    function userDealershipId() {
+      return userExists() && 'dealershipId' in userData() ? userData().dealershipId : '';
+    }
+
+    function canAccessDispatchData(data) {
+      return isAdmin() ||
+             isSystemWorker() ||
+             (userExists() && data.dealershipId == userDealershipId());
+    }
+
     match /artifacts/hyundai-sales-to-service/public/data/dispatchOrders/{orderId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+      allow read: if (isApproved() || isSystemWorker()) && canAccessDispatchData(resource.data);
+
+      allow create: if (isApproved() || isSystemWorker()) &&
+                       incoming().dealershipId is string &&
+                       canAccessDispatchData(incoming());
+
+      allow update: if (isApproved() || isSystemWorker()) &&
+                       canAccessDispatchData(resource.data) &&
+                       (isAdmin() || isSystemWorker() || incoming().dealershipId == resource.data.dealershipId);
+
+      allow delete: if (isApproved() || isSystemWorker()) && canAccessDispatchData(resource.data);
     }
 
     match /artifacts/hyundai-sales-to-service/public/data/vehicleRecalls/{recallId} {
