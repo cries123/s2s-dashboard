@@ -183,7 +183,14 @@ export function DispatchBoard({
   const [vinLastEight, setVinLastEight] = useState('');
   const [tagNumber, setTagNumber] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [dealershipSettings, setDealershipSettings] = useState<Partial<DealershipSettings> | null>(null);
+  const [scopedDealershipSettings, setScopedDealershipSettings] = useState<{
+    dealershipId: string;
+    settings: Partial<DealershipSettings> | null;
+  } | null>(null);
+  const dealershipSettings =
+    scopedDealershipSettings?.dealershipId === currentDealershipId
+      ? scopedDealershipSettings.settings
+      : null;
   const [todayApptCount, setTodayApptCount] = useState(0);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [initialStatus, setInitialStatus] = useState<DispatchStatus>('WIP');
@@ -290,7 +297,12 @@ export function DispatchBoard({
   }, [orders]);
 
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (!currentDealershipId) {
+      setScopedDealershipSettings(null);
+      return;
+    }
+
+    setScopedDealershipSettings(null);
     const settingsRef = doc(
       db,
       'artifacts',
@@ -301,7 +313,10 @@ export function DispatchBoard({
       currentDealershipId
     );
     return onSnapshot(settingsRef, (snap) => {
-      setDealershipSettings(snap.exists() ? (snap.data() as DealershipSettings) : null);
+      setScopedDealershipSettings({
+        dealershipId: currentDealershipId,
+        settings: snap.exists() ? (snap.data() as DealershipSettings) : null,
+      });
     });
   }, [currentDealershipId]);
 

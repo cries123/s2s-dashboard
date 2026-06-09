@@ -35,6 +35,7 @@ import {
   defaultPerformanceAdvisorRoster,
   FORD_PERFORMANCE_ADVISOR_ROSTER,
 } from '../../../constants/dealerDefaults';
+import { defaultDispatchTechRoster } from '../../../constants/dispatchTechDefaults';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
@@ -345,10 +346,12 @@ export default function AdminPanel({
       perfNext[id] = cfg.performanceAdvisorRoster;
       dispatchTechNext[id] = data.dispatchTechRoster?.length
         ? data.dispatchTechRoster
-        : cfg.competitionTechnicians.map((t, idx) => ({
-            id: String(6400 + idx),
-            label: t.label,
-          }));
+        : defaultDispatchTechRoster(id).length
+          ? defaultDispatchTechRoster(id)
+          : cfg.competitionTechnicians.map((t, idx) => ({
+              id: String(6400 + idx),
+              label: t.label,
+            }));
     });
     setLocalTechnicians((prev) => ({ ...prev, ...techNext }));
     setLocalPerformanceRoster((prev) => ({ ...prev, ...perfNext }));

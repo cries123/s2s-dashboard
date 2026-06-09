@@ -49,13 +49,17 @@ export function resolveTechDisplayName(
   return match?.label ?? `Tech #${key}`;
 }
 
+/** Dispatch tech list for one store — never falls back to another dealership's roster. */
 export function dispatchTechRosterFromSettings(
   settings?: { dispatchTechRoster?: PerformanceAdvisorSlot[] } | null,
   dealershipId?: string
 ): PerformanceAdvisorSlot[] {
+  if (!dealershipId) return [];
+
   const configured =
     settings?.dispatchTechRoster?.filter((row) => row.id.trim() && row.label.trim()) ?? [];
   if (configured.length > 0) return configured;
-  if (dealershipId) return defaultDispatchTechRoster(dealershipId);
-  return [];
+
+  // Built-in DMS roster is Hyundai-only; Ford/Nissan/etc. configure their own in admin.
+  return defaultDispatchTechRoster(dealershipId);
 }
