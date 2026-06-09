@@ -2,13 +2,14 @@ import React from 'react';
 import { ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
 import type { DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
+import type { DispatchProductionLane } from '../../../lib/dispatchConfig';
 
-export type MobileDispatchTab = 'intake' | DepartmentColumnId;
+export type MobileDispatchTab = 'intake' | DispatchProductionLane;
 
 interface DispatchMobileBoardProps {
   activeTab: MobileDispatchTab;
   onTabChange: (tab: MobileDispatchTab) => void;
-  displayColumns: { id: DepartmentColumnId; label: string; shortLabel: string }[];
+  displayColumns: { id: DispatchProductionLane; label: string; shortLabel: string }[];
   ticketsByColumn: Record<DepartmentColumnId, DispatchRepairOrder[]>;
   intakeForm: React.ReactNode;
   renderCard: (ro: DispatchRepairOrder) => React.ReactNode;
@@ -24,8 +25,10 @@ export function DispatchMobileBoard({
   renderCard,
   laneCapacity,
 }: DispatchMobileBoardProps) {
+  const queueTickets = ticketsByColumn.unassigned || [];
+
   const tabs: { id: MobileDispatchTab; label: string; count?: number }[] = [
-    { id: 'intake', label: 'Intake' },
+    { id: 'intake', label: 'Intake', count: queueTickets.length || undefined },
     ...displayColumns.map((col) => ({
       id: col.id,
       label: col.shortLabel,
@@ -89,7 +92,29 @@ export function DispatchMobileBoard({
       </div>
 
       {activeTab === 'intake' ? (
-        intakeForm
+        <div className="space-y-4">
+          {intakeForm}
+          <div className="rounded-2xl border border-white/[0.08] bg-slate-900/80 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Inbox size={14} className="text-amber-300" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-white">Waiting Queue</span>
+              </div>
+              <span className="text-[9px] font-black tabular-nums text-amber-200">{queueTickets.length}</span>
+            </div>
+            {queueTickets.length === 0 ? (
+              <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-600 py-8 border border-dashed border-slate-800 rounded-xl">
+                Queue is clear
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {queueTickets.map((ro) => (
+                  <div key={ro.id}>{renderCard(ro)}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">

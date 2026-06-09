@@ -2,13 +2,15 @@ import React from 'react';
 import { CheckCircle2, Plus, RefreshCw, UserSearch } from 'lucide-react';
 import { Customer } from '../../../types';
 import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
-import type { PerformanceAdvisorSlot } from '../../../types';
+import type { DispatchStatus, PerformanceAdvisorSlot } from '../../../types';
 
 interface DispatchIntakeFormProps {
   customerFirstName: string;
   setCustomerFirstName: (v: string) => void;
   customerLastName: string;
   setCustomerLastName: (v: string) => void;
+  phoneNumber: string;
+  setPhoneNumber: (v: string) => void;
   roNumber: string;
   setRoNumber: (v: string) => void;
   vinLastEight: string;
@@ -17,10 +19,12 @@ interface DispatchIntakeFormProps {
   setTechNumber: (v: string) => void;
   tagNumber: string;
   setTagNumber: (v: string) => void;
-  initialStatus: 'WIP' | 'DIS' | 'POO' | 'WFA';
-  setInitialStatus: (v: 'WIP' | 'DIS' | 'POO' | 'WFA') => void;
-  quickComplete: boolean;
-  setQuickComplete: (v: boolean) => void;
+  initialStatus: DispatchStatus;
+  setInitialStatus: (v: DispatchStatus) => void;
+  isWaiting: boolean;
+  setIsWaiting: (v: boolean) => void;
+  isPdl: boolean;
+  setIsPdl: (v: boolean) => void;
   submitting: boolean;
   selectedCustomer: Customer | null;
   setSelectedCustomer: (c: Customer | null) => void;
@@ -34,6 +38,8 @@ export function DispatchIntakeForm({
   setCustomerFirstName,
   customerLastName,
   setCustomerLastName,
+  phoneNumber,
+  setPhoneNumber,
   roNumber,
   setRoNumber,
   vinLastEight,
@@ -44,8 +50,10 @@ export function DispatchIntakeForm({
   setTagNumber,
   initialStatus,
   setInitialStatus,
-  quickComplete,
-  setQuickComplete,
+  isWaiting,
+  setIsWaiting,
+  isPdl,
+  setIsPdl,
   submitting,
   selectedCustomer,
   setSelectedCustomer,
@@ -87,6 +95,19 @@ export function DispatchIntakeForm({
         </div>
       </div>
 
+      <div className="space-y-1.5">
+        <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+          Phone Number
+        </label>
+        <input
+          type="tel"
+          placeholder="(805) 555-0100"
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)}
+          className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
+        />
+      </div>
+
       {selectedCustomer && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-950/30 border border-emerald-500/25">
           <CheckCircle2 size={12} className="text-emerald-400 shrink-0" />
@@ -112,6 +133,7 @@ export function DispatchIntakeForm({
                   setCustomerFirstName(cust.firstName || '');
                   setCustomerLastName(cust.lastName);
                   setVinLastEight(cust.vinLast8 || '');
+                  setPhoneNumber(cust.phone || '');
                 }}
                 className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
               >
@@ -119,7 +141,7 @@ export function DispatchIntakeForm({
                   {cust.firstName} {cust.lastName}
                 </span>
                 <span className="text-slate-500 block mt-0.5 font-mono text-[9px]">
-                  {[cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()]
+                  {[cust.phone, cust.vinLast8 && `VIN …${cust.vinLast8}`, cust.model && `${cust.year || ''} ${cust.model}`.trim()]
                     .filter(Boolean)
                     .join(' · ')}
                 </span>
@@ -211,36 +233,52 @@ export function DispatchIntakeForm({
           />
           <select
             value={initialStatus}
-            onChange={(e) => setInitialStatus(e.target.value as typeof initialStatus)}
+            onChange={(e) => setInitialStatus(e.target.value as DispatchStatus)}
             className="w-full appearance-none bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg pl-7 pr-8 py-2.5 text-[11px] text-slate-200 font-bold uppercase tracking-wide cursor-pointer focus:ring-2 focus:ring-indigo-500/15"
           >
             {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
               <option key={val} value={val} className="bg-slate-950 text-white">
-                {info.label} ({val})
+                {info.label}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/[0.06]">
+      <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-white/[0.06]">
         <label className="flex items-center gap-2.5 cursor-pointer group">
           <input
             type="checkbox"
-            id="quickComplete"
-            checked={quickComplete}
-            onChange={(e) => setQuickComplete(e.target.checked)}
-            className="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500/30 w-4 h-4 cursor-pointer"
+            checked={isWaiting}
+            onChange={(e) => {
+              setIsWaiting(e.target.checked);
+              if (e.target.checked) setIsPdl(false);
+            }}
+            className="rounded border-slate-700 bg-slate-950 text-rose-500 focus:ring-rose-500/30 w-4 h-4 cursor-pointer"
           />
           <span className="text-[10px] text-slate-500 group-hover:text-slate-300 font-semibold transition-colors">
-            Mark completed on intake
+            Waiting
+          </span>
+        </label>
+        <label className="flex items-center gap-2.5 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={isPdl}
+            onChange={(e) => {
+              setIsPdl(e.target.checked);
+              if (e.target.checked) setIsWaiting(false);
+            }}
+            className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500/30 w-4 h-4 cursor-pointer"
+          />
+          <span className="text-[10px] text-slate-500 group-hover:text-slate-300 font-semibold transition-colors">
+            PDL
           </span>
         </label>
 
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 shadow-lg shadow-indigo-950/40 transition-all duration-200"
+          className="ml-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 shadow-lg shadow-indigo-950/40 transition-all duration-200"
         >
           {submitting ? <RefreshCw className="animate-spin" size={14} /> : <Plus size={14} />}
           Queue Ticket
@@ -266,7 +304,7 @@ export function DispatchIntakePanel({
           <div className="min-w-0">
             <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Fast Intake</h2>
             <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
-              Enter customer name, RO details, and tag — last name can match CRM.
+              Enter customer, RO details, and tag — last name can match CRM.
             </p>
           </div>
         </div>

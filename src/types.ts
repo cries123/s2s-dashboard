@@ -169,15 +169,16 @@ export type DepartmentColumnId =
   | 'lube' 
   | 'quick_service' 
   | 'ac_electrical' 
+  | 'drivability'
   | 'heavyline' 
   | 'diesel' 
   | 'trans' 
-  | 'mobile_repair' 
+  | 'down_in_shop'
   | 'unassigned';
 
 export type DispatchLifecycleStatus = 'active' | 'overnight';
 
-export type DispatchStatus = 'WIP' | 'DIS' | 'POO' | 'WFA';
+export type DispatchStatus = 'WIP' | 'POO' | 'WFA';
 
 export interface DispatchRepairOrder {
   id: string;
@@ -203,6 +204,10 @@ export interface DispatchRepairOrder {
   year?: string;
   model?: string;
   departmentName?: string;
+  /** Customer is waiting on-site */
+  isWaiting?: boolean;
+  /** Pickup & delivery loaner */
+  isPdl?: boolean;
 }
 
 export interface ArchivePayload {

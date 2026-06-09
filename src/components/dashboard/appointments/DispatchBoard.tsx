@@ -6,7 +6,14 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
-import { mergeLaneCapacity, DispatchProductionLane, DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
+import {
+  mergeLaneCapacity,
+  DispatchProductionLane,
+  DISPATCH_STATUS_COLORS,
+  DISPATCH_INTAKE_FLAG_STYLES,
+  DISPATCH_PRODUCTION_LANES,
+  dispatchLaneLabel,
+} from '../../../lib/dispatchConfig';
 import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
 import { dispatchTechRosterFromSettings, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
 import { DispatchMetricsBar } from './DispatchMetricsBar';
@@ -19,11 +26,13 @@ import {
 } from '../../../lib/appointmentTracker';
 import {
   buildDispatchMoveUpdate,
-  buildOvernightQueuePatch,
+  buildOvernightDownInShopPatch,
   isOvernightRo,
   normalizeDispatchOrder,
+  shouldSweepOvernightCarryover,
   type DispatchMoveTarget,
 } from '../../../lib/dispatchTransitions';
+import type { DispatchStatus } from '../../../types';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -47,24 +56,54 @@ function playQueueAlert() {
   }
 }
 
-const DEPARTMENTS: { id: DepartmentColumnId; label: string; icon: typeof Layers }[] = [
-  { id: 'lube', label: 'Lube Unit', icon: Layers },
-  { id: 'quick_service', label: 'Quick Service', icon: Sparkles },
-  { id: 'ac_electrical', label: 'AC / Electrical', icon: AlertTriangle },
-  { id: 'heavyline', label: 'Heavyline Core', icon: Users },
-  { id: 'diesel', label: 'Diesel Power', icon: ClipboardList },
-  { id: 'trans', label: 'Transmission', icon: RefreshCw },
-  { id: 'mobile_repair', label: 'Mobile Fleet', icon: Wrench },
-];
+const LANE_ICONS: Record<DispatchProductionLane, typeof Layers> = {
+  lube: Layers,
+  quick_service: Sparkles,
+  ac_electrical: AlertTriangle,
+  drivability: Wrench,
+  heavyline: Users,
+  diesel: ClipboardList,
+  trans: RefreshCw,
+  down_in_shop: Moon,
+};
 
-const BASE_DEPARTMENTS = DEPARTMENTS;
+const DEPARTMENTS = DISPATCH_PRODUCTION_LANES.map((lane) => ({
+  id: lane.id,
+  label: lane.label,
+  shortLabel: lane.shortLabel,
+  icon: LANE_ICONS[lane.id],
+}));
 
-function buildDisplayColumns(hidden: DepartmentColumnId[] = []) {
-  const visible = BASE_DEPARTMENTS.filter((d) => !hidden.includes(d.id as DepartmentColumnId));
-  return [
-    { id: 'unassigned' as DepartmentColumnId, label: 'Waiting for Dispatch', shortLabel: 'Queue', icon: ClipboardList },
-    ...visible.map((d) => ({ ...d, shortLabel: d.label.split(' ')[0] })),
-  ];
+function renderIntakeFlagBadge(ro: DispatchRepairOrder, compact = false) {
+  if (ro.isWaiting) {
+    const style = DISPATCH_INTAKE_FLAG_STYLES.waiting;
+    return (
+      <span
+        className={cn(
+          'font-black uppercase rounded shrink-0',
+          compact ? 'text-[8px] px-1 py-0.5' : 'text-[9px] px-1.5 py-0.5'
+        )}
+        style={{ backgroundColor: style.bg, color: style.text }}
+      >
+        {style.label}
+      </span>
+    );
+  }
+  if (ro.isPdl) {
+    const style = DISPATCH_INTAKE_FLAG_STYLES.pdl;
+    return (
+      <span
+        className={cn(
+          'font-black uppercase rounded shrink-0',
+          compact ? 'text-[8px] px-1 py-0.5' : 'text-[9px] px-1.5 py-0.5'
+        )}
+        style={{ backgroundColor: style.bg, color: style.text }}
+      >
+        {style.label}
+      </span>
+    );
+  }
+  return null;
 }
 
 export function DispatchBoard({ 
@@ -94,7 +133,7 @@ export function DispatchBoard({
   } | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [mobileLaneTab, setMobileLaneTab] = useState<MobileDispatchTab>('unassigned');
+  const [mobileLaneTab, setMobileLaneTab] = useState<MobileDispatchTab>('intake');
   const [draggingRoId, setDraggingRoId] = useState<string | null>(null);
   const [dragOverLane, setDragOverLane] = useState<DispatchMoveTarget | null>(null);
   const [displayCycleIndex, setDisplayCycleIndex] = useState(0);
@@ -119,8 +158,10 @@ export function DispatchBoard({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [dealershipSettings, setDealershipSettings] = useState<Partial<DealershipSettings> | null>(null);
   const [todayApptCount, setTodayApptCount] = useState(0);
-  const [initialStatus, setInitialStatus] = useState<'WIP' | 'DIS' | 'POO' | 'WFA'>('WIP');
-  const [quickComplete, setQuickComplete] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [initialStatus, setInitialStatus] = useState<DispatchStatus>('WIP');
+  const [isWaiting, setIsWaiting] = useState(false);
+  const [isPdl, setIsPdl] = useState(false);
 
   // Current YYYY-MM-DD Date
   const currentSystemDate = useMemo(() => {
@@ -152,14 +193,11 @@ export function DispatchBoard({
   const showTodayLoad = dealershipSettings?.dispatchShowTodayLoad !== false;
   const blockWhenFull = !!dealershipSettings?.dispatchBlockWhenFull;
   const apptGoal = dealershipSettings?.appointmentTarget ?? 20;
-  const displayColumns = useMemo(
-    () => buildDisplayColumns(dealershipSettings?.hiddenDispatchLanes ?? []),
-    [dealershipSettings?.hiddenDispatchLanes]
-  );
   const visibleDepartments = useMemo(
     () => DEPARTMENTS.filter((d) => !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)),
     [dealershipSettings?.hiddenDispatchLanes]
   );
+  const productionDisplayColumns = visibleDepartments;
 
   const dispatchTechRoster = useMemo(
     () => dispatchTechRosterFromSettings(dealershipSettings),
@@ -192,7 +230,7 @@ export function DispatchBoard({
     onMouseMove();
 
     const cycleTimer = window.setInterval(() => {
-      setDisplayCycleIndex((prev) => (prev + 1) % Math.max(displayColumns.length, 1));
+      setDisplayCycleIndex((prev) => (prev + 1) % Math.max(productionDisplayColumns.length, 1));
     }, 12_000);
 
     return () => {
@@ -205,7 +243,7 @@ export function DispatchBoard({
         document.exitFullscreen().catch(() => undefined);
       }
     };
-  }, [isDisplayMode, displayColumns.length]);
+  }, [isDisplayMode, productionDisplayColumns.length]);
 
 
   const matchCandidates = useMemo(
@@ -289,26 +327,24 @@ export function DispatchBoard({
       setOrders(fetchedOrders);
       setLoading(false);
 
-      // Rule C: Overnight carryover retention logic.
-      // If any active (non-completed) ticket is from an earlier date and is not in 'unassigned', sweep it back.
-      const carryoversToReset = fetchedOrders.filter((ro) => {
-        return !ro.isCompleted && isOvernightRo(ro, currentSystemDate) && ro.department !== 'unassigned';
-      });
+      // Rule C: Overnight carryover — move active lane tickets to Down in Shop.
+      const carryoversToReset = fetchedOrders.filter((ro) =>
+        shouldSweepOvernightCarryover(ro, currentSystemDate)
+      );
 
       if (carryoversToReset.length > 0) {
-        console.log(`[Dispatch] Rolling over ${carryoversToReset.length} overnight tickets back to the queue.`);
+        console.log(`[Dispatch] Rolling over ${carryoversToReset.length} overnight ticket(s) to Down in Shop.`);
         
-        // Batch update to reset their department
         const batch = writeBatch(db);
         carryoversToReset.forEach(ro => {
           const docRef = doc(db, path, ro.id);
-          batch.update(docRef, buildOvernightQueuePatch());
+          batch.update(docRef, buildOvernightDownInShopPatch());
         });
         
         batch.commit()
           .then(() => {
             if (showNotification) {
-              showNotification(`Restored ${carryoversToReset.length} carryover ticket(s) back to the Waiting Dispatch tray.`);
+              showNotification(`Moved ${carryoversToReset.length} carryover ticket(s) to Down in Shop.`);
             }
           })
           .catch(err => {
@@ -338,7 +374,7 @@ export function DispatchBoard({
   };
 
   const handleMoveRo = async (ro: DispatchRepairOrder, target: DispatchMoveTarget) => {
-    const laneTarget = target === 'overnight' ? 'unassigned' : target;
+    const laneTarget = target === 'overnight' ? 'down_in_shop' : target;
     const overnightVehicle = isOvernightRo(ro, currentSystemDate);
     if (
       laneTarget !== 'unassigned' &&
@@ -359,10 +395,10 @@ export function DispatchBoard({
       if (showNotification) {
         const label =
           target === 'overnight'
-            ? 'Overnight (Queue)'
+            ? 'Down in Shop'
             : target === 'unassigned'
               ? 'Waiting Queue'
-              : DEPARTMENTS.find((d) => d.id === target)?.label || target;
+              : dispatchLaneLabel(target);
         showNotification(`RO #${ro.roNumber} moved to ${label}.`);
       }
     } catch (err: unknown) {
@@ -514,7 +550,9 @@ export function DispatchBoard({
         currentLaneId: 'unassigned',
         lifecycleStatus: 'active',
         status: initialStatus,
-        isCompleted: quickComplete,
+        isCompleted: false,
+        isWaiting,
+        isPdl,
         dateCreated: currentSystemDate,
         lastUpdated: new Date().toISOString(),
         dealershipId: currentDealershipId,
@@ -531,6 +569,10 @@ export function DispatchBoard({
       if (vin) {
         payload.vinLastEight = vin;
       }
+      const phone = phoneNumber.trim();
+      if (phone) {
+        payload.phoneNumber = phone;
+      }
 
       await setDoc(docRef, payload);
 
@@ -539,11 +581,13 @@ export function DispatchBoard({
       setTechNumber('');
       setCustomerFirstName('');
       setCustomerLastName('');
+      setPhoneNumber('');
       setVinLastEight('');
       setTagNumber('');
       setSelectedCustomer(null);
       setInitialStatus('WIP');
-      setQuickComplete(false);
+      setIsWaiting(false);
+      setIsPdl(false);
 
       if (showNotification) {
         showNotification(`Ticket RO #${payload.roNumber} successfully queued.`);
@@ -574,7 +618,7 @@ export function DispatchBoard({
   };
 
   // Quick Action: Toggling Status directly from the card
-  const handleUpdateStatus = async (roId: string, newStatus: 'WIP' | 'DIS' | 'POO' | 'WFA') => {
+  const handleUpdateStatus = async (roId: string, newStatus: DispatchStatus) => {
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
       await updateDoc(docRef, {
@@ -612,11 +656,12 @@ export function DispatchBoard({
       lube: [],
       quick_service: [],
       ac_electrical: [],
+      drivability: [],
       heavyline: [],
       diesel: [],
       trans: [],
-      mobile_repair: [],
-      unassigned: [] // Queue tray
+      down_in_shop: [],
+      unassigned: [],
     };
     
     activeTickets.forEach((t) => {
@@ -644,7 +689,7 @@ export function DispatchBoard({
   const moveTargets = useMemo((): { target: DispatchMoveTarget; label: string; icon?: React.ReactNode }[] => [
     { target: 'unassigned', label: 'Move to Queue', icon: <Inbox size={12} /> },
     ...visibleDepartments.map((d) => ({ target: d.id as DispatchMoveTarget, label: `Move to ${d.label}`, icon: <d.icon size={12} /> })),
-    { target: 'overnight', label: 'Move to Overnight', icon: <Moon size={12} /> },
+    { target: 'overnight', label: 'Move to Down in Shop', icon: <Moon size={12} /> },
   ], [visibleDepartments]);
 
   const renderMoveMenuPortal = () => {
@@ -726,12 +771,7 @@ export function DispatchBoard({
       >
         <div className="flex items-center justify-between gap-1">
           <span className="text-[11px] font-black text-white tabular-nums truncate">RO {ro.roNumber}</span>
-          <span
-            className="text-[8px] font-black uppercase px-1 py-0.5 rounded shrink-0"
-            style={{ backgroundColor: statusInfo.hex, color: statusInfo.text }}
-          >
-            {ro.status}
-          </span>
+          {renderIntakeFlagBadge(ro, true)}
         </div>
         <p className="text-[9px] font-bold text-slate-300 truncate uppercase">
           {ro.customerName || ro.model || 'Guest'}
@@ -889,7 +929,7 @@ export function DispatchBoard({
               {techLabel}
             </span>
             <span className="text-slate-400 text-[10px] block truncate">
-              Dept: {DEPARTMENTS.find(d => d.id === ro.department)?.label || 'Unassigned'}
+              Dept: {dispatchLaneLabel(ro.department)}
             </span>
           </div>
         </div>
@@ -901,7 +941,10 @@ export function DispatchBoard({
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <div className="relative inline-flex items-center w-[125px] sm:w-[135px]">
+          {(ro.isWaiting || ro.isPdl) && (
+            <div className="shrink-0">{renderIntakeFlagBadge(ro)}</div>
+          )}
+          <div className="relative inline-flex items-center flex-1 min-w-0 max-w-[155px]">
             <select
               value={ro.status}
               onChange={(e) => handleUpdateStatus(ro.id, e.target.value as typeof ro.status)}
@@ -949,6 +992,8 @@ export function DispatchBoard({
       setCustomerFirstName={setCustomerFirstName}
       customerLastName={customerLastName}
       setCustomerLastName={setCustomerLastName}
+      phoneNumber={phoneNumber}
+      setPhoneNumber={setPhoneNumber}
       roNumber={roNumber}
       setRoNumber={setRoNumber}
       vinLastEight={vinLastEight}
@@ -959,8 +1004,10 @@ export function DispatchBoard({
       setTagNumber={setTagNumber}
       initialStatus={initialStatus}
       setInitialStatus={setInitialStatus}
-      quickComplete={quickComplete}
-      setQuickComplete={setQuickComplete}
+      isWaiting={isWaiting}
+      setIsWaiting={setIsWaiting}
+      isPdl={isPdl}
+      setIsPdl={setIsPdl}
       submitting={submitting}
       selectedCustomer={selectedCustomer}
       setSelectedCustomer={setSelectedCustomer}
@@ -1074,7 +1121,7 @@ export function DispatchBoard({
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
                   {completedTickets.map(ro => {
-                    const deptLabel = DEPARTMENTS.find(d => d.id === ro.department)?.label || 'Unassigned';
+                    const deptLabel = dispatchLaneLabel(ro.department);
                     return (
                       <tr key={ro.id} className="hover:bg-slate-850/30 transition-colors">
                         <td className="py-3 px-3 font-bold text-slate-200">RO {ro.roNumber}</td>
@@ -1262,7 +1309,7 @@ export function DispatchBoard({
         <DispatchMobileBoard
           activeTab={mobileLaneTab}
           onTabChange={setMobileLaneTab}
-          displayColumns={displayColumns}
+          displayColumns={productionDisplayColumns}
           ticketsByColumn={ticketsByColumn}
           laneCapacity={laneCapacity}
           renderCard={renderRoCard}
@@ -1292,26 +1339,27 @@ export function DispatchBoard({
               Exit
             </button>
 
-            {queuePulse && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-[9px] font-black uppercase tracking-wider text-amber-200 animate-pulse">
-                New ticket in queue
-              </div>
-            )}
-
-            <div className="grid grid-cols-8 gap-1.5 flex-1 min-h-0 w-full h-full">
-              {displayColumns.map((col, columnIndex) => {
+            <div
+              className={cn(
+                'grid gap-1.5 flex-1 min-h-0 w-full h-full',
+                productionDisplayColumns.length <= 4
+                  ? 'grid-cols-4'
+                  : productionDisplayColumns.length <= 6
+                    ? 'grid-cols-6'
+                    : 'grid-cols-8'
+              )}
+            >
+              {productionDisplayColumns.map((col, columnIndex) => {
                 const list = ticketsByColumn[col.id] || [];
-                const cap = col.id === 'unassigned' ? 0 : laneCapacity[col.id as DispatchProductionLane];
+                const cap = laneCapacity[col.id];
                 const atCap = cap > 0 && list.length >= cap;
                 const isCycleFocus = columnIndex === displayCycleIndex;
-                const isQueueColumn = col.id === 'unassigned';
                 return (
                   <div
                     key={col.id}
                     className={cn(
                       'flex flex-col min-w-0 min-h-0 rounded-xl border bg-slate-900/60 overflow-hidden transition-all duration-500',
-                      isCycleFocus ? 'ring-2 ring-indigo-400/50 border-indigo-400/40 scale-[1.01]' : 'border-slate-800/80',
-                      isQueueColumn && queuePulse && 'ring-2 ring-amber-400/60 animate-pulse'
+                      isCycleFocus ? 'ring-2 ring-indigo-400/50 border-indigo-400/40 scale-[1.01]' : 'border-slate-800/80'
                     )}
                     {...laneDropProps(col.id)}
                   >
