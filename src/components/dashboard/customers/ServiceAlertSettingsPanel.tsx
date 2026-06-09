@@ -83,9 +83,8 @@ export function ServiceAlertSettingsPanel({
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-white">Service alert timing</h3>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Controls when customers appear in Service Alerts for{' '}
-            <span className="text-slate-300 font-medium">{dealershipName}</span>.
-            Increase the interval if alerts are firing too soon.
+            Store-wide default for <span className="text-slate-300 font-medium">{dealershipName}</span>.
+            To adjust one customer, open their profile → Service Alerts → Individual alert schedule.
           </p>
         </div>
       </div>

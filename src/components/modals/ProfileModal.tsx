@@ -10,7 +10,9 @@ import { db } from '../../firebase';
 import { Customer, User } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
-import { getAverageServiceIntervalMonths, getLastServiceDate, getNextServiceMilestone } from '../../lib/alerts';
+import { useServiceAlertHelpers } from '../../context/ServiceAlertContext';
+import { getLastServiceDate } from '../../lib/alerts';
+import { CustomerIndividualAlertTiming } from '../dashboard/customers/CustomerIndividualAlertTiming';
 import {
   CustomerTimeline,
   type TimelineEvent,
@@ -26,6 +28,7 @@ interface ProfileModalProps {
 type TabType = 'overview' | 'demographics' | 'history' | 'campaigns';
 
 export default function ProfileModal({ customer, currentUser, onClose, onDelete }: ProfileModalProps) {
+  const serviceAlerts = useServiceAlertHelpers();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ ...customer });
@@ -995,6 +998,14 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         </div>
                       </div>
 
+                      <CustomerIndividualAlertTiming
+                        customer={formData}
+                        onUpdated={(patch) => {
+                          setFormData((prev) => ({ ...prev, ...patch }));
+                          Object.assign(customer, patch);
+                        }}
+                      />
+
                       {/* Interactive Section for Alert Removal */}
                       {!formData.stopAlertInfo ? (
                         <div className="space-y-4">
@@ -1121,7 +1132,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
                           <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Average Interval</span>
                           <span className="text-xs font-black text-emerald-400 mt-1 block">
-                            {getAverageServiceIntervalMonths(formData)} Months
+                            {serviceAlerts.getAverageServiceIntervalMonths(formData)} Months
                           </span>
                         </div>
                         
@@ -1142,7 +1153,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
                           <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Next Due Date</span>
                           <span className="text-xs font-black text-brand-secondary mt-1 block">
-                            {getNextServiceMilestone(formData)}
+                            {serviceAlerts.getNextServiceMilestone(formData)}
                           </span>
                         </div>
                       </div>

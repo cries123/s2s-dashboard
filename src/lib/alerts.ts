@@ -1,5 +1,9 @@
 import { Customer } from "../types";
 import {
+  isServiceAlertOnHold,
+  resolveCustomerAlertTiming,
+} from "./customerAlertTiming";
+import {
   DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
   DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
 } from "./dealershipSettingsUtils";
@@ -104,11 +108,14 @@ export function getNextServiceMilestone(
   }
 
   const customer = customerOrSoldDate;
-  const avgDays = getAverageServiceIntervalDays(customer, intervalDays);
+  const timing = resolveCustomerAlertTiming(customer, intervalDays, bufferDays);
+  const avgDays = getAverageServiceIntervalDays(customer, timing.intervalDays);
   const lastDate = getLastServiceDate(customer);
   if (!lastDate) return 'N/A';
 
-  const nextDue = new Date(lastDate.getTime() + (avgDays + bufferDays) * 24 * 60 * 60 * 1000);
+  const nextDue = new Date(
+    lastDate.getTime() + (avgDays + timing.bufferDays) * 24 * 60 * 60 * 1000
+  );
   return nextDue.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -124,14 +131,17 @@ export function isServiceAlertActive(
   if (!customer.enableServiceAlert) return false;
   if (customer.stopAlertInfo) return false;
 
-  const avgDays = getAverageServiceIntervalDays(customer, intervalDays);
+  const now = new Date();
+  if (isServiceAlertOnHold(customer, now)) return false;
+
+  const timing = resolveCustomerAlertTiming(customer, intervalDays, bufferDays);
+  const avgDays = getAverageServiceIntervalDays(customer, timing.intervalDays);
   const lastDate = getLastServiceDate(customer);
   if (!lastDate) return false;
 
   const alertAfter = new Date(
-    lastDate.getTime() + (avgDays + bufferDays) * 24 * 60 * 60 * 1000
+    lastDate.getTime() + (avgDays + timing.bufferDays) * 24 * 60 * 60 * 1000
   );
-  const now = new Date();
 
   if (customer.lastServiceContact) {
     const lastContactTime = new Date(customer.lastServiceContact.seconds * 1000).getTime();

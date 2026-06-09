@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Customer } from '../types';
+import { resolveCustomerAlertTiming } from '../lib/customerAlertTiming';
 import {
   calculateServiceCycle,
   getAverageServiceIntervalDays,
@@ -36,12 +37,25 @@ export function useServiceAlertInterval(
       isServiceAlertActive: (customer: Customer) =>
         isServiceAlertActive(customer, days, buffer),
       calculateServiceCycle: (soldDate: string) => calculateServiceCycle(soldDate, days),
-      getAverageServiceIntervalDays: (customer: Customer) =>
-        getAverageServiceIntervalDays(customer, days),
-      getAverageServiceIntervalMonths: (customer: Customer) =>
-        getAverageServiceIntervalMonths(customer, days),
-      getNextServiceMilestone: (customerOrSoldDate: Customer | string) =>
-        getNextServiceMilestone(customerOrSoldDate, days, buffer),
+      getAverageServiceIntervalDays: (customer: Customer) => {
+        const timing = resolveCustomerAlertTiming(customer, days, buffer);
+        return getAverageServiceIntervalDays(customer, timing.intervalDays);
+      },
+      getAverageServiceIntervalMonths: (customer: Customer) => {
+        const timing = resolveCustomerAlertTiming(customer, days, buffer);
+        return getAverageServiceIntervalMonths(customer, timing.intervalDays);
+      },
+      getNextServiceMilestone: (customerOrSoldDate: Customer | string) => {
+        if (typeof customerOrSoldDate === 'string') {
+          return getNextServiceMilestone(customerOrSoldDate, days, buffer);
+        }
+        const timing = resolveCustomerAlertTiming(customerOrSoldDate, days, buffer);
+        return getNextServiceMilestone(
+          customerOrSoldDate,
+          timing.intervalDays,
+          timing.bufferDays
+        );
+      },
     }),
     [days, buffer]
   );

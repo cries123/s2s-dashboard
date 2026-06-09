@@ -111,6 +111,12 @@ export interface Customer {
   language: string;
   enableServiceAlert: boolean;
   serviceAlertTriggered: boolean;
+  /** Per-customer override — days between service (blank = dealership default). */
+  serviceAlertIntervalDays?: number;
+  /** Per-customer override — buffer days after due (blank = dealership default). */
+  serviceAlertBufferDays?: number;
+  /** Don't show in Service Alerts until this date (YYYY-MM-DD). */
+  serviceAlertHoldUntil?: string;
   lastServiceContact?: Timestamp;
   lastContactOutcome?: string;
   lastContactUserId?: string;
