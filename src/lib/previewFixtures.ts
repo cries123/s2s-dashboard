@@ -1,4 +1,5 @@
 import type { DealershipSettings, DispatchRepairOrder, User } from '../types';
+import { promiseTimeMinutesFromNow } from './dispatchPromiseTime';
 
 export const PREVIEW_USER: User = {
   uid: 'preview-user',
@@ -44,6 +45,7 @@ export function buildPreviewDispatchOrders(
       status: 'WIP',
       isWaiting: true,
       isPdl: false,
+      promiseTimeAt: promiseTimeMinutesFromNow(90),
       dateCreated: currentDate,
       model: 'Tucson',
       year: '2024',
@@ -63,6 +65,7 @@ export function buildPreviewDispatchOrders(
       status: 'WIP',
       isWaiting: false,
       isPdl: true,
+      promiseTimeAt: promiseTimeMinutesFromNow(25),
       dateCreated: currentDate,
       model: 'Santa Fe',
       year: '2023',
@@ -79,6 +82,7 @@ export function buildPreviewDispatchOrders(
       currentLaneId: 'quick_service',
       lifecycleStatus: 'active',
       status: 'POO',
+      promiseTimeAt: promiseTimeMinutesFromNow(8),
       dateCreated: currentDate,
       model: 'Elantra',
       year: '2022',
@@ -95,6 +99,7 @@ export function buildPreviewDispatchOrders(
       currentLaneId: 'ac_electrical',
       lifecycleStatus: 'active',
       status: 'WFA',
+      promiseTimeAt: promiseTimeMinutesFromNow(-12),
       dateCreated: currentDate,
       model: 'Palisade',
       year: '2025',

@@ -208,6 +208,8 @@ export interface DispatchRepairOrder {
   isWaiting?: boolean;
   /** Pickup & delivery loaner */
   isPdl?: boolean;
+  /** Customer promise date/time (ISO 8601) */
+  promiseTimeAt?: string;
 }
 
 export interface ArchivePayload {

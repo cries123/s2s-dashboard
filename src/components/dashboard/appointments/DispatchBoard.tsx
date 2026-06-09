@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
@@ -42,6 +42,12 @@ import {
   filterDispatchOrdersForDealership,
   isDispatchOrderForDealership,
 } from '../../../lib/dispatchDealershipScope';
+import {
+  getPromiseTimeState,
+  localInputFromPromiseTimeIso,
+  promiseTimeIsoFromLocalInput,
+} from '../../../lib/dispatchPromiseTime';
+import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -171,6 +177,8 @@ export function DispatchBoard({
   const [initialStatus, setInitialStatus] = useState<DispatchStatus>('WIP');
   const [isWaiting, setIsWaiting] = useState(false);
   const [isPdl, setIsPdl] = useState(false);
+  const [promiseTimeLocal, setPromiseTimeLocal] = useState('');
+  const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
 
   // Current YYYY-MM-DD Date
   const currentSystemDate = useMemo(() => {
@@ -259,6 +267,16 @@ export function DispatchBoard({
     () => findCustomersByLastName(customers, customerLastName),
     [customers, customerLastName]
   );
+
+  useEffect(() => {
+    const hasActivePromise = orders.some((order) => !order.isCompleted && order.promiseTimeAt);
+    if (!hasActivePromise) return;
+
+    const tick = () => setPromiseNowMs(Date.now());
+    tick();
+    const id = window.setInterval(tick, 15_000);
+    return () => window.clearInterval(id);
+  }, [orders]);
 
   useEffect(() => {
     if (isPreviewMode || !currentDealershipId) return;
@@ -634,6 +652,10 @@ export function DispatchBoard({
       if (phone) {
         payload.phoneNumber = phone;
       }
+      const promiseIso = promiseTimeIsoFromLocalInput(promiseTimeLocal);
+      if (promiseIso) {
+        payload.promiseTimeAt = promiseIso;
+      }
 
       if (isPreviewMode) {
         setOrders((prev) => [...prev, normalizeDispatchOrder(payload, payload.id)]);
@@ -648,6 +670,7 @@ export function DispatchBoard({
         setInitialStatus('WIP');
         setIsWaiting(false);
         setIsPdl(false);
+        setPromiseTimeLocal('');
         showNotification?.(`Ticket RO #${payload.roNumber} queued (preview).`);
         setSubmitting(false);
         return;
@@ -667,6 +690,7 @@ export function DispatchBoard({
       setInitialStatus('WIP');
       setIsWaiting(false);
       setIsPdl(false);
+      setPromiseTimeLocal('');
 
       if (showNotification) {
         showNotification(`Ticket RO #${payload.roNumber} successfully queued.`);
@@ -713,6 +737,34 @@ export function DispatchBoard({
   };
 
   // Quick Action: Toggling Status directly from the card
+  const handleUpdatePromiseTime = async (roId: string, promiseTimeAt: string | null) => {
+    const ro = orders.find((order) => order.id === roId);
+    if (ro && !assertDispatchScope(ro)) return;
+
+    const patch = {
+      promiseTimeAt: promiseTimeAt ?? undefined,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) => (order.id === roId ? { ...order, ...patch } : order))
+      );
+      return;
+    }
+
+    try {
+      const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
+      await updateDoc(docRef, {
+        promiseTimeAt: promiseTimeAt ?? deleteField(),
+        lastUpdated: patch.lastUpdated,
+      });
+    } catch (err: unknown) {
+      console.error('[Dispatch] Promise time update error:', err);
+      showNotification?.('Failed to update promise time.', true);
+    }
+  };
+
   const handleUpdateStatus = async (roId: string, newStatus: DispatchStatus) => {
     const ro = orders.find((order) => order.id === roId);
     if (ro && !assertDispatchScope(ro)) return;
@@ -871,6 +923,7 @@ export function DispatchBoard({
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const overnight = isOvernightRo(ro, currentSystemDate);
     const techLabel = resolveTechLabel(ro.techNumber);
+    const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
     return (
       <div
         key={ro.id}
@@ -881,6 +934,8 @@ export function DispatchBoard({
         className={cn(
           'relative bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-pointer select-none space-y-0.5',
           overnight && 'ring-1 ring-amber-500/40',
+          promiseState?.urgency === 'urgent' && 'ring-1 ring-orange-500/45',
+          promiseState?.urgency === 'overdue' && 'ring-1 ring-rose-500/50 animate-pulse',
           moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50',
           draggingRoId === ro.id && 'opacity-50'
         )}
@@ -893,6 +948,13 @@ export function DispatchBoard({
         <p className="text-[9px] font-bold text-slate-300 truncate uppercase">
           {ro.customerName || ro.model || 'Guest'}
         </p>
+        {ro.promiseTimeAt && (
+          <DispatchPromiseCountdown
+            promiseTimeAt={ro.promiseTimeAt}
+            nowMs={promiseNowMs}
+            compact
+          />
+        )}
         <div className="flex items-center justify-between text-[8px] font-mono text-slate-500">
           <span className="truncate">{techLabel}</span>
           <span>…{ro.vinLastEight}</span>
@@ -905,6 +967,7 @@ export function DispatchBoard({
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const isOvernight = isOvernightRo(ro, currentSystemDate);
     const techLabel = resolveTechLabel(ro.techNumber);
+    const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
 
     // Check if it's an internal dealership vehicle
     const isInternalAsset = 
@@ -923,6 +986,9 @@ export function DispatchBoard({
         className={cn(
           "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-pointer select-none w-full text-slate-100",
           isOvernight && "ring-1 ring-amber-500/30",
+          promiseState?.urgency === 'soon' && "ring-1 ring-amber-500/25",
+          promiseState?.urgency === 'urgent' && "ring-1 ring-orange-500/40",
+          promiseState?.urgency === 'overdue' && "ring-1 ring-rose-500/45",
           moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30",
           draggingRoId === ro.id && "opacity-50 scale-[0.98]"
         )}
@@ -1028,6 +1094,36 @@ export function DispatchBoard({
           </div>
         )}
 
+        <div
+          className="space-y-2"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {ro.promiseTimeAt ? (
+            <DispatchPromiseCountdown
+              promiseTimeAt={ro.promiseTimeAt}
+              nowMs={promiseNowMs}
+            />
+          ) : null}
+          <label className="block space-y-1">
+            <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">
+              Promise time
+            </span>
+            <input
+              type="datetime-local"
+              value={localInputFromPromiseTimeIso(ro.promiseTimeAt)}
+              onChange={(e) =>
+                handleUpdatePromiseTime(
+                  ro.id,
+                  e.target.value ? promiseTimeIsoFromLocalInput(e.target.value) ?? null : null
+                )
+              }
+              className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-2.5 py-2 text-[11px] text-white font-semibold tabular-nums [color-scheme:dark]"
+            />
+          </label>
+        </div>
+
         {/* 3. CORE TECHNICAL METADATA (VEHICLE SPECIFICS) */}
         <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
           <div className="bg-slate-950/30 p-2 rounded border border-slate-800/40">
@@ -1125,6 +1221,8 @@ export function DispatchBoard({
       setIsWaiting={setIsWaiting}
       isPdl={isPdl}
       setIsPdl={setIsPdl}
+      promiseTimeLocal={promiseTimeLocal}
+      setPromiseTimeLocal={setPromiseTimeLocal}
       submitting={submitting}
       selectedCustomer={selectedCustomer}
       setSelectedCustomer={setSelectedCustomer}
@@ -1428,6 +1526,9 @@ export function DispatchBoard({
                   <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">{info.label} ({code})</span>
                 </div>
               ))}
+              <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
+                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Promise: green &gt;1h · amber &lt;1h · orange &lt;15m · red overdue</span>
+              </div>
             </div>
           </div>
 
