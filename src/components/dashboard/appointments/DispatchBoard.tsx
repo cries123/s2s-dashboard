@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc, deleteField, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { useCustomers } from '../../../hooks/useCustomers';
@@ -38,6 +38,7 @@ import {
   filterDispatchOrdersForDealership,
   isDispatchOrderForDealership,
 } from '../../../lib/dispatchDealershipScope';
+import { getDispatchDatePst, isDispatchOvernightSweepWindow } from '../../../lib/dispatchPst';
 import {
   combinePromiseDateAndTime,
   getPromiseTimeState,
@@ -186,13 +187,10 @@ export function DispatchBoard({
   const [promiseTimeError, setPromiseTimeError] = useState<string | null>(null);
   const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
 
-  const currentSystemDate = new Date().toLocaleDateString('en-CA');
-  const carryoverSweepKeyRef = useRef<string | null>(null);
+  const businessDatePst = getDispatchDatePst();
   const carryoverSweepInFlightRef = useRef(false);
-
-  useEffect(() => {
-    carryoverSweepKeyRef.current = null;
-  }, [currentDealershipId, currentSystemDate]);
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
 
   const openDisplayMode = async () => {
     setShowCompleted(false);
@@ -320,7 +318,7 @@ export function DispatchBoard({
     };
 
     const unsubTenant = onSnapshot(
-      appointmentTrackerDoc(db, currentDealershipId, currentSystemDate),
+      appointmentTrackerDoc(db, currentDealershipId, businessDatePst),
       (snap) => {
         tenantData = snap.exists() ? (snap.data() as { count?: number; dealershipId?: string }) : null;
         syncCount();
@@ -329,7 +327,7 @@ export function DispatchBoard({
 
     const unsubLegacy =
       currentDealershipId === 'hyundai'
-        ? onSnapshot(legacyAppointmentTrackerDoc(db, currentSystemDate), (snap) => {
+        ? onSnapshot(legacyAppointmentTrackerDoc(db, businessDatePst), (snap) => {
             legacyData = snap.exists() ? (snap.data() as { count?: number; dealershipId?: string }) : null;
             syncCount();
           })
@@ -339,39 +337,74 @@ export function DispatchBoard({
       unsubTenant();
       unsubLegacy();
     };
-  }, [currentDealershipId, currentSystemDate]);
+  }, [currentDealershipId, businessDatePst]);
 
-  const sweepOvernightCarryovers = useCallback(
-    async (scopedOrders: DispatchRepairOrder[]) => {
-      if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
-
-      const sweepKey = `${currentDealershipId}:${currentSystemDate}`;
-      if (carryoverSweepKeyRef.current === sweepKey) return;
-
-      const carryoversToReset = scopedOrders.filter((ro) =>
-        shouldSweepOvernightCarryover(ro, currentSystemDate)
+  const markOvernightSweepComplete = useCallback(
+    async (sweepDatePst: string) => {
+      if (!currentDealershipId) return;
+      const settingsRef = doc(
+        db,
+        'artifacts',
+        'hyundai-sales-to-service',
+        'public',
+        'data',
+        'dealershipSettings',
+        currentDealershipId
       );
-      if (carryoversToReset.length === 0) return;
+      await updateDoc(settingsRef, {
+        lastDispatchOvernightSweepDate: sweepDatePst,
+        updatedAt: serverTimestamp(),
+      });
+    },
+    [currentDealershipId]
+  );
 
-      const path = 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders';
-      carryoverSweepInFlightRef.current = true;
+  const runMidnightSweepIfDue = useCallback(async () => {
+    if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
+    if (!isDispatchOvernightSweepWindow()) return;
 
-      try {
+    const sweepDatePst = getDispatchDatePst();
+    if (dealershipSettings?.lastDispatchOvernightSweepDate === sweepDatePst) return;
+
+    const scopedOrders = filterDispatchOrdersForDealership(
+      ordersRef.current,
+      currentDealershipId
+    );
+    const carryoversToReset = scopedOrders.filter(shouldSweepOvernightCarryover);
+
+    carryoverSweepInFlightRef.current = true;
+    const path = 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders';
+
+    try {
+      if (carryoversToReset.length > 0) {
         const batch = writeBatch(db);
         carryoversToReset.forEach((ro) => {
           batch.update(doc(db, path, ro.id), buildOvernightDownInShopPatch());
         });
         await batch.commit();
-        carryoverSweepKeyRef.current = sweepKey;
-        showNotification?.(`Moved ${carryoversToReset.length} carryover ticket(s) to Down in Shop.`);
-      } catch (err) {
-        console.error('[Dispatch] Error rolling over tickets:', err);
-      } finally {
-        carryoverSweepInFlightRef.current = false;
+        showNotification?.(
+          `End of day: moved ${carryoversToReset.length} ticket(s) from lanes to Down in Shop.`
+        );
       }
-    },
-    [currentDealershipId, currentSystemDate, showNotification]
-  );
+      await markOvernightSweepComplete(sweepDatePst);
+    } catch (err) {
+      console.error('[Dispatch] Midnight lane sweep failed:', err);
+    } finally {
+      carryoverSweepInFlightRef.current = false;
+    }
+  }, [
+    currentDealershipId,
+    dealershipSettings?.lastDispatchOvernightSweepDate,
+    markOvernightSweepComplete,
+    showNotification,
+  ]);
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    void runMidnightSweepIfDue();
+    const id = window.setInterval(() => void runMidnightSweepIfDue(), 15_000);
+    return () => window.clearInterval(id);
+  }, [currentDealershipId, runMidnightSweepIfDue]);
 
   // Sync / Stream Board State from Firestore
   useEffect(() => {
@@ -395,7 +428,6 @@ export function DispatchBoard({
       const scopedOrders = filterDispatchOrdersForDealership(fetchedOrders, currentDealershipId);
       setOrders(scopedOrders);
       setLoading(false);
-      void sweepOvernightCarryovers(scopedOrders);
     }, (error) => {
       console.error('[Dispatch] Error streaming dispatch orders:', error);
       setLoading(false);
@@ -405,7 +437,7 @@ export function DispatchBoard({
     });
 
     return () => unsubscribe();
-  }, [currentDealershipId, sweepOvernightCarryovers]);
+  }, [currentDealershipId]);
 
   const assertDispatchScope = useCallback(
     (ro: DispatchRepairOrder): boolean => {
@@ -432,7 +464,7 @@ export function DispatchBoard({
     if (!assertDispatchScope(ro)) return;
 
     const laneTarget = target === 'overnight' ? 'down_in_shop' : target;
-    const overnightVehicle = isOvernightRo(ro, currentSystemDate);
+    const overnightVehicle = isOvernightRo(ro, businessDatePst);
     if (
       laneTarget !== 'unassigned' &&
       blockWhenFull &&
@@ -448,7 +480,7 @@ export function DispatchBoard({
 
     try {
       const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
-      await updateDoc(roRef, buildDispatchMoveUpdate(ro, target, currentSystemDate));
+      await updateDoc(roRef, buildDispatchMoveUpdate(ro, target, businessDatePst));
       setMoveMenuRoId(null);
       if (showNotification) {
         const label =
@@ -611,7 +643,7 @@ export function DispatchBoard({
         isCompleted: false,
         isWaiting,
         isPdl,
-        dateCreated: currentSystemDate,
+        dateCreated: businessDatePst,
         lastUpdated: new Date().toISOString(),
         dealershipId: currentDealershipId,
         ...(crmMatch ? enrichDispatchFromCustomer(crmMatch) : {}),
@@ -859,7 +891,7 @@ export function DispatchBoard({
 
   const renderDisplayCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
-    const overnight = isOvernightRo(ro, currentSystemDate);
+    const overnight = isOvernightRo(ro, businessDatePst);
     const techLabel = resolveTechLabel(ro.techNumber);
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
     return (
@@ -903,7 +935,7 @@ export function DispatchBoard({
 
   const renderRoCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
-    const isOvernight = isOvernightRo(ro, currentSystemDate);
+    const isOvernight = isOvernightRo(ro, businessDatePst);
     const techLabel = resolveTechLabel(ro.techNumber);
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
 
@@ -1191,7 +1223,7 @@ export function DispatchBoard({
             <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-black uppercase tracking-wider">
               <Calendar size={13} className="text-indigo-400 shrink-0" />
               <span className="text-slate-400">Today</span>
-              <span className="text-white tabular-nums">{activeTickets.filter((o) => o.dateCreated === currentSystemDate).length}</span>
+              <span className="text-white tabular-nums">{activeTickets.filter((o) => o.dateCreated === businessDatePst).length}</span>
               <span className="text-slate-600">active ROs</span>
               <span className="text-slate-600">·</span>
               <span className="text-emerald-400 tabular-nums">{todayApptCount}</span>
@@ -1230,15 +1262,15 @@ export function DispatchBoard({
           <div className="hidden md:block">
             <DispatchMetricsBar
               orders={orders}
-              currentSystemDate={currentSystemDate}
-              isOvernight={(ro) => isOvernightRo(ro, currentSystemDate)}
+              currentSystemDate={businessDatePst}
+              isOvernight={(ro) => isOvernightRo(ro, businessDatePst)}
             />
           </div>
           <div className="md:hidden">
             <DispatchMetricsBar
               orders={orders}
-              currentSystemDate={currentSystemDate}
-              isOvernight={(ro) => isOvernightRo(ro, currentSystemDate)}
+              currentSystemDate={businessDatePst}
+              isOvernight={(ro) => isOvernightRo(ro, businessDatePst)}
               compact
             />
           </div>

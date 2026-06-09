@@ -1,12 +1,11 @@
 import type { DepartmentColumnId, DispatchLifecycleStatus, DispatchRepairOrder, DispatchStatus } from '../types';
 import { DISPATCH_PRODUCTION_LANES } from './dispatchConfig';
+import { getDispatchDatePst } from './dispatchPst';
 
 export type DispatchMoveTarget = DepartmentColumnId | 'overnight';
 
 const LEGACY_DEPARTMENT_MAP: Record<string, DepartmentColumnId> = {
   mobile_repair: 'down_in_shop',
-  queue: 'unassigned',
-  waiting: 'unassigned',
 };
 
 const PRODUCTION_LANE_IDS = new Set(
@@ -25,7 +24,7 @@ const KNOWN_DEPARTMENTS: DepartmentColumnId[] = [
   'unassigned',
 ];
 
-/** Normalize stored date values to local YYYY-MM-DD for stable comparisons. */
+/** Normalize stored date values to PST YYYY-MM-DD for stable comparisons. */
 export function normalizeDispatchDateKey(value: string | undefined): string | null {
   if (!value?.trim()) return null;
   const trimmed = value.trim();
@@ -34,7 +33,7 @@ export function normalizeDispatchDateKey(value: string | undefined): string | nu
 
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString('en-CA');
+  return getDispatchDatePst(parsed);
 }
 
 export function normalizeDispatchStatus(status: string | undefined): DispatchStatus {
@@ -64,6 +63,11 @@ function migrateDepartment(
     }
   }
 
+  // Never demote an assigned lane to the waiting queue on read — preserve in Down in Shop.
+  if (candidates.length > 0) {
+    return 'down_in_shop';
+  }
+
   return 'unassigned';
 }
 
@@ -87,26 +91,26 @@ export function normalizeDispatchOrder(
 
 export function isPriorCalendarDayRo(
   ro: DispatchRepairOrder,
-  currentSystemDate: string
+  businessDatePst: string
 ): boolean {
   const created = normalizeDispatchDateKey(ro.dateCreated);
-  return created !== null && created < currentSystemDate;
+  return created !== null && created < businessDatePst;
 }
 
 /** Visual overnight indicator — prior-day ticket or explicit overnight lifecycle. */
-export function isOvernightRo(ro: DispatchRepairOrder, currentSystemDate: string): boolean {
-  return ro.lifecycleStatus === 'overnight' || isPriorCalendarDayRo(ro, currentSystemDate);
+export function isOvernightRo(ro: DispatchRepairOrder, businessDatePst: string): boolean {
+  return ro.lifecycleStatus === 'overnight' || isPriorCalendarDayRo(ro, businessDatePst);
 }
 
 function shouldRefreshDateOnLaneAssign(
   ro: DispatchRepairOrder,
   target: DepartmentColumnId,
-  currentSystemDate: string
+  businessDatePst: string
 ): boolean {
   if (target === 'unassigned') return false;
   return (
     ro.lifecycleStatus === 'overnight' ||
-    isPriorCalendarDayRo(ro, currentSystemDate) ||
+    isPriorCalendarDayRo(ro, businessDatePst) ||
     ro.department === 'unassigned' ||
     ro.department === 'down_in_shop'
   );
@@ -116,7 +120,7 @@ function shouldRefreshDateOnLaneAssign(
 export function buildDispatchMoveUpdate(
   ro: DispatchRepairOrder,
   target: DispatchMoveTarget,
-  currentSystemDate: string
+  businessDatePst: string
 ): Partial<DispatchRepairOrder> {
   const lastUpdated = new Date().toISOString();
 
@@ -133,13 +137,13 @@ export function buildDispatchMoveUpdate(
     };
   }
 
-  const refreshDate = shouldRefreshDateOnLaneAssign(ro, target, currentSystemDate);
+  const refreshDate = shouldRefreshDateOnLaneAssign(ro, target, businessDatePst);
   return {
     lifecycleStatus: 'active' satisfies DispatchLifecycleStatus,
     department: target,
     currentLaneId: target,
     lastUpdated,
-    ...(refreshDate ? { dateCreated: currentSystemDate } : {}),
+    ...(refreshDate ? { dateCreated: businessDatePst } : {}),
   };
 }
 
@@ -158,17 +162,13 @@ export function buildOvernightDownInShopPatch(): Partial<DispatchRepairOrder> {
 export const buildOvernightQueuePatch = buildOvernightDownInShopPatch;
 
 /**
- * Only sweep active prior-day tickets still sitting in a production lane.
- * Already-overnight tickets and same-day lane assignments are left alone.
+ * Tickets eligible for the midnight PST sweep: active, incomplete, still in a production lane.
+ * Timing is enforced by the caller — never run this outside the midnight window.
  */
-export function shouldSweepOvernightCarryover(
-  ro: DispatchRepairOrder,
-  currentSystemDate: string
-): boolean {
+export function shouldSweepOvernightCarryover(ro: DispatchRepairOrder): boolean {
   return (
     !ro.isCompleted &&
     (ro.lifecycleStatus ?? 'active') === 'active' &&
-    isPriorCalendarDayRo(ro, currentSystemDate) &&
     PRODUCTION_LANE_IDS.has(ro.department)
   );
 }

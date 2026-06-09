@@ -60,6 +60,8 @@ export interface DealershipSettings {
   dispatchShowTodayLoad?: boolean;
   dispatchBlockWhenFull?: boolean;
   hiddenDispatchLanes?: DispatchProductionLaneId[];
+  /** PST business date (YYYY-MM-DD) when lanes were last auto-swept at midnight. */
+  lastDispatchOvernightSweepDate?: string;
   updatedAt: Timestamp;
 }
 
