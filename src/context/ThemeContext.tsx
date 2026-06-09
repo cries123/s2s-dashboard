@@ -1,47 +1,25 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
 
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = 'dark';
 
 interface ThemeContextValue {
   theme: ThemeMode;
-  setTheme: (mode: ThemeMode) => void;
-  toggleTheme: () => void;
 }
-
-const STORAGE_KEY = 's2s-theme';
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'light';
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'dark' || stored === 'light') return stored;
-  } catch {
-    /* ignore */
-  }
-  return 'light';
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(readStoredTheme);
-
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.style.colorScheme = 'dark';
     try {
-      localStorage.setItem(STORAGE_KEY, theme);
+      localStorage.removeItem('s2s-theme');
     } catch {
       /* ignore */
     }
-  }, [theme]);
+  }, []);
 
-  const setTheme = useCallback((mode: ThemeMode) => setThemeState(mode), []);
-  const toggleTheme = useCallback(
-    () => setThemeState((t) => (t === 'light' ? 'dark' : 'light')),
-    []
-  );
-
-  const value = useMemo(() => ({ theme, setTheme, toggleTheme }), [theme, setTheme, toggleTheme]);
+  const value = useMemo(() => ({ theme: 'dark' as const }), []);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

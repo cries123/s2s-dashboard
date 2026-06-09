@@ -1,6 +1,5 @@
 import React from 'react';
-import { LogOut, Moon, Sun } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
+import { LogOut } from 'lucide-react';
 import type { User } from '../../types';
 import { canSwitchDealership } from '../../lib/rbac';
 import { DealershipSwitcher } from './DealershipSwitcher';
@@ -21,7 +20,6 @@ export function AppTopBar({
   onDealershipChange,
   onSignOut,
 }: AppTopBarProps) {
-  const { theme, toggleTheme } = useTheme();
   const canSwitch = canSwitchDealership(user);
 
   return (
@@ -53,14 +51,6 @@ export function AppTopBar({
         {isPreviewMode && (
           <span className="badge badge-warning hidden sm:inline-flex text-[10px]">Preview</span>
         )}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="btn-secondary p-2.5"
-          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-        >
-          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-        </button>
         <div className="hidden sm:block text-right px-2">
           <p className="text-sm font-medium leading-none">{user.username}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
