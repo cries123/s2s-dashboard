@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Wrench } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import {
@@ -17,6 +18,10 @@ interface DispatchTechSelectorProps {
   className?: string;
 }
 
+const MENU_MIN_WIDTH = 260;
+const MENU_ITEM_HEIGHT = 44;
+const MENU_PADDING = 8;
+
 export function DispatchTechSelector({
   techNumber,
   roster,
@@ -26,20 +31,110 @@ export function DispatchTechSelector({
   className,
 }: DispatchTechSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const anchor = buttonRef.current;
+    if (!anchor) return;
+
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.max(rect.width, MENU_MIN_WIDTH);
+    const menuHeight = roster.length * MENU_ITEM_HEIGHT + MENU_PADDING;
+    const gap = 6;
+    const viewportPadding = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const placeAbove = menuHeight > spaceBelow && spaceAbove >= spaceBelow;
+
+    const availableHeight = placeAbove ? spaceAbove - gap : spaceBelow - gap;
+    const needsScroll = menuHeight > availableHeight;
+
+    setMenuStyle({
+      position: 'fixed',
+      zIndex: 10000,
+      left: Math.min(rect.left, window.innerWidth - width - viewportPadding),
+      width,
+      minWidth: width,
+      top: placeAbove ? rect.top - gap : rect.bottom + gap,
+      transform: placeAbove ? 'translateY(-100%)' : undefined,
+      maxHeight: needsScroll ? Math.max(availableHeight, 320) : undefined,
+      overflowY: needsScroll ? 'auto' : undefined,
+    });
+  }, [roster.length]);
+
+  useEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return;
+    }
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
   const displayLabel = formatTechLabelWithCount(techNumber, roster, techRoCounts);
+
+  const menu = open && menuStyle
+    ? createPortal(
+        <div
+          ref={menuRef}
+          style={menuStyle}
+          className="rounded-lg border border-indigo-500/30 bg-slate-950 shadow-2xl shadow-black/60 py-1 animate-in fade-in zoom-in-95 duration-150"
+          role="listbox"
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {roster.map((row) => {
+            const key = normalizeTechNumber(row.id);
+            const count = techRoCounts.get(key) ?? 0;
+            const isActive = normalizeTechNumber(techNumber) === key;
+            return (
+              <button
+                key={row.id}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                onClick={() => {
+                  onSelect(row.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'w-full px-3 py-2.5 text-left text-[11px] hover:bg-indigo-500/15 transition-colors',
+                  isActive && 'bg-indigo-500/10 text-indigo-200'
+                )}
+              >
+                <span className="font-semibold text-slate-100 whitespace-nowrap">
+                  {resolveTechDisplayName(row.id, roster)}
+                  {count > 0 ? ` (${count})` : ''}
+                </span>
+                <span className="text-slate-500 block font-mono text-[10px] mt-0.5">#{row.id}</span>
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )
+    : null;
 
   return (
     <div
@@ -50,6 +145,7 @@ export function DispatchTechSelector({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
@@ -69,40 +165,7 @@ export function DispatchTechSelector({
         </span>
       </button>
 
-      {open && (
-        <div
-          className="absolute left-0 right-0 z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-indigo-500/30 bg-slate-950 shadow-2xl shadow-black/60 py-1"
-          role="listbox"
-        >
-          {roster.map((row) => {
-            const key = normalizeTechNumber(row.id);
-            const count = techRoCounts.get(key) ?? 0;
-            const isActive = normalizeTechNumber(techNumber) === key;
-            return (
-              <button
-                key={row.id}
-                type="button"
-                role="option"
-                aria-selected={isActive}
-                onClick={() => {
-                  onSelect(row.id);
-                  setOpen(false);
-                }}
-                className={cn(
-                  'w-full px-2.5 py-2 text-left text-[10px] hover:bg-indigo-500/15 transition-colors',
-                  isActive && 'bg-indigo-500/10 text-indigo-200'
-                )}
-              >
-                <span className="font-semibold text-slate-100">
-                  {resolveTechDisplayName(row.id, roster)}
-                  {count > 0 ? ` (${count})` : ''}
-                </span>
-                <span className="text-slate-500 block font-mono text-[9px] mt-0.5">#{row.id}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }
