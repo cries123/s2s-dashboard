@@ -115,7 +115,9 @@ export interface Customer {
   serviceAlertIntervalDays?: number;
   /** Per-customer override — buffer days after due (blank = dealership default). */
   serviceAlertBufferDays?: number;
-  /** Don't show in Service Alerts until this date (YYYY-MM-DD). */
+  /** Manual next alert date — overrides auto schedule until this date (YYYY-MM-DD). */
+  serviceAlertOverrideDate?: string;
+  /** @deprecated Use serviceAlertOverrideDate */
   serviceAlertHoldUntil?: string;
   lastServiceContact?: Timestamp;
   lastContactOutcome?: string;

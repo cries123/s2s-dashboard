@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Customer, User } from '../../../types';
 import { Phone, Mail, Car, Calendar, History, Trash2, Edit2, Loader2, FastForward, Database, CheckCircle2, ChevronDown, ChevronUp, Wrench } from 'lucide-react';
-import { Timestamp, addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { Timestamp, addDoc, collection, deleteField, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { cn } from '../../../lib/utils';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
@@ -55,7 +55,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         lastContactUserId: currentUser.uid,
         lastContactUsername: currentUser.username,
         lastAcknowledgedCycle: currentCycle,
-        serviceAlertTriggered: false
+        serviceAlertTriggered: false,
+        serviceAlertOverrideDate: deleteField(),
+        serviceAlertHoldUntil: deleteField(),
       });
 
       if (onRefresh) onRefresh(`Logged ${outcome} and cleared alert for ${customer.firstName}.`);

@@ -11,7 +11,18 @@ export interface ResolvedCustomerAlertTiming {
   bufferDays: number;
   usesCustomInterval: boolean;
   usesCustomBuffer: boolean;
-  holdUntil?: string;
+  overrideDate?: string;
+}
+
+/** Reads manual override date (supports legacy holdUntil field). */
+export function getCustomerServiceAlertOverrideDate(customer: Customer): string | undefined {
+  const raw = customer.serviceAlertOverrideDate?.trim() || customer.serviceAlertHoldUntil?.trim();
+  return raw || undefined;
+}
+
+export function parseServiceAlertOverrideDate(dateStr: string): Date | null {
+  const d = new Date(`${dateStr.trim()}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export function resolveCustomerAlertTiming(
@@ -35,21 +46,36 @@ export function resolveCustomerAlertTiming(
       : dealershipBufferDays,
     usesCustomInterval,
     usesCustomBuffer,
-    holdUntil: customer.serviceAlertHoldUntil?.trim() || undefined,
+    overrideDate: getCustomerServiceAlertOverrideDate(customer),
   };
 }
 
-export function isServiceAlertOnHold(customer: Customer, now: Date = new Date()): boolean {
-  const holdUntil = customer.serviceAlertHoldUntil?.trim();
-  if (!holdUntil) return false;
-  const holdEnd = new Date(`${holdUntil}T23:59:59`);
-  if (Number.isNaN(holdEnd.getTime())) return false;
-  return now.getTime() < holdEnd.getTime();
+/** True when a manual override date is set and today is still before that date. */
+export function isServiceAlertOverridePending(
+  customer: Customer,
+  now: Date = new Date()
+): boolean {
+  const overrideDateStr = getCustomerServiceAlertOverrideDate(customer);
+  if (!overrideDateStr) return false;
+  const overrideStart = parseServiceAlertOverrideDate(overrideDateStr);
+  if (!overrideStart) return false;
+  return now.getTime() < overrideStart.getTime();
+}
+
+export function formatServiceAlertOverrideDate(dateStr: string): string {
+  const d = parseServiceAlertOverrideDate(dateStr);
+  if (!d) return 'N/A';
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 export function normalizeCustomerAlertPatch(patch: {
   serviceAlertIntervalDays?: number | '' | null;
   serviceAlertBufferDays?: number | '' | null;
+  serviceAlertOverrideDate?: string | null;
   serviceAlertHoldUntil?: string | null;
 }): Partial<Customer> {
   const next: Partial<Customer> = {};
@@ -66,8 +92,10 @@ export function normalizeCustomerAlertPatch(patch: {
     next.serviceAlertBufferDays = clampServiceAlertBufferDays(patch.serviceAlertBufferDays);
   }
 
-  const hold = patch.serviceAlertHoldUntil?.trim();
-  next.serviceAlertHoldUntil = hold || undefined;
+  const override =
+    patch.serviceAlertOverrideDate?.trim() || patch.serviceAlertHoldUntil?.trim() || '';
+  next.serviceAlertOverrideDate = override || undefined;
+  next.serviceAlertHoldUntil = undefined;
 
   return next;
 }

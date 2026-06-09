@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Clock, Loader2, Save, User } from 'lucide-react';
+import { Calendar, Clock, Loader2, Save, ShieldCheck, User } from 'lucide-react';
 import { deleteField, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import type { Customer } from '../../../types';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import {
-  isServiceAlertOnHold,
+  formatServiceAlertOverrideDate,
+  getCustomerServiceAlertOverrideDate,
+  isServiceAlertOverridePending,
   normalizeCustomerAlertPatch,
   resolveCustomerAlertTiming,
 } from '../../../lib/customerAlertTiming';
@@ -34,13 +36,15 @@ export function CustomerIndividualAlertTiming({
   const [bufferDays, setBufferDays] = useState(
     customer.serviceAlertBufferDays?.toString() ?? ''
   );
-  const [holdUntil, setHoldUntil] = useState(customer.serviceAlertHoldUntil ?? '');
+  const [overrideDate, setOverrideDate] = useState(
+    getCustomerServiceAlertOverrideDate(customer) ?? ''
+  );
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setIntervalDays(customer.serviceAlertIntervalDays?.toString() ?? '');
     setBufferDays(customer.serviceAlertBufferDays?.toString() ?? '');
-    setHoldUntil(customer.serviceAlertHoldUntil ?? '');
+    setOverrideDate(getCustomerServiceAlertOverrideDate(customer) ?? '');
   }, [customer]);
 
   const previewCustomer: Customer = {
@@ -48,7 +52,7 @@ export function CustomerIndividualAlertTiming({
     ...normalizeCustomerAlertPatch({
       serviceAlertIntervalDays: intervalDays === '' ? '' : Number(intervalDays),
       serviceAlertBufferDays: bufferDays === '' ? '' : Number(bufferDays),
-      serviceAlertHoldUntil: holdUntil,
+      serviceAlertOverrideDate: overrideDate,
     }),
   };
   const previewTiming = resolveCustomerAlertTiming(
@@ -57,13 +61,16 @@ export function CustomerIndividualAlertTiming({
     dealershipAlerts.bufferDays
   );
   const alertActive = dealershipAlerts.isServiceAlertActive(previewCustomer);
-  const onHold = isServiceAlertOnHold(previewCustomer);
+  const overridePending = isServiceAlertOverridePending(previewCustomer);
+  const hasOverride = Boolean(overrideDate.trim());
   const nextDue = dealershipAlerts.getNextServiceMilestone(previewCustomer);
+
+  const savedOverride = getCustomerServiceAlertOverrideDate(customer) ?? '';
 
   const hasChanges =
     intervalDays !== (customer.serviceAlertIntervalDays?.toString() ?? '') ||
     bufferDays !== (customer.serviceAlertBufferDays?.toString() ?? '') ||
-    holdUntil !== (customer.serviceAlertHoldUntil ?? '');
+    overrideDate !== savedOverride;
 
   const handleSave = async () => {
     setSaving(true);
@@ -71,29 +78,20 @@ export function CustomerIndividualAlertTiming({
       const patch = normalizeCustomerAlertPatch({
         serviceAlertIntervalDays: intervalDays === '' ? '' : Number(intervalDays),
         serviceAlertBufferDays: bufferDays === '' ? '' : Number(bufferDays),
-        serviceAlertHoldUntil: holdUntil,
+        serviceAlertOverrideDate: overrideDate,
       });
-
-      const firestorePatch: Record<string, unknown> = {};
-      if (patch.serviceAlertIntervalDays != null) {
-        firestorePatch.serviceAlertIntervalDays = patch.serviceAlertIntervalDays;
-      } else {
-        firestorePatch.serviceAlertIntervalDays = deleteField();
-      }
-      if (patch.serviceAlertBufferDays != null) {
-        firestorePatch.serviceAlertBufferDays = patch.serviceAlertBufferDays;
-      } else {
-        firestorePatch.serviceAlertBufferDays = deleteField();
-      }
-      if (patch.serviceAlertHoldUntil) {
-        firestorePatch.serviceAlertHoldUntil = patch.serviceAlertHoldUntil;
-      } else {
-        firestorePatch.serviceAlertHoldUntil = deleteField();
-      }
-
       await updateDoc(
         doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id),
-        firestorePatch
+        {
+          serviceAlertIntervalDays:
+            patch.serviceAlertIntervalDays != null
+              ? patch.serviceAlertIntervalDays
+              : deleteField(),
+          serviceAlertBufferDays:
+            patch.serviceAlertBufferDays != null ? patch.serviceAlertBufferDays : deleteField(),
+          serviceAlertOverrideDate: patch.serviceAlertOverrideDate ?? deleteField(),
+          serviceAlertHoldUntil: deleteField(),
+        }
       );
       onUpdated(patch);
     } catch (err) {
@@ -107,7 +105,7 @@ export function CustomerIndividualAlertTiming({
   const handleClear = async () => {
     setIntervalDays('');
     setBufferDays('');
-    setHoldUntil('');
+    setOverrideDate('');
     setSaving(true);
     try {
       await updateDoc(
@@ -115,12 +113,14 @@ export function CustomerIndividualAlertTiming({
         {
           serviceAlertIntervalDays: deleteField(),
           serviceAlertBufferDays: deleteField(),
+          serviceAlertOverrideDate: deleteField(),
           serviceAlertHoldUntil: deleteField(),
         }
       );
       onUpdated({
         serviceAlertIntervalDays: undefined,
         serviceAlertBufferDays: undefined,
+        serviceAlertOverrideDate: undefined,
         serviceAlertHoldUntil: undefined,
       });
     } catch (err) {
@@ -140,14 +140,37 @@ export function CustomerIndividualAlertTiming({
             Individual alert schedule
           </h5>
           <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-            Override the dealership default for this customer only. Leave blank to use store
-            settings ({dealershipAlerts.intervalDays} days
+            Override the dealership default for this customer only. Leave interval fields blank to
+            use store settings ({dealershipAlerts.intervalDays} days
             {dealershipAlerts.bufferDays > 0 ? ` + ${dealershipAlerts.bufferDays} buffer` : ''}).
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <label className="block space-y-2 p-4 rounded-xl border border-amber-500/25 bg-amber-950/15">
+        <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+          <ShieldCheck size={12} />
+          Service alert override
+        </span>
+        <p className="text-[10px] text-slate-400 leading-relaxed">
+          Set the exact date this customer should next appear in Service Alerts. Replaces the
+          auto-calculated schedule until that date — use when it is not time to contact them yet.
+        </p>
+        <input
+          type="date"
+          value={overrideDate}
+          onChange={(e) => setOverrideDate(e.target.value)}
+          className="input-field w-full sm:max-w-xs font-mono text-sm"
+        />
+        {hasOverride ? (
+          <p className="text-[10px] text-amber-200/90 font-medium">
+            Override active — alert scheduled for{' '}
+            <span className="font-bold">{formatServiceAlertOverrideDate(overrideDate)}</span>
+          </p>
+        ) : null}
+      </label>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="space-y-1.5">
           <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
             Days between service
@@ -159,8 +182,12 @@ export function CustomerIndividualAlertTiming({
             value={intervalDays}
             onChange={(e) => setIntervalDays(e.target.value)}
             placeholder={String(dealershipAlerts.intervalDays)}
-            className="input-field w-full font-mono tabular-nums text-sm"
+            disabled={hasOverride}
+            className="input-field w-full font-mono tabular-nums text-sm disabled:opacity-50"
           />
+          {hasOverride ? (
+            <span className="text-[9px] text-slate-500">Ignored while override date is set</span>
+          ) : null}
         </label>
 
         <label className="space-y-1.5">
@@ -174,49 +201,48 @@ export function CustomerIndividualAlertTiming({
             value={bufferDays}
             onChange={(e) => setBufferDays(e.target.value)}
             placeholder={String(dealershipAlerts.bufferDays)}
-            className="input-field w-full font-mono tabular-nums text-sm"
-          />
-        </label>
-
-        <label className="space-y-1.5">
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block flex items-center gap-1">
-            <Calendar size={10} /> Don't contact until
-          </span>
-          <input
-            type="date"
-            value={holdUntil}
-            onChange={(e) => setHoldUntil(e.target.value)}
-            className="input-field w-full font-mono text-sm"
+            disabled={hasOverride}
+            className="input-field w-full font-mono tabular-nums text-sm disabled:opacity-50"
           />
         </label>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[10px]">
         <div className="p-3 rounded-xl bg-slate-950/50 border border-white/5">
-          <span className="text-slate-500 font-black uppercase tracking-wider block">Effective interval</span>
+          <span className="text-slate-500 font-black uppercase tracking-wider block">
+            {hasOverride ? 'Auto interval' : 'Effective interval'}
+          </span>
           <span className="text-white font-bold mt-1 block">
-            {previewTiming.intervalDays} days
-            <span className="text-slate-500 font-medium">
-              {' '}
-              (≈ {serviceAlertIntervalMonths(previewTiming.intervalDays)} mo)
-            </span>
+            {hasOverride ? 'Overridden' : `${previewTiming.intervalDays} days`}
+            {!hasOverride ? (
+              <span className="text-slate-500 font-medium">
+                {' '}
+                (≈ {serviceAlertIntervalMonths(previewTiming.intervalDays)} mo)
+              </span>
+            ) : null}
           </span>
         </div>
         <div className="p-3 rounded-xl bg-slate-950/50 border border-white/5">
           <span className="text-slate-500 font-black uppercase tracking-wider block flex items-center gap-1">
-            <Clock size={10} /> Next alert date
+            <Calendar size={10} /> Next alert date
           </span>
           <span className="text-brand-secondary font-bold mt-1 block">{nextDue}</span>
         </div>
         <div className="p-3 rounded-xl bg-slate-950/50 border border-white/5">
-          <span className="text-slate-500 font-black uppercase tracking-wider block">Alert status</span>
+          <span className="text-slate-500 font-black uppercase tracking-wider block flex items-center gap-1">
+            <Clock size={10} /> Alert status
+          </span>
           <span
             className={cn(
               'font-black uppercase mt-1 block',
-              onHold ? 'text-amber-400' : alertActive ? 'text-rose-400' : 'text-emerald-400'
+              overridePending
+                ? 'text-amber-400'
+                : alertActive
+                  ? 'text-rose-400'
+                  : 'text-emerald-400'
             )}
           >
-            {onHold ? 'On hold' : alertActive ? 'Due now' : 'Not due'}
+            {overridePending ? 'Override set' : alertActive ? 'Due now' : 'Not due'}
           </span>
         </div>
       </div>
@@ -233,13 +259,13 @@ export function CustomerIndividualAlertTiming({
         </button>
         {(resolved.usesCustomInterval ||
           resolved.usesCustomBuffer ||
-          resolved.holdUntil ||
+          resolved.overrideDate ||
           intervalDays ||
           bufferDays ||
-          holdUntil) && (
+          overrideDate) && (
           <button
             type="button"
-            onClick={handleClear}
+            onClick={() => void handleClear()}
             disabled={saving}
             className="btn-secondary text-xs py-2 px-4"
           >

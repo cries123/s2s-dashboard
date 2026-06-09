@@ -1,6 +1,9 @@
 import { Customer } from "../types";
 import {
-  isServiceAlertOnHold,
+  formatServiceAlertOverrideDate,
+  getCustomerServiceAlertOverrideDate,
+  isServiceAlertOverridePending,
+  parseServiceAlertOverrideDate,
   resolveCustomerAlertTiming,
 } from "./customerAlertTiming";
 import {
@@ -108,6 +111,11 @@ export function getNextServiceMilestone(
   }
 
   const customer = customerOrSoldDate;
+  const overrideDateStr = getCustomerServiceAlertOverrideDate(customer);
+  if (overrideDateStr) {
+    return formatServiceAlertOverrideDate(overrideDateStr);
+  }
+
   const timing = resolveCustomerAlertTiming(customer, intervalDays, bufferDays);
   const avgDays = getAverageServiceIntervalDays(customer, timing.intervalDays);
   const lastDate = getLastServiceDate(customer);
@@ -132,7 +140,21 @@ export function isServiceAlertActive(
   if (customer.stopAlertInfo) return false;
 
   const now = new Date();
-  if (isServiceAlertOnHold(customer, now)) return false;
+  const overrideDateStr = getCustomerServiceAlertOverrideDate(customer);
+
+  if (overrideDateStr) {
+    if (isServiceAlertOverridePending(customer, now)) return false;
+
+    const overrideStart = parseServiceAlertOverrideDate(overrideDateStr);
+    if (!overrideStart) return false;
+
+    if (customer.lastServiceContact) {
+      const lastContactTime = new Date(customer.lastServiceContact.seconds * 1000).getTime();
+      if (lastContactTime >= overrideStart.getTime()) return false;
+    }
+
+    return now.getTime() >= overrideStart.getTime();
+  }
 
   const timing = resolveCustomerAlertTiming(customer, intervalDays, bufferDays);
   const avgDays = getAverageServiceIntervalDays(customer, timing.intervalDays);
