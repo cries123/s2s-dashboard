@@ -3,6 +3,8 @@ import { LogOut } from 'lucide-react';
 import type { User } from '../../types';
 import { canSwitchDealership } from '../../lib/rbac';
 import { DealershipSwitcher } from './DealershipSwitcher';
+import { isPreviewMode } from '../../lib/previewMode';
+
 interface AppTopBarProps {
   user: User;
   dealershipName: string;
@@ -46,6 +48,9 @@ export function AppTopBar({
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
+        {isPreviewMode && (
+          <span className="badge badge-warning hidden sm:inline-flex text-[10px]">Preview</span>
+        )}
         <div className="hidden sm:block text-right px-2">
           <p className="text-sm font-medium leading-none">{user.username}</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>

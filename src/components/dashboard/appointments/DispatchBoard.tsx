@@ -16,7 +16,19 @@ import {
   dispatchLaneLabel,
 } from '../../../lib/dispatchConfig';
 import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
-import { dispatchTechRosterFromSettings, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
+import {
+  countActiveRosByTech,
+  dispatchTechRosterFromSettings,
+  formatTechLabelWithCount,
+  resolveTechDisplayName,
+} from '../../../lib/dispatchTechRoster';
+import { sortDispatchOrdersByRoNumber } from '../../../lib/dispatchRoSort';
+import { DispatchTechSelector } from './DispatchTechSelector';
+import { isPreviewMode } from '../../../lib/previewMode';
+import {
+  buildPreviewDispatchOrders,
+  PREVIEW_DEALERSHIP_SETTINGS,
+} from '../../../lib/previewFixtures';
 import { DispatchMetricsBar } from './DispatchMetricsBar';
 import { DispatchMobileBoard, type MobileDispatchTab } from './DispatchMobileBoard';
 import { DispatchIntakeForm, DispatchIntakePanel } from './DispatchIntakeForm';
@@ -224,14 +236,11 @@ export function DispatchBoard({
   const productionDisplayColumns = visibleDepartments;
 
   const dispatchTechRoster = useMemo(
-    () => dispatchTechRosterFromSettings(dealershipSettings),
-    [dealershipSettings]
+    () => dispatchTechRosterFromSettings(dealershipSettings, currentDealershipId),
+    [dealershipSettings, currentDealershipId]
   );
 
-  const resolveTechLabel = useCallback(
-    (techNum: string) => resolveTechDisplayName(techNum, dispatchTechRoster),
-    [dispatchTechRoster]
-  );
+  const techRoCounts = useMemo(() => countActiveRosByTech(orders), [orders]);
 
   useEffect(() => {
     if (!isDisplayMode) return;
@@ -286,6 +295,11 @@ export function DispatchBoard({
   }, [orders]);
 
   useEffect(() => {
+    if (isPreviewMode && currentDealershipId) {
+      setDealershipSettings(PREVIEW_DEALERSHIP_SETTINGS as DealershipSettings);
+      setTodayApptCount(18);
+      return;
+    }
     if (!currentDealershipId) return;
     const settingsRef = doc(
       db,
@@ -302,7 +316,7 @@ export function DispatchBoard({
   }, [currentDealershipId]);
 
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
 
     let tenantData: { count?: number; dealershipId?: string } | null = null;
     let legacyData: { count?: number; dealershipId?: string } | null = null;
@@ -360,6 +374,7 @@ export function DispatchBoard({
   );
 
   const runMidnightSweepIfDue = useCallback(async () => {
+    if (isPreviewMode) return;
     if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
     if (!isDispatchOvernightSweepWindow()) return;
 
@@ -406,9 +421,15 @@ export function DispatchBoard({
     return () => window.clearInterval(id);
   }, [currentDealershipId, runMidnightSweepIfDue]);
 
+  useEffect(() => {
+    if (!isPreviewMode || !currentDealershipId) return;
+    setOrders(sortDispatchOrdersByRoNumber(buildPreviewDispatchOrders(currentDealershipId, businessDatePst)));
+    setLoading(false);
+  }, [currentDealershipId, businessDatePst]);
+
   // Sync / Stream Board State from Firestore
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
     
     setLoading(true);
     const path = 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders';
@@ -475,6 +496,20 @@ export function DispatchBoard({
         `${DEPARTMENTS.find((d) => d.id === laneTarget)?.label || 'Lane'} is at capacity.`,
         true
       );
+      return;
+    }
+
+    if (isPreviewMode) {
+      const patch = buildDispatchMoveUpdate(ro, target, businessDatePst);
+      setOrders((prev) =>
+        sortDispatchOrdersByRoNumber(
+          prev.map((order) =>
+            order.id === ro.id ? normalizeDispatchOrder({ ...order, ...patch }, order.id) : order
+          )
+        )
+      );
+      setMoveMenuRoId(null);
+      showNotification?.(`RO #${ro.roNumber} moved.`);
       return;
     }
 
@@ -677,7 +712,16 @@ export function DispatchBoard({
         payload.promiseTimeAt = promiseIso;
       }
 
-      await setDoc(docRef, payload);
+      if (isPreviewMode) {
+        setOrders((prev) =>
+          sortDispatchOrdersByRoNumber([
+            ...prev,
+            normalizeDispatchOrder(payload, payload.id),
+          ])
+        );
+      } else {
+        await setDoc(docRef, payload);
+      }
 
       // Reset form states
       setRoNumber('');
@@ -710,6 +754,20 @@ export function DispatchBoard({
   const handleToggleComplete = async (ro: DispatchRepairOrder, completed: boolean) => {
     if (!assertDispatchScope(ro)) return;
 
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ro.id
+            ? { ...order, isCompleted: completed, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      showNotification?.(
+        completed ? `RO #${ro.roNumber} marked as completed.` : `RO #${ro.roNumber} restored.`
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
       await updateDoc(docRef, {
@@ -740,6 +798,21 @@ export function DispatchBoard({
       lastUpdated: new Date().toISOString(),
     };
 
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === roId
+            ? {
+                ...order,
+                promiseTimeAt: promiseTimeAt ?? undefined,
+                lastUpdated: patch.lastUpdated,
+              }
+            : order
+        )
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
       await updateDoc(docRef, {
@@ -752,9 +825,54 @@ export function DispatchBoard({
     }
   };
 
+  const handleUpdateTech = async (ro: DispatchRepairOrder, newTechNumber: string) => {
+    if (!assertDispatchScope(ro)) return;
+    const trimmed = newTechNumber.trim();
+    if (!trimmed || trimmed === ro.techNumber) return;
+
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ro.id
+            ? { ...order, techNumber: trimmed, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      showNotification?.(
+        `RO #${ro.roNumber} → ${resolveTechDisplayName(trimmed, dispatchTechRoster)}.`
+      );
+      return;
+    }
+
+    try {
+      const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
+      await updateDoc(docRef, {
+        techNumber: trimmed,
+        lastUpdated: new Date().toISOString(),
+      });
+      showNotification?.(
+        `RO #${ro.roNumber} → ${resolveTechDisplayName(trimmed, dispatchTechRoster)}.`
+      );
+    } catch (err: unknown) {
+      console.error('[Dispatch] Tech reassignment error:', err);
+      showNotification?.('Failed to update technician.', true);
+    }
+  };
+
   const handleUpdateStatus = async (roId: string, newStatus: DispatchStatus) => {
     const ro = orders.find((order) => order.id === roId);
     if (ro && !assertDispatchScope(ro)) return;
+
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === roId
+            ? { ...order, status: newStatus, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      return;
+    }
 
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
@@ -771,6 +889,12 @@ export function DispatchBoard({
   const handleDeleteCard = async (ro: DispatchRepairOrder) => {
     if (!assertDispatchScope(ro)) return;
 
+    if (isPreviewMode) {
+      setOrders((prev) => prev.filter((order) => order.id !== ro.id));
+      showNotification?.(`RO #${ro.roNumber} removed.`);
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
       await deleteDoc(docRef);
@@ -786,7 +910,7 @@ export function DispatchBoard({
   }, [orders]);
 
   const completedTickets = useMemo(() => {
-    return orders.filter(o => o.isCompleted);
+    return sortDispatchOrdersByRoNumber(orders.filter((o) => o.isCompleted));
   }, [orders]);
 
   // Group active tickets by Department column to build layout fast
@@ -810,6 +934,11 @@ export function DispatchBoard({
         acc.unassigned.push(t);
       }
     });
+
+    (Object.keys(acc) as DepartmentColumnId[]).forEach((key) => {
+      acc[key] = sortDispatchOrdersByRoNumber(acc[key]);
+    });
+
     return acc;
   }, [activeTickets]);
 
@@ -892,7 +1021,7 @@ export function DispatchBoard({
   const renderDisplayCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const overnight = isOvernightRo(ro, businessDatePst);
-    const techLabel = resolveTechLabel(ro.techNumber);
+    const techLabel = formatTechLabelWithCount(ro.techNumber, dispatchTechRoster, techRoCounts);
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
     return (
       <div
@@ -902,14 +1031,13 @@ export function DispatchBoard({
         onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
         className={cn(
-          'relative bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 cursor-pointer select-none space-y-0.5',
+          'relative bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 select-none space-y-0.5',
           overnight && 'ring-1 ring-amber-500/40',
           promiseState?.urgency === 'urgent' && 'ring-1 ring-orange-500/45',
           promiseState?.urgency === 'overdue' && 'ring-1 ring-rose-500/50 animate-pulse',
           moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/50',
           draggingRoId === ro.id && 'opacity-50'
         )}
-        onClick={(e) => toggleMoveMenu(ro.id, e.currentTarget, e)}
       >
         <div className="flex items-center justify-between gap-1">
           <span className="text-[11px] font-black text-white tabular-nums truncate">RO {ro.roNumber}</span>
@@ -936,7 +1064,6 @@ export function DispatchBoard({
   const renderRoCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const isOvernight = isOvernightRo(ro, businessDatePst);
-    const techLabel = resolveTechLabel(ro.techNumber);
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
 
     // Check if it's an internal dealership vehicle
@@ -954,7 +1081,7 @@ export function DispatchBoard({
         onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
         className={cn(
-          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group cursor-pointer select-none w-full text-slate-100",
+          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group select-none w-full text-slate-100",
           isOvernight && "ring-1 ring-amber-500/30",
           promiseState?.urgency === 'soon' && "ring-1 ring-amber-500/25",
           promiseState?.urgency === 'urgent' && "ring-1 ring-orange-500/40",
@@ -962,7 +1089,6 @@ export function DispatchBoard({
           moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30",
           draggingRoId === ro.id && "opacity-50 scale-[0.98]"
         )}
-        onClick={(e) => toggleMoveMenu(ro.id, e.currentTarget, e)}
       >
         {/* 1. HEADER SECTION (DYNAMIC HIERARCHY) */}
         <div className="flex justify-between items-start gap-2">
@@ -1099,12 +1225,19 @@ export function DispatchBoard({
             </span>
           </div>
 
-          <div className="bg-slate-950/30 p-2 rounded border border-slate-800/40">
-            <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Assigned Tech</span>
-            <span className="text-slate-200 font-medium block mt-0.5 truncate">
-              {techLabel}
-            </span>
-            <span className="text-slate-400 text-[10px] block truncate">
+          <div
+            className="bg-slate-950/30 p-2 rounded border border-slate-800/40"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <DispatchTechSelector
+              techNumber={ro.techNumber}
+              roster={dispatchTechRoster}
+              techRoCounts={techRoCounts}
+              onSelect={(techId) => handleUpdateTech(ro, techId)}
+            />
+            <span className="text-slate-400 text-[10px] block truncate mt-1">
               Dept: {dispatchLaneLabel(ro.department)}
             </span>
           </div>
@@ -1200,12 +1333,23 @@ export function DispatchBoard({
       setSelectedCustomer={setSelectedCustomer}
       matchCandidates={matchCandidates}
       dispatchTechRoster={dispatchTechRoster}
+      techRoCounts={techRoCounts}
       onSubmit={handleSubmitIntake}
     />
   );
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-slate-200">
+      {isPreviewMode && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-[11px] text-amber-100">
+          <span className="font-black uppercase tracking-wider text-amber-300">Preview mode</span>
+          <span className="text-amber-200/80">
+            {' '}
+            — sample data only. Set <code className="text-amber-100">VITE_PREVIEW_MODE=true</code> in{' '}
+            <code className="text-amber-100">.env.local</code> and run <code className="text-amber-100">npm run dev</code>.
+          </span>
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div className="space-y-1">

@@ -1,4 +1,36 @@
-import type { PerformanceAdvisorSlot } from '../types';
+import { defaultDispatchTechRoster } from '../constants/dispatchTechDefaults';
+import type { DispatchRepairOrder, PerformanceAdvisorSlot } from '../types';
+
+export function normalizeTechNumber(techNumber: string): string {
+  const trimmed = techNumber.trim();
+  if (!trimmed) return '';
+  const digits = trimmed.replace(/\D/g, '');
+  return digits || trimmed;
+}
+
+/** Active (incomplete) RO count per normalized tech number. */
+export function countActiveRosByTech(orders: DispatchRepairOrder[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const ro of orders) {
+    if (ro.isCompleted) continue;
+    const key = normalizeTechNumber(ro.techNumber);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function formatTechLabelWithCount(
+  techNumber: string,
+  roster: PerformanceAdvisorSlot[] | undefined,
+  techRoCounts: Map<string, number>
+): string {
+  const label = resolveTechDisplayName(techNumber, roster);
+  const key = normalizeTechNumber(techNumber);
+  const count = key ? techRoCounts.get(key) : undefined;
+  if (count && count > 0) return `${label} (${count})`;
+  return label;
+}
 
 /** Map DMS tech number → display name for dispatch cards. */
 export function resolveTechDisplayName(
@@ -18,7 +50,12 @@ export function resolveTechDisplayName(
 }
 
 export function dispatchTechRosterFromSettings(
-  settings?: { dispatchTechRoster?: PerformanceAdvisorSlot[] } | null
+  settings?: { dispatchTechRoster?: PerformanceAdvisorSlot[] } | null,
+  dealershipId?: string
 ): PerformanceAdvisorSlot[] {
-  return settings?.dispatchTechRoster?.filter((row) => row.id.trim() && row.label.trim()) ?? [];
+  const configured =
+    settings?.dispatchTechRoster?.filter((row) => row.id.trim() && row.label.trim()) ?? [];
+  if (configured.length > 0) return configured;
+  if (dealershipId) return defaultDispatchTechRoster(dealershipId);
+  return [];
 }
