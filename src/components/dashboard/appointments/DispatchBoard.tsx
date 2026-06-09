@@ -186,10 +186,13 @@ export function DispatchBoard({
   const [promiseTimeError, setPromiseTimeError] = useState<string | null>(null);
   const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
 
-  // Current YYYY-MM-DD Date
-  const currentSystemDate = useMemo(() => {
-    return new Date().toLocaleDateString('en-CA'); // Accurate timezone local YYYY-MM-DD
-  }, []);
+  const currentSystemDate = new Date().toLocaleDateString('en-CA');
+  const carryoverSweepKeyRef = useRef<string | null>(null);
+  const carryoverSweepInFlightRef = useRef(false);
+
+  useEffect(() => {
+    carryoverSweepKeyRef.current = null;
+  }, [currentDealershipId, currentSystemDate]);
 
   const openDisplayMode = async () => {
     setShowCompleted(false);
@@ -338,6 +341,38 @@ export function DispatchBoard({
     };
   }, [currentDealershipId, currentSystemDate]);
 
+  const sweepOvernightCarryovers = useCallback(
+    async (scopedOrders: DispatchRepairOrder[]) => {
+      if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
+
+      const sweepKey = `${currentDealershipId}:${currentSystemDate}`;
+      if (carryoverSweepKeyRef.current === sweepKey) return;
+
+      const carryoversToReset = scopedOrders.filter((ro) =>
+        shouldSweepOvernightCarryover(ro, currentSystemDate)
+      );
+      if (carryoversToReset.length === 0) return;
+
+      const path = 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders';
+      carryoverSweepInFlightRef.current = true;
+
+      try {
+        const batch = writeBatch(db);
+        carryoversToReset.forEach((ro) => {
+          batch.update(doc(db, path, ro.id), buildOvernightDownInShopPatch());
+        });
+        await batch.commit();
+        carryoverSweepKeyRef.current = sweepKey;
+        showNotification?.(`Moved ${carryoversToReset.length} carryover ticket(s) to Down in Shop.`);
+      } catch (err) {
+        console.error('[Dispatch] Error rolling over tickets:', err);
+      } finally {
+        carryoverSweepInFlightRef.current = false;
+      }
+    },
+    [currentDealershipId, currentSystemDate, showNotification]
+  );
+
   // Sync / Stream Board State from Firestore
   useEffect(() => {
     if (!currentDealershipId) return;
@@ -360,32 +395,7 @@ export function DispatchBoard({
       const scopedOrders = filterDispatchOrdersForDealership(fetchedOrders, currentDealershipId);
       setOrders(scopedOrders);
       setLoading(false);
-
-      // Rule C: Overnight carryover — move active lane tickets to Down in Shop.
-      const carryoversToReset = scopedOrders.filter((ro) =>
-        shouldSweepOvernightCarryover(ro, currentSystemDate)
-      );
-
-      if (carryoversToReset.length > 0) {
-        console.log(`[Dispatch] Rolling over ${carryoversToReset.length} overnight ticket(s) to Down in Shop.`);
-        
-        const batch = writeBatch(db);
-        carryoversToReset.forEach(ro => {
-          const docRef = doc(db, path, ro.id);
-          batch.update(docRef, buildOvernightDownInShopPatch());
-        });
-        
-        batch.commit()
-          .then(() => {
-            if (showNotification) {
-              showNotification(`Moved ${carryoversToReset.length} carryover ticket(s) to Down in Shop.`);
-            }
-          })
-          .catch(err => {
-            console.error('[Dispatch] Error rolling over tickets:', err);
-          });
-      }
-
+      void sweepOvernightCarryovers(scopedOrders);
     }, (error) => {
       console.error('[Dispatch] Error streaming dispatch orders:', error);
       setLoading(false);
@@ -395,7 +405,7 @@ export function DispatchBoard({
     });
 
     return () => unsubscribe();
-  }, [currentDealershipId, currentSystemDate]);
+  }, [currentDealershipId, sweepOvernightCarryovers]);
 
   const assertDispatchScope = useCallback(
     (ro: DispatchRepairOrder): boolean => {
