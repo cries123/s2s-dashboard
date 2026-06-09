@@ -1451,6 +1451,8 @@ export function DispatchBoard({
               orders={orders}
               currentSystemDate={businessDatePst}
               isOvernight={(ro) => isOvernightRo(ro, businessDatePst)}
+              dispatchTechRoster={dispatchTechRoster}
+              techRoCounts={techRoCounts}
             />
           </div>
           <div className="md:hidden">
@@ -1458,6 +1460,8 @@ export function DispatchBoard({
               orders={orders}
               currentSystemDate={businessDatePst}
               isOvernight={(ro) => isOvernightRo(ro, businessDatePst)}
+              dispatchTechRoster={dispatchTechRoster}
+              techRoCounts={techRoCounts}
               compact
             />
           </div>

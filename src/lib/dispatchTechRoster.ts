@@ -13,6 +13,31 @@ export function normalizeTechNumber(techNumber: string): string {
   return digits || trimmed;
 }
 
+export function techLastName(label: string): string {
+  const parts = label.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 1]! : parts[0] ?? label;
+}
+
+export interface TechWorkloadRow {
+  techId: string;
+  lastName: string;
+  count: number;
+}
+
+/** Roster techs with active RO counts — sorted busiest first. */
+export function buildTechWorkloadSummary(
+  roster: PerformanceAdvisorSlot[],
+  techRoCounts: Map<string, number>
+): TechWorkloadRow[] {
+  return roster
+    .map((row) => ({
+      techId: row.id,
+      lastName: techLastName(row.label),
+      count: techRoCounts.get(normalizeTechNumber(row.id)) ?? 0,
+    }))
+    .sort((a, b) => b.count - a.count || a.lastName.localeCompare(b.lastName));
+}
+
 /** Active (incomplete) RO count per normalized tech number. */
 export function countActiveRosByTech(orders: DispatchRepairOrder[]): Map<string, number> {
   const counts = new Map<string, number>();

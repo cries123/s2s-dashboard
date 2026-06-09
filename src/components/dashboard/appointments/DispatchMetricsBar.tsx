@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, CheckCircle2, Clock, Inbox, Moon } from 'lucide-react';
+import { Activity, CheckCircle2, Clock, Inbox, Moon, Wrench } from 'lucide-react';
 import { DISPATCH_PRODUCTION_LANES } from '../../../lib/dispatchConfig';
 import {
   computeDispatchMetrics,
@@ -7,13 +7,16 @@ import {
   type DispatchMetrics,
 } from '../../../lib/dispatchMetrics';
 import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
-import type { DispatchRepairOrder } from '../../../types';
+import type { DispatchRepairOrder, PerformanceAdvisorSlot } from '../../../types';
+import { buildTechWorkloadSummary } from '../../../lib/dispatchTechRoster';
 import { cn } from '../../../lib/utils';
 
 interface DispatchMetricsBarProps {
   orders: DispatchRepairOrder[];
   currentSystemDate: string;
   isOvernight: (ro: DispatchRepairOrder) => boolean;
+  dispatchTechRoster?: PerformanceAdvisorSlot[];
+  techRoCounts?: Map<string, number>;
   compact?: boolean;
 }
 
@@ -28,21 +31,42 @@ export function DispatchMetricsBar({
   orders,
   currentSystemDate,
   isOvernight,
+  dispatchTechRoster = [],
+  techRoCounts,
   compact = false,
 }: DispatchMetricsBarProps) {
   const metrics = useDispatchMetrics({ orders, currentSystemDate, isOvernight });
+  const techWorkload = React.useMemo(
+    () =>
+      dispatchTechRoster.length && techRoCounts
+        ? buildTechWorkloadSummary(dispatchTechRoster, techRoCounts)
+        : [],
+    [dispatchTechRoster, techRoCounts]
+  );
 
   if (compact) {
     return (
-      <div className="grid grid-cols-2 gap-2 text-[9px] font-black uppercase tracking-wider">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
-          <span className="text-slate-500 block">Queue</span>
-          <span className="text-white tabular-nums text-sm">{metrics.queueCount}</span>
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2 text-[9px] font-black uppercase tracking-wider">
+          <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
+            <span className="text-slate-500 block">Queue</span>
+            <span className="text-white tabular-nums text-sm">{metrics.queueCount}</span>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
+            <span className="text-slate-500 block">Done today</span>
+            <span className="text-emerald-400 tabular-nums text-sm">{metrics.completedToday}</span>
+          </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
-          <span className="text-slate-500 block">Done today</span>
-          <span className="text-emerald-400 tabular-nums text-sm">{metrics.completedToday}</span>
-        </div>
+        {techWorkload.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {techWorkload
+              .filter((row) => row.count > 0)
+              .slice(0, 8)
+              .map((row) => (
+                <TechWorkloadChip key={row.techId} lastName={row.lastName} count={row.count} />
+              ))}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -86,6 +110,20 @@ export function DispatchMetricsBar({
         ))}
       </div>
 
+      {techWorkload.length > 0 && (
+        <div className="pt-2 border-t border-slate-800/60">
+          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5">
+            <Wrench size={10} className="text-indigo-400" />
+            Tech workload
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {techWorkload.map((row) => (
+              <TechWorkloadChip key={row.techId} lastName={row.lastName} count={row.count} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {Object.keys(metrics.avgLaneWaitMinutes).length > 0 && (
         <div className="pt-2 border-t border-slate-800/60">
           <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
@@ -109,6 +147,24 @@ export function DispatchMetricsBar({
         </div>
       )}
     </div>
+  );
+}
+
+function TechWorkloadChip({ lastName, count }: { lastName: string; count: number }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider',
+        count > 0
+          ? 'border-indigo-500/30 bg-indigo-950/40 text-slate-200'
+          : 'border-slate-800 bg-slate-950/80 text-slate-500'
+      )}
+    >
+      <span>{lastName}</span>
+      <span className={cn('tabular-nums', count > 0 ? 'text-indigo-300' : 'text-slate-600')}>
+        {count}
+      </span>
+    </span>
   );
 }
 
