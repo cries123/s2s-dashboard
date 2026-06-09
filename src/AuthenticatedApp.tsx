@@ -48,6 +48,7 @@ import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { AppTopBar } from './components/layout/AppTopBar';
 import { buildMobileNavSections } from './lib/mobileNavSections';
+import { isPreviewMode } from './lib/previewMode';
 import type { SidebarNavItem } from './lib/sidebarNav';
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
 import {
@@ -162,7 +163,17 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 }
 
 function DashboardShell({ user }: { user: User }) {
-  const initialRoute = React.useMemo(() => readInitialAppRoute(), []);
+  const initialRoute = React.useMemo(() => {
+    const route = readInitialAppRoute();
+    if (isPreviewMode) {
+      const path =
+        typeof window !== 'undefined' ? window.location.pathname.replace(/\/+$/, '') || '/' : '/';
+      if (path === '/' || path === '/sales/onboard') {
+        return { ...route, activeTab: 'dispatch' as AppTab };
+      }
+    }
+    return route;
+  }, []);
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'users');
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
@@ -589,13 +600,13 @@ export default function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  if (!user && !isPreviewMode) {
     return <LoginView />;
   }
 
   return (
-    <PreferencesProvider user={user}>
-      <DashboardShell user={user} />
+    <PreferencesProvider user={user!}>
+      <DashboardShell user={user!} />
     </PreferencesProvider>
   );
 }

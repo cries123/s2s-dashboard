@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import type { User } from '../../types';
 import { canSwitchDealership } from '../../lib/rbac';
 import { DealershipSwitcher } from './DealershipSwitcher';
+import { isPreviewMode } from '../../lib/previewMode';
 
 interface AppTopBarProps {
   user: User;
@@ -49,6 +50,9 @@ export function AppTopBar({
       </div>
 
       <div className="flex items-center gap-2 ml-auto">
+        {isPreviewMode && (
+          <span className="badge badge-warning hidden sm:inline-flex text-[10px]">Preview</span>
+        )}
         <button
           type="button"
           onClick={toggleTheme}

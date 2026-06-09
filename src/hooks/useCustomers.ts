@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Customer } from '../types';
+import { isPreviewMode } from '../lib/previewMode';
 
 export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isPreviewMode);
 
   useEffect(() => {
+    if (isPreviewMode) return;
+
     if (!dealershipId && !isAdmin) {
       setLoading(false);
       return;

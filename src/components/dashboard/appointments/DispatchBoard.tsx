@@ -33,6 +33,11 @@ import {
   type DispatchMoveTarget,
 } from '../../../lib/dispatchTransitions';
 import type { DispatchStatus } from '../../../types';
+import { isPreviewMode } from '../../../lib/previewMode';
+import {
+  buildPreviewDispatchOrders,
+  PREVIEW_DEALERSHIP_SETTINGS,
+} from '../../../lib/previewFixtures';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -252,7 +257,7 @@ export function DispatchBoard({
   );
 
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
     const settingsRef = doc(
       db,
       'artifacts',
@@ -268,7 +273,7 @@ export function DispatchBoard({
   }, [currentDealershipId]);
 
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
 
     let tenantData: { count?: number; dealershipId?: string } | null = null;
     let legacyData: { count?: number; dealershipId?: string } | null = null;
@@ -305,9 +310,28 @@ export function DispatchBoard({
     };
   }, [currentDealershipId, currentSystemDate]);
 
+  useEffect(() => {
+    if (!isPreviewMode || !currentDealershipId) return;
+
+    let seeded = buildPreviewDispatchOrders(currentDealershipId, currentSystemDate);
+    const carryovers = seeded.filter((ro) => shouldSweepOvernightCarryover(ro, currentSystemDate));
+    if (carryovers.length > 0) {
+      seeded = seeded.map((ro) =>
+        carryovers.some((c) => c.id === ro.id)
+          ? normalizeDispatchOrder({ ...ro, ...buildOvernightDownInShopPatch() }, ro.id)
+          : ro
+      );
+    }
+
+    setOrders(seeded);
+    setDealershipSettings(PREVIEW_DEALERSHIP_SETTINGS);
+    setTodayApptCount(18);
+    setLoading(false);
+  }, [currentDealershipId, currentSystemDate]);
+
   // Sync / Stream Board State from Firestore
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
     
     setLoading(true);
     const path = 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders';
@@ -388,6 +412,25 @@ export function DispatchBoard({
       );
       return;
     }
+
+    if (isPreviewMode) {
+      const patch = buildDispatchMoveUpdate(ro, target, currentSystemDate);
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ro.id ? normalizeDispatchOrder({ ...order, ...patch }, order.id) : order
+        )
+      );
+      setMoveMenuRoId(null);
+      const label =
+        target === 'overnight'
+          ? 'Down in Shop'
+          : target === 'unassigned'
+            ? 'Waiting Queue'
+            : dispatchLaneLabel(target);
+      showNotification?.(`RO #${ro.roNumber} moved to ${label}.`);
+      return;
+    }
+
     try {
       const roRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
       await updateDoc(roRef, buildDispatchMoveUpdate(ro, target, currentSystemDate));
@@ -574,6 +617,24 @@ export function DispatchBoard({
         payload.phoneNumber = phone;
       }
 
+      if (isPreviewMode) {
+        setOrders((prev) => [...prev, normalizeDispatchOrder(payload, payload.id)]);
+        setRoNumber('');
+        setTechNumber('');
+        setCustomerFirstName('');
+        setCustomerLastName('');
+        setPhoneNumber('');
+        setVinLastEight('');
+        setTagNumber('');
+        setSelectedCustomer(null);
+        setInitialStatus('WIP');
+        setIsWaiting(false);
+        setIsPdl(false);
+        showNotification?.(`Ticket RO #${payload.roNumber} queued (preview).`);
+        setSubmitting(false);
+        return;
+      }
+
       await setDoc(docRef, payload);
 
       // Reset form states
@@ -602,6 +663,20 @@ export function DispatchBoard({
 
   // Toggle card completion (Rule B triggers immediate removal from active arrays)
   const handleToggleComplete = async (ro: DispatchRepairOrder, completed: boolean) => {
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ro.id
+            ? { ...order, isCompleted: completed, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      showNotification?.(
+        completed ? `RO #${ro.roNumber} marked as completed.` : `RO #${ro.roNumber} restored back to active board.`
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
       await updateDoc(docRef, {
@@ -619,6 +694,17 @@ export function DispatchBoard({
 
   // Quick Action: Toggling Status directly from the card
   const handleUpdateStatus = async (roId: string, newStatus: DispatchStatus) => {
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === roId
+            ? { ...order, status: newStatus, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
       await updateDoc(docRef, {
@@ -632,6 +718,12 @@ export function DispatchBoard({
 
   // Remove card entirely
   const handleDeleteCard = async (ro: DispatchRepairOrder) => {
+    if (isPreviewMode) {
+      setOrders((prev) => prev.filter((order) => order.id !== ro.id));
+      showNotification?.(`RO #${ro.roNumber} removed.`);
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
       await deleteDoc(docRef);
@@ -1019,6 +1111,16 @@ export function DispatchBoard({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-slate-200">
+      {isPreviewMode && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-[11px] text-amber-100">
+          <span className="font-black uppercase tracking-wider text-amber-300">Preview mode</span>
+          <span className="text-amber-200/80">
+            {' '}
+            — sample dispatch data only. Set <code className="text-amber-100">VITE_PREVIEW_MODE=true</code> in{' '}
+            <code className="text-amber-100">.env.local</code> and run <code className="text-amber-100">npm run dev</code>.
+          </span>
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div className="space-y-1">
