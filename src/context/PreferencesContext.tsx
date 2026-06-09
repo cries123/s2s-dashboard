@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { isPreviewMode } from '../lib/previewMode';
 import { User, UserPreferences } from '../types';
 import {
   DEFAULT_PREFERENCES,
@@ -70,11 +69,6 @@ export function PreferencesProvider({ user, children }: PreferencesProviderProps
 
       setSaving(true);
       setPreferences(next);
-
-      if (isPreviewMode) {
-        setSaving(false);
-        return;
-      }
 
       try {
         const userRef = doc(

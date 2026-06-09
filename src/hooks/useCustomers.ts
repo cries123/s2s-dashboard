@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Customer } from '../types';
-import { isPreviewMode } from '../lib/previewMode';
-import { PREVIEW_CUSTOMERS } from '../lib/previewFixtures';
 
 function customersForDealership(customers: Customer[], dealershipId: string): Customer[] {
   return customers.filter((customer) => {
@@ -15,16 +13,10 @@ function customersForDealership(customers: Customer[], dealershipId: string): Cu
 }
 
 export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
-  const [customers, setCustomers] = useState<Customer[]>(isPreviewMode ? PREVIEW_CUSTOMERS : []);
-  const [loading, setLoading] = useState(!isPreviewMode);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (isPreviewMode) {
-      setCustomers(PREVIEW_CUSTOMERS);
-      setLoading(false);
-      return;
-    }
-
     if (!dealershipId && !isAdmin) {
       setLoading(false);
       return;
