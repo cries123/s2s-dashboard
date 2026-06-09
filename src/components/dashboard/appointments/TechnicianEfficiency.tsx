@@ -15,6 +15,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { EmptyState } from '../../ui/EmptyState';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { TableSkeleton } from '../../ui/Skeleton';
 
 interface TechnicianData {
   techName: string;
@@ -430,8 +432,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
             <Gauge size={22} className="text-brand-primary animate-pulse" />
           </div>
           <div>
-            <span className="text-[9px] font-black text-brand-primary uppercase tracking-widest block mb-0.5">Real-time Performance Metrics</span>
-            <h2 className="text-xl font-black text-white tracking-wider uppercase">Technician Efficiency Tracker</h2>
+            <span className="crm-label block mb-0.5">Shop floor metrics</span>
+            <h2 className="crm-section-title">Technician efficiency</h2>
             {reportStartDate && reportEndDate && (
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                 Active Report Period: {formatDateRangeShort(reportStartDate, reportEndDate)}
@@ -652,10 +654,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
           (selectedMonth !== 'active' && !allowArchiveEditing) && "xl:col-span-3 col-span-full"
         )}>
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <Loader2 className="animate-spin text-brand-primary mb-3" size={28} />
-              <p className="text-xs uppercase font-black tracking-widest">Synchronizing Performance Tables...</p>
-            </div>
+            <TableSkeleton rows={5} cols={4} />
           ) : technicians.length === 0 ? (
             <EmptyState
               title="No technician data yet"

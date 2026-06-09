@@ -26,6 +26,7 @@ import {
   Trophy
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { PageHeader } from '../../layout/PageHeader';
 
 import { DEALERSHIPS } from '../../../constants';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
@@ -1069,24 +1070,11 @@ export default function AdminPanel({
 
   return (
     <div className="space-y-8 animate-fade-in pb-20 max-w-4xl mx-auto w-full">
-      <div className="border-b border-white/5 pb-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5 select-none">
-              <Shield size={12} className="text-brand-primary w-3 h-3" />
-              {sectionMeta.eyebrow}
-            </div>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight uppercase leading-none">
-              {sectionMeta.title}
-            </h2>
-          </div>
-          <div className="bg-slate-950/40 border border-white/5 rounded-2xl px-4 py-3 max-w-lg w-full lg:w-auto shadow-lg">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
-              {sectionMeta.description}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        title={sectionMeta.title}
+        description={sectionMeta.description}
+        breadcrumbs={[{ label: sectionMeta.eyebrow }]}
+      />
 
       {panelMode === 'full' && (
         <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">

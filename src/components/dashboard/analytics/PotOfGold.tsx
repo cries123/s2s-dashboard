@@ -11,6 +11,9 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { PageHeader } from '../../layout/PageHeader';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { PageSkeleton } from '../../ui/Skeleton';
 
 interface PerformanceRow {
   code: string;
@@ -283,16 +286,16 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   }));
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <Loader2 className="animate-spin text-brand-primary" size={32} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing Pot of Gold Data...</p>
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   return (
     <div className="space-y-8 pb-20 relative">
+      <PageHeader
+        title="Pot of Gold"
+        description="Track advisor upsells, technician contributions, and competition payouts."
+        breadcrumbs={[{ label: 'Competitions' }, { label: 'Pot of Gold' }]}
+      />
       {/* Custom Confirmation Modal */}
       <AnimatePresence>
         {showClearConfirm && (
@@ -440,26 +443,15 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           )}
         </div>
 
-        {/* Global Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-8 md:mt-10">
-          {[
-            { label: 'Shop Upsells', value: advTotals.grand, icon: Zap, color: 'text-brand-primary' },
-            { label: 'Frank Total', value: advTotals.frank, icon: Users, color: 'text-slate-200' },
-            { label: 'Lemmy Total', value: advTotals.lemmy, icon: Users, color: 'text-slate-200' },
-            { label: 'Pot of Gold', value: `$${advEarnings.grand.toLocaleString()}`, icon: DollarSign, color: 'text-emerald-400', highlight: true },
-          ].map((stat, i) => (
-            <div key={i} className={cn(
-              "p-4 rounded-2xl border transition-all",
-              stat.highlight ? "bg-brand-primary/10 border-brand-primary/30 shadow-lg shadow-brand-primary/10" : "bg-slate-950/50 border-slate-800"
-            )}>
-              <div className="flex items-center gap-2 mb-2">
-                <stat.icon size={12} className={stat.color} />
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">{stat.label}</p>
-              </div>
-              <p className={cn("text-xl font-black leading-none", stat.color)}>{stat.value}</p>
-            </div>
-          ))}
-        </div>
+        <KpiStrip
+          className="mt-8 md:mt-10"
+          tiles={[
+            { label: 'Shop upsells', value: String(advTotals.grand), tone: 'info' },
+            { label: 'Frank total', value: String(advTotals.frank) },
+            { label: 'Lemmy total', value: String(advTotals.lemmy) },
+            { label: 'Pot of gold', value: `$${advEarnings.grand.toLocaleString()}`, tone: 'success' },
+          ]}
+        />
       </div>
 
       {/* Sub-Tabs Navigation */}

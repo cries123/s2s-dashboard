@@ -10,6 +10,8 @@ import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
 import { EmptyState } from '../../ui/EmptyState';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import {
   EMPTY_PERFORMANCE_TOTALS,
   performanceDocId,
@@ -646,9 +648,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 gap-4">
-        <Loader2 className="animate-spin text-brand-secondary" size={32} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing Performance Dashboard...</p>
+      <div className="space-y-6">
+        <KpiStripSkeleton count={5} />
+        <TableSkeleton rows={6} cols={5} />
       </div>
     );
   }
@@ -667,10 +669,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Users size={20} className="text-brand-secondary" />
-            Advisor Performance Tracking
+          <h3 className="crm-section-title flex items-center gap-2">
+            <Users size={18} className="text-brand-secondary" />
+            Advisor performance
           </h3>
+          <p className="crm-label mt-1">Labor, parts, and gross totals from productivity imports.</p>
         </div>
         
         {selectedMonth !== 'active' && !allowArchiveEditing ? (
@@ -796,74 +799,46 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             animate={{ opacity: 1, y: 0 }}
             className="space-y-8"
           >
-            {/* Global Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Labor Sales MTD Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Labor Sales MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalLabor.toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Daily Avg</span>
-                  <span className="text-xs font-black text-slate-200">${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Labor Gross Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Labor Gross MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalGross.toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-brand-secondary uppercase tracking-widest">{Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}% GP</span>
-                  <span className="text-xs font-black text-slate-200">${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Part Sales Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Part Sales MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${(metrics.totalParts || 0).toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Daily Avg</span>
-                  <span className="text-xs font-black text-slate-200">${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Parts Gross Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-emerald-550 uppercase tracking-widest mb-1">Parts Gross MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">{Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}% GP</span>
-                  <span className="text-xs font-black text-emerald-400">${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Store Throughput Box */}
-              <div className="p-5 bg-gradient-to-br from-brand-primary/15 to-brand-primary/5 border border-brand-primary/20 hover:border-brand-primary/30 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg shadow-brand-primary/5">
-                <div>
-                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Store Throughput</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalSales.toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-brand-primary/10 border-t flex flex-col gap-0.5">
-                  <div className="flex items-center justify-between text-[9px] font-black uppercase text-brand-primary/80">
-                    <span>Pace</span>
-                    <span className="text-emerald-450">${metrics.salesForecast.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs font-black">
-                    <span className="text-[9px] text-slate-500 uppercase tracking-widest">Daily Avg</span>
-                    <span className="text-slate-200">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {metrics && (
+              <KpiStrip
+                columns={5}
+                tiles={[
+                  {
+                    label: 'Labor sales MTD',
+                    value: `$${metrics.totalLabor.toLocaleString()}`,
+                    sublabel: 'Daily avg',
+                    subvalue: `$${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, { maximumFractionDigits: 0 })}/d`,
+                  },
+                  {
+                    label: 'Labor gross MTD',
+                    value: `$${metrics.totalGross.toLocaleString()}`,
+                    sublabel: 'GP',
+                    subvalue: `${Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}%`,
+                    tone: 'info',
+                  },
+                  {
+                    label: 'Parts sales MTD',
+                    value: `$${(metrics.totalParts || 0).toLocaleString()}`,
+                    sublabel: 'Daily avg',
+                    subvalue: `$${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, { maximumFractionDigits: 0 })}/d`,
+                  },
+                  {
+                    label: 'Parts gross MTD',
+                    value: `$${(metrics.totalGrossParts || 0).toLocaleString()}`,
+                    sublabel: 'GP',
+                    subvalue: `${Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}%`,
+                    tone: 'success',
+                  },
+                  {
+                    label: 'Store throughput',
+                    value: `$${metrics.totalSales.toLocaleString()}`,
+                    sublabel: 'Forecast pace',
+                    subvalue: `$${metrics.salesForecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    tone: 'info',
+                  },
+                ]}
+              />
+            )}
 
 
 

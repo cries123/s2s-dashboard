@@ -5,12 +5,16 @@ import {
   AlertTriangle, ShieldCheck, MessageSquare, Info, Shield, HelpCircle, ArrowRight,
   Sparkles, CheckCircle2, Languages, Clock, Loader2
 } from 'lucide-react';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDocs, orderBy, query, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Customer, User } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { getAverageServiceIntervalMonths, getLastServiceDate, getNextServiceMilestone } from '../../lib/alerts';
+import {
+  CustomerTimeline,
+  type TimelineEvent,
+} from '../dashboard/customers/CustomerTimeline';
 
 interface ProfileModalProps {
   customer: Customer;
@@ -29,11 +33,94 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   const [isSaving, setIsSaving] = useState(false);
   const [customerNotes, setCustomerNotes] = useState(customer.notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
 
   useEffect(() => {
     setFormData({ ...customer });
     setCustomerNotes(customer.notes || '');
   }, [customer]);
+
+  useEffect(() => {
+    if (activeTab !== 'history') return;
+
+    let cancelled = false;
+    async function loadTimeline() {
+      setTimelineLoading(true);
+      try {
+        const logSnap = await getDocs(
+          query(
+            collection(
+              db,
+              'artifacts',
+              'hyundai-sales-to-service',
+              'public',
+              'data',
+              'customers',
+              customer.id,
+              'contactLog'
+            ),
+            orderBy('timestamp', 'desc')
+          )
+        );
+
+        const contactEvents: TimelineEvent[] = logSnap.docs.map((docSnap) => {
+          const data = docSnap.data();
+          const ts = data.timestamp;
+          const date =
+            ts && typeof ts.toDate === 'function'
+              ? ts.toDate()
+              : new Date(data.timestamp || Date.now());
+          const outcome = String(data.outcome || 'Contact');
+          const isCampaign = outcome.toLowerCase().includes('campaign') || outcome.toLowerCase().includes('suspend');
+          return {
+            id: `contact-${docSnap.id}`,
+            type: isCampaign ? 'campaign' : 'contact',
+            date,
+            title: outcome,
+            subtitle: data.username ? `Logged by ${data.username}` : undefined,
+            body: data.notes ? String(data.notes) : undefined,
+            meta: data.appointmentSet ? 'Appointment set' : undefined,
+          };
+        });
+
+        const serviceEvents: TimelineEvent[] = (customer.recentVisits || []).map((visit, idx) => ({
+          id: `service-${visit.id || idx}`,
+          type: 'service' as const,
+          date: new Date(visit.date),
+          title: `Repair order #${visit.soNumber}`,
+          subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
+          body: visit.requests,
+          meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,
+        }));
+
+        if (!cancelled) {
+          setTimelineEvents([...serviceEvents, ...contactEvents]);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          const serviceEvents: TimelineEvent[] = (customer.recentVisits || []).map((visit, idx) => ({
+            id: `service-${visit.id || idx}`,
+            type: 'service' as const,
+            date: new Date(visit.date),
+            title: `Repair order #${visit.soNumber}`,
+            subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
+            body: visit.requests,
+            meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,
+          }));
+          setTimelineEvents(serviceEvents);
+        }
+      } finally {
+        if (!cancelled) setTimelineLoading(false);
+      }
+    }
+
+    loadTimeline();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, customer.id, customer.recentVisits]);
 
   const handleSaveNotesInline = async () => {
     setIsSavingNotes(true);
@@ -864,70 +951,20 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               {/* TABS 3: SERVICE HISTORY CHRONICLE */}
               {activeTab === 'history' && !isEditing && (
                 <div className="space-y-4 sm:space-y-6">
-                  <div className="flex items-center justify-between border-b border-white/5 pb-4 gap-4">
+                  <div className="flex items-center justify-between border-b pb-4 gap-4" style={{ borderColor: 'var(--color-surface-border)' }}>
                     <div>
-                      <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <History size={14} className="text-amber-500 font-sans" /> Complete Chronological Logs
+                      <h4 className="crm-section-title flex items-center gap-2">
+                        <History size={14} className="text-brand-primary" />
+                        Activity timeline
                       </h4>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">Historical synchronized service visit history</p>
+                      <p className="crm-label mt-0.5">Service visits and staff contact logs in one view</p>
                     </div>
-                    <span className="text-[10px] sm:text-xs font-black text-brand-secondary bg-slate-900 border border-white/5 px-2.5 py-1 rounded-lg sm:rounded-xl shrink-0">
-                      Total Logs: {customer.recentVisits?.length || 0}
+                    <span className="badge badge-info shrink-0">
+                      {timelineEvents.length} events
                     </span>
                   </div>
 
-                  {!customer.recentVisits || customer.recentVisits.length === 0 ? (
-                    <div className="p-8 sm:p-16 text-center border-2 border-dashed border-white/5 rounded-2xl sm:rounded-3xl bg-slate-950/25">
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-600 border border-white/5">
-                        <Database size={22} />
-                      </div>
-                      <h5 className="text-sm sm:text-base font-black text-slate-400 uppercase tracking-tight">Chron Chronicle Empty</h5>
-                      <p className="text-slate-500 mt-1 max-w-sm mx-auto text-xs leading-relaxed">
-                        No service advisor logs are currently active or recorded for this client profile. Use standard PDF/CSV integration.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="relative border-l-2 border-slate-900 pl-5 sm:pl-6 ml-2.5 sm:ml-3 space-y-4 sm:space-y-6 mt-4">
-                      {customer.recentVisits.map((visit, idx) => (
-                        <div key={idx} className="relative group bg-slate-900/30 border border-white/5 p-4 sm:p-5 rounded-xl sm:rounded-2xl hover:border-brand-primary/20 transition-all flex flex-col md:flex-row justify-between gap-4">
-                          
-                          {/* Timeline bullet indicator */}
-                          <div className="absolute top-6 -left-[29px] sm:-left-[31px] w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-950 border-2 border-brand-primary flex items-center justify-center group-hover:scale-125 transition-transform" />
-
-                          <div className="space-y-3 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="px-1.5 py-0.5 bg-brand-primary/10 border border-brand-primary/20 text-brand-secondary text-[8px] sm:text-[9px] font-black rounded uppercase tracking-wider">
-                                SO #{visit.soNumber}
-                              </span>
-                              <span className="text-[11px] sm:text-xs font-extrabold text-white flex items-center gap-1">
-                                <Calendar size={11} className="text-slate-400" /> {visit.date}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-500">•</span>
-                              <span className="text-[9px] sm:text-[10px] font-black uppercase text-slate-400 truncate">
-                                Advisor: {visit.advisor}
-                              </span>
-                            </div>
-
-                            <div className="p-3 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl">
-                              <p className="text-[8px] font-black text-brand-secondary uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                <Wrench size={10} /> Requests and Completed Repair Tasks
-                              </p>
-                              <p className="text-xs leading-relaxed text-slate-300 whitespace-pre-wrap font-sans font-medium">
-                                {visit.requests}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="text-left md:text-right shrink-0 flex flex-col justify-center min-w-[120px] bg-slate-950/20 md:bg-transparent p-3 rounded-lg sm:rounded-xl md:p-0">
-                            <p className="text-base sm:text-lg md:text-xl font-black text-white font-mono tracking-tight text-left md:text-right">
-                              {visit.mileage ? visit.mileage.toLocaleString() : 'N/A'}
-                            </p>
-                            <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5 text-left md:text-right">Recorded Odometer</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <CustomerTimeline events={timelineEvents} loading={timelineLoading} />
                 </div>
               )}
 

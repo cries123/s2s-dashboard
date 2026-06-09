@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
+import { PageHeader } from '../../layout/PageHeader';
+import { KpiStrip } from '../../ui/KpiStrip';
 import { isServiceAlertActive } from '../../../lib/alerts';
 import { customerMatchesDealership } from '../../../lib/customerScope';
 
@@ -134,36 +136,19 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Overview Stats Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Metric 1 */}
-        <div className="card-base p-6 border-slate-800 bg-slate-950/20 backdrop-blur-3xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform text-brand-primary">
-            <Car size={80} />
-          </div>
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Dealership Fleet Size</p>
-          <h3 className="text-3xl font-black text-white tracking-tighter mt-2.5">
-            {overallMetrics.totalDeliveries} <span className="text-xs font-normal text-slate-500 uppercase font-sans tracking-normal">Units</span>
-          </h3>
-          <p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">
-            Total active CRM delivery accounts monitored under service indicators.
-          </p>
-        </div>
+      <PageHeader
+        title="Sales performance"
+        description="Delivery volume, rep leaderboard, and service adoption across your CRM fleet."
+        breadcrumbs={[{ label: 'Sales' }, { label: 'Performance' }]}
+      />
 
-        {/* Metric 2 */}
-        <div className="card-base p-6 border-brand-primary/10 bg-brand-primary/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-brand-primary">
-            <Trophy size={80} />
-          </div>
-          <p className="text-[9px] font-black text-brand-primary uppercase tracking-widest leading-none">Active Sales Champions</p>
-          <h3 className="text-3xl font-black text-white tracking-tighter mt-2.5">
-            {salesmanData.length} <span className="text-xs font-normal text-slate-500 uppercase font-sans tracking-normal">Reps</span>
-          </h3>
-          <p className="text-[10px] text-slate-400 mt-1.5 font-medium leading-relaxed">
-            Registered automotive sales representatives tracking service adoption in the region.
-          </p>
-        </div>
-      </div>
+      <KpiStrip
+        columns={2}
+        tiles={[
+          { label: 'Dealership fleet', value: overallMetrics.totalDeliveries.toLocaleString(), tone: 'info' },
+          { label: 'Active sales reps', value: salesmanData.length.toLocaleString(), tone: 'success' },
+        ]}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Leaderboard Column - spans 2 on desktop */}

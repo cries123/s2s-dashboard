@@ -32,6 +32,8 @@ import {
 } from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 import { PageHeader } from '../../layout/PageHeader';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { PageSkeleton } from '../../ui/Skeleton';
 
 interface AppointmentsProps {
   currentUser: User;
@@ -603,6 +605,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     setSelectedDate(addDaysToDateString(selectedDate, 1));
   };
 
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <style>{`
@@ -627,19 +633,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
+      <KpiStrip
+        tiles={[
           { label: 'Appts MTD', value: metrics.monthTotal.toLocaleString() },
-          { label: 'Appt forecast', value: metrics.forecast.toLocaleString() },
-          { label: 'Labor gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}` },
+          { label: 'Appt forecast', value: metrics.forecast.toLocaleString(), tone: 'info' },
+          { label: 'Labor gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}`, tone: 'success' },
           { label: 'Working days left', value: String(metrics.daysRemaining) },
-        ].map((tile) => (
-          <div key={tile.label} className="card-base px-4 py-3">
-            <p className="crm-label">{tile.label}</p>
-            <p className="crm-kpi-value mt-1">{tile.value}</p>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="card-base p-6 col-span-1 lg:col-span-2">
