@@ -1,7 +1,7 @@
 import type { PerformanceAdvisorSlot } from '../types';
 
-/** Hyundai Santa Maria — default dispatch tech roster (DMS tech # → name). */
-export const HYUNDAI_DISPATCH_TECH_ROSTER: PerformanceAdvisorSlot[] = [
+/** Santa Maria Ford/Lincoln — dispatch tech roster (DealerBuilt DMS tech # → name). */
+export const FORD_DISPATCH_TECH_ROSTER: PerformanceAdvisorSlot[] = [
   { id: '8508', label: 'Nathan Aguilar' },
   { id: '7178', label: 'Tim Borjas' },
   { id: '8478', label: 'Remi Carodine' },
@@ -24,7 +24,27 @@ export const HYUNDAI_DISPATCH_TECH_ROSTER: PerformanceAdvisorSlot[] = [
   { id: '8519', label: 'Devin' },
 ];
 
+/** Hyundai Santa Maria — dispatch tech roster (PBS; separate from Ford DMS list). */
+export const HYUNDAI_DISPATCH_TECH_ROSTER: PerformanceAdvisorSlot[] = [
+  { id: 'daniel', label: 'Daniel' },
+  { id: 'jon', label: 'Jon' },
+  { id: 'matthew', label: 'Matthew' },
+  { id: 'jacinto', label: 'Jacinto' },
+  { id: 'ethan', label: 'Ethan' },
+  { id: 'trevor', label: 'Trevor' },
+];
+
 export function defaultDispatchTechRoster(dealershipId: string): PerformanceAdvisorSlot[] {
+  if (dealershipId === 'ford') return FORD_DISPATCH_TECH_ROSTER;
   if (dealershipId === 'hyundai') return HYUNDAI_DISPATCH_TECH_ROSTER;
   return [];
+}
+
+export function isFordDispatchTechRoster(roster: PerformanceAdvisorSlot[]): boolean {
+  if (roster.length !== FORD_DISPATCH_TECH_ROSTER.length) return false;
+  return roster.every(
+    (row, index) =>
+      row.id === FORD_DISPATCH_TECH_ROSTER[index].id &&
+      row.label === FORD_DISPATCH_TECH_ROSTER[index].label
+  );
 }

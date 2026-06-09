@@ -1,4 +1,7 @@
-import { defaultDispatchTechRoster } from '../constants/dispatchTechDefaults';
+import {
+  defaultDispatchTechRoster,
+  isFordDispatchTechRoster,
+} from '../constants/dispatchTechDefaults';
 import type { DispatchRepairOrder, PerformanceAdvisorSlot } from '../types';
 
 export function normalizeTechNumber(techNumber: string): string {
@@ -58,8 +61,13 @@ export function dispatchTechRosterFromSettings(
 
   const configured =
     settings?.dispatchTechRoster?.filter((row) => row.id.trim() && row.label.trim()) ?? [];
-  if (configured.length > 0) return configured;
+  if (configured.length > 0) {
+    // Ignore Ford DMS roster if it was saved under Hyundai before the store split.
+    if (dealershipId === 'hyundai' && isFordDispatchTechRoster(configured)) {
+      return defaultDispatchTechRoster('hyundai');
+    }
+    return configured;
+  }
 
-  // Built-in DMS roster is Hyundai-only; Ford/Nissan/etc. configure their own in admin.
   return defaultDispatchTechRoster(dealershipId);
 }
