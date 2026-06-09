@@ -3,6 +3,7 @@ import { CheckCircle2, Plus, RefreshCw, UserSearch } from 'lucide-react';
 import { Customer } from '../../../types';
 import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
 import type { DispatchStatus, PerformanceAdvisorSlot } from '../../../types';
+import { DispatchPromiseTimeInput } from './DispatchPromiseTimeInput';
 
 interface DispatchIntakeFormProps {
   customerFirstName: string;
@@ -25,8 +26,11 @@ interface DispatchIntakeFormProps {
   setIsWaiting: (v: boolean) => void;
   isPdl: boolean;
   setIsPdl: (v: boolean) => void;
-  promiseTimeLocal: string;
-  setPromiseTimeLocal: (v: string) => void;
+  promiseDate: string;
+  setPromiseDate: (v: string) => void;
+  promiseTime: string;
+  setPromiseTime: (v: string) => void;
+  promiseTimeError: string | null;
   submitting: boolean;
   selectedCustomer: Customer | null;
   setSelectedCustomer: (c: Customer | null) => void;
@@ -56,8 +60,11 @@ export function DispatchIntakeForm({
   setIsWaiting,
   isPdl,
   setIsPdl,
-  promiseTimeLocal,
-  setPromiseTimeLocal,
+  promiseDate,
+  setPromiseDate,
+  promiseTime,
+  setPromiseTime,
+  promiseTimeError,
   submitting,
   selectedCustomer,
   setSelectedCustomer,
@@ -230,11 +237,12 @@ export function DispatchIntakeForm({
         <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
           Promise Time <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span>
         </label>
-        <input
-          type="datetime-local"
-          value={promiseTimeLocal}
-          onChange={(e) => setPromiseTimeLocal(e.target.value)}
-          className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums [color-scheme:dark]"
+        <DispatchPromiseTimeInput
+          date={promiseDate}
+          time={promiseTime}
+          onDateChange={setPromiseDate}
+          onTimeChange={setPromiseTime}
+          error={promiseTimeError}
         />
         <p className="text-[9px] text-slate-600 pl-0.5">
           Shown as a live countdown on dispatch cards when the visit is approaching promise.

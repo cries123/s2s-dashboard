@@ -43,11 +43,14 @@ import {
   isDispatchOrderForDealership,
 } from '../../../lib/dispatchDealershipScope';
 import {
+  combinePromiseDateAndTime,
   getPromiseTimeState,
-  localInputFromPromiseTimeIso,
-  promiseTimeIsoFromLocalInput,
+  isPromiseTimeWithinBusinessHours,
+  PROMISE_BUSINESS_HOURS_LABEL,
+  validatePromiseDateAndTime,
 } from '../../../lib/dispatchPromiseTime';
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
+import { CardPromiseTimeEditor } from './CardPromiseTimeEditor';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
@@ -177,7 +180,9 @@ export function DispatchBoard({
   const [initialStatus, setInitialStatus] = useState<DispatchStatus>('WIP');
   const [isWaiting, setIsWaiting] = useState(false);
   const [isPdl, setIsPdl] = useState(false);
-  const [promiseTimeLocal, setPromiseTimeLocal] = useState('');
+  const [promiseDate, setPromiseDate] = useState('');
+  const [promiseTime, setPromiseTime] = useState('');
+  const [promiseTimeError, setPromiseTimeError] = useState<string | null>(null);
   const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
 
   // Current YYYY-MM-DD Date
@@ -652,7 +657,16 @@ export function DispatchBoard({
       if (phone) {
         payload.phoneNumber = phone;
       }
-      const promiseIso = promiseTimeIsoFromLocalInput(promiseTimeLocal);
+      const promiseValidation = validatePromiseDateAndTime(promiseDate, promiseTime);
+      if (!promiseValidation.valid) {
+        setPromiseTimeError(promiseValidation.error ?? 'Invalid promise time.');
+        showNotification?.(promiseValidation.error ?? 'Invalid promise time.', true);
+        setSubmitting(false);
+        return;
+      }
+      setPromiseTimeError(null);
+
+      const promiseIso = combinePromiseDateAndTime(promiseDate, promiseTime);
       if (promiseIso) {
         payload.promiseTimeAt = promiseIso;
       }
@@ -670,7 +684,9 @@ export function DispatchBoard({
         setInitialStatus('WIP');
         setIsWaiting(false);
         setIsPdl(false);
-        setPromiseTimeLocal('');
+        setPromiseDate('');
+        setPromiseTime('');
+        setPromiseTimeError(null);
         showNotification?.(`Ticket RO #${payload.roNumber} queued (preview).`);
         setSubmitting(false);
         return;
@@ -690,7 +706,9 @@ export function DispatchBoard({
       setInitialStatus('WIP');
       setIsWaiting(false);
       setIsPdl(false);
-      setPromiseTimeLocal('');
+      setPromiseDate('');
+      setPromiseTime('');
+      setPromiseTimeError(null);
 
       if (showNotification) {
         showNotification(`Ticket RO #${payload.roNumber} successfully queued.`);
@@ -740,6 +758,11 @@ export function DispatchBoard({
   const handleUpdatePromiseTime = async (roId: string, promiseTimeAt: string | null) => {
     const ro = orders.find((order) => order.id === roId);
     if (ro && !assertDispatchScope(ro)) return;
+
+    if (promiseTimeAt && !isPromiseTimeWithinBusinessHours(promiseTimeAt)) {
+      showNotification?.(`Promise time must be between ${PROMISE_BUSINESS_HOURS_LABEL}.`, true);
+      return;
+    }
 
     const patch = {
       promiseTimeAt: promiseTimeAt ?? undefined,
@@ -1106,22 +1129,15 @@ export function DispatchBoard({
               nowMs={promiseNowMs}
             />
           ) : null}
-          <label className="block space-y-1">
-            <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">
+          <div className="space-y-1">
+            <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block">
               Promise time
             </span>
-            <input
-              type="datetime-local"
-              value={localInputFromPromiseTimeIso(ro.promiseTimeAt)}
-              onChange={(e) =>
-                handleUpdatePromiseTime(
-                  ro.id,
-                  e.target.value ? promiseTimeIsoFromLocalInput(e.target.value) ?? null : null
-                )
-              }
-              className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-2.5 py-2 text-[11px] text-white font-semibold tabular-nums [color-scheme:dark]"
+            <CardPromiseTimeEditor
+              promiseTimeAt={ro.promiseTimeAt}
+              onSave={(iso) => handleUpdatePromiseTime(ro.id, iso)}
             />
-          </label>
+          </div>
         </div>
 
         {/* 3. CORE TECHNICAL METADATA (VEHICLE SPECIFICS) */}
@@ -1221,8 +1237,17 @@ export function DispatchBoard({
       setIsWaiting={setIsWaiting}
       isPdl={isPdl}
       setIsPdl={setIsPdl}
-      promiseTimeLocal={promiseTimeLocal}
-      setPromiseTimeLocal={setPromiseTimeLocal}
+      promiseDate={promiseDate}
+      setPromiseDate={(value) => {
+        setPromiseDate(value);
+        if (promiseTimeError) setPromiseTimeError(null);
+      }}
+      promiseTime={promiseTime}
+      setPromiseTime={(value) => {
+        setPromiseTime(value);
+        if (promiseTimeError) setPromiseTimeError(null);
+      }}
+      promiseTimeError={promiseTimeError}
       submitting={submitting}
       selectedCustomer={selectedCustomer}
       setSelectedCustomer={setSelectedCustomer}
@@ -1527,7 +1552,7 @@ export function DispatchBoard({
                 </div>
               ))}
               <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
-                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Promise: green &gt;1h · amber &lt;1h · orange &lt;15m · red overdue</span>
+                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Promise: {PROMISE_BUSINESS_HOURS_LABEL} · green &gt;1h · amber &lt;1h · orange &lt;15m · red overdue</span>
               </div>
             </div>
           </div>

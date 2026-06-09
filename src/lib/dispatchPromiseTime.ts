@@ -1,4 +1,56 @@
+export const PROMISE_TIME_MIN = '07:30';
+export const PROMISE_TIME_MAX = '17:00';
+export const PROMISE_BUSINESS_HOURS_LABEL = '7:30 AM – 5:00 PM';
+
+const PROMISE_OPEN_MINUTES = 7 * 60 + 30;
+const PROMISE_CLOSE_MINUTES = 17 * 60;
+
 export type PromiseUrgency = 'ok' | 'soon' | 'urgent' | 'overdue';
+
+function minutesOfDay(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+export function isPromiseTimeWithinBusinessHours(isoOrDate: string | Date): boolean {
+  const date = typeof isoOrDate === 'string' ? new Date(isoOrDate) : isoOrDate;
+  if (Number.isNaN(date.getTime())) return false;
+  const minutes = minutesOfDay(date);
+  return minutes >= PROMISE_OPEN_MINUTES && minutes <= PROMISE_CLOSE_MINUTES;
+}
+
+export function splitPromiseTimeLocal(value: string | undefined): { date: string; time: string } {
+  if (!value) return { date: '', time: '' };
+  const [date, time] = value.split('T');
+  return { date: date || '', time: (time || '').slice(0, 5) };
+}
+
+export function splitPromiseTimeIso(iso: string | undefined): { date: string; time: string } {
+  return splitPromiseTimeLocal(localInputFromPromiseTimeIso(iso));
+}
+
+export function combinePromiseDateAndTime(date: string, time: string): string | undefined {
+  if (!date.trim() || !time.trim()) return undefined;
+  const iso = promiseTimeIsoFromLocalInput(`${date}T${time}`);
+  if (!iso || !isPromiseTimeWithinBusinessHours(iso)) return undefined;
+  return iso;
+}
+
+export function validatePromiseDateAndTime(
+  date: string,
+  time: string
+): { valid: boolean; error?: string } {
+  if (!date.trim() && !time.trim()) return { valid: true };
+  if (!date.trim() || !time.trim()) {
+    return { valid: false, error: 'Enter both promise date and time.' };
+  }
+  if (!combinePromiseDateAndTime(date, time)) {
+    return {
+      valid: false,
+      error: `Promise time must be between ${PROMISE_BUSINESS_HOURS_LABEL}.`,
+    };
+  }
+  return { valid: true };
+}
 
 export interface PromiseTimeState {
   urgency: PromiseUrgency;
@@ -81,5 +133,14 @@ export const PROMISE_URGENCY_STYLES: Record<
 };
 
 export function promiseTimeMinutesFromNow(minutes: number): string {
-  return new Date(Date.now() + minutes * 60_000).toISOString();
+  const target = new Date(Date.now() + minutes * 60_000);
+  const dayMinutes = minutesOfDay(target);
+
+  if (dayMinutes < PROMISE_OPEN_MINUTES) {
+    target.setHours(7, 30, 0, 0);
+  } else if (dayMinutes > PROMISE_CLOSE_MINUTES) {
+    target.setHours(17, 0, 0, 0);
+  }
+
+  return target.toISOString();
 }
