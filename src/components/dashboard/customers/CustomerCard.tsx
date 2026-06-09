@@ -4,7 +4,7 @@ import { Phone, Mail, Car, Calendar, History, Trash2, Edit2, Loader2, FastForwar
 import { Timestamp, addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { cn } from '../../../lib/utils';
-import { calculateServiceCycle, getNextServiceMilestone } from '../../../lib/alerts';
+import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
@@ -28,6 +28,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   isAlert 
 }) => {
   const { preferences } = usePreferences();
+  const serviceAlerts = useServiceAlertHelpers();
   const [showMaintenance, setShowMaintenance] = useState(false);
 
   const lastVisit = customer.recentVisits?.[0];
@@ -46,7 +47,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
       });
 
       // Update customer - reset specifically to the current milestone cycle
-      const currentCycle = calculateServiceCycle(customer.soldDate);
+      const currentCycle = serviceAlerts.calculateServiceCycle(customer.soldDate);
 
       await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id), {
         lastServiceContact: serverTimestamp(),
@@ -193,7 +194,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           <div className="flex flex-col text-right">
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">S2S Alert Range</span>
             <span className="text-[10px] font-black text-brand-secondary uppercase italic">
-              {getNextServiceMilestone(customer)}
+              {serviceAlerts.getNextServiceMilestone(customer)}
             </span>
           </div>
         </div>

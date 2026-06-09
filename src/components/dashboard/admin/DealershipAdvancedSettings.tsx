@@ -3,9 +3,12 @@ import { Trophy, Cloud, KeyRound, Bell, Monitor, Wrench } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { DISPATCH_PRODUCTION_LANES } from '../../../lib/dispatchConfig';
 import {
+  clampServiceAlertBufferDays,
   clampServiceAlertIntervalDays,
+  DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
   DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
   DEFAULT_WEATHER,
+  serviceAlertIntervalMonths,
 } from '../../../lib/dealershipSettingsUtils';
 import {
   getDealershipStaffConfig,
@@ -128,19 +131,43 @@ export function DealershipAdvancedSettings({
           <Bell size={12} className="text-brand-primary" />
           Service alert interval
         </label>
-        <p className="text-[10px] text-slate-500">Days between service-due reminders (30–730). Default {DEFAULT_SERVICE_ALERT_INTERVAL_DAYS}.</p>
-        <input
-          type="number"
-          min={30}
-          max={730}
-          value={(s.serviceAlertIntervalDays as number) ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS}
-          onChange={(e) =>
-            onUpdateSetting(dealershipId, {
-              serviceAlertIntervalDays: clampServiceAlertIntervalDays(Number(e.target.value) || DEFAULT_SERVICE_ALERT_INTERVAL_DAYS),
-            })
-          }
-          className="w-32 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
-        />
+        <p className="text-[10px] text-slate-500">
+          Minimum days between service contacts (30–730). Default {DEFAULT_SERVICE_ALERT_INTERVAL_DAYS}{' '}
+          (≈ {serviceAlertIntervalMonths(DEFAULT_SERVICE_ALERT_INTERVAL_DAYS)} mo).
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <input
+            type="number"
+            min={30}
+            max={730}
+            value={(s.serviceAlertIntervalDays as number) ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS}
+            onChange={(e) =>
+              onUpdateSetting(dealershipId, {
+                serviceAlertIntervalDays: clampServiceAlertIntervalDays(
+                  Number(e.target.value) || DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+                ),
+              })
+            }
+            className="w-32 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+          />
+          <label className="flex items-center gap-2 text-[10px] text-slate-500">
+            <span className="font-black uppercase tracking-wider">Buffer days</span>
+            <input
+              type="number"
+              min={0}
+              max={60}
+              value={(s.serviceAlertBufferDays as number) ?? DEFAULT_SERVICE_ALERT_BUFFER_DAYS}
+              onChange={(e) =>
+                onUpdateSetting(dealershipId, {
+                  serviceAlertBufferDays: clampServiceAlertBufferDays(
+                    Number(e.target.value) || DEFAULT_SERVICE_ALERT_BUFFER_DAYS
+                  ),
+                })
+              }
+              className="w-20 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+            />
+          </label>
+        </div>
       </div>
 
       <div className="space-y-3">

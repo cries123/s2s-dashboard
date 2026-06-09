@@ -32,6 +32,7 @@ import { RecallsPage } from './components/dashboard/customers/RecallsPage';
 import { ServiceBundleMenuBoard } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
+import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
@@ -268,7 +269,10 @@ function DashboardShell({ user }: { user: User }) {
       if (item.managerSubTab === 'team') setManagerDashboardSubTab('users');
     }
   }, []);
-  const serviceAlerts = useServiceAlertInterval(mergedDealershipSettings.serviceAlertIntervalDays);
+  const serviceAlerts = useServiceAlertInterval(
+    mergedDealershipSettings.serviceAlertIntervalDays,
+    mergedDealershipSettings.serviceAlertBufferDays
+  );
   const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
@@ -387,6 +391,10 @@ function DashboardShell({ user }: { user: User }) {
   }
 
   return (
+    <ServiceAlertProvider
+      intervalDays={mergedDealershipSettings.serviceAlertIntervalDays}
+      bufferDays={mergedDealershipSettings.serviceAlertBufferDays}
+    >
     <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
       <AppSidebar
         dealershipName={currentDealership.name}
@@ -453,12 +461,18 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'alerts' && (
-            <ServiceAlerts 
-              customers={customers} 
-              currentUser={currentUser} 
+            <ServiceAlerts
+              customers={customers}
+              currentUser={currentUser}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              dealershipName={currentDealership.name}
+              serviceAlertIntervalDays={mergedDealershipSettings.serviceAlertIntervalDays}
+              serviceAlertBufferDays={mergedDealershipSettings.serviceAlertBufferDays}
               onViewProfile={setSelectedProfile}
-              onViewLog={c => setSelectedProfile(c)}
-              onRefresh={(msg, isError) => showNotification(msg || "Alerts updated successfully.", isError)}
+              onViewLog={(c) => setSelectedProfile(c)}
+              onRefresh={(msg, isError) =>
+                showNotification(msg || 'Alerts updated successfully.', isError)
+              }
             />
           )}
 
@@ -593,6 +607,7 @@ function DashboardShell({ user }: { user: User }) {
       />
       </div>
     </div>
+    </ServiceAlertProvider>
   );
 }
 

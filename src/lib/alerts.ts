@@ -1,5 +1,8 @@
 import { Customer } from "../types";
-import { DEFAULT_SERVICE_ALERT_INTERVAL_DAYS } from "./dealershipSettingsUtils";
+import {
+  DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
+  DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
+} from "./dealershipSettingsUtils";
 
 export function getAverageServiceIntervalDays(
   customer: Customer,
@@ -27,7 +30,11 @@ export function getAverageServiceIntervalDays(
     }
   }
 
-  return calculationCount > 0 ? totalDays / calculationCount : fallbackIntervalDays;
+  const calculated =
+    calculationCount > 0 ? totalDays / calculationCount : fallbackIntervalDays;
+
+  // Never alert sooner than the dealership minimum service interval.
+  return Math.max(calculated, fallbackIntervalDays);
 }
 
 export function getAverageServiceIntervalMonths(
@@ -74,7 +81,8 @@ export function calculateServiceCycle(
 
 export function getNextServiceMilestone(
   customerOrSoldDate: Customer | string,
-  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
+  bufferDays: number = DEFAULT_SERVICE_ALERT_BUFFER_DAYS
 ): string {
   if (!customerOrSoldDate) return 'N/A';
 
@@ -85,7 +93,9 @@ export function getNextServiceMilestone(
 
       const currentCycle = calculateServiceCycle(customerOrSoldDate, intervalDays);
       const nextMilestoneDate = new Date(soldDate.getTime());
-      nextMilestoneDate.setDate(nextMilestoneDate.getDate() + (currentCycle + 1) * intervalDays);
+      nextMilestoneDate.setDate(
+        nextMilestoneDate.getDate() + (currentCycle + 1) * intervalDays + bufferDays
+      );
 
       return nextMilestoneDate.toLocaleDateString();
     } catch {
@@ -98,7 +108,7 @@ export function getNextServiceMilestone(
   const lastDate = getLastServiceDate(customer);
   if (!lastDate) return 'N/A';
 
-  const nextDue = new Date(lastDate.getTime() + avgDays * 24 * 60 * 60 * 1000);
+  const nextDue = new Date(lastDate.getTime() + (avgDays + bufferDays) * 24 * 60 * 60 * 1000);
   return nextDue.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -108,7 +118,8 @@ export function getNextServiceMilestone(
 
 export function isServiceAlertActive(
   customer: Customer,
-  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
+  bufferDays: number = DEFAULT_SERVICE_ALERT_BUFFER_DAYS
 ): boolean {
   if (!customer.enableServiceAlert) return false;
   if (customer.stopAlertInfo) return false;
@@ -117,15 +128,17 @@ export function isServiceAlertActive(
   const lastDate = getLastServiceDate(customer);
   if (!lastDate) return false;
 
-  const nextDue = new Date(lastDate.getTime() + avgDays * 24 * 60 * 60 * 1000);
+  const alertAfter = new Date(
+    lastDate.getTime() + (avgDays + bufferDays) * 24 * 60 * 60 * 1000
+  );
   const now = new Date();
 
   if (customer.lastServiceContact) {
     const lastContactTime = new Date(customer.lastServiceContact.seconds * 1000).getTime();
-    if (lastContactTime > lastDate.getTime() && lastContactTime > nextDue.getTime()) {
+    if (lastContactTime > lastDate.getTime() && lastContactTime > alertAfter.getTime()) {
       return false;
     }
   }
 
-  return now.getTime() >= nextDue.getTime();
+  return now.getTime() >= alertAfter.getTime();
 }

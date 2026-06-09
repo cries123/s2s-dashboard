@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
-import { isServiceAlertActive } from '../../../lib/alerts';
+import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { customerMatchesDealership } from '../../../lib/customerScope';
 
 interface SalesPerformanceProps {
@@ -31,6 +31,7 @@ interface SalesPerformanceProps {
 }
 
 export default function SalesPerformance({ customers, currentUser, currentDealershipId }: SalesPerformanceProps) {
+  const { isServiceAlertActive } = useServiceAlertHelpers();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSalesman, setSelectedSalesman] = useState<string | null>(null);
 
@@ -113,7 +114,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
         };
       })
       .sort((a, b) => b.totalSales - a.totalSales);
-  }, [dealershipCustomers]);
+  }, [dealershipCustomers, isServiceAlertActive]);
 
   // Filtered salesman stats
   const filteredSalesmen = useMemo(() => {

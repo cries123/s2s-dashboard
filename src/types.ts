@@ -49,6 +49,8 @@ export interface DealershipSettings {
   enableSalesPerformanceTab?: boolean;
   enableVinSearchTab?: boolean;
   serviceAlertIntervalDays?: number;
+  /** Extra days after due date before a customer appears in Service Alerts (0–60). */
+  serviceAlertBufferDays?: number;
   enrollmentJoinCode?: string;
   weatherLat?: number;
   weatherLon?: number;

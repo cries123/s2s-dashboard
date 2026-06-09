@@ -3,6 +3,7 @@ import type { DealershipSettings, DispatchProductionLaneId } from '../types';
 import { POT_OF_GOLD_OP_CODES } from './potOfGoldData';
 
 export const DEFAULT_SERVICE_ALERT_INTERVAL_DAYS = 180;
+export const DEFAULT_SERVICE_ALERT_BUFFER_DAYS = 0;
 
 export const DEFAULT_WEATHER = {
   lat: 34.953,
@@ -26,6 +27,7 @@ export function mergeDealershipSettings(
     enableSalesPerformanceTab: raw?.enableSalesPerformanceTab !== false,
     enableVinSearchTab: raw?.enableVinSearchTab !== false,
     serviceAlertIntervalDays: raw?.serviceAlertIntervalDays ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
+    serviceAlertBufferDays: raw?.serviceAlertBufferDays ?? DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
     enrollmentJoinCode: raw?.enrollmentJoinCode ?? staticRow?.code ?? '',
     weatherLat: raw?.weatherLat ?? DEFAULT_WEATHER.lat,
     weatherLon: raw?.weatherLon ?? DEFAULT_WEATHER.lon,
@@ -83,4 +85,12 @@ export function defaultPotOfGoldUpsellPrices() {
 
 export function clampServiceAlertIntervalDays(days: number): number {
   return Math.min(730, Math.max(30, Math.round(days)));
+}
+
+export function clampServiceAlertBufferDays(days: number): number {
+  return Math.min(60, Math.max(0, Math.round(days)));
+}
+
+export function serviceAlertIntervalMonths(days: number): string {
+  return (days / 30.4375).toFixed(1);
 }
