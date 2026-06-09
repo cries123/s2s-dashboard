@@ -26,6 +26,11 @@ import {
 import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
 import { sortDispatchOrdersByRoNumber } from '../../../lib/dispatchRoSort';
 import { DispatchTechSelector } from './DispatchTechSelector';
+import { isPreviewMode } from '../../../lib/previewMode';
+import {
+  buildPreviewDispatchOrders,
+  PREVIEW_DEALERSHIP_SETTINGS,
+} from '../../../lib/previewFixtures';
 import { DispatchMetricsBar } from './DispatchMetricsBar';
 import { DispatchMobileBoard, type MobileDispatchTab } from './DispatchMobileBoard';
 import { DispatchIntakeForm, DispatchIntakePanel } from './DispatchIntakeForm';
@@ -299,6 +304,18 @@ export function DispatchBoard({
   }, [orders]);
 
   useEffect(() => {
+    if (isPreviewMode && currentDealershipId) {
+      setScopedDealershipSettings({
+        dealershipId: currentDealershipId,
+        settings: {
+          ...PREVIEW_DEALERSHIP_SETTINGS,
+          id: currentDealershipId,
+        } as DealershipSettings,
+      });
+      setTodayApptCount(18);
+      return;
+    }
+
     if (!currentDealershipId) {
       setScopedDealershipSettings(null);
       return;
@@ -338,7 +355,7 @@ export function DispatchBoard({
   }, [currentDealershipId]);
 
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
 
     let tenantData: { count?: number; dealershipId?: string } | null = null;
     let legacyData: { count?: number; dealershipId?: string } | null = null;
@@ -396,6 +413,7 @@ export function DispatchBoard({
   );
 
   const runMidnightSweepIfDue = useCallback(async () => {
+    if (isPreviewMode) return;
     if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
     if (!isDispatchOvernightSweepWindow()) return;
 
@@ -442,9 +460,19 @@ export function DispatchBoard({
     return () => window.clearInterval(id);
   }, [currentDealershipId, runMidnightSweepIfDue]);
 
+  useEffect(() => {
+    if (!isPreviewMode || !currentDealershipId) return;
+    setOrders(
+      sortDispatchOrdersByRoNumber(
+        buildPreviewDispatchOrders(currentDealershipId, businessDatePst)
+      )
+    );
+    setLoading(false);
+  }, [currentDealershipId, businessDatePst]);
+
   // Sync / Stream Board State from Firestore
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (isPreviewMode || !currentDealershipId) return;
 
     setLoading(true);
     const path = 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders';
@@ -511,6 +539,20 @@ export function DispatchBoard({
         `${DEPARTMENTS.find((d) => d.id === laneTarget)?.label || 'Lane'} is at capacity.`,
         true
       );
+      return;
+    }
+
+    if (isPreviewMode) {
+      const patch = buildDispatchMoveUpdate(ro, target, businessDatePst);
+      setOrders((prev) =>
+        sortDispatchOrdersByRoNumber(
+          prev.map((order) =>
+            order.id === ro.id ? normalizeDispatchOrder({ ...order, ...patch }, order.id) : order
+          )
+        )
+      );
+      setMoveMenuRoId(null);
+      showNotification?.(`RO #${ro.roNumber} moved.`);
       return;
     }
 
@@ -713,7 +755,16 @@ export function DispatchBoard({
         payload.promiseTimeAt = promiseIso;
       }
 
-      await setDoc(docRef, payload);
+      if (isPreviewMode) {
+        setOrders((prev) =>
+          sortDispatchOrdersByRoNumber([
+            ...prev,
+            normalizeDispatchOrder(payload, payload.id),
+          ])
+        );
+      } else {
+        await setDoc(docRef, payload);
+      }
 
       // Reset form states
       setRoNumber('');
@@ -746,6 +797,20 @@ export function DispatchBoard({
   const handleToggleComplete = async (ro: DispatchRepairOrder, completed: boolean) => {
     if (!assertDispatchScope(ro)) return;
 
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ro.id
+            ? { ...order, isCompleted: completed, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      showNotification?.(
+        completed ? `RO #${ro.roNumber} marked as completed.` : `RO #${ro.roNumber} restored.`
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
       await updateDoc(docRef, {
@@ -776,6 +841,21 @@ export function DispatchBoard({
       lastUpdated: new Date().toISOString(),
     };
 
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === roId
+            ? {
+                ...order,
+                promiseTimeAt: promiseTimeAt ?? undefined,
+                lastUpdated: patch.lastUpdated,
+              }
+            : order
+        )
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
       await updateDoc(docRef, {
@@ -792,6 +872,20 @@ export function DispatchBoard({
     if (!assertDispatchScope(ro)) return;
     const trimmed = newTechNumber.trim();
     if (!trimmed || trimmed === ro.techNumber) return;
+
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ro.id
+            ? { ...order, techNumber: trimmed, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      showNotification?.(
+        `RO #${ro.roNumber} → ${resolveTechDisplayName(trimmed, dispatchTechRoster)}.`
+      );
+      return;
+    }
 
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
@@ -812,6 +906,17 @@ export function DispatchBoard({
     const ro = orders.find((order) => order.id === roId);
     if (ro && !assertDispatchScope(ro)) return;
 
+    if (isPreviewMode) {
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === roId
+            ? { ...order, status: newStatus, lastUpdated: new Date().toISOString() }
+            : order
+        )
+      );
+      return;
+    }
+
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
       await updateDoc(docRef, {
@@ -826,6 +931,12 @@ export function DispatchBoard({
   // Remove card entirely
   const handleDeleteCard = async (ro: DispatchRepairOrder) => {
     if (!assertDispatchScope(ro)) return;
+
+    if (isPreviewMode) {
+      setOrders((prev) => prev.filter((order) => order.id !== ro.id));
+      showNotification?.(`RO #${ro.roNumber} removed.`);
+      return;
+    }
 
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', ro.id);
@@ -1272,6 +1383,16 @@ export function DispatchBoard({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-slate-200">
+      {isPreviewMode && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-[11px] text-amber-100">
+          <span className="font-black uppercase tracking-wider text-amber-300">Preview mode</span>
+          <span className="text-amber-200/80">
+            {' '}
+            — sample data only. Set <code className="text-amber-100">VITE_PREVIEW_MODE=true</code> in{' '}
+            <code className="text-amber-100">.env.local</code> and run <code className="text-amber-100">npm run dev</code>.
+          </span>
+        </div>
+      )}
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div className="space-y-1">

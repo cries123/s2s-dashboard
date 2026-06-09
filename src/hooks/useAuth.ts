@@ -4,10 +4,12 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { User } from '../types';
 import { normalizeUserProfile } from '../lib/rbac';
+import { isPreviewMode } from '../lib/previewMode';
+import { PREVIEW_USER } from '../lib/previewFixtures';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(isPreviewMode ? PREVIEW_USER : null);
+  const [loading, setLoading] = useState(!isPreviewMode);
   const profileUnsubRef = useRef<(() => void) | null>(null);
 
   const clearProfileListener = useCallback(() => {
@@ -16,6 +18,8 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
+    if (isPreviewMode) return;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       clearProfileListener();
 

@@ -48,6 +48,7 @@ import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { AppTopBar } from './components/layout/AppTopBar';
 import { buildMobileNavSections } from './lib/mobileNavSections';
+import { isPreviewMode } from './lib/previewMode';
 import type { SidebarNavItem } from './lib/sidebarNav';
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
 import {
@@ -162,7 +163,13 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 }
 
 function DashboardShell({ user }: { user: User }) {
-  const initialRoute = React.useMemo(() => readInitialAppRoute(), []);
+  const initialRoute = React.useMemo(() => {
+    const route = readInitialAppRoute();
+    if (isPreviewMode) {
+      return { ...route, activeTab: 'dispatch' as AppTab };
+    }
+    return route;
+  }, []);
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'users');
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
@@ -192,6 +199,12 @@ function DashboardShell({ user }: { user: User }) {
     setCurrentDealershipId(dealershipId);
     storeDealershipId(dealershipId);
   }, []);
+
+  React.useEffect(() => {
+    if (isPreviewMode) {
+      selectDealership('ford');
+    }
+  }, [selectDealership]);
 
   // Sync current dealership with user's dealership on load
   React.useEffect(() => {
@@ -400,6 +413,7 @@ function DashboardShell({ user }: { user: User }) {
         user={currentUser}
         dealershipName={currentDealership.name}
         currentDealershipId={currentDealershipId}
+        enrollmentJoinCode={mergedDealershipSettings.enrollmentJoinCode}
         onDealershipChange={(id) => {
           selectDealership(id);
           showNotification(`Switched to ${DEALERSHIPS.find((d) => d.id === id)?.name || id}`);
@@ -589,7 +603,7 @@ export default function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  if (!user && !isPreviewMode) {
     return <LoginView />;
   }
 

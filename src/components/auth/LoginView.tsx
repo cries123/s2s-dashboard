@@ -13,6 +13,10 @@ import {
 } from 'lucide-react';
 import { TENANT_PROFILES } from '../../lib/tenants';
 import { dealershipIdFromTenantId } from '../../lib/tenants';
+import {
+  getDealershipEnrollmentCode,
+  getDealershipStaticEnrollmentCode,
+} from '../../lib/dealershipEnrollment';
 import { resolveEnrollmentJoinCode } from '../../lib/dealershipSettingsUtils';
 import type { UserDepartment } from '../../types';
 import { logAuditAction } from '../../services/loggingService';
@@ -45,6 +49,14 @@ export default function LoginView() {
       }
     })();
   }, []);
+
+  const selectedDealershipId = tenantId
+    ? dealershipIdFromTenantId(tenantId as (typeof TENANT_PROFILES)[number]['tenantId'])
+    : '';
+  const selectedEnrollmentCode = selectedDealershipId
+    ? joinCodesByDealership[selectedDealershipId] ||
+      getDealershipEnrollmentCode(selectedDealershipId, null)
+    : '';
 
   const showMessage = (text: string, isError = false) => {
     setMessage({ text, isError });
@@ -213,6 +225,29 @@ export default function LoginView() {
             )}
 
             {mode === 'signup' && (
+              <p className="mb-4 text-center text-[10px] text-slate-500 font-medium">
+                Santa Maria Ford/Lincoln enrollment code:{' '}
+                <span className="font-mono font-bold text-indigo-300 tracking-wider">
+                  {joinCodesByDealership.ford || getDealershipStaticEnrollmentCode('ford')}
+                </span>
+              </p>
+            )}
+
+            {mode === 'signup' && tenantId === 'ford-lincoln' && selectedEnrollmentCode && (
+              <div className="mb-5 rounded-xl border border-indigo-500/30 bg-indigo-950/30 px-4 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-300">
+                  Santa Maria Ford/Lincoln enrollment code
+                </p>
+                <p className="mt-1 font-mono text-2xl font-bold tracking-[0.2em] text-white">
+                  {selectedEnrollmentCode}
+                </p>
+                <p className="mt-1 text-[10px] text-slate-400">
+                  New staff enter this code when enrolling below.
+                </p>
+              </div>
+            )}
+
+            {mode === 'signup' && (
               <form onSubmit={handleSignup} className="space-y-5">
                 <div className="space-y-1.5">
                   <label className="input-label">Full Name</label>
@@ -271,8 +306,18 @@ export default function LoginView() {
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     required
                     className="input-field uppercase font-mono tracking-widest"
-                    placeholder="Provided by your manager"
+                    placeholder={
+                      tenantId === 'ford-lincoln' && selectedEnrollmentCode
+                        ? selectedEnrollmentCode
+                        : 'Provided by your manager'
+                    }
                   />
+                  {tenantId === 'ford-lincoln' && selectedEnrollmentCode ? (
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      Ford/Lincoln code:{' '}
+                      <span className="font-mono font-bold text-indigo-300">{selectedEnrollmentCode}</span>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
                   <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={16} />
