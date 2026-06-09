@@ -1,6 +1,8 @@
 import {
   defaultDispatchTechRoster,
-  isFordDispatchTechRoster,
+  dispatchTechRosterForDealership,
+  rosterIncludesFordDmsTech,
+  rosterIncludesHyundaiTech,
 } from '../constants/dispatchTechDefaults';
 import type { DispatchRepairOrder, PerformanceAdvisorSlot } from '../types';
 
@@ -52,22 +54,38 @@ export function resolveTechDisplayName(
   return match?.label ?? `Tech #${key}`;
 }
 
-/** Dispatch tech list for one store — never falls back to another dealership's roster. */
+/**
+ * Dispatch tech list for one store.
+ * Ford and Hyundai always use isolated built-in rosters — saved settings cannot cross-contaminate.
+ */
 export function dispatchTechRosterFromSettings(
   settings?: { dispatchTechRoster?: PerformanceAdvisorSlot[] } | null,
   dealershipId?: string
 ): PerformanceAdvisorSlot[] {
   if (!dealershipId) return [];
 
+  if (dealershipId === 'ford' || dealershipId === 'hyundai') {
+    return dispatchTechRosterForDealership(dealershipId);
+  }
+
   const configured =
     settings?.dispatchTechRoster?.filter((row) => row.id.trim() && row.label.trim()) ?? [];
   if (configured.length > 0) {
-    // Ignore Ford DMS roster if it was saved under Hyundai before the store split.
-    if (dealershipId === 'hyundai' && isFordDispatchTechRoster(configured)) {
-      return defaultDispatchTechRoster('hyundai');
+    if (rosterIncludesFordDmsTech(configured) || rosterIncludesHyundaiTech(configured)) {
+      return [];
     }
     return configured;
   }
 
   return defaultDispatchTechRoster(dealershipId);
+}
+
+/** Whether a saved settings roster is contaminated with another store's tech list. */
+export function isCrossDealershipDispatchRoster(
+  roster: PerformanceAdvisorSlot[],
+  dealershipId: string
+): boolean {
+  if (dealershipId === 'hyundai') return rosterIncludesFordDmsTech(roster);
+  if (dealershipId === 'ford') return rosterIncludesHyundaiTech(roster);
+  return rosterIncludesFordDmsTech(roster) || rosterIncludesHyundaiTech(roster);
 }

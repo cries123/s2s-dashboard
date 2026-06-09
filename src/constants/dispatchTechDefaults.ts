@@ -34,17 +34,35 @@ export const HYUNDAI_DISPATCH_TECH_ROSTER: PerformanceAdvisorSlot[] = [
   { id: 'trevor', label: 'Trevor' },
 ];
 
-export function defaultDispatchTechRoster(dealershipId: string): PerformanceAdvisorSlot[] {
-  if (dealershipId === 'ford') return FORD_DISPATCH_TECH_ROSTER;
-  if (dealershipId === 'hyundai') return HYUNDAI_DISPATCH_TECH_ROSTER;
-  return [];
+const FORD_DMS_TECH_IDS = new Set(FORD_DISPATCH_TECH_ROSTER.map((row) => row.id));
+const HYUNDAI_TECH_IDS = new Set(HYUNDAI_DISPATCH_TECH_ROSTER.map((row) => row.id));
+
+const DEALERSHIP_DISPATCH_ROSTERS: Record<string, PerformanceAdvisorSlot[]> = {
+  ford: FORD_DISPATCH_TECH_ROSTER,
+  hyundai: HYUNDAI_DISPATCH_TECH_ROSTER,
+};
+
+function normalizeTechId(techId: string): string {
+  const trimmed = techId.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  return digits || trimmed;
 }
 
-export function isFordDispatchTechRoster(roster: PerformanceAdvisorSlot[]): boolean {
-  if (roster.length !== FORD_DISPATCH_TECH_ROSTER.length) return false;
-  return roster.every(
-    (row, index) =>
-      row.id === FORD_DISPATCH_TECH_ROSTER[index].id &&
-      row.label === FORD_DISPATCH_TECH_ROSTER[index].label
-  );
+/** True when a saved roster contains any Ford DealerBuilt DMS tech #. */
+export function rosterIncludesFordDmsTech(roster: PerformanceAdvisorSlot[]): boolean {
+  return roster.some((row) => FORD_DMS_TECH_IDS.has(normalizeTechId(row.id)));
+}
+
+/** True when a saved roster contains Hyundai PBS tech ids. */
+export function rosterIncludesHyundaiTech(roster: PerformanceAdvisorSlot[]): boolean {
+  return roster.some((row) => HYUNDAI_TECH_IDS.has(row.id.trim().toLowerCase()));
+}
+
+export function defaultDispatchTechRoster(dealershipId: string): PerformanceAdvisorSlot[] {
+  return DEALERSHIP_DISPATCH_ROSTERS[dealershipId] ?? [];
+}
+
+/** Canonical dispatch roster for a store — never mixes Ford/Hyundai lists. */
+export function dispatchTechRosterForDealership(dealershipId: string): PerformanceAdvisorSlot[] {
+  return defaultDispatchTechRoster(dealershipId);
 }

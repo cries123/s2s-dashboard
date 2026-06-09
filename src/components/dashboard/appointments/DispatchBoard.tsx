@@ -20,8 +20,10 @@ import {
   countActiveRosByTech,
   dispatchTechRosterFromSettings,
   formatTechLabelWithCount,
+  isCrossDealershipDispatchRoster,
   resolveTechDisplayName,
 } from '../../../lib/dispatchTechRoster';
+import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
 import { sortDispatchOrdersByRoNumber } from '../../../lib/dispatchRoSort';
 import { DispatchTechSelector } from './DispatchTechSelector';
 import { DispatchMetricsBar } from './DispatchMetricsBar';
@@ -313,9 +315,24 @@ export function DispatchBoard({
       currentDealershipId
     );
     return onSnapshot(settingsRef, (snap) => {
+      const settings = snap.exists() ? (snap.data() as DealershipSettings) : null;
+      const savedRoster = settings?.dispatchTechRoster;
+
+      if (
+        settings &&
+        savedRoster?.length &&
+        (currentDealershipId === 'ford' || currentDealershipId === 'hyundai') &&
+        isCrossDealershipDispatchRoster(savedRoster, currentDealershipId)
+      ) {
+        void updateDoc(settingsRef, {
+          dispatchTechRoster: dispatchTechRosterForDealership(currentDealershipId),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
       setScopedDealershipSettings({
         dealershipId: currentDealershipId,
-        settings: snap.exists() ? (snap.data() as DealershipSettings) : null,
+        settings,
       });
     });
   }, [currentDealershipId]);

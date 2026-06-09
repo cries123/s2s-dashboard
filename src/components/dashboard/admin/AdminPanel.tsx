@@ -35,7 +35,8 @@ import {
   defaultPerformanceAdvisorRoster,
   FORD_PERFORMANCE_ADVISOR_ROSTER,
 } from '../../../constants/dealerDefaults';
-import { defaultDispatchTechRoster } from '../../../constants/dispatchTechDefaults';
+import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
+import { isCrossDealershipDispatchRoster } from '../../../lib/dispatchTechRoster';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
 import { useAuth } from '../../../hooks/useAuth';
 import { SystemLogs } from './SystemLogs';
@@ -344,14 +345,20 @@ export default function AdminPanel({
       const cfg = getDealershipStaffConfig(id, data);
       techNext[id] = cfg.competitionTechnicians;
       perfNext[id] = cfg.performanceAdvisorRoster;
-      dispatchTechNext[id] = data.dispatchTechRoster?.length
-        ? data.dispatchTechRoster
-        : defaultDispatchTechRoster(id).length
-          ? defaultDispatchTechRoster(id)
-          : cfg.competitionTechnicians.map((t, idx) => ({
-              id: String(6400 + idx),
-              label: t.label,
-            }));
+      const savedDispatchRoster = data.dispatchTechRoster;
+      if (
+        savedDispatchRoster?.length &&
+        !isCrossDealershipDispatchRoster(savedDispatchRoster, id)
+      ) {
+        dispatchTechNext[id] = savedDispatchRoster;
+      } else if (id === 'ford' || id === 'hyundai') {
+        dispatchTechNext[id] = dispatchTechRosterForDealership(id);
+      } else {
+        dispatchTechNext[id] = cfg.competitionTechnicians.map((t, idx) => ({
+          id: String(6400 + idx),
+          label: t.label,
+        }));
+      }
     });
     setLocalTechnicians((prev) => ({ ...prev, ...techNext }));
     setLocalPerformanceRoster((prev) => ({ ...prev, ...perfNext }));
