@@ -681,6 +681,7 @@ export default function App() {
             <DispatchBoard 
               key={currentDealershipId || 'hyundai'}
               currentDealershipId={currentDealershipId || 'hyundai'}
+              customers={customers}
               showNotification={(msg, isError) => showNotification(msg, isError)}
             />
           )}

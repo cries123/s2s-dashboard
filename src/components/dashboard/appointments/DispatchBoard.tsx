@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { collection, query, where, onSnapshot, doc, updateDoc, writeBatch, setDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { useCustomers } from '../../../hooks/useCustomers';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
@@ -126,7 +127,7 @@ function renderIntakeFlagBadge(ro: DispatchRepairOrder, compact = false) {
 
 export function DispatchBoard({ 
   currentDealershipId,
-  customers = [],
+  customers: customersProp = [],
   showNotification
 }: { 
   key?: string;
@@ -135,6 +136,11 @@ export function DispatchBoard({
   showNotification?: (msg: string, isError?: boolean) => void;
 }) {
   const { user } = useAuth();
+  const { customers: liveCustomers } = useCustomers(
+    currentDealershipId || undefined,
+    user?.role === 'admin'
+  );
+  const customers = liveCustomers.length > 0 ? liveCustomers : customersProp;
   
   // States of Active RO list
   const [orders, setOrders] = useState<DispatchRepairOrder[]>([]);

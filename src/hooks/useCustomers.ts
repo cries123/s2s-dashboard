@@ -3,34 +3,45 @@ import { collection, query, onSnapshot, orderBy, where } from 'firebase/firestor
 import { db } from '../firebase';
 import { Customer } from '../types';
 import { isPreviewMode } from '../lib/previewMode';
+import { PREVIEW_CUSTOMERS } from '../lib/previewFixtures';
 
 export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>(isPreviewMode ? PREVIEW_CUSTOMERS : []);
   const [loading, setLoading] = useState(!isPreviewMode);
 
   useEffect(() => {
-    if (isPreviewMode) return;
+    if (isPreviewMode) {
+      setCustomers(PREVIEW_CUSTOMERS);
+      setLoading(false);
+      return;
+    }
 
     if (!dealershipId && !isAdmin) {
       setLoading(false);
       return;
     }
 
-    // Admins fetch everything to handle legacy data without dealershipId
-    // Managers use where clause for strict security rule compliance
-    const q = isAdmin 
-      ? query(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers'))
-      : query(
-          collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers'),
-          where('dealershipId', '==', dealershipId)
-        );
-    
+    const collectionRef = collection(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'customers'
+    );
+
+    // Hyundai includes legacy CRM rows without dealershipId — same as directory behavior.
+    const useBroadHyundaiQuery = dealershipId === 'hyundai';
+    const q =
+      isAdmin || useBroadHyundaiQuery
+        ? query(collectionRef)
+        : query(collectionRef, where('dealershipId', '==', dealershipId));
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
-      
-      // If admin, we filter in memory so we can show "Legacy" data in the Hyundai view
-      if (isAdmin && dealershipId) {
-        list = list.filter(c => {
+
+      if (dealershipId) {
+        list = list.filter((c) => {
           if (dealershipId === 'hyundai') {
             return !c.dealershipId || c.dealershipId === 'hyundai';
           }

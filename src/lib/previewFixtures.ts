@@ -1,5 +1,68 @@
-import type { DealershipSettings, DispatchRepairOrder, User } from '../types';
+import { Timestamp } from 'firebase/firestore';
+import type { Customer, DealershipSettings, DispatchRepairOrder, User } from '../types';
 import { promiseTimeMinutesFromNow } from './dispatchPromiseTime';
+
+const previewNow = Timestamp.now();
+
+export const PREVIEW_CUSTOMERS: Customer[] = [
+  {
+    id: 'preview-cust-martinez',
+    firstName: 'Maria',
+    lastName: 'Martinez',
+    phone: '(805) 555-0142',
+    email: 'maria.martinez@example.com',
+    make: 'Hyundai',
+    model: 'Tucson',
+    year: '2024',
+    vinLast8: 'G2054992',
+    soldDate: '2024-03-15',
+    language: 'English',
+    enableServiceAlert: true,
+    serviceAlertTriggered: false,
+    createdAt: previewNow,
+    addedBy: 'preview-user',
+    addedByUsername: 'Preview User',
+    dealershipId: 'hyundai',
+  },
+  {
+    id: 'preview-cust-chen',
+    firstName: 'James',
+    lastName: 'Chen',
+    phone: '(805) 555-0198',
+    email: 'james.chen@example.com',
+    make: 'Hyundai',
+    model: 'Santa Fe',
+    year: '2023',
+    vinLast8: 'H1849201',
+    soldDate: '2023-11-02',
+    language: 'English',
+    enableServiceAlert: true,
+    serviceAlertTriggered: false,
+    createdAt: previewNow,
+    addedBy: 'preview-user',
+    addedByUsername: 'Preview User',
+    dealershipId: 'hyundai',
+  },
+  {
+    id: 'preview-cust-williams',
+    firstName: 'Dana',
+    lastName: 'Williams',
+    phone: '(805) 555-0175',
+    email: 'dana.williams@example.com',
+    make: 'Hyundai',
+    model: 'Elantra',
+    year: '2022',
+    vinLast8: 'K9921044',
+    soldDate: '2022-08-20',
+    language: 'English',
+    enableServiceAlert: true,
+    serviceAlertTriggered: false,
+    createdAt: previewNow,
+    addedBy: 'preview-user',
+    addedByUsername: 'Preview User',
+    dealershipId: 'hyundai',
+  },
+];
 
 export const PREVIEW_USER: User = {
   uid: 'preview-user',
