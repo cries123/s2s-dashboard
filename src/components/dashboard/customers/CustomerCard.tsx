@@ -84,7 +84,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const maintenanceTasks = getRecommendedServices(monthsOwned);
 
   return (
-    <div className={cn("card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-100 dark:bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl", preferences.crmDisplay.density === "compact" && "text-[95%]")}>
+    <div className={cn("card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl", preferences.crmDisplay.density === "compact" && "text-[95%]")}>
       <div className="p-5">
         <div className="flex justify-between items-start gap-3">
           <div className="flex-1">

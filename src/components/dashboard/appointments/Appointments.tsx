@@ -759,7 +759,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               <button
                 onClick={() => pdfInputRef.current?.click()}
                 disabled={isUploadingPdf}
-                className="w-full btn-secondary h-10 text-emerald-700 dark:text-emerald-400"
+                className="w-full btn-secondary h-10 text-emerald-400"
               >
                 {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
                 Extract Daily Schedule PDF
@@ -1072,7 +1072,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         <button
           type="button"
           onClick={() => setShowPerformanceTools((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
+          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
         >
           <span className="crm-section-title">Advisor & technician performance</span>
           <span className="crm-label">{showPerformanceTools ? 'Hide' : 'Expand'}</span>

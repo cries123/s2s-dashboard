@@ -106,7 +106,7 @@ export function AppSidebar({
                         'flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors',
                         active
                           ? 'bg-brand-primary/10 text-brand-primary'
-                          : 'hover:bg-black/5 dark:hover:bg-white/5'
+                          : 'hover:bg-white/5'
                       )}
                       style={!active ? { color: 'var(--color-text-primary)' } : undefined}
                     >
