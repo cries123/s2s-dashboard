@@ -32,6 +32,8 @@ import {
 import { MasterUserSettings } from './MasterUserSettings';
 import { logAuditAction } from '../../../services/loggingService';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
+import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
+import { buildDmsProviderSettingsPatch } from '../../../lib/dealershipDmsSettings';
 
 type ManagerTab = 'users' | 'settings' | 'logs';
 
@@ -64,9 +66,15 @@ export default function ManagerDashboard({
   const { user: currentUser } = useAuth();
   const tenantId = resolveScopeTenantId(currentUser, currentDealershipId);
   const tenantProfile = getTenantProfile(tenantId);
+  const dealershipId = tenantProfile?.dealershipId || currentDealershipId || 'hyundai';
 
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(normalizeDmsProvider(tenantProfile?.dmsProvider));
+  const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(() =>
+    defaultDmsProviderForDealership(dealershipId)
+  );
+  const [dealershipSettings, setDealershipSettings] = useState<{
+    performanceAdvisorRoster?: { id: string; label: string }[];
+  } | null>(null);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [savingDms, setSavingDms] = useState(false);
 
@@ -106,28 +114,58 @@ export default function ManagerDashboard({
   }, [currentUser, tenantId]);
 
   useEffect(() => {
-    if (!tenantId) return;
-    const tenantRef = doc(db, ...TENANTS_COLLECTION_PATH, tenantId);
-    const unsub = onSnapshot(tenantRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.dmsProvider) setDmsProvider(normalizeDmsProvider(data.dmsProvider as string));
-      }
+    if (!dealershipId) return;
+    const settingsRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'dealershipSettings',
+      dealershipId
+    );
+    const unsub = onSnapshot(settingsRef, (snap) => {
+      const data = snap.exists() ? snap.data() : null;
+      setDealershipSettings(data);
+      setDmsProvider(
+        data?.dmsProvider
+          ? normalizeDmsProvider(data.dmsProvider as string)
+          : defaultDmsProviderForDealership(dealershipId)
+      );
     });
     return () => unsub();
-  }, [tenantId]);
+  }, [dealershipId]);
 
-  const saveDmsProvider = async () => {
-    if (!currentUser || !tenantId) return;
+  const saveDmsProvider = async (next: DmsProviderId) => {
+    if (!currentUser || !dealershipId) return;
     setSavingDms(true);
     try {
+      const patch = buildDmsProviderSettingsPatch(dealershipId, next, dealershipSettings);
       await setDoc(
-        doc(db, ...TENANTS_COLLECTION_PATH, tenantId),
-        { tenantId, name: tenantProfile?.name || tenantId, dmsProvider, updatedAt: serverTimestamp() },
+        doc(
+          db,
+          'artifacts',
+          'hyundai-sales-to-service',
+          'public',
+          'data',
+          'dealershipSettings',
+          dealershipId
+        ),
+        { ...patch, id: dealershipId, updatedAt: serverTimestamp() },
         { merge: true }
       );
-      await logAuditAction('Update Tenant DMS', `DMS provider set to ${dmsProvider}`, tenantId, currentUser);
-      onSuccess?.('Tenant DMS settings saved');
+      await setDoc(
+        doc(db, ...TENANTS_COLLECTION_PATH, tenantId),
+        {
+          tenantId,
+          name: tenantProfile?.name || tenantId,
+          dmsProvider: next,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await logAuditAction('Update DMS Provider', `DMS provider set to ${next}`, tenantId, currentUser);
+      onSuccess?.('DMS provider saved for report parsing.');
     } catch (err: any) {
       onError?.(err.message || 'Failed to save DMS settings');
     } finally {
@@ -176,13 +214,21 @@ export default function ManagerDashboard({
 
       {subTab === 'settings' && (
         <div className="card-base p-8 max-w-lg">
-          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6">Tenant DMS Configuration</h3>
-          <p className="text-xs text-slate-500 mb-4">Applies only to <span className="text-white font-bold">{tenantProfile?.name}</span></p>
+          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6">DMS Configuration</h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Saved automatically for <span className="text-white font-bold">{tenantProfile?.name}</span>. Report PDF
+            imports use this to pick the PBS or DealerBuilt parser.
+          </p>
           <label className="input-label">DMS Provider</label>
           <select
             value={dmsProvider}
-            onChange={(e) => setDmsProvider(e.target.value as DmsProviderId)}
-            className="input-field w-full mb-6"
+            disabled={savingDms}
+            onChange={(e) => {
+              const next = e.target.value as DmsProviderId;
+              setDmsProvider(next);
+              void saveDmsProvider(next);
+            }}
+            className="input-field w-full mb-4"
           >
             {DMS_PROVIDERS.map((provider) => (
               <option key={provider.id} value={provider.id}>
@@ -190,12 +236,10 @@ export default function ManagerDashboard({
               </option>
             ))}
           </select>
-          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">
+          <p className="text-[10px] text-slate-500 leading-relaxed flex items-center gap-2">
+            {savingDms ? <Loader2 className="animate-spin shrink-0" size={14} /> : null}
             {DMS_PROVIDERS.find((p) => p.id === dmsProvider)?.description}
           </p>
-          <button type="button" onClick={saveDmsProvider} disabled={savingDms} className="btn-primary w-full py-3">
-            {savingDms ? <Loader2 className="animate-spin mx-auto" size={18} /> : 'Save Tenant Settings'}
-          </button>
         </div>
       )}
 

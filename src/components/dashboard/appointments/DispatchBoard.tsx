@@ -1122,11 +1122,26 @@ export function DispatchBoard({
     const isOvernight = isOvernightRo(ro, businessDatePst);
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
 
-    // Check if it's an internal dealership vehicle
-    const isInternalAsset = 
-      ro.accountName?.toLowerCase().includes("hyundai of santa maria") || 
-      !!ro.isInternal || 
-      ro.customerName?.toLowerCase().includes("hyundai of santa maria");
+    const isInternalAsset =
+      ro.accountName?.toLowerCase().includes('hyundai of santa maria') ||
+      !!ro.isInternal ||
+      ro.customerName?.toLowerCase().includes('hyundai of santa maria');
+
+    const customerLabel = isInternalAsset
+      ? `${ro.year || ''} ${ro.model || 'Internal Vehicle'}`.trim()
+      : ro.customerName || ro.customerLastName || 'Walk-in guest';
+
+    const vehicleLabel =
+      !isInternalAsset && ro.model ? `${ro.year || ''} ${ro.model}`.trim() : null;
+
+    const factChips: { label: string; value: string }[] = [];
+    if (isInternalAsset) {
+      if (ro.stockNumber) factChips.push({ label: 'Stock', value: ro.stockNumber });
+    } else if (ro.tagNumber) {
+      factChips.push({ label: 'Tag', value: ro.tagNumber });
+    }
+    if (ro.vinLastEight) factChips.push({ label: 'VIN', value: `…${ro.vinLastEight}` });
+    if (ro.phoneNumber) factChips.push({ label: 'Phone', value: ro.phoneNumber });
 
     return (
       <div
@@ -1138,40 +1153,52 @@ export function DispatchBoard({
         onDragEnd={handleDragEnd}
         style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
         className={cn(
-          "bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-4 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group select-none w-full text-slate-100",
-          isOvernight && "ring-1 ring-amber-500/30",
-          promiseState?.urgency === 'soon' && "ring-1 ring-amber-500/25",
-          promiseState?.urgency === 'urgent' && "ring-1 ring-orange-500/40",
-          promiseState?.urgency === 'overdue' && "ring-1 ring-rose-500/45",
-          moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30",
-          lookupRoId === ro.id && "ring-2 ring-sky-400/70 border-sky-400/40 shadow-sky-950/20",
-          draggingRoId === ro.id && "opacity-50 scale-[0.98]"
+          'bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-3 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group select-none w-full text-slate-100',
+          isOvernight && 'ring-1 ring-amber-500/30',
+          promiseState?.urgency === 'soon' && 'ring-1 ring-amber-500/25',
+          promiseState?.urgency === 'urgent' && 'ring-1 ring-orange-500/40',
+          promiseState?.urgency === 'overdue' && 'ring-1 ring-rose-500/45',
+          moveMenuRoId === ro.id && 'ring-2 ring-indigo-500/40 border-indigo-500/30',
+          lookupRoId === ro.id && 'ring-2 ring-sky-400/70 border-sky-400/40 shadow-sky-950/20',
+          draggingRoId === ro.id && 'opacity-50 scale-[0.98]'
         )}
       >
-        {/* 1. HEADER SECTION (DYNAMIC HIERARCHY) */}
         <div className="flex justify-between items-start gap-2">
-          <div className="flex-1 min-w-0">
-            {isInternalAsset ? (
-              /* Internal Asset Top View */
-              <>
-                <span className="bg-amber-950/80 text-amber-400 border border-amber-900/50 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md block w-fit mb-1">
-                  Store Inventory / Recon
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xl font-black text-white tabular-nums tracking-tight leading-none">
+                RO {ro.roNumber}
+              </span>
+              <span
+                className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded border"
+                style={{
+                  color: statusInfo.hex,
+                  borderColor: `${statusInfo.hex}55`,
+                  backgroundColor: `${statusInfo.hex}18`,
+                }}
+              >
+                {statusInfo.label}
+              </span>
+              {isOvernight ? (
+                <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
+                  Overnight
                 </span>
-                <h3 className="text-sm font-semibold tracking-tight text-white truncate">
-                  {ro.year || ''} {ro.model || 'Internal Vehicle'}
-                </h3>
-              </>
-            ) : (
-              /* Retail Customer Top View */
-              <>
-                <h3 className="text-sm font-bold tracking-tight text-white uppercase truncate">
-                  {ro.customerName || `Retail Guest`}
-                </h3>
-                {ro.model && (
-                  <p className="text-xs text-slate-400 truncate">{ro.year || ''} {ro.model}</p>
-                )}
-              </>
-            )}
+              ) : null}
+              {(ro.isWaiting || ro.isPdl) && renderIntakeFlagBadge(ro)}
+            </div>
+
+            {isInternalAsset ? (
+              <span className="inline-flex bg-amber-950/80 text-amber-400 border border-amber-900/50 text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md">
+                Store inventory / recon
+              </span>
+            ) : null}
+
+            <div>
+              <h3 className="text-sm font-bold tracking-tight text-white truncate">{customerLabel}</h3>
+              {vehicleLabel ? (
+                <p className="text-xs text-slate-400 truncate">{vehicleLabel}</p>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -1185,12 +1212,6 @@ export function DispatchBoard({
             >
               <MapPin size={11} /> Move
             </button>
-
-            {isOvernight && (
-              <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
-                Overnight
-              </span>
-            )}
 
             {confirmDeleteId === ro.id ? (
               <div className="flex items-center gap-1 shrink-0">
@@ -1221,16 +1242,14 @@ export function DispatchBoard({
                 </button>
               </div>
             ) : (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
                   setConfirmDeleteId(ro.id);
                 }}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 className="text-slate-600 hover:text-rose-450 p-0.5 rounded transition-all duration-200 cursor-pointer relative z-20"
                 title="Delete from Board"
               >
@@ -1240,30 +1259,47 @@ export function DispatchBoard({
           </div>
         </div>
 
-        {/* 2. CONTACT METADATA SECTION (ONLY RENDER FOR RETAIL GUESTS) */}
-        {!isInternalAsset && (ro.phoneNumber || ro.customerName) && (
-          <div className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">
-            <span className="text-slate-500">📞</span>
-            <span>{ro.phoneNumber || 'No Phone Entry'}</span>
+        {factChips.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {factChips.map((chip) => (
+              <span
+                key={`${chip.label}-${chip.value}`}
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-950/70 border border-slate-800 text-[10px]"
+              >
+                <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">
+                  {chip.label}
+                </span>
+                <span className="font-mono text-slate-200 truncate max-w-[120px]">{chip.value}</span>
+              </span>
+            ))}
           </div>
-        )}
+        ) : null}
 
         <div
-          className="space-y-2"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {ro.promiseTimeAt ? (
-            <DispatchPromiseCountdown
-              promiseTimeAt={ro.promiseTimeAt}
-              nowMs={promiseNowMs}
+          <div className="bg-slate-950/30 p-2.5 rounded-lg border border-slate-800/40">
+            <DispatchTechSelector
+              techNumber={ro.techNumber}
+              roster={dispatchTechRoster}
+              techRoCounts={techRoCounts}
+              onSelect={(techId) => handleUpdateTech(ro, techId)}
             />
-          ) : null}
-          <div className="space-y-1">
-            <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 block">
+            <span className="text-slate-400 text-[10px] block truncate mt-1.5">
+              Lane: {dispatchLaneLabel(ro.department)}
+            </span>
+          </div>
+
+          <div className="bg-slate-950/30 p-2.5 rounded-lg border border-slate-800/40 space-y-2">
+            <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">
               Promise time
             </span>
+            {ro.promiseTimeAt ? (
+              <DispatchPromiseCountdown promiseTimeAt={ro.promiseTimeAt} nowMs={promiseNowMs} />
+            ) : null}
             <CardPromiseTimeEditor
               promiseTimeAt={ro.promiseTimeAt}
               onSave={(iso) => handleUpdatePromiseTime(ro.id, iso)}
@@ -1271,46 +1307,13 @@ export function DispatchBoard({
           </div>
         </div>
 
-        {/* 3. CORE TECHNICAL METADATA (VEHICLE SPECIFICS) */}
-        <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
-          <div className="bg-slate-950/30 p-2 rounded border border-slate-800/40">
-            <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Identifiers</span>
-            <span className="font-mono text-slate-200 block mt-0.5 truncate">
-              {isInternalAsset ? `STOCK: ${ro.stockNumber || 'N/A'}` : `TAG: ${ro.tagNumber || 'N/A'}`}
-            </span>
-            <span className="font-mono text-slate-400 text-[10px] block">
-              {ro.vinLastEight ? `VIN …${ro.vinLastEight}` : `Last: ${displayCustomerLastName(ro)}`}
-            </span>
-          </div>
-
-          <div
-            className="bg-slate-950/30 p-2 rounded border border-slate-800/40"
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <DispatchTechSelector
-              techNumber={ro.techNumber}
-              roster={dispatchTechRoster}
-              techRoCounts={techRoCounts}
-              onSelect={(techId) => handleUpdateTech(ro, techId)}
-            />
-            <span className="text-slate-400 text-[10px] block truncate mt-1">
-              Dept: {dispatchLaneLabel(ro.department)}
-            </span>
-          </div>
-        </div>
-
-        {/* 4. ACTIONS & STATUS SELECT */}
+        {/* ACTIONS & STATUS SELECT */}
         <div
           className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {(ro.isWaiting || ro.isPdl) && (
-            <div className="shrink-0">{renderIntakeFlagBadge(ro)}</div>
-          )}
           <div className="relative inline-flex items-center flex-1 min-w-0 max-w-[155px]">
             <select
               value={ro.status}

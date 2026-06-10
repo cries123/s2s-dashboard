@@ -26,11 +26,8 @@ import { PageHeader } from '../../layout/PageHeader';
 
 import { DEALERSHIPS } from '../../../constants';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
-import {
-  defaultDmsProviderForDealership,
-  defaultPerformanceAdvisorRoster,
-  FORD_PERFORMANCE_ADVISOR_ROSTER,
-} from '../../../constants/dealerDefaults';
+import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
+import { buildDmsProviderSettingsPatch } from '../../../lib/dealershipDmsSettings';
 import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
 import { isCrossDealershipDispatchRoster } from '../../../lib/dispatchTechRoster';
 import { DISPATCH_PRODUCTION_LANES, DEFAULT_DISPATCH_LANE_CAPACITY, mergeLaneCapacity, DispatchProductionLane } from '../../../lib/dispatchConfig';
@@ -739,7 +736,16 @@ export default function AdminPanel({
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
                             <select
                               value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
-                              onChange={(e) => updateSetting(d.id, { dmsProvider: e.target.value as DmsProviderId })}
+                              onChange={(e) =>
+                                updateSetting(
+                                  d.id,
+                                  buildDmsProviderSettingsPatch(
+                                    d.id,
+                                    e.target.value as DmsProviderId,
+                                    dealershipSettings[d.id]
+                                  )
+                                )
+                              }
                               className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer"
                             >
                               {DMS_PROVIDERS.map((provider) => (
@@ -811,46 +817,25 @@ export default function AdminPanel({
                           </div>
                         </div>
 
-                        {/* DMS + Advisor Roster (productivity imports) */}
-                        <div className="space-y-3 pt-3 border-t border-white/5">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">DMS Report Parser</label>
-                          <select
-                            value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
-                            onChange={(e) => {
-                              const next = e.target.value as DmsProviderId;
-                              const patch: Record<string, unknown> = { dmsProvider: next };
-                              if (
-                                next === 'dealerbuilt' &&
-                                !dealershipSettings[d.id]?.performanceAdvisorRoster?.length
-                              ) {
-                                patch.performanceAdvisorRoster =
-                                  defaultPerformanceAdvisorRoster(d.id) ?? FORD_PERFORMANCE_ADVISOR_ROSTER;
-                              }
-                              updateSetting(d.id, patch);
-                            }}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white"
-                          >
-                            {DMS_PROVIDERS.map((p) => (
-                              <option key={p.id} value={p.id}>{p.label}</option>
-                            ))}
-                          </select>
-                          <p className="text-[10px] text-slate-500 leading-relaxed">
-                            {DMS_PROVIDERS.find((p) => p.id === (dealershipSettings[d.id]?.dmsProvider || defaultDmsProviderForDealership(d.id)))?.description}
-                            {' '}Use <strong className="text-slate-400">DealerBuilt</strong> for Santa Maria Ford scanned Service Advisor Performance PDFs.
-                          </p>
-                          {(dealershipSettings[d.id]?.performanceAdvisorRoster?.length ?? 0) > 0 && (
-                            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Productivity advisors</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {(dealershipSettings[d.id]?.performanceAdvisorRoster || []).map((slot: { id: string; label: string }) => (
-                                  <span key={slot.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40">
+                        {(dealershipSettings[d.id]?.performanceAdvisorRoster?.length ?? 0) > 0 && (
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                              Productivity advisors
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(dealershipSettings[d.id]?.performanceAdvisorRoster || []).map(
+                                (slot: { id: string; label: string }) => (
+                                  <span
+                                    key={slot.id}
+                                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40"
+                                  >
                                     {slot.label}
                                   </span>
-                                ))}
-                              </div>
+                                )
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Dispatch Toggle Feature Switch */}
                         <div className="space-y-3 pt-3 border-t border-white/5">
