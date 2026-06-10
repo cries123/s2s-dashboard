@@ -530,6 +530,7 @@ function DashboardShell({ user }: { user: User }) {
             <ManagerDashboard
               activeSubTab={managerDashboardSubTab}
               onChangeSubTab={setManagerDashboardSubTab}
+              currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
             />

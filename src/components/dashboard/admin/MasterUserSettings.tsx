@@ -1,11 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  collection,
-  doc,
-  onSnapshot,
-  updateDoc,
-  deleteDoc,
-} from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import {
   Users,
@@ -24,16 +18,19 @@ import { auth, db } from '../../../firebase';
 import { User } from '../../../types';
 import { cn } from '../../../lib/utils';
 import { DEALERSHIPS } from '../../../constants';
-import { TENANT_PROFILES, dealershipIdFromTenantId } from '../../../lib/tenants';
+import { TENANT_PROFILES, dealershipIdFromTenantId, getTenantProfile } from '../../../lib/tenants';
 import {
   buildMasterPermissionPatch,
   buildUserApprovalPatch,
+  canModifyUser,
+  isPendingStaffEnrollment,
   isPendingUser,
   isProtectedUser,
+  isPlatformAdmin,
   masterPermissionFromUser,
-  normalizeUserProfile,
   type MasterPermissionRole,
 } from '../../../lib/rbac';
+import { subscribeTenantUsers } from '../../../lib/userDirectory';
 import { logSystemAction } from '../../../services/loggingService';
 import { useAuth } from '../../../hooks/useAuth';
 import {
@@ -46,6 +43,10 @@ import {
 interface MasterUserSettingsProps {
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
+  /** When set, only users for this tenant are listed. */
+  scopeTenantId?: string;
+  /** Manager view: staff-only permissions, no auth email/password overrides. */
+  managerMode?: boolean;
 }
 
 const PERMISSION_OPTIONS: { value: MasterPermissionRole; label: string }[] = [
@@ -56,12 +57,21 @@ const PERMISSION_OPTIONS: { value: MasterPermissionRole; label: string }[] = [
   { value: 'pending', label: 'Pending / Revoked' },
 ];
 
-export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsProps) {
+const MANAGER_PERMISSION_OPTIONS = PERMISSION_OPTIONS.filter((opt) =>
+  ['advisor-service', 'advisor-sales', 'pending'].includes(opt.value)
+);
+
+export function MasterUserSettings({
+  onSuccess,
+  onError,
+  scopeTenantId,
+  managerMode = false,
+}: MasterUserSettingsProps) {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [tenantFilter, setTenantFilter] = useState<string>('all');
+  const [tenantFilter, setTenantFilter] = useState<string>(scopeTenantId || 'all');
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [passwordDraft, setPasswordDraft] = useState('');
@@ -73,26 +83,28 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
   const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
 
   useEffect(() => {
-    const usersRef = collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users');
+    setTenantFilter(scopeTenantId || 'all');
+  }, [scopeTenantId]);
 
-    const unsubscribe = onSnapshot(
-      usersRef,
-      (snapshot) => {
-        const list = snapshot.docs.map((docSnap) =>
-          normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() })
-        );
+  useEffect(() => {
+    if (!currentUser) return;
+
+    setLoading(true);
+    const unsubscribe = subscribeTenantUsers(
+      scopeTenantId,
+      (list) => {
         setUsers(list);
         setLoading(false);
       },
       (error) => {
         console.error('MasterUserSettings list error:', error);
-        onError?.('Could not load users. Confirm your account has admin list permissions.');
+        onError?.('Could not load users. Confirm your account has list permissions.');
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [onError]);
+  }, [currentUser, scopeTenantId, onError]);
 
   const selectedUser = useMemo(
     () => users.find((u) => u.uid === selectedUid) || null,
@@ -109,6 +121,17 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
     setPasswordDraft('');
   }, [selectedUser]);
 
+  const permissionOptions = managerMode ? MANAGER_PERMISSION_OPTIONS : PERMISSION_OPTIONS;
+  const scopedTenantName = scopeTenantId
+    ? getTenantProfile(scopeTenantId)?.name || scopeTenantId
+    : null;
+
+  const canEditTarget = (target: User) => {
+    if (!currentUser || isProtectedUser(target)) return false;
+    if (managerMode) return canModifyUser(currentUser, target);
+    return true;
+  };
+
   const filteredUsers = users.filter((u) => {
     const q = searchQuery.trim().toLowerCase();
     const matchesSearch =
@@ -117,7 +140,11 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
       u.email?.toLowerCase().includes(q) ||
       u.jobTitle?.toLowerCase().includes(q) ||
       u.uid.toLowerCase().includes(q);
-    const matchesTenant = tenantFilter === 'all' || u.tenantId === tenantFilter;
+    const effectiveTenant = scopeTenantId || tenantFilter;
+    const matchesTenant = effectiveTenant === 'all' || u.tenantId === effectiveTenant;
+    if (managerMode && !canModifyUser(currentUser, u) && !isPendingStaffEnrollment(u)) {
+      return false;
+    }
     return matchesSearch && matchesTenant;
   });
 
@@ -128,26 +155,29 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
 
   const saveProfile = async () => {
     if (!selectedUser || !currentUser) return;
-    if (isProtectedUser(selectedUser)) {
-      notify('This account is protected and cannot be edited.', true);
+    if (!canEditTarget(selectedUser)) {
+      notify('You do not have permission to edit this account.', true);
       return;
     }
 
     setSaving(true);
     try {
-      const dealershipId = dealershipIdFromTenantId(tenantDraft);
+      const dealershipId = dealershipIdFromTenantId(
+        managerMode ? scopeTenantId || selectedUser.tenantId : tenantDraft
+      );
       const permissionPatch = buildMasterPermissionPatch(permissionDraft);
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', selectedUser.uid);
 
       const firestorePatch: Record<string, unknown> = {
         username: usernameDraft.trim() || selectedUser.username,
         jobTitle: jobTitleDraft.trim(),
-        tenantId: tenantDraft,
+        tenantId: managerMode ? scopeTenantId || selectedUser.tenantId : tenantDraft,
         dealershipId,
         ...permissionPatch,
       };
 
       const emailChanged =
+        !managerMode &&
         emailDraft.trim().toLowerCase() !== (selectedUser.email || '').trim().toLowerCase();
 
       if (emailChanged) {
@@ -176,7 +206,7 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
   };
 
   const sendPasswordReset = async (target: User) => {
-    if (!currentUser) return;
+    if (!currentUser || managerMode) return;
     if (isProtectedUser(target)) {
       notify('This account is protected.', true);
       return;
@@ -208,7 +238,7 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
   };
 
   const applyNewPassword = async () => {
-    if (!selectedUser || !currentUser) return;
+    if (!selectedUser || !currentUser || managerMode) return;
     if (isProtectedUser(selectedUser)) {
       notify('This account is protected.', true);
       return;
@@ -241,6 +271,10 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
 
   const approveUser = async (target: User) => {
     if (!currentUser) return;
+    if (!canEditTarget(target)) {
+      notify('You do not have permission to approve this account.', true);
+      return;
+    }
     try {
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid);
       await updateDoc(userRef, buildUserApprovalPatch(target, 'approved'));
@@ -251,7 +285,7 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
   };
 
   const deleteUserCompletely = async (target: User) => {
-    if (!currentUser) return;
+    if (!currentUser || managerMode) return;
     if (isProtectedUser(target)) {
       notify('This account is protected.', true);
       return;
@@ -301,12 +335,21 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
       <div className="border-b border-white/5 pb-4">
         <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5">
           <Shield size={12} />
-          Platform administration
+          {managerMode ? 'Dealership team' : scopeTenantId ? 'User administration' : 'Platform administration'}
         </div>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Master User Settings</h2>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">
+          {managerMode
+            ? 'Team approvals & staff'
+            : scopeTenantId
+              ? `${scopedTenantName} users`
+              : 'Master User Settings'}
+        </h2>
         <p className="text-xs text-slate-500 mt-2 max-w-2xl">
-          View and edit every account across all dealerships. Email changes and password resets require the server
-          admin SDK (<code className="text-slate-400">FIREBASE_SERVICE_ACCOUNT_JSON</code>).
+          {managerMode
+            ? 'Approve enrollments and update permissions for sales and service staff at this store.'
+            : scopeTenantId
+              ? 'All program users for this dealership — reset passwords, change email, and set permissions.'
+              : 'View and edit every account across all dealerships. Email changes and password resets require the server admin SDK (FIREBASE_SERVICE_ACCOUNT_JSON).'}
         </p>
       </div>
 
@@ -321,18 +364,20 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
             className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-primary"
           />
         </div>
-        <select
-          value={tenantFilter}
-          onChange={(e) => setTenantFilter(e.target.value)}
-          className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white min-w-[200px]"
-        >
-          <option value="all">All tenants</option>
-          {TENANT_PROFILES.map((t) => (
-            <option key={t.tenantId} value={t.tenantId}>
-              {t.name}
-            </option>
-          ))}
-        </select>
+        {!scopeTenantId ? (
+          <select
+            value={tenantFilter}
+            onChange={(e) => setTenantFilter(e.target.value)}
+            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white min-w-[200px]"
+          >
+            <option value="all">All tenants</option>
+            {TENANT_PROFILES.map((t) => (
+              <option key={t.tenantId} value={t.tenantId}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center px-2">
           {filteredUsers.length} users
         </div>
@@ -405,7 +450,7 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
                     className="input-field w-full"
                     value={usernameDraft}
                     onChange={(e) => setUsernameDraft(e.target.value)}
-                    disabled={isProtectedUser(selectedUser)}
+                    disabled={!canEditTarget(selectedUser)}
                   />
                 </div>
                 <div>
@@ -414,38 +459,49 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
                     className="input-field w-full"
                     value={jobTitleDraft}
                     onChange={(e) => setJobTitleDraft(e.target.value)}
-                    disabled={isProtectedUser(selectedUser)}
+                    disabled={!canEditTarget(selectedUser)}
                   />
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="input-label flex items-center gap-1">
-                    <Mail size={12} /> Email (login)
-                  </label>
-                  <input
-                    type="email"
-                    className="input-field w-full"
-                    value={emailDraft}
-                    onChange={(e) => setEmailDraft(e.target.value)}
-                    disabled={isProtectedUser(selectedUser)}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="input-label flex items-center gap-1">
-                    <Building2 size={12} /> Tenant / dealership
-                  </label>
-                  <select
-                    className="input-field w-full"
-                    value={tenantDraft}
-                    onChange={(e) => setTenantDraft(e.target.value)}
-                    disabled={isProtectedUser(selectedUser)}
-                  >
-                    {TENANT_PROFILES.map((t) => (
-                      <option key={t.tenantId} value={t.tenantId}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {!managerMode ? (
+                  <div className="sm:col-span-2">
+                    <label className="input-label flex items-center gap-1">
+                      <Mail size={12} /> Email (login)
+                    </label>
+                    <input
+                      type="email"
+                      className="input-field w-full"
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      disabled={!canEditTarget(selectedUser)}
+                    />
+                  </div>
+                ) : (
+                  <div className="sm:col-span-2">
+                    <label className="input-label flex items-center gap-1">
+                      <Mail size={12} /> Email
+                    </label>
+                    <p className="text-sm text-slate-400 font-mono">{selectedUser.email || '—'}</p>
+                  </div>
+                )}
+                {!managerMode ? (
+                  <div className="sm:col-span-2">
+                    <label className="input-label flex items-center gap-1">
+                      <Building2 size={12} /> Tenant / dealership
+                    </label>
+                    <select
+                      className="input-field w-full"
+                      value={tenantDraft}
+                      onChange={(e) => setTenantDraft(e.target.value)}
+                      disabled={!canEditTarget(selectedUser) || !!scopeTenantId}
+                    >
+                      {TENANT_PROFILES.map((t) => (
+                        <option key={t.tenantId} value={t.tenantId}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
                 <div className="sm:col-span-2">
                   <label className="input-label flex items-center gap-1">
                     <Shield size={12} /> Permissions
@@ -454,9 +510,9 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
                     className="input-field w-full"
                     value={permissionDraft}
                     onChange={(e) => setPermissionDraft(e.target.value as MasterPermissionRole)}
-                    disabled={isProtectedUser(selectedUser)}
+                    disabled={!canEditTarget(selectedUser)}
                   >
-                    {PERMISSION_OPTIONS.map((opt) => (
+                    {permissionOptions.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
                       </option>
@@ -468,14 +524,14 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
               <div className="flex flex-wrap gap-2 pt-2">
                 <button
                   type="button"
-                  disabled={saving || isProtectedUser(selectedUser)}
+                  disabled={saving || !canEditTarget(selectedUser)}
                   onClick={saveProfile}
                   className="btn-primary px-4 py-2 text-[10px] font-black uppercase flex items-center gap-2"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   Save profile
                 </button>
-                {isPendingUser(selectedUser) && (
+                {isPendingUser(selectedUser) && canEditTarget(selectedUser) && (
                   <button
                     type="button"
                     disabled={saving}
@@ -485,73 +541,79 @@ export function MasterUserSettings({ onSuccess, onError }: MasterUserSettingsPro
                     Approve enrollment
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={saving || isProtectedUser(selectedUser)}
-                  onClick={() => sendPasswordReset(selectedUser)}
-                  className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-slate-800 text-white border border-slate-700 flex items-center gap-2"
-                >
-                  <RefreshCw size={14} />
-                  Send reset email
-                </button>
-              </div>
-
-              <div className="pt-4 border-t border-white/5 space-y-3">
-                <label className="input-label flex items-center gap-1">
-                  <KeyRound size={12} /> Set new password (admin override)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    className="input-field flex-1"
-                    placeholder="Minimum 8 characters"
-                    value={passwordDraft}
-                    onChange={(e) => setPasswordDraft(e.target.value)}
-                    disabled={isProtectedUser(selectedUser)}
-                  />
+                {!managerMode ? (
                   <button
                     type="button"
-                    disabled={saving || isProtectedUser(selectedUser) || passwordDraft.length < 8}
-                    onClick={applyNewPassword}
-                    className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30"
+                    disabled={saving || !canEditTarget(selectedUser)}
+                    onClick={() => sendPasswordReset(selectedUser)}
+                    className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-slate-800 text-white border border-slate-700 flex items-center gap-2"
                   >
-                    Apply
+                    <RefreshCw size={14} />
+                    Send reset email
                   </button>
-                </div>
+                ) : null}
               </div>
 
-              <div className="pt-4 border-t border-white/5">
-                {confirmDeleteUid === selectedUser.uid ? (
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-rose-400 font-bold">Permanently delete this user?</span>
+              {!managerMode ? (
+                <div className="pt-4 border-t border-white/5 space-y-3">
+                  <label className="input-label flex items-center gap-1">
+                    <KeyRound size={12} /> Set new password (admin override)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      className="input-field flex-1"
+                      placeholder="Minimum 8 characters"
+                      value={passwordDraft}
+                      onChange={(e) => setPasswordDraft(e.target.value)}
+                      disabled={!canEditTarget(selectedUser)}
+                    />
                     <button
                       type="button"
-                      onClick={() => setConfirmDeleteUid(null)}
-                      className="text-[10px] font-black uppercase text-slate-500"
+                      disabled={saving || !canEditTarget(selectedUser) || passwordDraft.length < 8}
+                      onClick={applyNewPassword}
+                      className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30"
                     >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={saving}
-                      onClick={() => deleteUserCompletely(selectedUser)}
-                      className="px-3 py-1.5 bg-rose-500 text-white text-[10px] font-black uppercase rounded-lg"
-                    >
-                      Confirm delete
+                      Apply
                     </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={isProtectedUser(selectedUser)}
-                    onClick={() => setConfirmDeleteUid(selectedUser.uid)}
-                    className="text-[10px] font-black uppercase text-rose-400 hover:text-rose-300 flex items-center gap-2"
-                  >
-                    <Trash2 size={14} />
-                    Delete user (auth + profile)
-                  </button>
-                )}
-              </div>
+                </div>
+              ) : null}
+
+              {!managerMode ? (
+                <div className="pt-4 border-t border-white/5">
+                  {confirmDeleteUid === selectedUser.uid ? (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-rose-400 font-bold">Permanently delete this user?</span>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteUid(null)}
+                        className="text-[10px] font-black uppercase text-slate-500"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => deleteUserCompletely(selectedUser)}
+                        className="px-3 py-1.5 bg-rose-500 text-white text-[10px] font-black uppercase rounded-lg"
+                      >
+                        Confirm delete
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isProtectedUser(selectedUser)}
+                      onClick={() => setConfirmDeleteUid(selectedUser.uid)}
+                      className="text-[10px] font-black uppercase text-rose-400 hover:text-rose-300 flex items-center gap-2"
+                    >
+                      <Trash2 size={14} />
+                      Delete user (auth + profile)
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </>
           )}
         </div>

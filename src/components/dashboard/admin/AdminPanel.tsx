@@ -95,7 +95,10 @@ function getPanelSectionMeta(
       return {
         eyebrow: scope,
         title: 'User Settings',
-        description: 'Manage system permission tiers, account access, and registration flows.',
+        description:
+          panelMode === 'manager'
+            ? 'Approve enrollments and manage sales and service staff permissions for this store.'
+            : 'All program users for this dealership — password reset, email, and permissions.',
       };
     case 'ai-usage':
       return {
@@ -1026,188 +1029,14 @@ export default function AdminPanel({
 
       {/* USER SETTINGS / ROLES PANEL */}
       {subTab === 'users' && (
-        <div className="space-y-8 animate-in fade-in duration-300">
-          {/* Header containing the User search widget inside the tab section */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-4 border-b border-white/5 pb-4">
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-primary" size={14} />
-              <input
-                type="text"
-                placeholder="Filter identity by keyword..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-primary font-medium"
-              />
-            </div>
-          </div>
-
-          {/* Pending Signups */}
-          {pendingUsers.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-amber-400">
-                <Clock size={18} />
-                <h4 className="text-sm font-black uppercase tracking-widest text-white">Enrollment Requests</h4>
-                <span className="bg-amber-500/10 text-amber-500 px-3 py-0.5 rounded-full text-[10px] font-black">
-                  {pendingUsers.length} Action Required
-                </span>
-              </div>
-              
-              <div className="card-base overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="crm-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Title</th>
-                        <th className="text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingUsers.map((user) => (
-                        <tr key={user.uid}>
-                          <td className="font-medium">{user.username}</td>
-                          <td className="crm-label">{user.email}</td>
-                          <td>{user.jobTitle || '—'}</td>
-                          <td className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => updateUserStatus(user.uid, 'approved', user)}
-                                className="btn-primary px-3 py-1.5 text-xs"
-                                title="Approve user"
-                              >
-                                <UserCheck size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => rejectPendingUser(user)}
-                                className="btn-secondary px-3 py-1.5 text-xs text-rose-600"
-                                title="Reject user"
-                              >
-                                <UserX size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+        <MasterUserSettings
+          managerMode={panelMode === 'manager'}
+          scopeTenantId={tenantIdFromDealershipId(
+            currentDealershipId || resolveUserTenantId(currentUser)
           )}
-
-          {/* User list Table */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-              <Users size={16} /> Authorized Access Directory ({activeUsers.length})
-            </h4>
-
-            <div className="card-base p-0 overflow-hidden border-slate-800">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900/50 border-b border-slate-800 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-                      <th className="px-6 py-4">Identity</th>
-                      <th className="px-6 py-4">Location</th>
-                      <th className="px-6 py-4">Internal Title</th>
-                      <th className="px-6 py-4">Permissions</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {activeUsers.map(user => (
-                      <tr key={user.uid} className="hover:bg-slate-900/30 transition-colors group">
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-black text-white">{user.username}</span>
-                            <span className="text-[10px] font-bold text-slate-500">{user.email}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest px-2 py-1 bg-brand-primary/5 rounded border border-brand-primary/10">
-                            {DEALERSHIPS.find(d => d.id === user.dealershipId)?.name.split(' ')[0] || 'Unknown'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-xs font-bold text-slate-400 italic">{user.jobTitle}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            {panelMode === 'admin' ? (
-                              <select
-                                value={managerAdminPermissionFromUser(user)}
-                                onChange={(e) =>
-                                  updateManagerAdminPermission(
-                                    user.uid,
-                                    e.target.value as ManagerAdminPermission,
-                                    user
-                                  )
-                                }
-                                className={cn(
-                                  'bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary',
-                                  user.role === 'admin' ? 'text-brand-primary' : 'text-slate-400'
-                                )}
-                              >
-                                <option value="manager">Manager</option>
-                                <option value="admin">System Admin</option>
-                              </select>
-                            ) : (
-                              <select
-                                value={user.role}
-                                onChange={(e) => updateStaffRole(user.uid, e.target.value as Role, user)}
-                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-brand-primary text-slate-400"
-                              >
-                                <option value="advisor">Service Advisor</option>
-                                <option value="Staff">Staff</option>
-                                <option value="Salesperson">Sales Professional</option>
-                                <option value="Service Advisor">Service Advisor (legacy)</option>
-                              </select>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Approved</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          {confirmDeleteUid === user.uid ? (
-                            <div className="flex items-center justify-end gap-2 animate-in slide-in-from-right-2 duration-300">
-                              <button 
-                                onClick={() => setConfirmDeleteId(null)}
-                                className="text-[9px] font-black text-slate-500 uppercase hover:text-white"
-                              >
-                                Cancel
-                              </button>
-                              <button 
-                                onClick={() => deleteUser(user.uid)}
-                                className="px-3 py-1.5 bg-rose-500 text-white text-[9px] font-black uppercase rounded shadow-lg shadow-rose-500/20"
-                              >
-                                Confirm
-                              </button>
-                            </div>
-                          ) : (
-                            <button 
-                              onClick={() => setConfirmDeleteId(user.uid)}
-                              className="p-2 text-slate-600 hover:text-rose-500 hover:bg-rose-500/5 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                              title="Revoke Permission"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
+          onSuccess={onSuccess}
+          onError={onError}
+        />
       )}
 
       {/* SYSTEM TRAILS / LOGS */}
