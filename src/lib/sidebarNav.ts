@@ -204,14 +204,6 @@ export function buildSidebarNav({
       label: 'Admin',
       items: [
         {
-          id: 'admin-ops',
-          label: 'CRM import & targets',
-          href: '/admin/operations',
-          icon: Settings,
-          tab: 'admin',
-          adminSubTab: 'operations',
-        },
-        {
           id: 'admin-users',
           label: 'User settings',
           href: '/admin/users',

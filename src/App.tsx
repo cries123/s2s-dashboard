@@ -154,7 +154,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(
-    initialRoute.adminSubTab ?? 'operations'
+    initialRoute.adminSubTab ?? 'users'
   );
 
   // Artificial delay for loading screen
@@ -499,16 +499,6 @@ export default function App() {
                 isActive={activeTab === 'admin'}
               >
                 <NavLink 
-                  href="/admin/operation-settings" 
-                  onClick={() => {
-                    setActiveTab('admin');
-                    setAdminSubTab('operations');
-                  }}
-                  isActive={activeTab === 'admin' && adminSubTab === 'operations'}
-                >
-                  Operation Settings
-                </NavLink>
-                <NavLink 
                   href="/admin/user-settings" 
                   onClick={() => {
                     setActiveTab('admin');
@@ -546,7 +536,7 @@ export default function App() {
                   </div>
                   <span className="min-w-[80px] text-left">
                     {activeTab === 'admin' 
-                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                      ? `Admin: ${adminSubTab === 'users' ? 'Users' : 'Logs'}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -576,7 +566,7 @@ export default function App() {
                           onClick={() => {
                             setActiveTab(tab.id as any);
                             if (tab.id === 'admin') {
-                              setAdminSubTab('operations');
+                              setAdminSubTab('users');
                             }
                             setIsMobileNavOpen(false);
                           }}

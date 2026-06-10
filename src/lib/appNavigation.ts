@@ -13,7 +13,7 @@ export type AppTab =
   | 'sales-performance'
   | 'bundle-menus';
 
-export type AdminSubTab = 'operations' | 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history' | 'suggestions';
+export type AdminSubTab = 'users' | 'logs' | 'master-users' | 'ai-usage' | 'suggestions';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -38,14 +38,13 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
   '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
   '/manager/logs': { activeTab: 'manager', managerSubTab: 'logs' },
-  '/admin/operations': { activeTab: 'admin', adminSubTab: 'operations' },
-  // Legacy admin operation settings URL → CRM import & ops targets
-  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'operations' },
+  '/admin/operations': { activeTab: 'admin', adminSubTab: 'users' },
+  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/user-settings': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/users': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/master-users': { activeTab: 'admin', adminSubTab: 'master-users' },
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
-  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-history' },
+  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
   '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
 };
@@ -80,14 +79,10 @@ export function buildAppPath(state: AppRouteState): string {
 
   if (state.activeTab === 'admin') {
     switch (state.adminSubTab) {
-      case 'operations':
-        return '/admin/operations';
       case 'master-users':
         return '/admin/master-users';
       case 'ai-usage':
         return '/admin/ai-usage';
-      case 'import-history':
-        return '/admin/import-history';
       case 'logs':
         return '/admin/logs';
       case 'suggestions':

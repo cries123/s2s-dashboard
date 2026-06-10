@@ -11,7 +11,7 @@ export type AppTab =
   | 'dispatch'
   | 'sales-performance';
 
-export type AdminSubTab = 'operations' | 'users' | 'logs';
+export type AdminSubTab = 'users' | 'logs';
 export type ManagerSubTab = 'users' | 'settings' | 'logs';
 
 export const TAB_PATHS: Record<AppTab, string> = {
@@ -24,12 +24,11 @@ export const TAB_PATHS: Record<AppTab, string> = {
   appointments: '/reports/operations',
   'sales-performance': '/reports/sales-performance',
   forecast: '/reports/forecast',
-  admin: '/admin/operation-settings',
+  admin: '/admin/user-settings',
   manager: '/manager/users',
 };
 
 const ADMIN_SUB_PATHS: Record<AdminSubTab, string> = {
-  operations: '/admin/operation-settings',
   users: '/admin/user-settings',
   logs: '/admin/logs',
 };
@@ -52,7 +51,7 @@ PATH_TO_TAB['/manager/logs'] = 'manager';
 export function adminSubTabFromPath(path: string): AdminSubTab {
   if (path === '/admin/user-settings') return 'users';
   if (path === '/admin/logs') return 'logs';
-  return 'operations';
+  return 'users';
 }
 
 export function managerSubTabFromPath(path: string): ManagerSubTab {
@@ -68,19 +67,19 @@ export function resolveRoute(pathname: string): {
 } {
   const path = pathname.split('?')[0].replace(/\/$/, '') || '/';
   if (path === '/' || path === '') {
-    return { tab: null, adminSubTab: 'operations', managerSubTab: 'users' };
+    return { tab: null, adminSubTab: 'users', managerSubTab: 'users' };
   }
   const tab = PATH_TO_TAB[path] ?? null;
   return {
     tab,
-    adminSubTab: tab === 'admin' ? adminSubTabFromPath(path) : 'operations',
+    adminSubTab: tab === 'admin' ? adminSubTabFromPath(path) : 'users',
     managerSubTab: tab === 'manager' ? managerSubTabFromPath(path) : 'users',
   };
 }
 
 export function pathForTab(
   tab: AppTab,
-  adminSubTab: AdminSubTab = 'operations',
+  adminSubTab: AdminSubTab = 'users',
   managerSubTab: ManagerSubTab = 'users'
 ): string {
   if (tab === 'admin') {
@@ -94,7 +93,7 @@ export function pathForTab(
 
 export function navigateToTab(
   tab: AppTab,
-  adminSubTab: AdminSubTab = 'operations',
+  adminSubTab: AdminSubTab = 'users',
   replace = false,
   managerSubTab: ManagerSubTab = 'users'
 ): void {
