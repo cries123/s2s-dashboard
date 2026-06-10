@@ -125,7 +125,7 @@ export function DispatchRoEditModal({
               Edit repair order
             </p>
             <h2 id="dispatch-ro-edit-title" className="text-lg font-black text-white uppercase tracking-tight mt-0.5">
-              RO {ro.roNumber}
+              {ro.roNumber}
             </h2>
           </div>
           <button

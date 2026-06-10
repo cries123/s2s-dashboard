@@ -73,7 +73,7 @@ export function DispatchOverdueAlert({
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-black text-white tabular-nums">RO {ro.roNumber}</span>
+                  <span className="text-sm font-black text-white tabular-nums">{ro.roNumber}</span>
                   <span className="text-[9px] font-black uppercase tracking-wider text-rose-300 shrink-0">
                     {state.countdownLabel}
                   </span>
