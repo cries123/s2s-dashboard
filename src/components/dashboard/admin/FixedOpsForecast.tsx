@@ -22,7 +22,6 @@ import {
   Clock, 
   DollarSign, 
   FileText,
-  Activity,
   BarChart3,
   Database,
   Layers,
@@ -47,6 +46,18 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { PageHeader } from '../../layout/PageHeader';
+import {
+  ForecastPanel,
+  ForecastSectionHeader,
+  ForecastStat,
+  ForecastMiniStat,
+  ForecastSlider,
+  ForecastMetricCard,
+  ForecastField,
+  forecastInputClass,
+  forecastReadonlyClass,
+} from './FixedOpsForecastUI';
 
 // ==========================================
 // EXCEL MATRIX CALCULATOR CONSTANTS & SCHEMAS
@@ -1520,37 +1531,34 @@ export default function FixedOpsForecast({
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto min-h-screen text-slate-200">
-      
-      {/* 1. Header with Controls */}
-      <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-6 rounded-3xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl no-print">
-        <div>
-          <span className="text-xxs font-black text-slate-500 uppercase tracking-widest block mb-0.5">EOM Operations Dashboard</span>
-          <h2 className="text-xl font-black text-white uppercase tracking-wider">Fixed Ops Financial Forecaster</h2>
-        </div>
-        
-        <div className="flex flex-wrap gap-3">
-          <button 
-            type="button"
-            onClick={() => {
-              setValidationError(null);
-              setIsPdfModalOpen(true);
-            }} 
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all duration-300 flex items-center gap-2 shadow-lg shadow-indigo-600/15 cursor-pointer"
-          >
-            <TrendingUp size={14} />
-            Open Forecast Generator
-          </button>
-          
-          <button 
-            type="button"
-            onClick={() => setIsPreviewOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all duration-300 flex items-center gap-2 shadow-lg shadow-emerald-600/15 cursor-pointer"
-          >
-            <Printer size={14} />
-            Preview & Print Report
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        className="no-print"
+        title="Fixed Ops Financial Forecaster"
+        description="Month-to-date telemetry, capacity modeling, and end-of-month revenue projections."
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setValidationError(null);
+                setIsPdfModalOpen(true);
+              }}
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/15"
+            >
+              <TrendingUp size={14} />
+              Forecast Generator
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPreviewOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/15"
+            >
+              <Printer size={14} />
+              Preview & Print
+            </button>
+          </>
+        }
+      />
 
       {(operationsSeedLabel || operationsArchiveAvailable || isApplyingOperationsSeed) && (
         <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
@@ -1606,601 +1614,441 @@ export default function FixedOpsForecast({
 
       {/* 2. Side-by-Side Area */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Column: LIVE MTD TELEMETRY */}
-        <div className="lg:col-span-4 bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl space-y-5 animate-fade-in text-white self-stretch">
-          <div className="border-b border-white/10 pb-3 flex justify-between items-center">
-            <div>
-              <span className="text-xxs font-black text-indigo-400 uppercase tracking-widest block mb-0.5">CLOSED BALANCE SHEETS</span>
-              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Activity size={16} className="text-indigo-400 mt-0.5" />
-                Live Telemetry MTD
-              </h3>
-            </div>
-            <span className="px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-full text-[9px] font-black uppercase tracking-wider">
-              Current Month
-            </span>
-          </div>
+        <ForecastPanel className="lg:col-span-4 p-5 sm:p-6 self-stretch animate-fade-in">
+          <ForecastSectionHeader
+            eyebrow="Closed Balance Sheets"
+            title="Live Telemetry MTD"
+            action={
+              <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-[9px] font-black uppercase tracking-wider">
+                Current Month
+              </span>
+            }
+          />
 
           <div className="space-y-6">
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">MTD Gross Labor Sales</span>
-              <span className="text-3xl font-mono font-black mt-1.5 block text-white select-all">
-                ${mtdTelemetry.grossLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-              </span>
+            <ForecastStat
+              label="MTD Gross Labor Sales"
+              value={`$${mtdTelemetry.grossLaborSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+            />
+            <ForecastStat
+              label="MTD Labor Gross Profit"
+              value={`$${mtdTelemetry.laborGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+              sub={`${mtdTelemetry.laborGPPercent}% gross margin`}
+              accent="text-brand-primary"
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <ForecastMiniStat label="Hours Sold" value={`${mtdTelemetry.hoursSold.toFixed(1)} hrs`} />
+              <ForecastMiniStat
+                label="Repair Orders"
+                value={mtdTelemetry.repairOrdersWritten.toLocaleString()}
+              />
             </div>
 
-            <div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">MTD Labor Gross Profit</span>
-              <span className="text-lg font-mono font-black text-indigo-400 mt-1 block select-all">
-                ${mtdTelemetry.laborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                <span className="text-[10px] text-slate-400 font-bold ml-1.5 select-none">({mtdTelemetry.laborGPPercent}%)</span>
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 bg-[#050811] border border-white/[0.02] p-4 rounded-xl">
-              <div>
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Hours Sold</span>
-                <span className="text-sm font-mono font-black text-white mt-1 block font-mono">
-                  {mtdTelemetry.hoursSold.toFixed(1)} hrs
-                </span>
-              </div>
-              <div>
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Repair Orders</span>
-                <span className="text-sm font-mono font-black text-white mt-1 block font-mono">
-                  {mtdTelemetry.repairOrdersWritten} ROs
-                </span>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center pt-2">
-              <div>
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Effective Labor Rate (ELR)</span>
-                <span className="text-xl font-mono font-black text-indigo-400 mt-0.5 block">
-                  ${mtdTelemetry.effectiveLaborRate.toFixed(2)}
-                </span>
-              </div>
-              <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[9px] font-extrabold rounded uppercase font-mono tracking-widest">
+            <div className="flex justify-between items-end pt-1 border-t border-white/5">
+              <ForecastStat
+                label="Effective Labor Rate"
+                value={`$${mtdTelemetry.effectiveLaborRate.toFixed(2)}`}
+                accent="text-brand-primary"
+              />
+              <span className="px-2.5 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[9px] font-black rounded-lg uppercase tracking-wider">
                 Live
               </span>
             </div>
           </div>
-        </div>
+        </ForecastPanel>
 
-        {/* Right Column: FORECASTING PARAMETERS */}
-        <div className="lg:col-span-8 bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/10 pb-4 gap-4">
-            <div>
-              <span className="text-xxs font-black text-slate-500 uppercase tracking-widest block">FORECASTING PARAMETERS</span>
-              <h3 className="text-sm font-black text-white uppercase tracking-wider">Capacity & Rate Modifiers</h3>
-            </div>
-            
-            {/* Presets switcher */}
-            <div className="bg-slate-950/50 p-1 rounded-xl border border-white/5 flex gap-1 select-none">
-              {(['conservative', 'balanced', 'aggressive'] as const).map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => applyPreset(p)}
-                  className={cn(
-                    "text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-lg transition-all cursor-pointer",
-                    activePreset === p 
-                      ? "bg-indigo-600 text-white" 
-                      : "text-slate-400 hover:text-white"
-                  )}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
+        <ForecastPanel className="lg:col-span-8 p-5 sm:p-6 space-y-6">
+          <ForecastSectionHeader
+            eyebrow="Forecasting Parameters"
+            title="Capacity & Rate Modifiers"
+            action={
+              <div className="bg-slate-950/50 p-1 rounded-xl border border-white/5 flex gap-1 select-none">
+                {(['conservative', 'balanced', 'aggressive'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    className={cn(
+                      'text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-lg transition-all',
+                      activePreset === p
+                        ? 'bg-brand-primary text-white'
+                        : 'text-slate-400 hover:text-white'
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            }
+          />
 
           <div className="space-y-6">
-            
-            {/* CAPACITY CONSTANTS */}
-            <div className="space-y-4">
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest block font-mono select-none">☇ Capacity Constants</span>
-              
-              <div className="grid grid-cols-1 gap-4 font-mono">
-                {/* Billing Days */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-bold uppercase text-[10px]">Billing Days in Month</span>
-                    <span className="text-white font-black">{inputs.billingDays} days</span>
-                  </div>
-                  <input 
-                    type="range"
-                    min="1"
-                    max="31"
-                    value={inputs.billingDays}
-                    onChange={(e) => setInputs({...inputs, billingDays: parseInt(e.target.value) || 0})}
-                    className="w-full accent-indigo-500 cursor-pointer h-1 rounded appearance-none bg-slate-800"
-                  />
-                </div>
-
-                {/* Staffed Technicians */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-bold uppercase text-[10px]">Staffed Technicians</span>
-                    <span className="text-white font-black">{inputs.techsAvailable} Techs</span>
-                  </div>
-                  <input 
-                    type="range"
-                    min="1"
-                    max="40"
-                    value={inputs.techsAvailable}
-                    onChange={(e) => setInputs({...inputs, techsAvailable: parseInt(e.target.value) || 0})}
-                    className="w-full accent-indigo-500 cursor-pointer h-1 rounded appearance-none bg-slate-800"
-                  />
-                </div>
-
-                {/* Shift Hours */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-bold uppercase text-[10px]">Standard Shift Hours</span>
-                    <span className="text-white font-black">{inputs.hoursPerDay} hrs/day</span>
-                  </div>
-                  <input 
-                    type="range"
-                    min="4"
-                    max="14"
-                    step="0.5"
-                    value={inputs.hoursPerDay}
-                    onChange={(e) => setInputs({...inputs, hoursPerDay: parseFloat(e.target.value) || 0})}
-                    className="w-full accent-indigo-500 cursor-pointer h-1 rounded appearance-none bg-slate-800"
-                  />
-                </div>
-
-                {/* Absenteeism Factor */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-bold uppercase text-[10px]">Absenteeism Factor</span>
-                    <span className="text-red-400 font-black">{inputs.absenteeismRate}%</span>
-                  </div>
-                  <input 
-                    type="range"
-                    min="0"
-                    max="50"
-                    value={inputs.absenteeismRate}
-                    onChange={(e) => setInputs({...inputs, absenteeismRate: parseInt(e.target.value) || 0})}
-                    className="w-full accent-rose-500 cursor-pointer h-1 rounded appearance-none bg-slate-800"
-                  />
-                </div>
-
-                {/* Shop Efficiency */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-bold uppercase text-[10px]">Shop Efficiency</span>
-                    <span className="text-emerald-400 font-black">{inputs.efficiencyForecast}%</span>
-                  </div>
-                  <input 
-                    type="range"
-                    min="10"
-                    max="250"
-                    value={inputs.efficiencyForecast}
-                    onChange={(e) => setInputs({...inputs, efficiencyForecast: parseInt(e.target.value) || 0})}
-                    className="w-full accent-emerald-500 cursor-pointer h-1 rounded appearance-none bg-slate-800"
-                  />
-                </div>
+            <div className="space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Capacity Constants</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <ForecastSlider
+                  label="Billing Days in Month"
+                  valueLabel={`${inputs.billingDays} days`}
+                  value={inputs.billingDays}
+                  min={1}
+                  max={31}
+                  onChange={(v) => setInputs({ ...inputs, billingDays: v })}
+                />
+                <ForecastSlider
+                  label="Staffed Technicians"
+                  valueLabel={`${inputs.techsAvailable} techs`}
+                  value={inputs.techsAvailable}
+                  min={1}
+                  max={40}
+                  onChange={(v) => setInputs({ ...inputs, techsAvailable: v })}
+                />
+                <ForecastSlider
+                  label="Standard Shift Hours"
+                  valueLabel={`${inputs.hoursPerDay} hrs/day`}
+                  value={inputs.hoursPerDay}
+                  min={4}
+                  max={14}
+                  step={0.5}
+                  onChange={(v) => setInputs({ ...inputs, hoursPerDay: v })}
+                />
+                <ForecastSlider
+                  label="Absenteeism Factor"
+                  valueLabel={`${inputs.absenteeismRate}%`}
+                  value={inputs.absenteeismRate}
+                  min={0}
+                  max={50}
+                  accentClass="accent-rose-500"
+                  valueClassName="text-rose-400"
+                  onChange={(v) => setInputs({ ...inputs, absenteeismRate: v })}
+                />
+                <ForecastSlider
+                  label="Shop Efficiency"
+                  valueLabel={`${inputs.efficiencyForecast}%`}
+                  value={inputs.efficiencyForecast}
+                  min={10}
+                  max={250}
+                  accentClass="accent-emerald-500"
+                  valueClassName="text-emerald-400"
+                  onChange={(v) => setInputs({ ...inputs, efficiencyForecast: v })}
+                />
               </div>
-            </div>            {/* PORTFOLIO YIELD & MIX */}
-            <div className="space-y-4 pt-2 border-t border-white/5">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-black text-indigo-400 uppercase tracking-widest block font-mono select-none">☇ Revenue Mix Strategy Targets</span>
-                <span className={cn(
-                  "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider font-mono",
-                  totalMixAllocationValue >= 99.9 && totalMixAllocationValue <= 100.1
-                    ? "bg-emerald-500/10 text-emerald-400" 
-                    : "bg-red-500/10 text-red-500"
-                )}>
-                  {totalMixAllocationValue.toFixed(1)}% / 100% Mix Allocation
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-white/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Revenue Mix Strategy Targets
+                </p>
+                <span
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider w-fit',
+                    totalMixAllocationValue >= 99.9 && totalMixAllocationValue <= 100.1
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-rose-500/10 text-rose-400'
+                  )}
+                >
+                  {totalMixAllocationValue.toFixed(1)}% of 100% allocated
                 </span>
               </div>
-              
-              <div className="bg-[#050811] border border-white/[0.03] p-4 rounded-2xl space-y-4 font-mono">
-                {/* Customer Pay Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center border-b border-slate-800/60 pb-3">
-                  <span className="text-xs font-bold uppercase text-slate-300">Customer Pay</span>
-                  
-                  {/* STEP A: The Raw Count Field */}
-                  <div>
-                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Raw RO Count</label>
-                    <input 
-                      type="number" 
-                      value={rawCounts.cpCount === 0 ? '' : rawCounts.cpCount}
-                      className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-indigo-500 outline-none"
-                      onChange={e => handleCountChange('cpCount', Number(e.target.value))}
-                    />
-                  </div>
 
-                  {/* STEP B: The Auto-Calculated Proportional Mix Output */}
-                  <div>
-                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Derived Mix %</label>
-                    <input 
-                      type="text" 
-                      readOnly 
-                      value={`${derivedMix.cpMix.toFixed(1)}%`}
-                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-indigo-400 font-bold text-center text-xs"
-                    />
-                  </div>
-
-                  {/* STEP C: Standard Strategy Benchmarks */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target ELR ($)</label>
-                      <input 
-                        type="number" 
-                        value={inputs.cpRate === 0 ? '' : inputs.cpRate}
-                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
-                        onChange={e => setInputs({ ...inputs, cpRate: parseFloat(e.target.value) || 0 })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target GP %</label>
-                      <input 
-                        type="number" 
-                        value={inputs.cpGp === 0 ? '' : inputs.cpGp}
-                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
-                        onChange={e => setInputs({...inputs, cpGp: parseFloat(e.target.value) || 0})}
-                      />
-                    </div>
-                  </div>
+              <div className="rounded-xl border border-slate-800/60 overflow-hidden">
+                <div className="hidden md:grid md:grid-cols-[1.1fr_repeat(4,minmax(0,1fr))] gap-3 px-4 py-2.5 bg-slate-950/60 border-b border-slate-800/60">
+                  {['Pay Type', 'Count', 'Mix %', 'Target ELR', 'Target GP %'].map((col) => (
+                    <span key={col} className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                      {col}
+                    </span>
+                  ))}
                 </div>
 
-                {/* Warranty Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center border-b border-slate-800/60 pb-3">
-                  <span className="text-xs font-bold uppercase text-slate-300">Warranty</span>
-                  
-                  {/* STEP A: The Raw Count Field */}
-                  <div>
-                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Raw RO Count</label>
-                    <input 
-                      type="number" 
-                      value={rawCounts.warrCount === 0 ? '' : rawCounts.warrCount}
-                      className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-indigo-500 outline-none"
-                      onChange={e => handleCountChange('warrCount', Number(e.target.value))}
-                    />
-                  </div>
-
-                  {/* STEP B: The Auto-Calculated Proportional Mix Output */}
-                  <div>
-                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Derived Mix %</label>
-                    <input 
-                      type="text" 
-                      readOnly 
-                      value={`${derivedMix.warrMix.toFixed(1)}%`}
-                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-indigo-400 font-bold text-center text-xs"
-                    />
-                  </div>
-
-                  {/* STEP C: Standard Strategy Benchmarks */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target ELR ($)</label>
-                      <input 
-                        type="number" 
-                        value={inputs.warrRate === 0 ? '' : inputs.warrRate}
-                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
-                        onChange={e => setInputs({ ...inputs, warrRate: parseFloat(e.target.value) || 0 })}
+                {([
+                  {
+                    label: 'Customer Pay',
+                    countKey: 'cpCount' as const,
+                    mix: derivedMix.cpMix,
+                    rateKey: 'cpRate' as const,
+                    gpKey: 'cpGp' as const,
+                  },
+                  {
+                    label: 'Warranty',
+                    countKey: 'warrCount' as const,
+                    mix: derivedMix.warrMix,
+                    rateKey: 'warrRate' as const,
+                    gpKey: 'warrGp' as const,
+                  },
+                  {
+                    label: 'Internal',
+                    countKey: 'internalCount' as const,
+                    mix: derivedMix.internalMix,
+                    rateKey: 'internalRate' as const,
+                    gpKey: 'internalGp' as const,
+                  },
+                ]).map((row, idx, arr) => (
+                  <div
+                    key={row.label}
+                    className={cn(
+                      'grid grid-cols-1 md:grid-cols-[1.1fr_repeat(4,minmax(0,1fr))] gap-3 px-4 py-3 items-center',
+                      idx < arr.length - 1 && 'border-b border-slate-800/40'
+                    )}
+                  >
+                    <span className="text-xs font-bold text-slate-200">{row.label}</span>
+                    <ForecastField label="Count" className="md:[&>span]:sr-only">
+                      <input
+                        type="number"
+                        value={rawCounts[row.countKey] === 0 ? '' : rawCounts[row.countKey]}
+                        className={forecastInputClass}
+                        onChange={(e) => handleCountChange(row.countKey, Number(e.target.value))}
                       />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target GP %</label>
-                      <input 
-                        type="number" 
-                        value={inputs.warrGp === 0 ? '' : inputs.warrGp}
-                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
-                        onChange={e => setInputs({...inputs, warrGp: parseFloat(e.target.value) || 0})}
+                    </ForecastField>
+                    <ForecastField label="Mix %" className="md:[&>span]:sr-only">
+                      <input type="text" readOnly value={`${row.mix.toFixed(1)}%`} className={forecastReadonlyClass} />
+                    </ForecastField>
+                    <ForecastField label="ELR" className="md:[&>span]:sr-only">
+                      <input
+                        type="number"
+                        value={inputs[row.rateKey] === 0 ? '' : inputs[row.rateKey]}
+                        className={forecastInputClass}
+                        onChange={(e) =>
+                          setInputs({ ...inputs, [row.rateKey]: parseFloat(e.target.value) || 0 })
+                        }
                       />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Internal Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center pb-1">
-                  <span className="text-xs font-bold uppercase text-slate-300">Internal</span>
-                  
-                  {/* STEP A: The Raw Count Field */}
-                  <div>
-                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Raw RO Count</label>
-                    <input 
-                      type="number" 
-                      value={rawCounts.internalCount === 0 ? '' : rawCounts.internalCount}
-                      className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-indigo-500 outline-none"
-                      onChange={e => handleCountChange('internalCount', Number(e.target.value))}
-                    />
-                  </div>
-
-                  {/* STEP B: The Auto-Calculated Proportional Mix Output */}
-                  <div>
-                    <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Derived Mix %</label>
-                    <input 
-                      type="text" 
-                      readOnly 
-                      value={`${derivedMix.internalMix.toFixed(1)}%`}
-                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-indigo-400 font-bold text-center text-xs"
-                    />
-                  </div>
-
-                  {/* STEP C: Standard Strategy Benchmarks */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target ELR ($)</label>
-                      <input 
-                        type="number" 
-                        value={inputs.internalRate === 0 ? '' : inputs.internalRate}
-                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
-                        onChange={e => setInputs({ ...inputs, internalRate: parseFloat(e.target.value) || 0 })}
+                    </ForecastField>
+                    <ForecastField label="GP %" className="md:[&>span]:sr-only">
+                      <input
+                        type="number"
+                        value={inputs[row.gpKey] === 0 ? '' : inputs[row.gpKey]}
+                        className={forecastInputClass}
+                        onChange={(e) =>
+                          setInputs({ ...inputs, [row.gpKey]: parseFloat(e.target.value) || 0 })
+                        }
                       />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 block uppercase tracking-wider mb-1">Target GP %</label>
-                      <input 
-                        type="number" 
-                        value={inputs.internalGp === 0 ? '' : inputs.internalGp}
-                        className="w-full bg-[#0a0f1d] border border-slate-800 rounded p-1.5 text-xs text-white text-center focus:border-[#4f46e5] outline-none"
-                        onChange={e => setInputs({...inputs, internalGp: parseFloat(e.target.value) || 0})}
-                      />
-                    </div>
+                    </ForecastField>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* SUBLET, MISC & LEDGER ADJUSTMENTS */}
-            <div className="space-y-3 pt-3 border-t border-white/5">
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest block font-mono select-none">☇ Sublet, Misc & Ledger Adjustments</span>
-              
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono text-xs">
-                <div>
-                  <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Sublet Sales ($)</label>
-                  <input 
+            <div className="space-y-3 pt-2 border-t border-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Sublet, Misc & Ledger Adjustments
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <ForecastField label="Sublet Sales">
+                  <input
                     type="number"
                     value={inputs.subletSales}
-                    onChange={(e) => setInputs({...inputs, subletSales: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-[#050811] border border-white/5 focus:border-[#4f46e5] rounded-lg p-2.5 text-center text-white font-black"
+                    onChange={(e) => setInputs({ ...inputs, subletSales: parseFloat(e.target.value) || 0 })}
+                    className={forecastInputClass}
                   />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Sublet Gross ($)</label>
-                  <input 
+                </ForecastField>
+                <ForecastField label="Sublet Gross">
+                  <input
                     type="number"
                     value={inputs.subletGross}
-                    onChange={(e) => setInputs({...inputs, subletGross: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-[#050811] border border-white/5 focus:border-[#4f46e5] rounded-lg p-2.5 text-center text-white font-black"
+                    onChange={(e) => setInputs({ ...inputs, subletGross: parseFloat(e.target.value) || 0 })}
+                    className={forecastInputClass}
                   />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Misc Sales ($)</label>
-                  <input 
+                </ForecastField>
+                <ForecastField label="Misc Sales">
+                  <input
                     type="number"
                     value={inputs.miscSales}
-                    onChange={(e) => setInputs({...inputs, miscSales: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-[#050811] border border-white/5 focus:border-[#4f46e5] rounded-lg p-2.5 text-center text-white font-black"
+                    onChange={(e) => setInputs({ ...inputs, miscSales: parseFloat(e.target.value) || 0 })}
+                    className={forecastInputClass}
                   />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Misc Gross ($)</label>
-                  <input 
+                </ForecastField>
+                <ForecastField label="Misc Gross">
+                  <input
                     type="number"
                     value={inputs.miscGross}
-                    onChange={(e) => setInputs({...inputs, miscGross: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-[#050811] border border-white/5 focus:border-[#4f46e5] rounded-lg p-2.5 text-center text-white font-black"
+                    onChange={(e) => setInputs({ ...inputs, miscGross: parseFloat(e.target.value) || 0 })}
+                    className={forecastInputClass}
                   />
-                </div>
-                <div className="col-span-2 md:col-span-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[9px] font-bold text-slate-500 uppercase block">Unapplied ($)</label>
-                    <span className="text-[8px] font-bold text-rose-500 leading-none">5.00% Net</span>
-                  </div>
-                  <input 
+                </ForecastField>
+                <ForecastField
+                  label="Unapplied"
+                  className="col-span-2 md:col-span-1"
+                >
+                  <input
                     type="number"
                     value={inputs.unappliedTime}
-                    onChange={(e) => setInputs({...inputs, unappliedTime: parseFloat(e.target.value) || 0})}
-                    className="w-full bg-[#050811] border border-white/5 focus:border-[#4f46e5] rounded-lg p-2.5 text-center text-white font-black"
+                    onChange={(e) => setInputs({ ...inputs, unappliedTime: parseFloat(e.target.value) || 0 })}
+                    className={forecastInputClass}
                   />
-                </div>
+                </ForecastField>
               </div>
             </div>
-
           </div>
-
-        </div>
+        </ForecastPanel>
 
       </div>
 
-      {/* 3. Output Metrics Bento Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1 select-none">
-        <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl flex items-center gap-4">
-          <div className="p-3 bg-slate-500/10 rounded-2xl border border-white/5">
-            <Calendar size={18} className="text-slate-400" />
-          </div>
-          <div>
-            <span className="text-[9px] uppercase block font-black tracking-wider text-slate-500">Max Raw Capacity</span>
-            <span className="text-xl font-mono font-black text-white leading-none mt-1 block">
-              {calculations.totalMonthlyHoursAvail.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs
-            </span>
-            <span className="text-[9.5px] text-slate-500 font-mono font-bold block mt-0.5">
-              {inputs.billingDays}d x {inputs.techsAvailable}tx x {inputs.hoursPerDay}h
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl flex items-center gap-4">
-          <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/10">
-            <Clock size={18} className="text-emerald-400" />
-          </div>
-          <div>
-            <span className="text-[9px] uppercase block font-black tracking-wider text-slate-500">Shop Efficiency Yield</span>
-            <span className="text-xl font-mono font-black text-emerald-400 leading-none mt-1 block">
-              {calculations.totalNetProjectedHours.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs
-            </span>
-            <span className="text-[9.5px] text-rose-500 font-mono font-bold block mt-0.5">
-              Lost to Absenteeism: -{calculations.lostHours.toFixed(1)} hrs
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl flex items-center gap-4">
-          <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/10">
-            <DollarSign size={18} className="text-indigo-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-[9px] uppercase block font-black tracking-wider text-slate-500">Projected Labor Sales</span>
-            <span className="text-xl font-mono font-black text-indigo-400 leading-none mt-1 block">
-              ${calculations.totalLaborSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <div className="flex justify-between text-[9.5px] font-mono font-bold text-slate-500 mt-0.5 gap-2">
-              <span>Labor GP: ${calculations.totalLaborGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              <span>Blended GP %: {calculations.blendedGPPercent.toFixed(0)}%</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl flex items-center gap-4">
-          <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/10">
-            <TrendingUp size={18} className="text-amber-500" />
-          </div>
-          <div>
-            <span className="text-[9px] uppercase block font-black tracking-wider text-slate-500">Forecast Blended ELR</span>
-            <span className="text-xl font-mono font-black text-amber-500 leading-none mt-1 block">
-              ${calculations.totalELR.toFixed(2)}
-            </span>
-            <span className="text-[9.5px] text-slate-500 font-mono font-bold block mt-0.5">
-              Live baseline comparison: ${mtdTelemetry.effectiveLaborRate.toFixed(2)}
-            </span>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
+        <ForecastMetricCard
+          icon={Calendar}
+          label="Max Raw Capacity"
+          value={`${calculations.totalMonthlyHoursAvail.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs`}
+          detail={`${inputs.billingDays}d × ${inputs.techsAvailable} techs × ${inputs.hoursPerDay}h`}
+          iconWrapClass="bg-slate-800/80 text-slate-300"
+        />
+        <ForecastMetricCard
+          icon={Clock}
+          label="Shop Efficiency Yield"
+          value={`${calculations.totalNetProjectedHours.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs`}
+          detail={`Lost to absenteeism: −${calculations.lostHours.toFixed(1)} hrs`}
+          accent="text-emerald-400"
+          iconWrapClass="bg-emerald-500/10 text-emerald-400"
+        />
+        <ForecastMetricCard
+          icon={DollarSign}
+          label="Projected Labor Sales"
+          value={`$${calculations.totalLaborSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          detail={`Labor GP $${calculations.totalLaborGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} · ${calculations.blendedGPPercent.toFixed(0)}% blended`}
+          accent="text-brand-primary"
+          iconWrapClass="bg-brand-primary/10 text-brand-primary"
+        />
+        <ForecastMetricCard
+          icon={TrendingUp}
+          label="Forecast Blended ELR"
+          value={`$${calculations.totalELR.toFixed(2)}`}
+          detail={`Live baseline $${mtdTelemetry.effectiveLaborRate.toFixed(2)}`}
+          accent="text-amber-400"
+          iconWrapClass="bg-amber-500/10 text-amber-400"
+        />
       </div>
 
-      {/* 4. Service Operations Consolidated Summation banner */}
-      <div className="bg-gradient-to-r from-[#0d1527] to-[#080d19] rounded-3xl border border-white/10 p-6 md:p-8 shadow-2xl relative mt-4 select-none">
-        
-        {/* Floating badge label absolute */}
-        <div className="absolute -top-3 left-6">
-          <span className="bg-[#1e293b] text-slate-400 ring-1 ring-white/10 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full select-none">
-            Total Service Operations Consolidated Summation
-          </span>
+      <ForecastPanel className="p-6 md:p-8 select-none">
+        <ForecastSectionHeader
+          eyebrow="Consolidated Summation"
+          title="Total Service Operations"
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          <ForecastStat
+            label="Total Service Department Sales"
+            value={`$${calculations.totalServiceSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            sub="Labor + Sublet + Misc"
+          />
+          <ForecastStat
+            label="Total Service Gross Profit"
+            value={`$${calculations.totalServiceGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            sub="Labor GP + Sublet GP + Misc GP"
+            accent="text-brand-primary"
+          />
+          <ForecastStat
+            label="Adjusted Total Gross Profit"
+            value={`$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            sub="Service GP − unapplied hours/expense"
+            accent="text-emerald-400"
+          />
         </div>
+      </ForecastPanel>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2 text-center md:text-left">
-          
-          <div className="space-y-1 md:border-r border-white/5 pr-4">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block leading-none">Total Service Department Sales</span>
-            <span className="text-2xl font-mono font-black text-white block mt-1.5 leading-none">
-              ${calculations.totalServiceSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[9.5px] text-slate-500 block font-mono">Labor + Sublet + Misc</span>
-          </div>
-
-          <div className="space-y-1 md:border-r border-white/5 pr-4 pl-0 md:pl-4">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block leading-none">Total Service Gross Profit</span>
-            <span className="text-2xl font-mono font-black text-indigo-400 block mt-1.5 leading-none">
-              ${calculations.totalServiceGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[9.5px] text-slate-500 block font-mono">Labor GP + Sublet GP + Misc GP</span>
-          </div>
-
-          <div className="space-y-1 pl-0 md:pl-4">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block leading-none">Adjusted Total Gross Profit</span>
-            <span className="text-2xl font-mono font-black text-emerald-400 block mt-1.5 leading-none">
-              ${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[9.5px] text-slate-500 block font-mono">Service GP - Unapplied Hours/Expense</span>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* 5. Financial comparison & Mix Portfolio charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2 select-none">
-        
-        {/* Left Chart: Bar Chart comparing volumes */}
-        <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl space-y-4">
-          <div>
-            <span className="text-xxs font-black text-slate-500 uppercase tracking-widest block">Financial Yield Comparison</span>
-            <h4 className="text-xs font-black text-white uppercase tracking-wider mt-0.5">Current vs Forecasted Labor Volume</h4>
-          </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 select-none">
+        <ForecastPanel className="p-5 sm:p-6 space-y-4">
+          <ForecastSectionHeader
+            eyebrow="Financial Yield Comparison"
+            title="Current vs Forecasted Labor Volume"
+          />
           <div className="w-full">
-            <ResponsiveContainer width="100%" height={230}>
-              <BarChart data={barChartData} margin={{ top: 15, right: 10, left: -22, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#111827" />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
-                <YAxis stroke="#64748b" fontSize={10} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0b0f19', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                  labelStyle={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}
-                  formatter={(v: any) => [`$${Number(v).toLocaleString()}`, '']}
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={barChartData} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '9.5px', color: '#fff', paddingTop: '10px' }} />
-                <Bar dataKey="current" name="Current MTD" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="projected" name="Projected Forecast" fill="#a5b4fc" radius={[4, 4, 0, 0]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#0f172a',
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: '12px',
+                  }}
+                  labelStyle={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                  formatter={(v: number) => [`$${Number(v).toLocaleString()}`, '']}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#94a3b8', paddingTop: '12px' }} />
+                <Bar dataKey="current" name="Current MTD" fill="var(--color-brand-primary, #6366f1)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="projected" name="Projected Forecast" fill="#94a3b8" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </ForecastPanel>
 
-        {/* Right Chart: Pie Chart share shares */}
-        <div className="bg-[#0a0f1d]/65 ring-1 ring-white/10 p-5 rounded-3xl border border-white/5 shadow-xl space-y-4">
-          <div>
-            <span className="text-xxs font-black text-slate-500 uppercase tracking-widest block">Revenue Mix Portfolio</span>
-            <h4 className="text-xs font-black text-white uppercase tracking-wider mt-0.5">Projected Yield Shares</h4>
-          </div>
-
+        <ForecastPanel className="p-5 sm:p-6 space-y-4">
+          <ForecastSectionHeader
+            eyebrow="Revenue Mix Portfolio"
+            title="Projected Yield Shares"
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-            <div className="relative flex items-center justify-center h-48">
+            <div className="relative flex items-center justify-center h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={pieChartData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={52}
-                    outerRadius={68}
-                    paddingAngle={4}
+                    innerRadius={56}
+                    outerRadius={72}
+                    paddingAngle={3}
                     dataKey="value"
                   >
                     {pieChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#0b0f19', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderColor: 'rgba(255,255,255,0.08)',
+                      borderRadius: '12px',
+                    }}
                     labelStyle={{ color: '#fff', fontSize: '11px' }}
-                    formatter={(v: any) => [`$${Number(v).toLocaleString()}`, '']}
+                    formatter={(v: number) => [`$${Number(v).toLocaleString()}`, '']}
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute flex flex-col items-center text-center select-none pointer-events-none">
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Total Projected</span>
-                <span className="text-xs font-mono font-black mt-1 leading-none text-white select-all">
+              <div className="absolute flex flex-col items-center text-center pointer-events-none">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Total Projected</span>
+                <span className="text-sm font-black mt-1 tabular-nums text-white">
                   ${calculations.totalLaborSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
             </div>
 
-            <div className="space-y-2 font-mono text-[10.5px]">
+            <div className="space-y-2">
               {pieChartData.map((s, index) => {
-                const percentVal = calculations.totalLaborSales > 0 ? (s.value / calculations.totalLaborSales) * 100 : 0;
+                const percentVal =
+                  calculations.totalLaborSales > 0 ? (s.value / calculations.totalLaborSales) * 100 : 0;
                 return (
-                  <div key={s.name} className="flex justify-between items-center bg-slate-950/20 p-2.5 rounded-xl border border-white/5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
-                      <span className="text-slate-400 font-extrabold uppercase text-[9px]">{s.name}</span>
+                  <div
+                    key={s.name}
+                    className="flex justify-between items-center rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2.5"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                      />
+                      <span className="text-[10px] font-bold uppercase text-slate-400 truncate">{s.name}</span>
                     </div>
-                    <div>
-                      <span className="text-white font-black">${s.value.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                      <span className="text-slate-500 font-bold ml-1 text-[10px]">({percentVal.toFixed(0)}%)</span>
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-black text-white tabular-nums">
+                        ${s.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-semibold ml-1">
+                        ({percentVal.toFixed(0)}%)
+                      </span>
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        </div>
-
+        </ForecastPanel>
       </div>
 
       {/* 6. MODAL OVERLAY: DMS PDF DATA EXTRACTOR */}
