@@ -58,10 +58,12 @@ import {
   combinePromiseDateAndTime,
   getPromiseTimeState,
   isPromiseTimeWithinBusinessHours,
+  listOverdueDispatchOrders,
   PROMISE_BUSINESS_HOURS_LABEL,
   validatePromiseDateAndTime,
 } from '../../../lib/dispatchPromiseTime';
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
+import { DispatchOverdueAlert } from './DispatchOverdueAlert';
 import { CardPromiseTimeEditor } from './CardPromiseTimeEditor';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
@@ -963,6 +965,11 @@ export function DispatchBoard({
     [lookupRoId, orders]
   );
 
+  const overdueOrders = useMemo(
+    () => listOverdueDispatchOrders(activeTickets, promiseNowMs),
+    [activeTickets, promiseNowMs]
+  );
+
   useEffect(() => {
     if (!lookupRoId || showCompleted) return;
     const el = document.querySelector(`[data-dispatch-ro-id="${lookupRoId}"]`);
@@ -1427,6 +1434,9 @@ export function DispatchBoard({
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
+          {overdueOrders.length > 0 ? (
+            <DispatchOverdueAlert overdue={overdueOrders} compact />
+          ) : null}
           <DispatchRoSearch
             orders={orders}
             selectedRoId={lookupRoId}
@@ -1470,6 +1480,13 @@ export function DispatchBoard({
           </button>
         </div>
       </div>
+
+      {!loading && !showCompleted && overdueOrders.length > 0 ? (
+        <DispatchOverdueAlert
+          overdue={overdueOrders}
+          onSelectRo={(ro) => setLookupRoId(ro.id)}
+        />
+      ) : null}
 
       {!loading && lookupRo ? (
         <div className="rounded-2xl border border-sky-500/30 bg-sky-950/15 p-4 sm:p-5 space-y-4 shadow-lg shadow-sky-950/10">
@@ -1532,6 +1549,7 @@ export function DispatchBoard({
               isOvernight={(ro) => isOvernightRo(ro, businessDatePst)}
               dispatchTechRoster={dispatchTechRoster}
               techRoCounts={techRoCounts}
+              overdueCount={overdueOrders.length}
             />
           </div>
           <div className="md:hidden">
@@ -1541,6 +1559,7 @@ export function DispatchBoard({
               isOvernight={(ro) => isOvernightRo(ro, businessDatePst)}
               dispatchTechRoster={dispatchTechRoster}
               techRoCounts={techRoCounts}
+              overdueCount={overdueOrders.length}
               compact
             />
           </div>

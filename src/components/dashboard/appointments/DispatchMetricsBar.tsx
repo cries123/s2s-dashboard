@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, CheckCircle2, Clock, Inbox, Moon, Wrench } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Clock, Inbox, Moon, Wrench } from 'lucide-react';
 import { DISPATCH_PRODUCTION_LANES } from '../../../lib/dispatchConfig';
 import {
   computeDispatchMetrics,
@@ -17,6 +17,7 @@ interface DispatchMetricsBarProps {
   isOvernight: (ro: DispatchRepairOrder) => boolean;
   dispatchTechRoster?: PerformanceAdvisorSlot[];
   techRoCounts?: Map<string, number>;
+  overdueCount?: number;
   compact?: boolean;
 }
 
@@ -33,6 +34,7 @@ export function DispatchMetricsBar({
   isOvernight,
   dispatchTechRoster = [],
   techRoCounts,
+  overdueCount = 0,
   compact = false,
 }: DispatchMetricsBarProps) {
   const metrics = useDispatchMetrics({ orders, currentSystemDate, isOvernight });
@@ -52,9 +54,25 @@ export function DispatchMetricsBar({
             <span className="text-slate-500 block">Queue</span>
             <span className="text-white tabular-nums text-sm">{metrics.queueCount}</span>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
-            <span className="text-slate-500 block">Done today</span>
-            <span className="text-emerald-400 tabular-nums text-sm">{metrics.completedToday}</span>
+          <div
+            className={cn(
+              'rounded-xl border px-3 py-2',
+              overdueCount > 0
+                ? 'border-rose-500/50 bg-rose-950/50 animate-pulse'
+                : 'border-slate-800 bg-slate-950/80'
+            )}
+          >
+            <span className={overdueCount > 0 ? 'text-rose-300 block' : 'text-slate-500 block'}>
+              Overdue
+            </span>
+            <span
+              className={cn(
+                'tabular-nums text-sm',
+                overdueCount > 0 ? 'text-rose-200' : 'text-slate-500'
+              )}
+            >
+              {overdueCount}
+            </span>
           </div>
         </div>
         {techWorkload.length > 0 ? (
@@ -81,6 +99,15 @@ export function DispatchMetricsBar({
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+        {overdueCount > 0 ? (
+          <MetricTile
+            icon={AlertTriangle}
+            label="Past promise"
+            value={String(overdueCount)}
+            accent="text-rose-400"
+            highlight
+          />
+        ) : null}
         <MetricTile icon={Inbox} label="In queue" value={String(metrics.queueCount)} />
         <MetricTile
           icon={Clock}
@@ -173,14 +200,23 @@ function MetricTile({
   label,
   value,
   accent = 'text-white',
+  highlight = false,
 }: {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   value: string;
   accent?: string;
+  highlight?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2.5 min-w-0">
+    <div
+      className={cn(
+        'rounded-xl border px-3 py-2.5 min-w-0',
+        highlight
+          ? 'border-rose-500/50 bg-rose-950/40 animate-pulse'
+          : 'border-slate-800 bg-slate-950/70'
+      )}
+    >
       <div className="flex items-center gap-1.5 text-slate-500 mb-1">
         <Icon size={11} />
         <span className="text-[8px] font-black uppercase tracking-wider truncate">{label}</span>

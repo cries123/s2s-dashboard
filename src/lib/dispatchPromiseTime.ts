@@ -1,3 +1,5 @@
+import type { DispatchRepairOrder } from '../types';
+
 export const PROMISE_TIME_MIN = '07:30';
 export const PROMISE_TIME_MAX = '17:00';
 export const PROMISE_BUSINESS_HOURS_LABEL = '7:30 AM – 5:00 PM';
@@ -81,6 +83,26 @@ export function localInputFromPromiseTimeIso(iso: string | undefined): string {
   if (Number.isNaN(parsed.getTime())) return '';
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
+export interface OverdueDispatchOrder {
+  ro: DispatchRepairOrder;
+  state: PromiseTimeState;
+}
+
+/** Active repair orders past their promise time, most overdue first. */
+export function listOverdueDispatchOrders(
+  orders: DispatchRepairOrder[],
+  nowMs: number = Date.now()
+): OverdueDispatchOrder[] {
+  return orders
+    .filter((order) => !order.isCompleted && order.promiseTimeAt)
+    .map((ro) => {
+      const state = getPromiseTimeState(ro.promiseTimeAt, nowMs);
+      return state?.urgency === 'overdue' ? { ro, state } : null;
+    })
+    .filter((row): row is OverdueDispatchOrder => row !== null)
+    .sort((a, b) => a.state.msRemaining - b.state.msRemaining);
 }
 
 export function getPromiseTimeState(
