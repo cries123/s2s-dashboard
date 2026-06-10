@@ -34,6 +34,7 @@ import {
 import { DispatchMetricsBar } from './DispatchMetricsBar';
 import { DispatchMobileBoard, type MobileDispatchTab } from './DispatchMobileBoard';
 import { DispatchIntakeForm, DispatchIntakePanel } from './DispatchIntakeForm';
+import { DispatchRoSearch } from './DispatchRoSearch';
 import {
   appointmentTrackerDoc,
   legacyAppointmentTrackerDoc,
@@ -181,6 +182,7 @@ export function DispatchBoard({
   // Completed items view states
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [isDisplayMode, setIsDisplayMode] = useState<boolean>(false);
+  const [lookupRoId, setLookupRoId] = useState<string | null>(null);
 
   // Form states
   const [roNumber, setRoNumber] = useState('');
@@ -956,6 +958,17 @@ export function DispatchBoard({
     return sortDispatchOrdersByRoNumber(orders.filter((o) => o.isCompleted));
   }, [orders]);
 
+  const lookupRo = useMemo(
+    () => orders.find((order) => order.id === lookupRoId) || null,
+    [lookupRoId, orders]
+  );
+
+  useEffect(() => {
+    if (!lookupRoId || showCompleted) return;
+    const el = document.querySelector(`[data-dispatch-ro-id="${lookupRoId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [lookupRoId, showCompleted]);
+
   // Group active tickets by Department column to build layout fast
   const ticketsByColumn = useMemo(() => {
     const acc: Record<DepartmentColumnId, DispatchRepairOrder[]> = {
@@ -1119,6 +1132,7 @@ export function DispatchBoard({
       <div
         key={ro.id}
         data-dispatch-card
+        data-dispatch-ro-id={ro.id}
         draggable={isDesktop}
         onDragStart={(e) => handleDragStart(e, ro.id)}
         onDragEnd={handleDragEnd}
@@ -1130,6 +1144,7 @@ export function DispatchBoard({
           promiseState?.urgency === 'urgent' && "ring-1 ring-orange-500/40",
           promiseState?.urgency === 'overdue' && "ring-1 ring-rose-500/45",
           moveMenuRoId === ro.id && "ring-2 ring-indigo-500/40 border-indigo-500/30",
+          lookupRoId === ro.id && "ring-2 ring-sky-400/70 border-sky-400/40 shadow-sky-950/20",
           draggingRoId === ro.id && "opacity-50 scale-[0.98]"
         )}
       >
@@ -1388,8 +1403,11 @@ export function DispatchBoard({
           <span className="font-black uppercase tracking-wider text-amber-300">Preview mode</span>
           <span className="text-amber-200/80">
             {' '}
-            — sample data only. Set <code className="text-amber-100">VITE_PREVIEW_MODE=true</code> in{' '}
-            <code className="text-amber-100">.env.local</code> and run <code className="text-amber-100">npm run dev</code>.
+            — sample data only, no login required. Use{' '}
+            <code className="text-amber-100">npm run dev:preview</code>, add{' '}
+            <code className="text-amber-100">?preview=true</code> to the URL, or set{' '}
+            <code className="text-amber-100">VITE_PREVIEW_MODE=true</code> in{' '}
+            <code className="text-amber-100">.env.local</code>.
           </span>
         </div>
       )}
@@ -1406,6 +1424,12 @@ export function DispatchBoard({
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
+          <DispatchRoSearch
+            orders={orders}
+            selectedRoId={lookupRoId}
+            onSelectRo={(ro) => setLookupRoId(ro.id)}
+            onClear={() => setLookupRoId(null)}
+          />
           {showTodayLoad && (
             <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-black uppercase tracking-wider">
               <Calendar size={13} className="text-indigo-400 shrink-0" />
@@ -1443,6 +1467,58 @@ export function DispatchBoard({
           </button>
         </div>
       </div>
+
+      {!loading && lookupRo ? (
+        <div className="rounded-2xl border border-sky-500/30 bg-sky-950/15 p-4 sm:p-5 space-y-4 shadow-lg shadow-sky-950/10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-300">RO lookup</p>
+              <h2 className="text-lg font-black text-white uppercase tracking-tight">
+                RO {lookupRo.roNumber}
+                <span className="text-slate-500 font-bold normal-case tracking-normal text-sm ml-2">
+                  {dispatchLaneLabel(lookupRo.department)}
+                </span>
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLookupRoId(null)}
+              className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white px-3 py-2 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors"
+            >
+              Close lookup
+            </button>
+          </div>
+          {lookupRo.isCompleted ? (
+            <div className="max-w-xl rounded-xl border border-emerald-500/20 bg-slate-950/60 p-4 space-y-4">
+              <p className="text-xs text-slate-400">
+                This repair order is marked complete. Restore it to the active board to change status or route it again.
+              </p>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">Customer</span>
+                  <span className="text-white font-bold">{lookupRo.customerName || displayCustomerLastName(lookupRo)}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">Tech</span>
+                  <span className="text-white font-mono">{lookupRo.techNumber}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleComplete(lookupRo, false);
+                  setShowCompleted(false);
+                }}
+                className="bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-900/40 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+              >
+                Restore to active board
+              </button>
+            </div>
+          ) : (
+            <div className="max-w-xl">{renderRoCard(lookupRo)}</div>
+          )}
+        </div>
+      ) : null}
 
       {!loading && !showCompleted && (
         <>
