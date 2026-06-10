@@ -64,11 +64,12 @@ import {
 } from '../../../lib/dispatchPromiseTime';
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
 import { DispatchOverdueAlert } from './DispatchOverdueAlert';
+import { DispatchRoEditModal, type DispatchRoEditValues } from './DispatchRoEditModal';
 import { CardPromiseTimeEditor } from './CardPromiseTimeEditor';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  Check, Wrench, Monitor, X, Inbox, MapPin, Moon
+  Check, Wrench, Monitor, X, Inbox, MapPin, Moon, Pencil
 } from 'lucide-react';
 
 function playQueueAlert() {
@@ -185,6 +186,8 @@ export function DispatchBoard({
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [isDisplayMode, setIsDisplayMode] = useState<boolean>(false);
   const [lookupRoId, setLookupRoId] = useState<string | null>(null);
+  const [editingRo, setEditingRo] = useState<DispatchRepairOrder | null>(null);
+  const [savingRoEdit, setSavingRoEdit] = useState(false);
 
   // Form states
   const [roNumber, setRoNumber] = useState('');
@@ -872,6 +875,79 @@ export function DispatchBoard({
     }
   };
 
+  const handleSaveRoEdit = async (values: DispatchRoEditValues) => {
+    if (!editingRo || !assertDispatchScope(editingRo)) return;
+
+    const displayName =
+      [values.customerFirstName, values.customerLastName].filter(Boolean).join(' ') ||
+      values.customerLastName;
+    const promiseIso = combinePromiseDateAndTime(values.promiseDate, values.promiseTime);
+
+    const patch: Record<string, unknown> = {
+      roNumber: values.roNumber,
+      techNumber: values.techNumber,
+      tagNumber: values.tagNumber,
+      customerLastName: values.customerLastName,
+      customerName: displayName,
+      status: values.status,
+      isWaiting: values.isWaiting,
+      isPdl: values.isPdl,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    if (values.phoneNumber) patch.phoneNumber = values.phoneNumber;
+    else patch.phoneNumber = deleteField();
+
+    if (values.vinLastEight) patch.vinLastEight = values.vinLastEight;
+    else patch.vinLastEight = deleteField();
+
+    if (values.customerId) patch.customerId = values.customerId;
+
+    if (promiseIso) patch.promiseTimeAt = promiseIso;
+    else patch.promiseTimeAt = deleteField();
+
+    setSavingRoEdit(true);
+    try {
+      if (isPreviewMode) {
+        setOrders((prev) =>
+          prev.map((order) =>
+            order.id === editingRo.id
+              ? normalizeDispatchOrder(
+                  {
+                    ...order,
+                    ...patch,
+                    phoneNumber: values.phoneNumber || undefined,
+                    vinLastEight: values.vinLastEight || undefined,
+                    promiseTimeAt: promiseIso,
+                  },
+                  editingRo.id
+                )
+              : order
+          )
+        );
+      } else {
+        const docRef = doc(
+          db,
+          'artifacts',
+          'hyundai-sales-to-service',
+          'public',
+          'data',
+          'dispatchOrders',
+          editingRo.id
+        );
+        await updateDoc(docRef, patch);
+      }
+
+      setEditingRo(null);
+      showNotification?.(`RO #${values.roNumber} updated.`);
+    } catch (err: unknown) {
+      console.error('[Dispatch] RO edit error:', err);
+      showNotification?.('Failed to save RO changes.', true);
+    } finally {
+      setSavingRoEdit(false);
+    }
+  };
+
   const handleUpdateTech = async (ro: DispatchRepairOrder, newTechNumber: string) => {
     if (!assertDispatchScope(ro)) return;
     const trimmed = newTechNumber.trim();
@@ -1171,7 +1247,15 @@ export function DispatchBoard({
         )}
       >
         <div className="flex justify-between items-start gap-2">
-          <div className="flex-1 min-w-0 space-y-1.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingRo(ro);
+            }}
+            className="group flex-1 min-w-0 space-y-1.5 text-left rounded-lg hover:bg-slate-900/40 transition-colors cursor-pointer p-1 -m-1"
+            title="Click to edit RO details"
+          >
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xl font-black text-white tabular-nums tracking-tight leading-none">
                 RO {ro.roNumber}
@@ -1205,10 +1289,24 @@ export function DispatchBoard({
               {vehicleLabel ? (
                 <p className="text-xs text-slate-400 truncate">{vehicleLabel}</p>
               ) : null}
+              <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 group-hover:text-indigo-400/80 mt-1">
+                Tap to edit
+              </p>
             </div>
-          </div>
+          </button>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingRo(ro);
+              }}
+              className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-slate-400 bg-slate-950/50 border border-slate-800 px-1.5 py-0.5 rounded hover:bg-indigo-950/40 hover:text-indigo-300 hover:border-indigo-900/40"
+              title="Edit RO"
+            >
+              <Pencil size={11} /> Edit
+            </button>
             <button
               type="button"
               onClick={(e) => {
@@ -1875,6 +1973,18 @@ export function DispatchBoard({
         </div>
       )}
       {renderMoveMenuPortal()}
+
+      {editingRo ? (
+        <DispatchRoEditModal
+          ro={editingRo}
+          customers={customers}
+          dispatchTechRoster={dispatchTechRoster}
+          techRoCounts={techRoCounts}
+          saving={savingRoEdit}
+          onClose={() => setEditingRo(null)}
+          onSave={handleSaveRoEdit}
+        />
+      ) : null}
     </div>
   );
 }

@@ -51,6 +51,34 @@ export function enrichDispatchFromCustomer(customer: Customer): Partial<Dispatch
   };
 }
 
+export function splitDispatchCustomerName(
+  customerName?: string,
+  customerLastName?: string
+): { firstName: string; lastName: string } {
+  const last = (customerLastName || '').trim();
+  const full = (customerName || '').trim();
+
+  if (last) {
+    if (full && full.toLowerCase() !== last.toLowerCase()) {
+      if (full.toLowerCase().endsWith(last.toLowerCase())) {
+        return {
+          firstName: full.slice(0, full.length - last.length).trim(),
+          lastName: last,
+        };
+      }
+      const parts = full.split(/\s+/);
+      if (parts.length > 1 && parts[parts.length - 1].toLowerCase() === last.toLowerCase()) {
+        return { firstName: parts.slice(0, -1).join(' '), lastName: last };
+      }
+    }
+    return { firstName: full && full.toLowerCase() !== last.toLowerCase() ? full : '', lastName: last };
+  }
+
+  const parts = full.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: '', lastName: parts[0] || '' };
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
+}
+
 export function displayCustomerLastName(ro: DispatchRepairOrder): string {
   if (ro.customerLastName) return ro.customerLastName;
   if (ro.customerName) {
