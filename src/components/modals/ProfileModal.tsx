@@ -12,7 +12,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { useServiceAlertHelpers } from '../../context/ServiceAlertContext';
 import { getLastServiceDate } from '../../lib/alerts';
-import { CustomerIndividualAlertTiming } from '../dashboard/customers/CustomerIndividualAlertTiming';
 import {
   CustomerTimeline,
   type TimelineEvent,
@@ -998,14 +997,6 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         </div>
                       </div>
 
-                      <CustomerIndividualAlertTiming
-                        customer={formData}
-                        onUpdated={(patch) => {
-                          setFormData((prev) => ({ ...prev, ...patch }));
-                          Object.assign(customer, patch);
-                        }}
-                      />
-
                       {/* Interactive Section for Alert Removal */}
                       {!formData.stopAlertInfo ? (
                         <div className="space-y-4">
@@ -1130,9 +1121,9 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
-                          <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Average Interval</span>
+                          <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Reminder Interval</span>
                           <span className="text-xs font-black text-emerald-400 mt-1 block">
-                            {serviceAlerts.getAverageServiceIntervalMonths(formData)} Months
+                            6 Months
                           </span>
                         </div>
                         

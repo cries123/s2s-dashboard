@@ -6,16 +6,11 @@ import { writeBatch, doc, collection, serverTimestamp } from 'firebase/firestore
 import { db } from '../../../firebase';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
-import { ServiceAlertSettingsPanel } from './ServiceAlertSettingsPanel';
-import { isManager, isPlatformAdmin } from '../../../lib/rbac';
+import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 
 interface ServiceAlertsProps {
   customers: Customer[];
   currentUser: User;
-  currentDealershipId: string;
-  dealershipName: string;
-  serviceAlertIntervalDays: number;
-  serviceAlertBufferDays: number;
   onViewProfile: (c: Customer) => void;
   onViewLog: (c: Customer) => void;
   onRefresh: (msg?: string, isError?: boolean) => void;
@@ -24,19 +19,12 @@ interface ServiceAlertsProps {
 export default function ServiceAlerts({
   customers,
   currentUser,
-  currentDealershipId,
-  dealershipName,
-  serviceAlertIntervalDays,
-  serviceAlertBufferDays,
   onViewProfile,
   onViewLog,
   onRefresh,
 }: ServiceAlertsProps) {
   const serviceAlerts = useServiceAlertHelpers();
   const activeAlerts = customers.filter(serviceAlerts.isServiceAlertActive);
-  const canEditSettings =
-    isPlatformAdmin(currentUser) ||
-    (isManager(currentUser) && currentUser.dealershipId === currentDealershipId);
 
   const [isResetting, setIsResetting] = React.useState(false);
 
@@ -46,7 +34,7 @@ export default function ServiceAlerts({
 
     if (
       !confirm(
-        `Confirm complete reset of all ${alertsToProcess.length} service cycle reminders? This will log a 'Bulk Cycle Reset' for each customer.`
+        `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new 6-month reminder from today.`
       )
     ) {
       return;
@@ -54,6 +42,7 @@ export default function ServiceAlerts({
 
     setIsResetting(true);
     let totalProcessed = 0;
+    const nextDue = computeServiceReminderDueDate(new Date());
 
     try {
       const chunkSize = 200;
@@ -63,7 +52,6 @@ export default function ServiceAlerts({
         const currentChunk = alertsToProcess.slice(i, i + chunkSize);
 
         currentChunk.forEach((c) => {
-          const currentCycle = serviceAlerts.calculateServiceCycle(c.soldDate);
           const customerRef = doc(
             db,
             'artifacts',
@@ -91,13 +79,13 @@ export default function ServiceAlerts({
             userId: currentUser.uid,
             username: currentUser.username,
             outcome: 'Bulk Cycle Reset',
-            notes: `Maintenance reminders were reset to cycle ${currentCycle} (approx. ${Math.round(serviceAlerts.intervalDays / 30)} months from last anchor).`,
+            notes: `Service reminder reset. Next due ${nextDue} (6 months from today).`,
             appointmentSet: false,
           });
 
           batch.update(customerRef, {
             lastServiceContact: serverTimestamp(),
-            lastAcknowledgedCycle: currentCycle,
+            serviceReminderDueDate: nextDue,
             serviceAlertTriggered: false,
             lastContactOutcome: 'Bulk Cycle Reset',
             lastContactUsername: currentUser.username,
@@ -109,7 +97,7 @@ export default function ServiceAlerts({
         totalProcessed += currentChunk.length;
       }
 
-      onRefresh(`Successfully reset service cycles for ${totalProcessed} customers.`, false);
+      onRefresh(`Successfully reset service reminders for ${totalProcessed} customers.`, false);
     } catch (err) {
       console.error('Batch commit failed:', err);
       try {
@@ -124,16 +112,6 @@ export default function ServiceAlerts({
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-24 md:pb-8">
-      <ServiceAlertSettingsPanel
-        dealershipId={currentDealershipId}
-        dealershipName={dealershipName}
-        intervalDays={serviceAlertIntervalDays}
-        bufferDays={serviceAlertBufferDays}
-        canEdit={canEditSettings}
-        onSaved={(msg) => onRefresh(msg, false)}
-        onError={(msg) => onRefresh(msg, true)}
-      />
-
       <div className="sticky top-[4.25rem] z-30 -mx-4 px-4 py-3 sm:static sm:mx-0 sm:px-0 sm:py-0 bg-surface-base/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border-b border-white/5 sm:border-0">
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
           <div>
@@ -146,17 +124,8 @@ export default function ServiceAlerts({
               )}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Tap a customer to log contact or open their profile. Alerts use{' '}
-              <span className="text-slate-300 font-mono">{serviceAlerts.intervalDays}</span> day
-              intervals
-              {serviceAlerts.bufferDays > 0 ? (
-                <>
-                  {' '}
-                  + <span className="text-slate-300 font-mono">{serviceAlerts.bufferDays}</span>{' '}
-                  day buffer
-                </>
-              ) : null}
-              .
+              Tap a customer to log contact or open their profile. Reminders are set for 6 months
+              after enrollment or last outreach.
             </p>
           </div>
 

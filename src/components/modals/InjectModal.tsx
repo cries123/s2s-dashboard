@@ -7,6 +7,7 @@ import { collection, addDoc, query, where, getDocs, updateDoc, doc, Timestamp } 
 import { cn } from '../../lib/utils';
 import { User, Customer } from '../../types';
 import { extractTextFromPDF } from '../../utils/pdfExtractor';
+import { computeServiceReminderDueDate } from '../../lib/serviceReminder';
 
 interface InjectModalProps {
   onClose: () => void;
@@ -159,7 +160,8 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
             language: "English",
             enableServiceAlert: true,
             lastAcknowledgedCycle: 0,
-            serviceAlertTriggered: false
+            serviceAlertTriggered: false,
+            serviceReminderDueDate: computeServiceReminderDueDate(today),
           });
           customerId = newDoc.id;
         }

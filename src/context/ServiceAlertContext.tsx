@@ -10,46 +10,23 @@ import {
   getNextServiceMilestone,
   isServiceAlertActive,
 } from '../lib/alerts';
-import {
-  DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
-  DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-} from '../lib/dealershipSettingsUtils';
+import { DEFAULT_SERVICE_ALERT_INTERVAL_DAYS } from '../lib/dealershipSettingsUtils';
+import { SERVICE_REMINDER_MONTHS } from '../lib/serviceReminder';
 
 const defaultServiceAlertHelpers: ServiceAlertHelpers = {
   intervalDays: DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-  bufferDays: DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
-  isServiceAlertActive: (customer) =>
-    isServiceAlertActive(
-      customer,
-      DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-      DEFAULT_SERVICE_ALERT_BUFFER_DAYS
-    ),
-  calculateServiceCycle: (soldDate) =>
-    calculateServiceCycle(soldDate, DEFAULT_SERVICE_ALERT_INTERVAL_DAYS),
-  getAverageServiceIntervalDays: (customer) =>
-    getAverageServiceIntervalDays(customer, DEFAULT_SERVICE_ALERT_INTERVAL_DAYS),
-  getAverageServiceIntervalMonths: (customer) =>
-    getAverageServiceIntervalMonths(customer, DEFAULT_SERVICE_ALERT_INTERVAL_DAYS),
-  getNextServiceMilestone: (customerOrSoldDate) =>
-    getNextServiceMilestone(
-      customerOrSoldDate,
-      DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-      DEFAULT_SERVICE_ALERT_BUFFER_DAYS
-    ),
+  bufferDays: 0,
+  isServiceAlertActive: (customer) => isServiceAlertActive(customer),
+  calculateServiceCycle: (soldDate) => calculateServiceCycle(soldDate),
+  getAverageServiceIntervalDays: (customer) => getAverageServiceIntervalDays(customer),
+  getAverageServiceIntervalMonths: () => SERVICE_REMINDER_MONTHS,
+  getNextServiceMilestone: (customerOrSoldDate) => getNextServiceMilestone(customerOrSoldDate),
 };
 
 const ServiceAlertContext = createContext<ServiceAlertHelpers>(defaultServiceAlertHelpers);
 
-export function ServiceAlertProvider({
-  intervalDays,
-  bufferDays,
-  children,
-}: {
-  intervalDays?: number;
-  bufferDays?: number;
-  children: React.ReactNode;
-}) {
-  const helpers = useServiceAlertInterval(intervalDays, bufferDays);
+export function ServiceAlertProvider({ children }: { children: React.ReactNode }) {
+  const helpers = useServiceAlertInterval();
   return (
     <ServiceAlertContext.Provider value={helpers}>{children}</ServiceAlertContext.Provider>
   );

@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { Customer } from '../types';
-import { resolveCustomerAlertTiming } from '../lib/customerAlertTiming';
 import {
   calculateServiceCycle,
   getAverageServiceIntervalDays,
@@ -8,10 +7,8 @@ import {
   getNextServiceMilestone,
   isServiceAlertActive,
 } from '../lib/alerts';
-import {
-  DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
-  DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-} from '../lib/dealershipSettingsUtils';
+import { DEFAULT_SERVICE_ALERT_INTERVAL_DAYS } from '../lib/dealershipSettingsUtils';
+import { SERVICE_REMINDER_MONTHS } from '../lib/serviceReminder';
 
 export interface ServiceAlertHelpers {
   intervalDays: number;
@@ -23,40 +20,19 @@ export interface ServiceAlertHelpers {
   getNextServiceMilestone: (customerOrSoldDate: Customer | string) => string;
 }
 
-export function useServiceAlertInterval(
-  intervalDays?: number,
-  bufferDays?: number
-): ServiceAlertHelpers {
-  const days = intervalDays ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS;
-  const buffer = bufferDays ?? DEFAULT_SERVICE_ALERT_BUFFER_DAYS;
-
+export function useServiceAlertInterval(): ServiceAlertHelpers {
   return useMemo(
     () => ({
-      intervalDays: days,
-      bufferDays: buffer,
-      isServiceAlertActive: (customer: Customer) =>
-        isServiceAlertActive(customer, days, buffer),
-      calculateServiceCycle: (soldDate: string) => calculateServiceCycle(soldDate, days),
-      getAverageServiceIntervalDays: (customer: Customer) => {
-        const timing = resolveCustomerAlertTiming(customer, days, buffer);
-        return getAverageServiceIntervalDays(customer, timing.intervalDays);
-      },
-      getAverageServiceIntervalMonths: (customer: Customer) => {
-        const timing = resolveCustomerAlertTiming(customer, days, buffer);
-        return getAverageServiceIntervalMonths(customer, timing.intervalDays);
-      },
-      getNextServiceMilestone: (customerOrSoldDate: Customer | string) => {
-        if (typeof customerOrSoldDate === 'string') {
-          return getNextServiceMilestone(customerOrSoldDate, days, buffer);
-        }
-        const timing = resolveCustomerAlertTiming(customerOrSoldDate, days, buffer);
-        return getNextServiceMilestone(
-          customerOrSoldDate,
-          timing.intervalDays,
-          timing.bufferDays
-        );
-      },
+      intervalDays: DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
+      bufferDays: 0,
+      isServiceAlertActive: (customer: Customer) => isServiceAlertActive(customer),
+      calculateServiceCycle: (soldDate: string) => calculateServiceCycle(soldDate),
+      getAverageServiceIntervalDays: (customer: Customer) =>
+        getAverageServiceIntervalDays(customer),
+      getAverageServiceIntervalMonths: () => SERVICE_REMINDER_MONTHS,
+      getNextServiceMilestone: (customerOrSoldDate: Customer | string) =>
+        getNextServiceMilestone(customerOrSoldDate),
     }),
-    [days, buffer]
+    []
   );
 }

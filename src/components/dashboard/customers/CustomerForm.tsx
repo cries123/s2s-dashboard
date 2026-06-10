@@ -21,6 +21,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 
 interface CustomerFormProps {
   currentUser: User;
@@ -207,7 +208,9 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
       }
 
       const selectedSP = salespeople.find(s => s.id === formData.soldByUserId);
-      
+      const reminderAnchor =
+        formData.soldDate || new Date().toISOString().slice(0, 10);
+
       await addDoc(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers'), {
         ...formData,
         vinLast8: formData.vinLast8.toUpperCase(),
@@ -217,7 +220,8 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
         addedBy: currentUser.uid,
         addedByUsername: currentUser.username,
         lastAcknowledgedCycle: 0,
-        serviceAlertTriggered: false
+        serviceAlertTriggered: false,
+        serviceReminderDueDate: computeServiceReminderDueDate(reminderAnchor),
       });
 
       await logSystemAction(

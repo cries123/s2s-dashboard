@@ -111,6 +111,8 @@ export interface Customer {
   language: string;
   enableServiceAlert: boolean;
   serviceAlertTriggered: boolean;
+  /** Next service reminder date (YYYY-MM-DD), set to 6 months from enrollment or last contact. */
+  serviceReminderDueDate?: string;
   /** Per-customer override — days between service (blank = dealership default). */
   serviceAlertIntervalDays?: number;
   /** Per-customer override — buffer days after due (blank = dealership default). */

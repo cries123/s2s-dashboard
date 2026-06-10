@@ -270,10 +270,7 @@ function DashboardShell({ user }: { user: User }) {
       if (item.managerSubTab === 'team') setManagerDashboardSubTab('users');
     }
   }, []);
-  const serviceAlerts = useServiceAlertInterval(
-    mergedDealershipSettings.serviceAlertIntervalDays,
-    mergedDealershipSettings.serviceAlertBufferDays
-  );
+  const serviceAlerts = useServiceAlertInterval();
   const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
@@ -393,10 +390,7 @@ function DashboardShell({ user }: { user: User }) {
   }
 
   return (
-    <ServiceAlertProvider
-      intervalDays={mergedDealershipSettings.serviceAlertIntervalDays}
-      bufferDays={mergedDealershipSettings.serviceAlertBufferDays}
-    >
+    <ServiceAlertProvider>
     <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
       <AppSidebar
         dealershipName={currentDealership.name}
@@ -467,10 +461,6 @@ function DashboardShell({ user }: { user: User }) {
             <ServiceAlerts
               customers={customers}
               currentUser={currentUser}
-              currentDealershipId={currentDealershipId || 'hyundai'}
-              dealershipName={currentDealership.name}
-              serviceAlertIntervalDays={mergedDealershipSettings.serviceAlertIntervalDays}
-              serviceAlertBufferDays={mergedDealershipSettings.serviceAlertBufferDays}
               onViewProfile={setSelectedProfile}
               onViewLog={(c) => setSelectedProfile(c)}
               onRefresh={(msg, isError) =>

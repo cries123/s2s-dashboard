@@ -9,6 +9,7 @@ import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils'
 import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
+import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -46,16 +47,16 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         appointmentSet
       });
 
-      // Update customer - reset specifically to the current milestone cycle
-      const currentCycle = serviceAlerts.calculateServiceCycle(customer.soldDate);
+      const nextDue = computeServiceReminderDueDate(new Date());
 
       await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id), {
         lastServiceContact: serverTimestamp(),
         lastContactOutcome: outcome,
         lastContactUserId: currentUser.uid,
         lastContactUsername: currentUser.username,
-        lastAcknowledgedCycle: currentCycle,
+        lastAcknowledgedCycle: serviceAlerts.calculateServiceCycle(customer.soldDate),
         serviceAlertTriggered: false,
+        serviceReminderDueDate: nextDue,
         serviceAlertOverrideDate: deleteField(),
         serviceAlertHoldUntil: deleteField(),
       });

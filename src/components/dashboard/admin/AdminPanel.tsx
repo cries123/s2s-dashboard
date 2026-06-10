@@ -67,6 +67,7 @@ import {
   type ManagerAdminPermission,
 } from '../../../lib/rbac';
 import { getTenantProfile, tenantIdFromDealershipId } from '../../../lib/tenants';
+import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 import {
   getDealershipStaffConfig,
   slugifyStaffName,
