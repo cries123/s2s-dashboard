@@ -23,7 +23,8 @@ import {
   Database,
   RefreshCw,
   SlidersHorizontal,
-  Trophy
+  Trophy,
+  Lightbulb
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { PageHeader } from '../../layout/PageHeader';
@@ -44,6 +45,7 @@ import { MasterUserSettings } from './MasterUserSettings';
 import { DealershipAdvancedSettings } from './DealershipAdvancedSettings';
 import { AiUsageLogsPanel } from './AiUsageLogsPanel';
 import { ImportHistoryPanel } from './ImportHistoryPanel';
+import { SuggestionsPanel } from './SuggestionsPanel';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
@@ -74,7 +76,7 @@ import {
 } from '../../../lib/dealershipStaff';
 
 
-type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history';
+type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history' | 'suggestions';
 
 function getPanelSectionMeta(
   subTab: AdminSubTab,
@@ -115,6 +117,12 @@ function getPanelSectionMeta(
         title: 'Import History',
         description: 'CRM CSV imports and archive payloads stored in audit logs.',
       };
+    case 'suggestions':
+      return {
+        eyebrow: scope,
+        title: 'User Suggestions',
+        description: 'Feedback submitted from the suggestion icon in the top bar.',
+      };
     case 'master-users':
       return {
         eyebrow: scope,
@@ -145,8 +153,8 @@ interface AdminPanelProps {
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history') => void;
+  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history' | 'suggestions';
+  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'import-history' | 'suggestions') => void;
   onNavigateTab?: (tab: LandingTab) => void;
   onDealershipChange?: (dealershipId: string) => void;
 }
@@ -1931,6 +1939,10 @@ export default function AdminPanel({
 
       {subTab === 'import-history' && panelMode === 'admin' && (
         <ImportHistoryPanel />
+      )}
+
+      {subTab === 'suggestions' && panelMode === 'admin' && (
+        <SuggestionsPanel />
       )}
 
       {subTab === 'logs' && (

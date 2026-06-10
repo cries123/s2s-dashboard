@@ -227,5 +227,20 @@ service cloud.firestore {
       allow read: if isApproved() || isAdmin() || (isTenantManager() && resource.data.dealershipId == userData().dealershipId);
       allow write: if isSignedIn();
     }
+
+    // --- User suggestions (top-bar feedback) ---
+    match /artifacts/hyundai-sales-to-service/public/data/suggestions/{suggestionId} {
+      allow create: if isApproved() &&
+                       incoming().message is string &&
+                       incoming().message.size() > 0 &&
+                       incoming().message.size() <= 2000 &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().userEmail is string &&
+                       incoming().username is string &&
+                       incoming().dealershipId is string &&
+                       incoming().status == 'new';
+
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

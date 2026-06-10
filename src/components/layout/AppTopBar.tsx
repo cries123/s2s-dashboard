@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyRound, LogOut } from 'lucide-react';
+import { KeyRound, Lightbulb, LogOut } from 'lucide-react';
 import type { User } from '../../types';
 import { canSwitchDealership } from '../../lib/rbac';
 import { getDealershipEnrollmentCode } from '../../lib/dealershipEnrollment';
@@ -13,6 +13,7 @@ interface AppTopBarProps {
   enrollmentJoinCode?: string;
   onDealershipChange: (id: string) => void;
   onSignOut: () => void;
+  onOpenSuggestions?: () => void;
 }
 
 export function AppTopBar({
@@ -22,6 +23,7 @@ export function AppTopBar({
   enrollmentJoinCode,
   onDealershipChange,
   onSignOut,
+  onOpenSuggestions,
 }: AppTopBarProps) {
   const canSwitch = canSwitchDealership(user);
   const fordEnrollmentCode =
@@ -88,6 +90,16 @@ export function AppTopBar({
             {user.jobTitle || user.role}
           </p>
         </div>
+        {onOpenSuggestions ? (
+          <button
+            type="button"
+            onClick={onOpenSuggestions}
+            className="btn-secondary p-2.5"
+            title="Send a suggestion"
+          >
+            <Lightbulb size={16} className="text-amber-400" />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onSignOut}

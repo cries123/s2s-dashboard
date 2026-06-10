@@ -8,6 +8,7 @@ import {
   Settings,
   Shield,
   ShieldAlert,
+  Lightbulb,
   Sparkles,
   TrendingUp,
   Trophy,
@@ -225,6 +226,14 @@ export function buildSidebarNav({
           icon: Shield,
           tab: 'admin',
           adminSubTab: 'logs',
+        },
+        {
+          id: 'admin-suggestions',
+          label: 'Suggestions',
+          href: '/admin/suggestions',
+          icon: Lightbulb,
+          tab: 'admin',
+          adminSubTab: 'suggestions',
         },
       ],
     });

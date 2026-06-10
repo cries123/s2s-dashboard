@@ -13,7 +13,7 @@ export type AppTab =
   | 'sales-performance'
   | 'bundle-menus';
 
-export type AdminSubTab = 'operations' | 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
+export type AdminSubTab = 'operations' | 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history' | 'suggestions';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -47,6 +47,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
   '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-history' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
+  '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
 };
 
 const DEFAULT_ROUTE: AppRouteState = { activeTab: 'add' };
@@ -89,6 +90,8 @@ export function buildAppPath(state: AppRouteState): string {
         return '/admin/import-history';
       case 'logs':
         return '/admin/logs';
+      case 'suggestions':
+        return '/admin/suggestions';
       case 'users':
       default:
         return '/admin/users';

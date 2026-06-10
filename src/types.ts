@@ -224,6 +224,21 @@ export interface DispatchRepairOrder {
   promiseTimeAt?: string;
 }
 
+export type SuggestionStatus = 'new' | 'reviewed' | 'resolved';
+
+export interface Suggestion {
+  id: string;
+  message: string;
+  userId: string;
+  userEmail: string;
+  username: string;
+  dealershipId: string;
+  dealershipName?: string;
+  status: SuggestionStatus;
+  createdAt: Timestamp;
+  reviewedAt?: Timestamp;
+}
+
 export interface ArchivePayload {
   // Allows explicit overrides like "2026-05" instead of forcing the current server month
   targetYearMonth: string; 

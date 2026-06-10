@@ -27,6 +27,7 @@ import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
+import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
 import { RecallsPage } from './components/dashboard/customers/RecallsPage';
 import { ServiceBundleMenuBoard } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
@@ -337,6 +338,7 @@ function DashboardShell({ user }: { user: User }) {
 
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
 
   const showNotification = (text: string, isError = false) => {
@@ -427,6 +429,7 @@ function DashboardShell({ user }: { user: User }) {
           showNotification(`Switched to ${DEALERSHIPS.find((d) => d.id === id)?.name || id}`);
         }}
         onSignOut={handleSignOut}
+        onOpenSuggestions={() => setShowSuggestionModal(true)}
       />
 
       {/* Main Content */}
@@ -588,6 +591,16 @@ function DashboardShell({ user }: { user: User }) {
           currentUser={currentUser}
           onClose={() => setSelectedProfile(null)} 
           onDelete={handleDeleteCustomer}
+        />
+      )}
+
+      {showSuggestionModal && (
+        <SuggestionModal
+          user={currentUser}
+          dealershipId={currentDealershipId || currentUser.dealershipId || 'hyundai'}
+          onClose={() => setShowSuggestionModal(false)}
+          onSuccess={(msg) => showNotification(msg)}
+          onError={(msg) => showNotification(msg, true)}
         />
       )}
 
