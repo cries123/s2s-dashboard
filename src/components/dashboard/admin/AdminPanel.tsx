@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, where, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, deleteDoc, deleteField, where, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { User, Role, UserStatus } from '../../../types';
 import { 
@@ -37,6 +37,8 @@ import { MasterUserSettings } from './MasterUserSettings';
 import { AiUsageLogsPanel } from './AiUsageLogsPanel';
 import { SuggestionsPanel } from './SuggestionsPanel';
 import { SettingsPage } from '../../settings/SettingsPage';
+import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings';
+import type { DealershipAnnouncement } from '../../../types';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import {
@@ -178,6 +180,12 @@ export default function AdminPanel({
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  const saveAnnouncement = async (id: string, announcement: DealershipAnnouncement | null) => {
+    await updateSetting(id, {
+      announcement: announcement ?? deleteField(),
+    });
+  };
 
   const updateSetting = async (id: string, updates: any) => {
     try {
@@ -709,6 +717,27 @@ export default function AdminPanel({
 
       {/* Sub-tab Content Panels */}
 
+      {panelMode === 'admin' && subTab === 'users' && (
+        <div className="space-y-4 mb-8 animate-in fade-in duration-300">
+          <PageHeader
+            title="Dealership announcements"
+            description="Publish a live banner for logged-in staff at each store. Updates appear instantly for all users."
+          />
+          <div className="grid grid-cols-1 gap-4">
+            {DEALERSHIPS.map((d) => (
+              <DealershipAnnouncementSettings
+                key={`announcement-${d.id}`}
+                dealershipId={d.id}
+                dealershipName={d.name}
+                announcement={dealershipSettings[d.id]?.announcement}
+                currentUserEmail={currentUser?.email}
+                onSave={(announcement) => saveAnnouncement(d.id, announcement)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {subTab === 'operations' && panelMode !== 'admin' && (
         <div className="space-y-4 animate-in fade-in duration-300">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -724,6 +753,14 @@ export default function AdminPanel({
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{d.name}</span>
 
                     <div className="space-y-8">
+                        <DealershipAnnouncementSettings
+                          dealershipId={d.id}
+                          dealershipName={d.name}
+                          announcement={dealershipSettings[d.id]?.announcement}
+                          currentUserEmail={currentUser?.email}
+                          onSave={(announcement) => saveAnnouncement(d.id, announcement)}
+                        />
+
                         {/* DMS Configuration */}
                         <div className="space-y-3">
                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">

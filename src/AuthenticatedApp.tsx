@@ -49,6 +49,8 @@ import { LoadingScreen } from './components/ui/LoadingScreen';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { AppTopBar } from './components/layout/AppTopBar';
+import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
+import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
 import { buildMobileNavSections } from './lib/mobileNavSections';
 import { isPreviewMode } from './lib/previewMode';
 import type { SidebarNavItem } from './lib/sidebarNav';
@@ -430,6 +432,11 @@ function DashboardShell({ user }: { user: User }) {
         }}
         onSignOut={handleSignOut}
         onOpenSuggestions={() => setShowSuggestionModal(true)}
+      />
+
+      <DealershipAnnouncementBanner
+        dealershipId={currentDealershipId || 'hyundai'}
+        announcement={dealershipSettings?.announcement}
       />
 
       {/* Main Content */}

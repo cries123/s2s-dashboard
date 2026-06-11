@@ -32,6 +32,14 @@ export type DispatchProductionLaneId = Exclude<
   'unassigned'
 >;
 
+/** Live banner message shown to all logged-in users at a dealership. */
+export interface DealershipAnnouncement {
+  message: string;
+  enabled: boolean;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface DealershipSettings {
   id: string;
   appointmentTarget: number;
@@ -66,6 +74,8 @@ export interface DealershipSettings {
   hiddenDispatchLanes?: DispatchProductionLaneId[];
   /** PST business date (YYYY-MM-DD) when lanes were last auto-swept at midnight. */
   lastDispatchOvernightSweepDate?: string;
+  /** Optional banner for logged-in staff (syncs live via dealership settings). */
+  announcement?: DealershipAnnouncement | null;
   updatedAt: Timestamp;
 }
 
