@@ -1544,30 +1544,38 @@ export function DispatchBoard({
         ) : null}
 
         <div
-          className="grid grid-cols-1 sm:grid-cols-[minmax(0,9.5rem)_1fr] gap-2 items-start text-xs"
+          className="space-y-2 text-xs"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/30 px-1.5 py-1.5 self-start w-full max-w-[9.5rem]">
-            <DispatchTechSelector
-              techNumber={ro.techNumber}
-              roster={dispatchTechRoster}
-              techRoCounts={techRoCounts}
-              onSelect={(techId) => handleUpdateTech(ro, techId)}
-              compact
-            />
-            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500 block truncate mt-1 px-0.5">
-              {dispatchLaneLabel(ro.department)}
-            </span>
+          <div className="flex items-stretch gap-2">
+            <div className="flex-1 min-w-0 rounded-lg border border-slate-800/40 bg-slate-950/30 px-1.5 py-1">
+              <DispatchTechSelector
+                techNumber={ro.techNumber}
+                roster={dispatchTechRoster}
+                techRoCounts={techRoCounts}
+                onSelect={(techId) => handleUpdateTech(ro, techId)}
+                compact
+              />
+            </div>
+            <div className="shrink-0 flex items-center justify-center px-2 py-1 rounded-lg border border-slate-800/40 bg-slate-950/30 max-w-[5.5rem]">
+              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight line-clamp-2">
+                {dispatchLaneLabel(ro.department)}
+              </span>
+            </div>
           </div>
 
-          <div className="bg-slate-950/30 p-2 rounded-lg border border-slate-800/40 space-y-1.5 min-w-0">
+          <div className="rounded-lg border border-slate-800/40 bg-slate-950/30 p-2.5 space-y-2">
             <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">
               Promise time
             </span>
             {ro.promiseTimeAt ? (
-              <DispatchPromiseCountdown promiseTimeAt={ro.promiseTimeAt} nowMs={promiseNowMs} />
+              <DispatchPromiseCountdown
+                promiseTimeAt={ro.promiseTimeAt}
+                nowMs={promiseNowMs}
+                compact
+              />
             ) : null}
             <CardPromiseTimeEditor
               promiseTimeAt={ro.promiseTimeAt}

@@ -21,18 +21,16 @@ export function DispatchPromiseTimeInput({
   showHint = true,
 }: DispatchPromiseTimeInputProps) {
   const inputClass = compact
-    ? 'w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-2.5 py-2 text-[11px] text-white font-semibold tabular-nums [color-scheme:dark]'
+    ? 'w-full min-w-0 bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-2 py-1.5 text-[11px] text-white font-semibold tabular-nums [color-scheme:dark]'
     : 'w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white font-semibold tabular-nums [color-scheme:dark]';
 
   return (
     <div className="space-y-1.5">
-      <div className={compact ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-2 gap-3'}>
-        <div className="space-y-1">
-          {!compact && (
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
-              Date
-            </span>
-          )}
+      <div className={compact ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-2 gap-3'}>
+        <div className="space-y-1 min-w-0">
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+            Date
+          </span>
           <input
             type="date"
             value={date}
@@ -40,12 +38,10 @@ export function DispatchPromiseTimeInput({
             className={inputClass}
           />
         </div>
-        <div className="space-y-1">
-          {!compact && (
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
-              Time
-            </span>
-          )}
+        <div className="space-y-1 min-w-0">
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+            Time
+          </span>
           <input
             type="time"
             value={time}

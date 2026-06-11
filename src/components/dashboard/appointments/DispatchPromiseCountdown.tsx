@@ -39,16 +39,23 @@ export function DispatchPromiseCountdown({
     return (
       <div
         className={cn(
-          'flex items-center justify-between gap-1 rounded px-1 py-0.5 border text-[7px] font-black uppercase tracking-wide tabular-nums',
+          'rounded-lg border px-2.5 py-2 space-y-1',
           styles.bg,
-          styles.text,
           styles.border,
           state.urgency === 'overdue' && 'animate-pulse',
           className
         )}
       >
-        <Clock size={8} className="shrink-0 opacity-80" />
-        <span className="truncate">{state.countdownLabel}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Promise</span>
+          <Clock size={10} className={cn('shrink-0', styles.text)} />
+        </div>
+        <p className={cn('text-[11px] font-bold tabular-nums leading-tight', styles.text)}>
+          {state.countdownLabel}
+        </p>
+        <p className={cn('text-[10px] font-medium tabular-nums leading-tight', styles.text, 'opacity-90')}>
+          {state.scheduledLabel}
+        </p>
       </div>
     );
   }
