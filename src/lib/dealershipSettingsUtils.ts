@@ -22,6 +22,7 @@ export function mergeDealershipSettings(
     laborGrossTarget: raw?.laborGrossTarget ?? 500_000,
     partsSalesTarget: raw?.partsSalesTarget ?? 300_000,
     enableDispatchTab: raw?.enableDispatchTab !== false,
+    enableBundleMenus: raw?.enableBundleMenus ?? dealershipId === 'hyundai',
     enablePotOfGoldTab: raw?.enablePotOfGoldTab !== false,
     enableForecastTab: raw?.enableForecastTab !== false,
     enableSalesPerformanceTab: raw?.enableSalesPerformanceTab !== false,
@@ -58,6 +59,7 @@ export function isNavFeatureEnabled(
   settings: Partial<DealershipSettings> | null | undefined,
   key:
     | 'enableDispatchTab'
+    | 'enableBundleMenus'
     | 'enablePotOfGoldTab'
     | 'enableForecastTab'
     | 'enableSalesPerformanceTab'

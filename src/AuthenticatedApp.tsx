@@ -260,7 +260,7 @@ function DashboardShell({ user }: { user: User }) {
     currentDealershipId || 'hyundai',
     dealershipSettings
   );
-  const bundleMenusEnabled = dealershipSettings?.enableBundleMenus !== false;
+  const bundleMenusEnabled = mergedDealershipSettings.enableBundleMenus;
 
   const handleSidebarNavigate = React.useCallback((item: SidebarNavItem) => {
     setActiveTab(item.tab);
@@ -315,6 +315,12 @@ function DashboardShell({ user }: { user: User }) {
       setActiveTab('appointments');
     }
   }, [currentDealershipId, activeTab, availableTabs]);
+
+  React.useEffect(() => {
+    if (activeTab === 'bundle-menus' && !bundleMenusEnabled) {
+      setActiveTab('appointments');
+    }
+  }, [activeTab, bundleMenusEnabled]);
 
   React.useEffect(() => {
     if (prefsLoading || landingApplied) return;
