@@ -35,6 +35,8 @@ interface DispatchIntakeFormProps {
   submitting: boolean;
   selectedCustomer: Customer | null;
   setSelectedCustomer: (c: Customer | null) => void;
+  concern: string;
+  setConcern: (v: string) => void;
   matchCandidates: Customer[];
   dispatchTechRoster: PerformanceAdvisorSlot[];
   techRoCounts: Map<string, number>;
@@ -70,6 +72,8 @@ export function DispatchIntakeForm({
   submitting,
   selectedCustomer,
   setSelectedCustomer,
+  concern,
+  setConcern,
   matchCandidates,
   dispatchTechRoster,
   techRoCounts,
@@ -132,7 +136,7 @@ export function DispatchIntakeForm({
         </div>
       )}
 
-      {customerLastName.trim().length >= 2 && matchCandidates.length > 0 && !selectedCustomer && (
+      {customerLastName.trim().length > 0 && matchCandidates.length > 0 && !selectedCustomer && (
         <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
           <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
             CRM matches
@@ -165,11 +169,24 @@ export function DispatchIntakeForm({
         </div>
       )}
 
-      {customerLastName.trim().length >= 2 && matchCandidates.length === 0 && (
+      {customerLastName.trim().length > 0 && matchCandidates.length === 0 && !selectedCustomer && (
         <p className="text-[9px] text-amber-400/80 pl-0.5 font-medium">
-          No CRM match — ticket will use the name you entered.
+          No exact CRM match for this last name — ticket will use the name you entered.
         </p>
       )}
+
+      <div className="space-y-1.5">
+        <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+          Customer concern <span className="text-slate-600 font-bold normal-case tracking-normal">(what is the vehicle in for?)</span>
+        </label>
+        <textarea
+          placeholder="e.g. Check engine light, oil leak, 30k service…"
+          value={concern}
+          onChange={(e) => setConcern(e.target.value)}
+          rows={2}
+          className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-medium resize-y min-h-[4.5rem]"
+        />
+      </div>
 
       <div className="space-y-1.5">
         <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
@@ -338,7 +355,7 @@ export function DispatchIntakePanel({
           <div className="min-w-0">
             <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em]">Fast Intake</h2>
             <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
-              Enter customer, RO details, and tag — last name can match CRM.
+              Enter customer, concern, RO details, and tag — CRM links on exact last name match.
             </p>
           </div>
         </div>

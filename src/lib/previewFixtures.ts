@@ -61,6 +61,7 @@ export function buildPreviewDispatchOrders(
       customerName: 'Martinez',
       department: 'unassigned',
       currentLaneId: 'unassigned',
+      concern: 'Oil change and tire rotation',
     },
     {
       ...base,
@@ -73,6 +74,7 @@ export function buildPreviewDispatchOrders(
       department: 'lube',
       currentLaneId: 'lube',
       promiseTimeAt: new Date(Date.now() - 45 * 60_000).toISOString(),
+      concern: 'Check engine light — customer reports rough idle',
     },
     {
       ...base,
@@ -140,6 +142,19 @@ export function buildPreviewDispatchOrders(
       customerName: 'Patel',
       department: 'trans',
       currentLaneId: 'trans',
+      concern: 'Transmission slip under load',
+    },
+    {
+      ...base,
+      id: 'preview-down-1',
+      roNumber: '883860',
+      techNumber: '8402',
+      tagNumber: 'F-330',
+      customerLastName: 'Lopez',
+      customerName: 'Lopez',
+      department: 'down_in_shop',
+      currentLaneId: 'down_in_shop',
+      concern: 'Head gasket — waiting on parts',
     },
     {
       ...base,

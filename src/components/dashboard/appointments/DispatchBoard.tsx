@@ -65,6 +65,7 @@ import {
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
 import { DispatchOverdueAlert } from './DispatchOverdueAlert';
 import { DispatchRoEditModal, type DispatchRoEditValues } from './DispatchRoEditModal';
+import { DispatchTechDisplay } from './DispatchTechDisplay';
 import { CardPromiseTimeEditor } from './CardPromiseTimeEditor';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
@@ -185,6 +186,7 @@ export function DispatchBoard({
   // Completed items view states
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [isDisplayMode, setIsDisplayMode] = useState<boolean>(false);
+  const [isTechDisplayMode, setIsTechDisplayMode] = useState<boolean>(false);
   const [lookupRoId, setLookupRoId] = useState<string | null>(null);
   const [editingRo, setEditingRo] = useState<DispatchRepairOrder | null>(null);
   const [savingRoEdit, setSavingRoEdit] = useState(false);
@@ -214,6 +216,7 @@ export function DispatchBoard({
   const [promiseTime, setPromiseTime] = useState('');
   const [promiseTimeError, setPromiseTimeError] = useState<string | null>(null);
   const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
+  const [concern, setConcern] = useState('');
 
   const businessDatePst = getDispatchDatePst();
   const carryoverSweepInFlightRef = useRef(false);
@@ -222,6 +225,7 @@ export function DispatchBoard({
 
   const openDisplayMode = async () => {
     setShowCompleted(false);
+    setIsTechDisplayMode(false);
     setIsDisplayMode(true);
     try {
       await document.documentElement.requestFullscreen();
@@ -232,6 +236,24 @@ export function DispatchBoard({
 
   const closeDisplayMode = () => {
     setIsDisplayMode(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  };
+
+  const openTechDisplayMode = async () => {
+    setShowCompleted(false);
+    setIsDisplayMode(false);
+    setIsTechDisplayMode(true);
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen is optional; fixed overlay still works in-window.
+    }
+  };
+
+  const closeTechDisplayMode = () => {
+    setIsTechDisplayMode(false);
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => undefined);
     }
@@ -293,6 +315,37 @@ export function DispatchBoard({
       }
     };
   }, [isDisplayMode, productionDisplayColumns.length]);
+
+  useEffect(() => {
+    if (!isTechDisplayMode) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    setShowTvExit(true);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsTechDisplayMode(false);
+      }
+    };
+    const onMouseMove = () => {
+      setShowTvExit(true);
+      if (tvExitTimerRef.current) window.clearTimeout(tvExitTimerRef.current);
+      tvExitTimerRef.current = window.setTimeout(() => setShowTvExit(false), 4000);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousemove', onMouseMove);
+    onMouseMove();
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      if (tvExitTimerRef.current) window.clearTimeout(tvExitTimerRef.current);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, [isTechDisplayMode]);
 
 
   const matchCandidates = useMemo(
@@ -762,6 +815,11 @@ export function DispatchBoard({
         payload.promiseTimeAt = promiseIso;
       }
 
+      const concernText = concern.trim();
+      if (concernText) {
+        payload.concern = concernText;
+      }
+
       if (isPreviewMode) {
         setOrders((prev) =>
           sortDispatchOrdersByRoNumber([
@@ -788,6 +846,7 @@ export function DispatchBoard({
       setPromiseDate('');
       setPromiseTime('');
       setPromiseTimeError(null);
+      setConcern('');
 
       if (showNotification) {
         showNotification(`Ticket RO #${payload.roNumber} successfully queued.`);
@@ -906,6 +965,10 @@ export function DispatchBoard({
     if (promiseIso) patch.promiseTimeAt = promiseIso;
     else patch.promiseTimeAt = deleteField();
 
+    const concernText = values.concern.trim();
+    if (concernText) patch.concern = concernText;
+    else patch.concern = deleteField();
+
     setSavingRoEdit(true);
     try {
       if (isPreviewMode) {
@@ -919,6 +982,7 @@ export function DispatchBoard({
                     phoneNumber: values.phoneNumber || undefined,
                     vinLastEight: values.vinLastEight || undefined,
                     promiseTimeAt: promiseIso,
+                    concern: concernText || undefined,
                   },
                   editingRo.id
                 )
@@ -1185,6 +1249,11 @@ export function DispatchBoard({
         <p className="text-[9px] font-bold text-slate-300 truncate uppercase">
           {ro.customerName || ro.model || 'Guest'}
         </p>
+        {ro.concern ? (
+          <p className="text-[8px] text-slate-400 line-clamp-2 leading-snug" title={ro.concern}>
+            {ro.concern}
+          </p>
+        ) : null}
         {ro.promiseTimeAt && (
           <DispatchPromiseCountdown
             promiseTimeAt={ro.promiseTimeAt}
@@ -1288,6 +1357,14 @@ export function DispatchBoard({
               <h3 className="text-sm font-bold tracking-tight text-white truncate">{customerLabel}</h3>
               {vehicleLabel ? (
                 <p className="text-xs text-slate-400 truncate">{vehicleLabel}</p>
+              ) : null}
+              {ro.concern ? (
+                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-snug" title={ro.concern}>
+                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-600 mr-1">
+                    Concern
+                  </span>
+                  {ro.concern}
+                </p>
               ) : null}
               <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 group-hover:text-indigo-400/80 mt-1">
                 Tap to edit
@@ -1497,6 +1574,8 @@ export function DispatchBoard({
       submitting={submitting}
       selectedCustomer={selectedCustomer}
       setSelectedCustomer={setSelectedCustomer}
+      concern={concern}
+      setConcern={setConcern}
       matchCandidates={matchCandidates}
       dispatchTechRoster={dispatchTechRoster}
       techRoCounts={techRoCounts}
@@ -1557,13 +1636,22 @@ export function DispatchBoard({
           <button
             type="button"
             onClick={openDisplayMode}
-            disabled={loading || showCompleted}
+            disabled={loading || showCompleted || isTechDisplayMode}
             className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
           >
             <Monitor size={13} />
             <span>Display Preview</span>
           </button>
-          
+          <button
+            type="button"
+            onClick={openTechDisplayMode}
+            disabled={loading || showCompleted || isDisplayMode}
+            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-violet-500/40 disabled:opacity-40"
+          >
+            <Users size={13} />
+            <span>Tech Display</span>
+          </button>
+
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
             className={cn(
@@ -1893,6 +1981,16 @@ export function DispatchBoard({
           intakeForm={<DispatchIntakePanel>{intakeFormElement}</DispatchIntakePanel>}
         />
         </>
+      )}
+
+      {isTechDisplayMode && (
+        <DispatchTechDisplay
+          roster={dispatchTechRoster}
+          activeOrders={activeTickets}
+          renderCard={renderDisplayCard}
+          onClose={closeTechDisplayMode}
+          showExit={showTvExit}
+        />
       )}
 
       {isDisplayMode && (

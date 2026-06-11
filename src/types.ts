@@ -224,6 +224,8 @@ export interface DispatchRepairOrder {
   isPdl?: boolean;
   /** Customer promise date/time (ISO 8601) */
   promiseTimeAt?: string;
+  /** Customer concern / reason for visit */
+  concern?: string;
 }
 
 export type SuggestionStatus = 'new' | 'reviewed' | 'resolved';

@@ -24,6 +24,7 @@ export interface DispatchRoEditValues {
   isPdl: boolean;
   promiseDate: string;
   promiseTime: string;
+  concern: string;
   customerId?: string;
 }
 
@@ -53,6 +54,7 @@ function initialValuesFromRo(ro: DispatchRepairOrder): DispatchRoEditValues {
     isPdl: !!ro.isPdl,
     promiseDate: promise.date,
     promiseTime: promise.time,
+    concern: ro.concern || '',
     customerId: ro.customerId,
   };
 }
@@ -107,6 +109,7 @@ export function DispatchRoEditModal({
       customerFirstName: values.customerFirstName.trim(),
       phoneNumber: values.phoneNumber.trim(),
       vinLastEight: values.vinLastEight.trim().toUpperCase(),
+      concern: values.concern.trim(),
     });
   };
 
@@ -195,6 +198,19 @@ export function DispatchRoEditModal({
               ))}
             </div>
           ) : null}
+
+          <div className="space-y-1.5">
+            <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              Customer concern
+            </label>
+            <textarea
+              value={values.concern}
+              onChange={(e) => setValues((prev) => ({ ...prev, concern: e.target.value }))}
+              rows={3}
+              placeholder="What is the vehicle in for?"
+              className="input-field w-full resize-y min-h-[4.5rem]"
+            />
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
