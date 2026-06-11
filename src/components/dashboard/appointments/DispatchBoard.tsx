@@ -14,7 +14,18 @@ import {
   DISPATCH_INTAKE_FLAG_STYLES,
   DISPATCH_PRODUCTION_LANES,
   dispatchLaneLabel,
+  getOrderedDispatchLanes,
 } from '../../../lib/dispatchConfig';
+import {
+  resolveIntakeRequired,
+  resolveLaneCustomization,
+  resolveMidnightSweepConfig,
+  resolveOverdueRules,
+  resolvePromiseDefaults,
+  resolveTechDisplayConfig,
+  shouldShowOverdueCompact,
+  shouldShowOverdueFull,
+} from '../../../lib/operationsConfig';
 import { findCustomersByLastName, enrichDispatchFromCustomer, displayCustomerLastName } from '../../../lib/dispatchCustomerMatch';
 import {
   countActiveRosByTech,
@@ -62,6 +73,7 @@ import {
   PROMISE_BUSINESS_HOURS_LABEL,
   validatePromiseDateAndTime,
   formatDispatchPromiseClock,
+  defaultPromiseFromHours,
 } from '../../../lib/dispatchPromiseTime';
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
 import { DispatchOverdueAlert } from './DispatchOverdueAlert';
@@ -102,12 +114,17 @@ const LANE_ICONS: Record<DispatchProductionLane, typeof Layers> = {
   down_in_shop: Moon,
 };
 
-const DEPARTMENTS = DISPATCH_PRODUCTION_LANES.map((lane) => ({
-  id: lane.id,
-  label: lane.label,
-  shortLabel: lane.shortLabel,
-  icon: LANE_ICONS[lane.id],
-}));
+function buildDepartmentsFromSettings(
+  settings: Partial<DealershipSettings> | null | undefined
+) {
+  const laneCustom = resolveLaneCustomization(settings);
+  return getOrderedDispatchLanes(laneCustom).map((lane) => ({
+    id: lane.id,
+    label: laneCustom.labels?.[lane.id]?.trim() || lane.label,
+    shortLabel: lane.shortLabel,
+    icon: LANE_ICONS[lane.id],
+  }));
+}
 
 function renderIntakeFlagBadge(ro: DispatchRepairOrder, compact = false) {
   if (ro.isWaiting) {
@@ -218,8 +235,20 @@ export function DispatchBoard({
   const [promiseTimeError, setPromiseTimeError] = useState<string | null>(null);
   const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
   const [concern, setConcern] = useState('');
+  const [sweepConfirmOpen, setSweepConfirmOpen] = useState(false);
+  const [pendingSweepCount, setPendingSweepCount] = useState(0);
 
   const businessDatePst = getDispatchDatePst();
+  const laneCustomization = resolveLaneCustomization(dealershipSettings);
+  const overdueRules = resolveOverdueRules(dealershipSettings);
+  const promiseDefaults = resolvePromiseDefaults(dealershipSettings);
+  const techDisplayConfig = resolveTechDisplayConfig(dealershipSettings);
+  const intakeRequired = resolveIntakeRequired(dealershipSettings);
+  const midnightSweepConfig = resolveMidnightSweepConfig(dealershipSettings);
+  const laneLabel = useCallback(
+    (laneId: DepartmentColumnId) => dispatchLaneLabel(laneId, laneCustomization),
+    [laneCustomization]
+  );
   const carryoverSweepInFlightRef = useRef(false);
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
@@ -269,8 +298,11 @@ export function DispatchBoard({
   const blockWhenFull = !!dealershipSettings?.dispatchBlockWhenFull;
   const apptGoal = dealershipSettings?.appointmentTarget ?? 20;
   const visibleDepartments = useMemo(
-    () => DEPARTMENTS.filter((d) => !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)),
-    [dealershipSettings?.hiddenDispatchLanes]
+    () =>
+      buildDepartmentsFromSettings(dealershipSettings).filter(
+        (d) => !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)
+      ),
+    [dealershipSettings]
   );
   const productionDisplayColumns = visibleDepartments;
 
@@ -356,13 +388,36 @@ export function DispatchBoard({
 
   useEffect(() => {
     const hasActivePromise = orders.some((order) => !order.isCompleted && order.promiseTimeAt);
-    if (!hasActivePromise) return;
+    const techDisplayActive = isTechDisplayMode;
+    if (!hasActivePromise && !techDisplayActive) return;
 
     const tick = () => setPromiseNowMs(Date.now());
     tick();
-    const id = window.setInterval(tick, 15_000);
+    const intervalMs = techDisplayActive
+      ? techDisplayConfig.refreshIntervalSeconds * 1000
+      : 15_000;
+    const id = window.setInterval(tick, intervalMs);
     return () => window.clearInterval(id);
-  }, [orders]);
+  }, [orders, isTechDisplayMode, techDisplayConfig.refreshIntervalSeconds]);
+
+  useEffect(() => {
+    if (promiseDefaults.defaultHoursFromNow <= 0) return;
+    if (promiseDate || promiseTime) return;
+    const { date, time } = defaultPromiseFromHours(promiseDefaults.defaultHoursFromNow, {
+      open: promiseDefaults.businessHoursOpen,
+      close: promiseDefaults.businessHoursClose,
+    });
+    if (date) setPromiseDate(date);
+    if (time) setPromiseTime(time);
+  }, [currentDealershipId, promiseDefaults.defaultHoursFromNow]);
+
+  useEffect(() => {
+    if (!techDisplayConfig.autoOpenOnTv || loading || isTechDisplayMode) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tv') === '1') {
+      void openTechDisplayMode();
+    }
+  }, [techDisplayConfig.autoOpenOnTv, loading, currentDealershipId, isTechDisplayMode]);
 
   useEffect(() => {
     if (isPreviewMode && currentDealershipId) {
@@ -473,11 +528,8 @@ export function DispatchBoard({
     [currentDealershipId]
   );
 
-  const runMidnightSweepIfDue = useCallback(async () => {
-    if (isPreviewMode) return;
+  const executeMidnightSweep = useCallback(async () => {
     if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
-    if (!isDispatchOvernightSweepWindow()) return;
-
     const sweepDatePst = getDispatchDatePst();
     if (dealershipSettings?.lastDispatchOvernightSweepDate === sweepDatePst) return;
 
@@ -502,6 +554,8 @@ export function DispatchBoard({
         );
       }
       await markOvernightSweepComplete(sweepDatePst);
+      setSweepConfirmOpen(false);
+      setPendingSweepCount(0);
     } catch (err) {
       console.error('[Dispatch] Midnight lane sweep failed:', err);
     } finally {
@@ -512,6 +566,35 @@ export function DispatchBoard({
     dealershipSettings?.lastDispatchOvernightSweepDate,
     markOvernightSweepComplete,
     showNotification,
+  ]);
+
+  const runMidnightSweepIfDue = useCallback(async () => {
+    if (isPreviewMode) return;
+    if (!currentDealershipId || carryoverSweepInFlightRef.current) return;
+    if (!isDispatchOvernightSweepWindow()) return;
+    if (midnightSweepConfig.mode === 'disabled') return;
+
+    const sweepDatePst = getDispatchDatePst();
+    if (dealershipSettings?.lastDispatchOvernightSweepDate === sweepDatePst) return;
+
+    const scopedOrders = filterDispatchOrdersForDealership(
+      ordersRef.current,
+      currentDealershipId
+    );
+    const carryoversToReset = scopedOrders.filter(shouldSweepOvernightCarryover);
+
+    if (midnightSweepConfig.mode === 'confirm') {
+      setPendingSweepCount(carryoversToReset.length);
+      setSweepConfirmOpen(carryoversToReset.length > 0);
+      return;
+    }
+
+    await executeMidnightSweep();
+  }, [
+    currentDealershipId,
+    dealershipSettings?.lastDispatchOvernightSweepDate,
+    executeMidnightSweep,
+    midnightSweepConfig.mode,
   ]);
 
   useEffect(() => {
@@ -597,7 +680,7 @@ export function DispatchBoard({
       !overnightVehicle
     ) {
       showNotification?.(
-        `${DEPARTMENTS.find((d) => d.id === laneTarget)?.label || 'Lane'} is at capacity.`,
+        `${visibleDepartments.find((d) => d.id === laneTarget)?.label || 'Lane'} is at capacity.`,
         true
       );
       return;
@@ -627,7 +710,7 @@ export function DispatchBoard({
             ? 'Down in Shop'
             : target === 'unassigned'
               ? 'Waiting Queue'
-              : dispatchLaneLabel(target);
+              : laneLabel(target);
         showNotification(`RO #${ro.roNumber} moved to ${label}.`);
       }
     } catch (err: unknown) {
@@ -744,8 +827,20 @@ export function DispatchBoard({
     const ln = customerLastName.trim();
     const tag = tagNumber.trim();
 
-    if (!ro || !tech || !ln || !tag) {
-      showNotification?.('RO number, last name, tech number, and tag number are required.', true);
+    if (!ro || !ln) {
+      showNotification?.('RO number and customer last name are required.', true);
+      return;
+    }
+    if (intakeRequired.techNumber && !tech) {
+      showNotification?.('Tech # is required for dispatch intake.', true);
+      return;
+    }
+    if (intakeRequired.tag && !tag) {
+      showNotification?.('Tag # is required for dispatch intake.', true);
+      return;
+    }
+    if (intakeRequired.concern && !concern.trim()) {
+      showNotification?.('Concern is required for dispatch intake.', true);
       return;
     }
 
@@ -1107,8 +1202,11 @@ export function DispatchBoard({
   );
 
   const overdueOrders = useMemo(
-    () => listOverdueDispatchOrders(activeTickets, promiseNowMs),
-    [activeTickets, promiseNowMs]
+    () =>
+      listOverdueDispatchOrders(activeTickets, promiseNowMs, {
+        overdueGraceMinutes: overdueRules.graceMinutes,
+      }),
+    [activeTickets, promiseNowMs, overdueRules.graceMinutes]
   );
 
   useEffect(() => {
@@ -1223,6 +1321,7 @@ export function DispatchBoard({
   };
 
   const renderTechDisplayCard = (ro: DispatchRepairOrder) => {
+    if (!techDisplayConfig.visibleStatuses.includes(ro.status)) return null;
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
     const promiseClock = formatDispatchPromiseClock(ro.promiseTimeAt);
@@ -1561,7 +1660,7 @@ export function DispatchBoard({
             </div>
             <div className="shrink-0 flex items-center justify-center px-2 py-1 rounded-lg border border-slate-800/40 bg-slate-950/30 max-w-[5.5rem]">
               <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight line-clamp-2">
-                {dispatchLaneLabel(ro.department)}
+                {laneLabel(ro.department)}
               </span>
             </div>
           </div>
@@ -1706,7 +1805,7 @@ export function DispatchBoard({
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
-          {overdueOrders.length > 0 ? (
+          {overdueOrders.length > 0 && shouldShowOverdueCompact(overdueRules.alertDisplay) ? (
             <DispatchOverdueAlert overdue={overdueOrders} compact />
           ) : null}
           <DispatchRoSearch
@@ -1762,7 +1861,7 @@ export function DispatchBoard({
         </div>
       </div>
 
-      {!loading && !showCompleted && overdueOrders.length > 0 ? (
+      {!loading && !showCompleted && overdueOrders.length > 0 && shouldShowOverdueFull(overdueRules.alertDisplay) ? (
         <DispatchOverdueAlert
           overdue={overdueOrders}
           onSelectRo={(ro) => setLookupRoId(ro.id)}
@@ -1777,7 +1876,7 @@ export function DispatchBoard({
               <h2 className="text-lg font-black text-white uppercase tracking-tight">
                 {lookupRo.roNumber}
                 <span className="text-slate-500 font-bold normal-case tracking-normal text-sm ml-2">
-                  {dispatchLaneLabel(lookupRo.department)}
+                  {laneLabel(lookupRo.department)}
                 </span>
               </h2>
             </div>
@@ -1878,7 +1977,7 @@ export function DispatchBoard({
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
                   {completedTickets.map(ro => {
-                    const deptLabel = dispatchLaneLabel(ro.department);
+                    const deptLabel = laneLabel(ro.department);
                     return (
                       <tr key={ro.id} className="hover:bg-slate-850/30 transition-colors">
                         <td className="py-3 px-3 font-bold text-slate-200 tabular-nums">{ro.roNumber}</td>
@@ -2077,6 +2176,33 @@ export function DispatchBoard({
         />
         </>
       )}
+
+      {sweepConfirmOpen && pendingSweepCount > 0 ? (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
+          <div className="card-base max-w-md w-full rounded-2xl border border-amber-500/30 p-6 space-y-4">
+            <h2 className="text-sm font-black text-white uppercase tracking-wider">Confirm end-of-day sweep</h2>
+            <p className="text-sm text-slate-400">
+              Move {pendingSweepCount} active ticket(s) from production lanes to Down in Shop?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setSweepConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-[10px] font-black uppercase text-slate-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeMidnightSweep()}
+                className="px-4 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black uppercase"
+              >
+                Run sweep
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isTechDisplayMode && (
         <DispatchTechDisplay

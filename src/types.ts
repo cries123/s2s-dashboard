@@ -76,7 +76,101 @@ export interface DealershipSettings {
   lastDispatchOvernightSweepDate?: string;
   /** Optional banner for logged-in staff (syncs live via dealership settings). */
   announcement?: DealershipAnnouncement | null;
+  /** Saved prior-month goals for one-click restore in manager settings. */
+  operationsGoalsPriorMonth?: OperationsGoalsSnapshot;
+  /** Fixed ops forecast defaults for this store. */
+  fixedOpsForecastDefaults?: FixedOpsForecastDefaults;
+  /** Dispatch overdue alert tuning. */
+  dispatchOverdueRules?: DispatchOverdueRules;
+  /** Default promise window and business hours copy. */
+  dispatchPromiseDefaults?: DispatchPromiseDefaults;
+  /** Tech display / shop TV behavior. */
+  dispatchTechDisplayConfig?: DispatchTechDisplayConfig;
+  /** Required fields on dispatch intake. */
+  dispatchIntakeRequired?: DispatchIntakeRequiredFields;
+  /** Per-store lane labels and display order. */
+  dispatchLaneCustomization?: DispatchLaneCustomization;
+  /** Midnight lane sweep behavior. */
+  dispatchMidnightSweep?: DispatchMidnightSweepConfig;
+  /** Last successful / failed DMS PDF imports (admin import health). */
+  dmsImportHealth?: DmsImportHealth;
   updatedAt: Timestamp;
+}
+
+export type DmsImportKind =
+  | 'appointments'
+  | 'advisor_performance'
+  | 'technician_productivity'
+  | 'fixed_ops_forecast'
+  | 'pot_of_gold'
+  | 'other';
+
+export interface DmsImportHealthEntry {
+  at: string;
+  filename: string;
+  importKind: DmsImportKind;
+  userEmail?: string;
+}
+
+export interface DmsImportFailureEntry extends DmsImportHealthEntry {
+  error: string;
+}
+
+export interface DmsImportHealth {
+  lastSuccess?: DmsImportHealthEntry;
+  recentFailures?: DmsImportFailureEntry[];
+}
+
+export interface OperationsGoalsSnapshot {
+  month: string;
+  appointmentTarget: number;
+  laborGrossTarget: number;
+  partsSalesTarget: number;
+  savedAt?: string;
+}
+
+export type ForecastReportPeriod = 'current_month' | 'next_month';
+
+export interface FixedOpsForecastDefaults {
+  reportPeriod?: ForecastReportPeriod;
+  includedAdvisorIds?: string[];
+}
+
+export type DispatchOverdueAlertDisplay = 'compact' | 'full' | 'both' | 'hidden';
+
+export interface DispatchOverdueRules {
+  graceMinutes?: number;
+  alertDisplay?: DispatchOverdueAlertDisplay;
+}
+
+export interface DispatchPromiseDefaults {
+  defaultHoursFromNow?: number;
+  businessHoursOpen?: string;
+  businessHoursClose?: string;
+  businessHoursLabel?: string;
+}
+
+export interface DispatchTechDisplayConfig {
+  autoOpenOnTv?: boolean;
+  refreshIntervalSeconds?: number;
+  visibleStatuses?: DispatchStatus[];
+}
+
+export interface DispatchIntakeRequiredFields {
+  concern?: boolean;
+  tag?: boolean;
+  techNumber?: boolean;
+}
+
+export interface DispatchLaneCustomization {
+  labels?: Partial<Record<DispatchProductionLaneId, string>>;
+  order?: DispatchProductionLaneId[];
+}
+
+export type DispatchMidnightSweepMode = 'auto' | 'confirm' | 'disabled';
+
+export interface DispatchMidnightSweepConfig {
+  mode?: DispatchMidnightSweepMode;
 }
 
 export interface ImportLog {

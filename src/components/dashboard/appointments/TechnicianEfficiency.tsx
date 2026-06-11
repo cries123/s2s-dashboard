@@ -5,6 +5,7 @@ import {
 import { db } from '../../../firebase';
 import { User } from '../../../types';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
@@ -292,11 +293,23 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       } else {
         onSuccess?.(`Successfully imported & merged ${parsedTechs.length} technicians.`);
       }
+      await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'technician_productivity',
+        userEmail: currentUser?.email,
+      });
       setParsing(false);
 
     } catch (err: any) {
       console.error("[TechnicianEfficiency] Upload error:", err);
-      onError?.(err?.message || "Parsing failed. Defaulting to manual data entry is supported.");
+      const message = err?.message || "Parsing failed. Defaulting to manual data entry is supported.";
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'technician_productivity',
+        error: message,
+        userEmail: currentUser?.email,
+      });
+      onError?.(message);
       setParsing(false);
     }
   };

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -254,12 +255,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
         await saveToFirestore({ advData: newAdvData });
         setSuccessMessage(`Analysis Complete: ${file.name}`);
+        await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+          filename: file.name,
+          importKind: 'pot_of_gold',
+          userEmail: user?.email,
+        });
       } else {
         throw new Error("Could not find advisor data in this report.");
       }
     } catch (error: any) {
       console.error("Processing Error:", error);
-      alert(error.message);
+      const message = error.message || 'Import failed.';
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'pot_of_gold',
+        error: message,
+        userEmail: user?.email,
+      });
+      alert(message);
     } finally {
       setIsAiProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';

@@ -13,7 +13,14 @@ export type AppTab =
   | 'sales-performance'
   | 'bundle-menus';
 
-export type AdminSubTab = 'users' | 'logs' | 'master-users' | 'ai-usage' | 'suggestions';
+export type AdminSubTab =
+  | 'users'
+  | 'logs'
+  | 'master-users'
+  | 'ai-usage'
+  | 'suggestions'
+  | 'enrollments'
+  | 'import-health';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -44,7 +51,9 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/admin/users': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/master-users': { activeTab: 'admin', adminSubTab: 'master-users' },
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
-  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'users' },
+  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-health' },
+  '/admin/import-health': { activeTab: 'admin', adminSubTab: 'import-health' },
+  '/admin/enrollments': { activeTab: 'admin', adminSubTab: 'enrollments' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
   '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
 };
@@ -87,6 +96,10 @@ export function buildAppPath(state: AppRouteState): string {
         return '/admin/logs';
       case 'suggestions':
         return '/admin/suggestions';
+      case 'enrollments':
+        return '/admin/enrollments';
+      case 'import-health':
+        return '/admin/import-health';
       case 'users':
       default:
         return '/admin/users';

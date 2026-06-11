@@ -91,14 +91,20 @@ export interface OverdueDispatchOrder {
 }
 
 /** Active repair orders past their promise time, most overdue first. */
+export interface PromiseTimeOptions {
+  /** Minutes after promise time before marking overdue (default 0). */
+  overdueGraceMinutes?: number;
+}
+
 export function listOverdueDispatchOrders(
   orders: DispatchRepairOrder[],
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  options?: PromiseTimeOptions
 ): OverdueDispatchOrder[] {
   return orders
     .filter((order) => !order.isCompleted && order.promiseTimeAt)
     .map((ro) => {
-      const state = getPromiseTimeState(ro.promiseTimeAt, nowMs);
+      const state = getPromiseTimeState(ro.promiseTimeAt, nowMs, options);
       return state?.urgency === 'overdue' ? { ro, state } : null;
     })
     .filter((row): row is OverdueDispatchOrder => row !== null)
@@ -107,12 +113,14 @@ export function listOverdueDispatchOrders(
 
 export function getPromiseTimeState(
   iso: string | undefined,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  options?: PromiseTimeOptions
 ): PromiseTimeState | null {
   if (!iso) return null;
   const target = new Date(iso);
   if (Number.isNaN(target.getTime())) return null;
 
+  const graceMs = Math.max(0, options?.overdueGraceMinutes ?? 0) * 60_000;
   const msRemaining = target.getTime() - nowMs;
   const scheduledLabel = target.toLocaleString(undefined, {
     weekday: 'short',
@@ -122,7 +130,7 @@ export function getPromiseTimeState(
     minute: '2-digit',
   });
 
-  if (msRemaining <= 0) {
+  if (msRemaining <= -graceMs) {
     return {
       urgency: 'overdue',
       countdownLabel: `Overdue ${formatDuration(Math.abs(msRemaining))}`,
@@ -162,15 +170,32 @@ export function formatDispatchPromiseClock(iso: string | undefined): string | nu
   return target.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-export function promiseTimeMinutesFromNow(minutes: number): string {
+export function promiseTimeMinutesFromNow(
+  minutes: number,
+  businessHours?: { open?: string; close?: string }
+): string {
+  const openParts = (businessHours?.open ?? PROMISE_TIME_MIN).split(':').map(Number);
+  const closeParts = (businessHours?.close ?? PROMISE_TIME_MAX).split(':').map(Number);
+  const openMinutes = openParts[0] * 60 + (openParts[1] ?? 0);
+  const closeMinutes = closeParts[0] * 60 + (closeParts[1] ?? 0);
+
   const target = new Date(Date.now() + minutes * 60_000);
   const dayMinutes = minutesOfDay(target);
 
-  if (dayMinutes < PROMISE_OPEN_MINUTES) {
-    target.setHours(7, 30, 0, 0);
-  } else if (dayMinutes > PROMISE_CLOSE_MINUTES) {
-    target.setHours(17, 0, 0, 0);
+  if (dayMinutes < openMinutes) {
+    target.setHours(openParts[0], openParts[1] ?? 0, 0, 0);
+  } else if (dayMinutes > closeMinutes) {
+    target.setHours(closeParts[0], closeParts[1] ?? 0, 0, 0);
   }
 
   return target.toISOString();
+}
+
+export function defaultPromiseFromHours(
+  hoursFromNow: number,
+  businessHours?: { open?: string; close?: string }
+): { date: string; time: string } {
+  if (hoursFromNow <= 0) return { date: '', time: '' };
+  const iso = promiseTimeMinutesFromNow(hoursFromNow * 60, businessHours);
+  return splitPromiseTimeIso(iso);
 }

@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { cn } from '../../../lib/utils';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
+import { resolveForecastDefaults } from '../../../lib/operationsConfig';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -284,6 +286,37 @@ const calculateBillingDaysForNextMonth = (): number => {
         count++;
       }
     }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return count;
+};
+
+const calculateBillingDaysForCurrentMonth = (): number => {
+  const currentDate = new Date();
+  const year = currentDate.getUTCFullYear();
+  const month = currentDate.getUTCMonth();
+  const d = new Date(Date.UTC(year, month, 1));
+  let count = 0;
+
+  const isFederalHoliday = (date: Date): boolean => {
+    const m = date.getUTCMonth();
+    const day = date.getUTCDate();
+    const dayOfWeek = date.getUTCDay();
+    if (m === 0 && day === 1) return true;
+    if (m === 6 && day === 4) return true;
+    if (m === 11 && day === 25) return true;
+    if (m === 0 && dayOfWeek === 1 && day >= 15 && day <= 21) return true;
+    if (m === 1 && dayOfWeek === 1 && day >= 15 && day <= 21) return true;
+    if (m === 4 && dayOfWeek === 1 && day >= 25) return true;
+    if (m === 8 && dayOfWeek === 1 && day <= 7) return true;
+    if (m === 10 && dayOfWeek === 4 && day >= 22 && day <= 28) return true;
+    if (m === 11 && dayOfWeek === 1 && day >= 25) return true;
+    return false;
+  };
+
+  while (d.getUTCMonth() === month) {
+    const dayOfWeek = d.getUTCDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isFederalHoliday(d)) count++;
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return count;
@@ -744,6 +777,29 @@ export default function FixedOpsForecast({
 
     return () => unsubscribe();
   }, [user, currentDealershipId]);
+
+  useEffect(() => {
+    if (!currentDealershipId) return;
+    const settingsRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'dealershipSettings',
+      currentDealershipId
+    );
+    const unsub = onSnapshot(settingsRef, (snap) => {
+      const defaults = resolveForecastDefaults(snap.exists() ? snap.data() : null);
+      if (defaults.reportPeriod === 'current_month') {
+        setInputs((prev) => ({
+          ...prev,
+          billingDays: calculateBillingDaysForCurrentMonth(),
+        }));
+      }
+    });
+    return () => unsub();
+  }, [currentDealershipId]);
 
   const saveForecastToFirestore = async (
     nextInputs: typeof inputs,
@@ -1231,10 +1287,24 @@ export default function FixedOpsForecast({
       setReportRawText(text);
       await runExtraction(text);
       setSelectedSample('');
+      await recordDmsImportSuccess(currentDealershipId, {
+        filename: file.name,
+        importKind: 'fixed_ops_forecast',
+        userEmail: user?.email,
+      });
       onSuccess?.(`Successfully processed PDF MTD data: ${file.name}`);
     } catch (err: any) {
       console.error(err);
-      setValidationError("Failed to extract legible text from PDF. Ensure PDF is a plain-text digital document, or copy and paste raw report text directly!");
+      const message =
+        err?.message ||
+        'Failed to extract legible text from PDF. Ensure PDF is a plain-text digital document, or copy and paste raw report text directly!';
+      void recordDmsImportFailure(currentDealershipId, {
+        filename: file.name,
+        importKind: 'fixed_ops_forecast',
+        error: message,
+        userEmail: user?.email,
+      });
+      setValidationError(message);
     } finally {
       setFileExtracting(false);
     }

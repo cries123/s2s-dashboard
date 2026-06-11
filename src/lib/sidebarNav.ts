@@ -227,6 +227,22 @@ export function buildSidebarNav({
           tab: 'admin',
           adminSubTab: 'suggestions',
         },
+        {
+          id: 'admin-enrollments',
+          label: 'Enrollments',
+          href: '/admin/enrollments',
+          icon: Users,
+          tab: 'admin',
+          adminSubTab: 'enrollments',
+        },
+        {
+          id: 'admin-import-health',
+          label: 'Import health',
+          href: '/admin/import-health',
+          icon: Shield,
+          tab: 'admin',
+          adminSubTab: 'import-health',
+        },
       ],
     });
   }

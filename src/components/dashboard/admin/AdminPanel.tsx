@@ -38,6 +38,9 @@ import { AiUsageLogsPanel } from './AiUsageLogsPanel';
 import { SuggestionsPanel } from './SuggestionsPanel';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings';
+import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
+import { DmsImportHealthPanel } from './DmsImportHealthPanel';
+import { ManagerOperationsConfig } from './ManagerOperationsConfig';
 import type { DealershipAnnouncement } from '../../../types';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
@@ -68,7 +71,16 @@ import {
 } from '../../../lib/dealershipStaff';
 
 
-type AdminSubTab = 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'suggestions';
+type AdminSubTab =
+  | 'operations'
+  | 'users'
+  | 'logs'
+  | 'preferences'
+  | 'master-users'
+  | 'ai-usage'
+  | 'suggestions'
+  | 'enrollments'
+  | 'import-health';
 
 function getPanelSectionMeta(
   subTab: AdminSubTab,
@@ -117,6 +129,18 @@ function getPanelSectionMeta(
         title: 'Master User Settings',
         description: 'Edit every account across all dealerships — email, password, permissions.',
       };
+    case 'enrollments':
+      return {
+        eyebrow: scope,
+        title: 'Enrollment Queues',
+        description: 'Pending manager enrollments (admin approval) and staff enrollment visibility.',
+      };
+    case 'import-health':
+      return {
+        eyebrow: scope,
+        title: 'DMS Import Health',
+        description: 'Last successful PDF parse and recent failures per dealership.',
+      };
     case 'logs':
       return {
         eyebrow: scope,
@@ -141,8 +165,8 @@ interface AdminPanelProps {
   currentDealershipId?: string;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
-  activeSubTab?: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'suggestions';
-  onChangeSubTab?: (tab: 'operations' | 'users' | 'logs' | 'preferences' | 'master-users' | 'ai-usage' | 'suggestions') => void;
+  activeSubTab?: AdminSubTab;
+  onChangeSubTab?: (tab: AdminSubTab) => void;
   onNavigateTab?: (tab: LandingTab) => void;
   onDealershipChange?: (dealershipId: string) => void;
 }
@@ -761,6 +785,13 @@ export default function AdminPanel({
                           onSave={(announcement) => saveAnnouncement(d.id, announcement)}
                         />
 
+                        <ManagerOperationsConfig
+                          dealershipId={d.id}
+                          dealershipName={d.name}
+                          settings={dealershipSettings[d.id] ?? {}}
+                          onUpdate={(patch) => updateSetting(d.id, patch)}
+                        />
+
                         {/* DMS Configuration */}
                         <div className="space-y-3">
                           <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
@@ -1110,6 +1141,14 @@ export default function AdminPanel({
 
       {subTab === 'suggestions' && panelMode === 'admin' && (
         <SuggestionsPanel />
+      )}
+
+      {subTab === 'enrollments' && panelMode === 'admin' && (
+        <AdminEnrollmentQueue onSuccess={onSuccess} onError={onError} />
+      )}
+
+      {subTab === 'import-health' && panelMode === 'admin' && (
+        <DmsImportHealthPanel dealershipSettings={dealershipSettings} />
       )}
 
       {subTab === 'logs' && (

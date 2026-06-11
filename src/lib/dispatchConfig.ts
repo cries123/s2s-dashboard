@@ -1,4 +1,4 @@
-import { DepartmentColumnId } from '../types';
+import { DepartmentColumnId, DispatchLaneCustomization } from '../types';
 
 /** Production lanes only (excludes unassigned queue). */
 export type DispatchProductionLane = Exclude<DepartmentColumnId, 'unassigned'>;
@@ -46,7 +46,28 @@ export const DISPATCH_INTAKE_FLAG_STYLES = {
   pdl: { label: 'PDL', bg: '#22C55E', text: '#FFFFFF' },
 } as const;
 
-export function dispatchLaneLabel(laneId: DepartmentColumnId): string {
+export function getOrderedDispatchLanes(
+  customization?: DispatchLaneCustomization | null
+): typeof DISPATCH_PRODUCTION_LANES {
+  const order = customization?.order?.filter((id) =>
+    DISPATCH_PRODUCTION_LANES.some((lane) => lane.id === id)
+  );
+  if (!order?.length) return DISPATCH_PRODUCTION_LANES;
+
+  const ordered = order
+    .map((id) => DISPATCH_PRODUCTION_LANES.find((lane) => lane.id === id))
+    .filter((lane): lane is (typeof DISPATCH_PRODUCTION_LANES)[number] => !!lane);
+
+  const remaining = DISPATCH_PRODUCTION_LANES.filter((lane) => !order.includes(lane.id));
+  return [...ordered, ...remaining];
+}
+
+export function dispatchLaneLabel(
+  laneId: DepartmentColumnId,
+  customization?: DispatchLaneCustomization | null
+): string {
   if (laneId === 'unassigned') return 'Waiting Queue';
+  const custom = customization?.labels?.[laneId as DispatchProductionLane];
+  if (custom?.trim()) return custom.trim();
   return DISPATCH_PRODUCTION_LANES.find((lane) => lane.id === laneId)?.label ?? laneId;
 }

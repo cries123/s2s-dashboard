@@ -6,6 +6,7 @@ import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
   BarChart3, Target, Clock, FileUp, X, PieChart, Printer, Archive, Lock, Unlock
@@ -515,7 +516,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       });
     } catch (err: any) {
       console.error('PDF Parse Error:', err);
-      onError?.(err.message || 'Failed to analyze PDF report.');
+      const message = err.message || 'Failed to analyze PDF report.';
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'appointments',
+        error: message,
+        userEmail: currentUser.email,
+      });
+      onError?.(message);
     } finally {
       setIsUploadingPdf(false);
       if (pdfInputRef.current) pdfInputRef.current.value = '';
@@ -527,9 +535,21 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     setIsUploadingPdf(true);
     try {
       await applyPdfBreakdown(pdfParsePreview.reportDate, pdfParsePreview.breakdown, pdfParsePreview.total, pdfParsePreview.fileName);
+      await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+        filename: pdfParsePreview.fileName,
+        importKind: 'appointments',
+        userEmail: currentUser.email,
+      });
       setPdfParsePreview(null);
     } catch (err: any) {
-      onError?.(err.message || 'Failed to save parsed appointments.');
+      const message = err.message || 'Failed to save parsed appointments.';
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: pdfParsePreview.fileName,
+        importKind: 'appointments',
+        error: message,
+        userEmail: currentUser.email,
+      });
+      onError?.(message);
     } finally {
       setIsUploadingPdf(false);
     }

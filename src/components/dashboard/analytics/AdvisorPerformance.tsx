@@ -8,6 +8,7 @@ import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
 import { EmptyState } from '../../ui/EmptyState';
 import { KpiStrip } from '../../ui/KpiStrip';
@@ -585,10 +586,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       }
 
       setImportStatus({ type: 'success', message });
+      await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'advisor_performance',
+        userEmail: currentUser?.email,
+      });
       
     } catch (error: any) {
       console.error('Performance Import Error:', error);
-      setImportStatus({ type: 'error', message: error.message || 'Error importing PDF. Please try again.' });
+      const message = error.message || 'Error importing PDF. Please try again.';
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'advisor_performance',
+        error: message,
+        userEmail: currentUser?.email,
+      });
+      setImportStatus({ type: 'error', message });
     } finally {
       setIsImporting(false);
       setImportProgress(null);
