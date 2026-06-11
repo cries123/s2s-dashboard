@@ -86,6 +86,8 @@ export function buildPreviewDispatchOrders(
       customerName: 'Chen',
       department: 'lube',
       currentLaneId: 'lube',
+      isWaiting: true,
+      promiseTimeAt: new Date(Date.now() + 90 * 60_000).toISOString(),
     },
     {
       ...base,

@@ -154,6 +154,14 @@ export const PROMISE_URGENCY_STYLES: Record<
   overdue: { bg: 'bg-rose-950/60', text: 'text-rose-300', border: 'border-rose-500/45' },
 };
 
+/** Compact clock label for dispatch display cards (e.g. "2:30 PM"). */
+export function formatDispatchPromiseClock(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return null;
+  return target.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 export function promiseTimeMinutesFromNow(minutes: number): string {
   const target = new Date(Date.now() + minutes * 60_000);
   const dayMinutes = minutesOfDay(target);

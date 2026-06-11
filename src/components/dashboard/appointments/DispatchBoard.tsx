@@ -61,6 +61,7 @@ import {
   listOverdueDispatchOrders,
   PROMISE_BUSINESS_HOURS_LABEL,
   validatePromiseDateAndTime,
+  formatDispatchPromiseClock,
 } from '../../../lib/dispatchPromiseTime';
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
 import { DispatchOverdueAlert } from './DispatchOverdueAlert';
@@ -1221,6 +1222,73 @@ export function DispatchBoard({
     );
   };
 
+  const renderTechDisplayCard = (ro: DispatchRepairOrder) => {
+    const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
+    const promiseClock = formatDispatchPromiseClock(ro.promiseTimeAt);
+    const lastName = displayCustomerLastName(ro);
+
+    return (
+      <div
+        key={ro.id}
+        className={cn(
+          'bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 select-none space-y-1',
+          promiseState?.urgency === 'overdue' && 'ring-1 ring-rose-500/45'
+        )}
+      >
+        <span className="text-[11px] font-black text-white tabular-nums leading-none block">
+          {ro.roNumber}
+        </span>
+        <p className="text-[10px] font-bold text-slate-200 uppercase truncate leading-tight">
+          {lastName}
+        </p>
+        {(ro.isWaiting || ro.isPdl) && (
+          <div className="flex flex-wrap gap-1">
+            {ro.isWaiting ? (
+              <span
+                className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: DISPATCH_INTAKE_FLAG_STYLES.waiting.bg,
+                  color: DISPATCH_INTAKE_FLAG_STYLES.waiting.text,
+                }}
+              >
+                Waiting
+              </span>
+            ) : null}
+            {ro.isPdl ? (
+              <span
+                className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: DISPATCH_INTAKE_FLAG_STYLES.pdl.bg,
+                  color: DISPATCH_INTAKE_FLAG_STYLES.pdl.text,
+                }}
+              >
+                PDL
+              </span>
+            ) : null}
+          </div>
+        )}
+        {ro.tagNumber ? (
+          <p className="text-[9px] font-semibold text-slate-400 uppercase tabular-nums leading-tight">
+            Tag {ro.tagNumber}
+          </p>
+        ) : null}
+        {promiseClock ? (
+          <p
+            className={cn(
+              'text-[9px] font-bold leading-tight',
+              promiseState?.urgency === 'overdue' && 'text-rose-400',
+              promiseState?.urgency === 'urgent' && 'text-orange-400',
+              promiseState?.urgency === 'soon' && 'text-amber-400',
+              promiseState?.urgency === 'ok' && 'text-slate-400'
+            )}
+          >
+            Promise {promiseClock}
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderDisplayCard = (ro: DispatchRepairOrder) => {
     const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const overnight = isOvernightRo(ro, businessDatePst);
@@ -1987,7 +2055,7 @@ export function DispatchBoard({
         <DispatchTechDisplay
           roster={dispatchTechRoster}
           activeOrders={activeTickets}
-          renderCard={renderDisplayCard}
+          renderCard={renderTechDisplayCard}
           onClose={closeTechDisplayMode}
           showExit={showTvExit}
         />
