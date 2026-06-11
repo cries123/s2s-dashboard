@@ -1223,6 +1223,7 @@ export function DispatchBoard({
   };
 
   const renderTechDisplayCard = (ro: DispatchRepairOrder) => {
+    const statusInfo = DISPATCH_STATUS_COLORS[ro.status] || DISPATCH_STATUS_COLORS.WIP;
     const promiseState = getPromiseTimeState(ro.promiseTimeAt, promiseNowMs);
     const promiseClock = formatDispatchPromiseClock(ro.promiseTimeAt);
     const lastName = displayCustomerLastName(ro);
@@ -1230,14 +1231,28 @@ export function DispatchBoard({
     return (
       <div
         key={ro.id}
+        style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
         className={cn(
           'bg-slate-900/90 border border-slate-800 rounded-lg px-2 py-1.5 select-none space-y-1',
           promiseState?.urgency === 'overdue' && 'ring-1 ring-rose-500/45'
         )}
       >
-        <span className="text-[11px] font-black text-white tabular-nums leading-none block">
-          {ro.roNumber}
-        </span>
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[11px] font-black text-white tabular-nums leading-none">
+            {ro.roNumber}
+          </span>
+          <span
+            className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 border"
+            style={{
+              color: statusInfo.hex,
+              borderColor: `${statusInfo.hex}66`,
+              backgroundColor: `${statusInfo.hex}18`,
+            }}
+            title={statusInfo.label}
+          >
+            {ro.status}
+          </span>
+        </div>
         <p className="text-[10px] font-bold text-slate-200 uppercase truncate leading-tight">
           {lastName}
         </p>
