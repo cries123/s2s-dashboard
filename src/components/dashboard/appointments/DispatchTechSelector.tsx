@@ -151,17 +151,30 @@ export function DispatchTechSelector({
         className={cn(
           'w-full text-left rounded border transition-colors',
           compact
-            ? 'px-1.5 py-1 bg-slate-950/40 border-slate-800/50 hover:border-indigo-500/40'
+            ? 'px-1.5 py-0.5 bg-slate-950/40 border-slate-800/50 hover:border-indigo-500/40'
             : 'px-2 py-1.5 bg-slate-950/50 border-slate-800/60 hover:border-indigo-500/40 hover:bg-indigo-950/20'
         )}
       >
-        <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold flex items-center gap-1">
-          <Wrench size={9} className="text-indigo-400/80" />
-          Assigned tech
+        <span
+          className={cn(
+            'text-slate-500 block uppercase tracking-wider font-bold flex items-center gap-1',
+            compact ? 'text-[8px]' : 'text-[9px]'
+          )}
+        >
+          <Wrench size={compact ? 8 : 9} className="text-indigo-400/80 shrink-0" />
+          {compact ? 'Tech' : 'Assigned tech'}
         </span>
-        <span className="text-slate-200 font-medium block mt-0.5 truncate flex items-center justify-between gap-1">
+        <span
+          className={cn(
+            'text-slate-200 font-medium block truncate flex items-center justify-between gap-0.5',
+            compact ? 'text-[10px] mt-0' : 'text-[11px] mt-0.5'
+          )}
+        >
           <span className="truncate">{displayLabel}</span>
-          <ChevronDown size={12} className={cn('shrink-0 text-slate-500 transition-transform', open && 'rotate-180')} />
+          <ChevronDown
+            size={compact ? 10 : 12}
+            className={cn('shrink-0 text-slate-500 transition-transform', open && 'rotate-180')}
+          />
         </span>
       </button>
 

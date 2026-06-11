@@ -1426,14 +1426,6 @@ export function DispatchBoard({
               {vehicleLabel ? (
                 <p className="text-xs text-slate-400 truncate">{vehicleLabel}</p>
               ) : null}
-              {ro.concern ? (
-                <p className="text-[10px] text-slate-400 mt-1 line-clamp-2 leading-snug" title={ro.concern}>
-                  <span className="text-[8px] font-black uppercase tracking-wider text-slate-600 mr-1">
-                    Concern
-                  </span>
-                  {ro.concern}
-                </p>
-              ) : null}
               <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 group-hover:text-indigo-400/80 mt-1">
                 Tap to edit
               </p>
@@ -1509,6 +1501,17 @@ export function DispatchBoard({
           </div>
         </div>
 
+        {ro.concern ? (
+          <div className="rounded-lg border border-sky-500/25 bg-sky-950/25 px-3 py-2">
+            <p className="text-[9px] font-black uppercase tracking-wider text-sky-300/90 mb-1">
+              Concern
+            </p>
+            <p className="text-xs font-medium text-slate-100 leading-relaxed break-words">
+              {ro.concern}
+            </p>
+          </div>
+        ) : null}
+
         {factChips.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
             {factChips.map((chip) => (
@@ -1526,24 +1529,25 @@ export function DispatchBoard({
         ) : null}
 
         <div
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs"
+          className="grid grid-cols-1 sm:grid-cols-[minmax(0,9.5rem)_1fr] gap-2 items-start text-xs"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <div className="bg-slate-950/30 p-2.5 rounded-lg border border-slate-800/40">
+          <div className="rounded-lg border border-slate-800/40 bg-slate-950/30 px-1.5 py-1.5 self-start w-full max-w-[9.5rem]">
             <DispatchTechSelector
               techNumber={ro.techNumber}
               roster={dispatchTechRoster}
               techRoCounts={techRoCounts}
               onSelect={(techId) => handleUpdateTech(ro, techId)}
+              compact
             />
-            <span className="text-slate-400 text-[10px] block truncate mt-1.5">
-              Lane: {dispatchLaneLabel(ro.department)}
+            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500 block truncate mt-1 px-0.5">
+              {dispatchLaneLabel(ro.department)}
             </span>
           </div>
 
-          <div className="bg-slate-950/30 p-2.5 rounded-lg border border-slate-800/40 space-y-2">
+          <div className="bg-slate-950/30 p-2 rounded-lg border border-slate-800/40 space-y-1.5 min-w-0">
             <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">
               Promise time
             </span>
