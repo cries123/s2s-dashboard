@@ -1026,7 +1026,16 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: [
+          '.cursorvm.com',
+          '.agent.cvm.dev',
+          '.trycloudflare.com',
+          '.loca.lt',
+          'localhost',
+        ],
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
