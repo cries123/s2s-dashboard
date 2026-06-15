@@ -2,16 +2,81 @@ import { Timestamp } from "firebase/firestore";
 
 export type Role = 'admin' | 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
+export type UserRole = 'admin' | 'manager' | 'advisor' | 'pending';
+export type UserDepartment = 'sales' | 'service';
+
+export type LandingTab =
+  | 'service-drive'
+  | 'appointments'
+  | 'alerts'
+  | 'search'
+  | 'add'
+  | 'dispatch'
+  | 'forecast'
+  | 'sales-performance'
+  | 'pot-of-gold'
+  | 'vin-search'
+  | 'admin'
+  | 'settings';
+
+export type ServiceDriveFilter = 'all' | 'service_due' | 'stale_followup';
+export type QueuePriorityProfile = 'balanced' | 'overdue_first' | 'never_contacted_first';
+export type CrmDensity = 'compact' | 'standard';
+
+export interface UserPreferences {
+  serviceDrive: {
+    openOnLogin: boolean;
+    defaultLandingTab: LandingTab;
+    defaultFilter: ServiceDriveFilter;
+    queuePriority: QueuePriorityProfile;
+  };
+  contactWorkflow: {
+    followUpDays: number;
+    defaultOutcome: string;
+    autoCheckAppointmentSet: boolean;
+  };
+  dashboardModules: {
+    showWeatherWidget: boolean;
+    showOperationsKpis: boolean;
+    showOperationsProjections: boolean;
+    showAdvisorPerformance: boolean;
+    showTechEfficiency: boolean;
+    showArchiveTools: boolean;
+    showForecastTab: boolean;
+    showSalesPerformanceTab: boolean;
+    showVinSearchTab: boolean;
+    showPotOfGoldTab: boolean;
+  };
+  crmDisplay: {
+    density: CrmDensity;
+    defaultLanguageFilter: string;
+    alertsOnlyDefault: boolean;
+  };
+}
+
+/** Applied to newly approved staff when no role template overrides. */
+export interface StoreWorkspaceDefaults {
+  followUpDays?: number;
+  crmDensity?: CrmDensity;
+  defaultLandingTab?: LandingTab;
+  dashboardModules?: Partial<UserPreferences['dashboardModules']>;
+}
+
+export type StaffRoleTemplateId = 'service-advisor' | 'bdc' | 'sales';
 
 export interface User {
   uid: string;
   email: string;
   username: string;
-  role: Role;
+  role: Role | UserRole;
   jobTitle: string;
   status: UserStatus;
   dealershipId?: string;
+  tenantId?: string;
+  department?: UserDepartment;
   isManager?: boolean;
+  approved?: boolean;
+  preferences?: Partial<UserPreferences>;
   createdAt?: Timestamp;
 }
 
@@ -94,6 +159,8 @@ export interface DealershipSettings {
   dispatchMidnightSweep?: DispatchMidnightSweepConfig;
   /** Last successful / failed DMS PDF imports (admin import health). */
   dmsImportHealth?: DmsImportHealth;
+  /** Defaults merged into new staff preferences on approval. */
+  storeWorkspaceDefaults?: StoreWorkspaceDefaults;
   updatedAt: Timestamp;
 }
 

@@ -88,9 +88,9 @@ function mergeCrm(
 
 export function mergeUserPreferences(
   stored: Partial<UserPreferences> | undefined,
-  role?: Role
+  role?: Role | 'advisor'
 ): UserPreferences {
-  const base = getRoleAwareDefaults(role);
+  const base = getRoleAwareDefaults(role === 'advisor' ? undefined : role);
   if (!stored) return base;
 
   return {

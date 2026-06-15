@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import {
   Users,
@@ -30,6 +30,9 @@ import {
   masterPermissionFromUser,
   type MasterPermissionRole,
 } from '../../../lib/rbac';
+import { preferencesFromTemplate, getStaffRoleTemplate } from '../../../lib/roleTemplates';
+import { StaffRoleTemplatePicker } from './StaffRoleTemplatePicker';
+import type { StaffRoleTemplateId, StoreWorkspaceDefaults } from '../../../types';
 import { subscribeTenantUsers } from '../../../lib/userDirectory';
 import { logSystemAction } from '../../../services/loggingService';
 import { useAuth } from '../../../hooks/useAuth';
@@ -80,7 +83,33 @@ export function MasterUserSettings({
   const [jobTitleDraft, setJobTitleDraft] = useState('');
   const [tenantDraft, setTenantDraft] = useState('');
   const [permissionDraft, setPermissionDraft] = useState<MasterPermissionRole>('advisor-service');
+  const [approvalTemplate, setApprovalTemplate] = useState<StaffRoleTemplateId>('service-advisor');
+  const [storeDefaultsByDealership, setStoreDefaultsByDealership] = useState<
+    Record<string, StoreWorkspaceDefaults>
+  >({});
   const [confirmDeleteUid, setConfirmDeleteUid] = useState<string | null>(null);
+
+  useEffect(() => {
+    const settingsRef = collection(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'dealershipSettings'
+    );
+    const unsub = onSnapshot(settingsRef, (snap) => {
+      const next: Record<string, StoreWorkspaceDefaults> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.storeWorkspaceDefaults) {
+          next[d.id] = data.storeWorkspaceDefaults as StoreWorkspaceDefaults;
+        }
+      });
+      setStoreDefaultsByDealership(next);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     setTenantFilter(scopeTenantId || 'all');
@@ -275,12 +304,38 @@ export function MasterUserSettings({
       notify('You do not have permission to approve this account.', true);
       return;
     }
+    setSaving(true);
     try {
+      const template = getStaffRoleTemplate(approvalTemplate);
+      const dealershipId =
+        target.dealershipId ||
+        dealershipIdFromTenantId(scopeTenantId || target.tenantId) ||
+        'hyundai';
+      const prefs = preferencesFromTemplate(
+        approvalTemplate,
+        storeDefaultsByDealership[dealershipId]
+      );
       const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid);
-      await updateDoc(userRef, buildUserApprovalPatch(target, 'approved'));
-      notify(`${target.username} approved.`);
+      await updateDoc(userRef, {
+        ...buildUserApprovalPatch(target, 'approved'),
+        ...buildMasterPermissionPatch(template.permission),
+        jobTitle: template.jobTitle,
+        department: template.permission === 'advisor-sales' ? 'sales' : 'service',
+        preferences: prefs,
+      });
+      await logSystemAction(
+        'Enrollment Approved',
+        `Approved ${target.username} as ${template.label} with workspace template`,
+        'settings',
+        currentUser.email,
+        currentUser.username,
+        dealershipId
+      );
+      notify(`${target.username} approved as ${template.label}.`);
     } catch {
       notify('Failed to approve user.', true);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -520,6 +575,14 @@ export function MasterUserSettings({
                   </select>
                 </div>
               </div>
+
+              {isPendingUser(selectedUser) && canEditTarget(selectedUser) && (
+                <StaffRoleTemplatePicker
+                  value={approvalTemplate}
+                  onChange={setApprovalTemplate}
+                  disabled={saving}
+                />
+              )}
 
               <div className="flex flex-wrap gap-2 pt-2">
                 <button

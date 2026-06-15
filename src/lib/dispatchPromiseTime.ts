@@ -199,3 +199,38 @@ export function defaultPromiseFromHours(
   const iso = promiseTimeMinutesFromNow(hoursFromNow * 60, businessHours);
   return splitPromiseTimeIso(iso);
 }
+
+export type PromisePresetId = '2h' | '4h' | '6h' | 'eod';
+
+export const PROMISE_PRESETS: { id: PromisePresetId; label: string }[] = [
+  { id: '2h', label: '2h' },
+  { id: '4h', label: '4h' },
+  { id: '6h', label: '6h' },
+  { id: 'eod', label: 'EOD' },
+];
+
+export function promiseIsoFromPreset(
+  preset: PromisePresetId,
+  businessHours?: { open?: string; close?: string },
+  now = new Date()
+): string {
+  if (preset === 'eod') {
+    const closeParts = (businessHours?.close ?? PROMISE_TIME_MAX).split(':').map(Number);
+    const eod = new Date(now);
+    eod.setHours(closeParts[0], closeParts[1] ?? 0, 0, 0);
+    if (eod.getTime() <= now.getTime()) {
+      eod.setDate(eod.getDate() + 1);
+    }
+    return eod.toISOString();
+  }
+  const hours = preset === '2h' ? 2 : preset === '4h' ? 4 : 6;
+  return promiseTimeMinutesFromNow(hours * 60, businessHours);
+}
+
+export function countOverdueOrders(
+  orders: DispatchRepairOrder[],
+  nowMs: number = Date.now(),
+  options?: PromiseTimeOptions
+): number {
+  return listOverdueDispatchOrders(orders, nowMs, options).length;
+}

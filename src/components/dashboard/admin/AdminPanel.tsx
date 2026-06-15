@@ -41,6 +41,8 @@ import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings
 import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
 import { DmsImportHealthPanel } from './DmsImportHealthPanel';
 import { ManagerOperationsConfig } from './ManagerOperationsConfig';
+import { StoreWorkspaceDefaultsSettings } from './StoreWorkspaceDefaultsSettings';
+import { ManagerPermissionsMatrix } from './ManagerPermissionsMatrix';
 import type { DealershipAnnouncement } from '../../../types';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
@@ -791,6 +793,13 @@ export default function AdminPanel({
                           settings={dealershipSettings[d.id] ?? {}}
                           onUpdate={(patch) => updateSetting(d.id, patch)}
                         />
+
+                        <StoreWorkspaceDefaultsSettings
+                          defaults={dealershipSettings[d.id]?.storeWorkspaceDefaults ?? {}}
+                          onChange={(patch) => updateSetting(d.id, patch)}
+                        />
+
+                        <ManagerPermissionsMatrix />
 
                         {/* DMS Configuration */}
                         <div className="space-y-3">

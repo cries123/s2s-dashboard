@@ -1,10 +1,11 @@
 import React from 'react';
-import { CheckCircle2, Plus, RefreshCw, UserSearch } from 'lucide-react';
+import { CheckCircle2, Plus, RefreshCw, UserSearch, Clock } from 'lucide-react';
 import { Customer } from '../../../types';
 import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
 import type { DispatchStatus, PerformanceAdvisorSlot } from '../../../types';
 import { DispatchPromiseTimeInput } from './DispatchPromiseTimeInput';
 import { normalizeTechNumber, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
+import { PROMISE_PRESETS, type PromisePresetId } from '../../../lib/dispatchPromiseTime';
 
 interface DispatchIntakeFormProps {
   customerFirstName: string;
@@ -32,6 +33,7 @@ interface DispatchIntakeFormProps {
   promiseTime: string;
   setPromiseTime: (v: string) => void;
   promiseTimeError: string | null;
+  onApplyPromisePreset?: (preset: PromisePresetId) => void;
   submitting: boolean;
   selectedCustomer: Customer | null;
   setSelectedCustomer: (c: Customer | null) => void;
@@ -69,6 +71,7 @@ export function DispatchIntakeForm({
   promiseTime,
   setPromiseTime,
   promiseTimeError,
+  onApplyPromisePreset,
   submitting,
   selectedCustomer,
   setSelectedCustomer,
@@ -261,6 +264,21 @@ export function DispatchIntakeForm({
         <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
           Promise Time <span className="text-slate-600 font-bold normal-case tracking-normal">(optional)</span>
         </label>
+        {onApplyPromisePreset ? (
+          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+            <Clock size={11} className="text-indigo-400/80 shrink-0" />
+            {PROMISE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => onApplyPromisePreset(preset.id)}
+                className="px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-950/80 text-[9px] font-black uppercase text-slate-400 hover:text-white hover:border-indigo-500/40 transition-colors"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <DispatchPromiseTimeInput
           date={promiseDate}
           time={promiseTime}

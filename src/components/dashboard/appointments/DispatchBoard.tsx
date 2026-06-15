@@ -45,6 +45,7 @@ import {
 import { DispatchMetricsBar } from './DispatchMetricsBar';
 import { DispatchMobileBoard, type MobileDispatchTab } from './DispatchMobileBoard';
 import { DispatchIntakeForm, DispatchIntakePanel } from './DispatchIntakeForm';
+import { DispatchEndOfDayReport } from './DispatchEndOfDayReport';
 import { DispatchRoSearch } from './DispatchRoSearch';
 import {
   appointmentTrackerDoc,
@@ -74,7 +75,11 @@ import {
   validatePromiseDateAndTime,
   formatDispatchPromiseClock,
   defaultPromiseFromHours,
+  promiseIsoFromPreset,
+  splitPromiseTimeIso,
+  type PromisePresetId,
 } from '../../../lib/dispatchPromiseTime';
+import { DEALERSHIPS } from '../../../constants';
 import { DispatchPromiseCountdown } from './DispatchPromiseCountdown';
 import { DispatchOverdueAlert } from './DispatchOverdueAlert';
 import { DispatchRoEditModal, type DispatchRoEditValues } from './DispatchRoEditModal';
@@ -83,7 +88,7 @@ import { CardPromiseTimeEditor } from './CardPromiseTimeEditor';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  Check, Wrench, Monitor, X, Inbox, MapPin, Moon, Pencil
+  Check, Wrench, Monitor, X, Inbox, MapPin, Moon, Pencil, FileText
 } from 'lucide-react';
 
 function playQueueAlert() {
@@ -233,6 +238,7 @@ export function DispatchBoard({
   const [promiseDate, setPromiseDate] = useState('');
   const [promiseTime, setPromiseTime] = useState('');
   const [promiseTimeError, setPromiseTimeError] = useState<string | null>(null);
+  const [showEndOfDayReport, setShowEndOfDayReport] = useState(false);
   const [promiseNowMs, setPromiseNowMs] = useState(() => Date.now());
   const [concern, setConcern] = useState('');
   const [sweepConfirmOpen, setSweepConfirmOpen] = useState(false);
@@ -249,6 +255,23 @@ export function DispatchBoard({
     (laneId: DepartmentColumnId) => dispatchLaneLabel(laneId, laneCustomization),
     [laneCustomization]
   );
+
+  const applyPromisePreset = useCallback(
+    (preset: PromisePresetId) => {
+      const iso = promiseIsoFromPreset(preset, {
+        open: promiseDefaults.businessHoursOpen,
+        close: promiseDefaults.businessHoursClose,
+      });
+      const { date, time } = splitPromiseTimeIso(iso);
+      setPromiseDate(date);
+      setPromiseTime(time);
+      setPromiseTimeError(null);
+    },
+    [promiseDefaults.businessHoursOpen, promiseDefaults.businessHoursClose]
+  );
+
+  const dealershipName =
+    DEALERSHIPS.find((d) => d.id === currentDealershipId)?.name || currentDealershipId || 'Dealership';
   const carryoverSweepInFlightRef = useRef(false);
   const ordersRef = useRef(orders);
   ordersRef.current = orders;
@@ -1765,6 +1788,7 @@ export function DispatchBoard({
         if (promiseTimeError) setPromiseTimeError(null);
       }}
       promiseTimeError={promiseTimeError}
+      onApplyPromisePreset={applyPromisePreset}
       submitting={submitting}
       selectedCustomer={selectedCustomer}
       setSelectedCustomer={setSelectedCustomer}
@@ -1779,6 +1803,15 @@ export function DispatchBoard({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-slate-200">
+      {showEndOfDayReport ? (
+        <DispatchEndOfDayReport
+          dealershipName={dealershipName}
+          businessDate={businessDatePst}
+          orders={orders}
+          overdueGraceMinutes={overdueRules.graceMinutes}
+          onClose={() => setShowEndOfDayReport(false)}
+        />
+      ) : null}
       {isPreviewMode && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-[11px] text-amber-100">
           <span className="font-black uppercase tracking-wider text-amber-300">Preview mode</span>
@@ -1844,6 +1877,16 @@ export function DispatchBoard({
           >
             <Users size={13} />
             <span>Tech Display</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowEndOfDayReport(true)}
+            disabled={loading}
+            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/40 disabled:opacity-40"
+          >
+            <FileText size={13} />
+            <span>End of day</span>
           </button>
 
           <button 
