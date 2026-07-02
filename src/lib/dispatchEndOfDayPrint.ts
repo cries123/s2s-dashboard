@@ -20,6 +20,14 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function formatCustomerLabel(name: string): string {
+  if (!name || name === '—') return '—';
+  return name
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 function buildPrintHtml(payload: DispatchEodPrintPayload): string {
   const metricTiles = payload.metrics
     .map(
@@ -39,7 +47,7 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
             (row, index) => `
           <tr class="${index % 2 === 0 ? 'row-even' : 'row-odd'}">
             <td class="ro">RO ${escapeHtml(row.roNumber)}</td>
-            <td class="customer">${escapeHtml(row.customer)}</td>
+            <td class="customer">${escapeHtml(formatCustomerLabel(row.customer))}</td>
             <td class="detail">${escapeHtml(row.detail)}</td>
           </tr>
         `
@@ -51,6 +59,11 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
     payload.downInShopRows.length > 0
       ? `
         <table class="ro-table">
+          <colgroup>
+            <col class="col-ro" />
+            <col class="col-customer" />
+            <col class="col-detail" />
+          </colgroup>
           <thead>
             <tr>
               <th>Repair order</th>
@@ -62,9 +75,11 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
             ${rowsHtml}
           </tbody>
         </table>
-        <p class="footer-note">${payload.downInShopRows.length} vehicle${
+        <div class="footer-note">
+          Total: ${payload.downInShopRows.length} vehicle${
           payload.downInShopRows.length === 1 ? '' : 's'
-        } down in shop at close.</p>
+        } down in shop at close.
+        </div>
       `
       : `<p class="empty">No vehicles down in shop at close.</p>`;
 
@@ -77,7 +92,7 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
     <style>
       @page {
         size: letter portrait;
-        margin: 0.45in;
+        margin: 0.55in 0.6in 0.7in 0.6in;
       }
 
       html, body {
@@ -91,16 +106,17 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
 
       body {
         font-family: "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
-        font-size: 11px;
-        line-height: 1.35;
+        font-size: 10px;
+        line-height: 1.4;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
 
       .report {
         width: 100%;
-        max-width: 7.5in;
-        margin: 0 auto;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
       }
 
       .header {
@@ -205,10 +221,16 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
 
       .ro-table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
         border: 1px solid #cbd5e1;
-        font-size: 10px;
+        font-size: 9.5px;
+        margin-bottom: 0.12in;
       }
+
+      .col-ro { width: 21%; }
+      .col-customer { width: 39%; }
+      .col-detail { width: 40%; }
 
       .ro-table thead {
         display: table-header-group;
@@ -218,51 +240,48 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
         background: #0f172a;
         color: #fff;
         text-align: left;
-        font-size: 8px;
+        font-size: 7.5px;
         font-weight: 800;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        padding: 8px 10px;
+        padding: 7px 8px;
       }
 
       .ro-table td {
-        padding: 7px 10px;
+        padding: 5px 8px;
         border-bottom: 1px solid #e2e8f0;
         vertical-align: top;
-      }
-
-      .ro-table tr {
-        page-break-inside: avoid;
-        break-inside: avoid-page;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       }
 
       .row-even { background: #fff; }
       .row-odd { background: #f8fafc; }
 
       .ro {
-        width: 18%;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
-        white-space: nowrap;
+        padding-right: 4px;
       }
 
       .customer {
-        width: 42%;
         font-weight: 700;
+        padding-right: 6px;
       }
 
       .detail {
-        width: 40%;
         color: #475569;
+        padding-right: 4px;
       }
 
       .empty, .footer-note {
-        margin: 0;
         font-size: 10px;
-        color: #64748b;
+        color: #475569;
       }
 
       .empty {
+        margin: 0;
         padding: 20px;
         text-align: center;
         border: 1px dashed #cbd5e1;
@@ -270,10 +289,17 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
       }
 
       .footer-note {
-        margin-top: 10px;
+        margin: 0.14in 0 0;
+        padding: 8px 4px 0;
         font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
+        page-break-inside: avoid;
+        break-inside: avoid-page;
+      }
+
+      @media screen {
+        body {
+          padding: 20px;
+        }
       }
 
       @media print {
@@ -285,6 +311,13 @@ function buildPrintHtml(payload: DispatchEodPrintPayload): string {
 
         .report {
           max-width: none;
+          padding: 0;
+        }
+
+        .ro-table td,
+        .ro-table th {
+          padding-top: 4px;
+          padding-bottom: 4px;
         }
       }
     </style>
