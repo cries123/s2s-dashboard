@@ -1803,6 +1803,7 @@ export function DispatchBoard({
           orders={orders}
           overdueGraceMinutes={overdueRules.graceMinutes}
           onClose={() => setShowEndOfDayReport(false)}
+          onNotify={showNotification}
         />
       ) : null}
       {isPreviewMode && (
