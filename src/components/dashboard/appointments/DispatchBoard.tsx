@@ -873,14 +873,7 @@ export function DispatchBoard({
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', newRoId);
 
       let crmMatch = selectedCustomer;
-      if (!crmMatch && matchCandidates.length === 1) {
-        crmMatch = matchCandidates[0];
-      }
-      if (!crmMatch && matchCandidates.length > 1) {
-        showNotification?.('Multiple CRM matches — select a customer below before queueing.', true);
-        setSubmitting(false);
-        return;
-      }
+      // CRM suggestions are optional — only link when the user explicitly picks a match.
 
       const fn = customerFirstName.trim();
       const vin = vinLastEight.trim().toUpperCase();
@@ -2318,7 +2311,7 @@ export function DispatchBoard({
                         {cap > 0 ? `${list.length}/${cap}` : list.length}
                       </span>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-1.5 space-y-1.5">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-1.5 space-y-1.5">
                       {list.length === 0 ? (
                         <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-4 px-1">
                           —

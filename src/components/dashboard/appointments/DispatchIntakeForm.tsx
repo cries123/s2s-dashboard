@@ -142,9 +142,12 @@ export function DispatchIntakeForm({
       {customerLastName.trim().length > 0 && matchCandidates.length > 0 && !selectedCustomer && (
         <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 overflow-hidden">
           <p className="text-[8px] font-black uppercase tracking-widest text-slate-600 px-3 py-1.5 border-b border-slate-800/60">
-            CRM matches
+            CRM matches <span className="text-slate-500 font-bold normal-case tracking-normal">(optional)</span>
           </p>
-          <div className="max-h-28 overflow-y-auto p-1.5 space-y-1">
+          <p className="text-[9px] text-slate-500 px-3 py-1.5 border-b border-slate-800/40">
+            Tap a match to link vehicle info, or queue with the name you typed.
+          </p>
+          <div className="max-h-28 overflow-y-auto no-scrollbar p-1.5 space-y-1">
             {matchCandidates.slice(0, 6).map((cust) => (
               <button
                 key={cust.id}

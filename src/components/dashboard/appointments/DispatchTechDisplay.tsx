@@ -113,7 +113,7 @@ export function DispatchTechDisplay({
                         </span>
                       </div>
                     </div>
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-1 space-y-1">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-1 space-y-1">
                       {list.length === 0 ? (
                         <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-3">
                           —
@@ -149,7 +149,7 @@ export function DispatchTechDisplay({
               {downInShopOrders.length}
             </span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto p-2">
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-2">
             {downInShopOrders.length === 0 ? (
               <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-4">
                 No vehicles down in shop
