@@ -8,7 +8,6 @@ import {
   LucideIcon,
   Search,
   Shield,
-  ShieldAlert,
   TrendingUp,
   Trophy,
   UserPlus,
@@ -51,7 +50,7 @@ interface MobileBottomNavProps {
 
 const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
   sales: ['add', 'vin-search'],
-  service: ['search', 'alerts', 'dispatch', 'recalls'],
+  service: ['search', 'alerts', 'dispatch'],
   competitions: ['pot-of-gold'],
   reports: ['appointments', 'forecast', 'sales-performance'],
   manager: ['manager'],
@@ -75,7 +74,6 @@ const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   search: Search,
   alerts: Bell,
   dispatch: Layers,
-  recalls: ShieldAlert,
   'pot-of-gold': Trophy,
   appointments: Calendar,
   'sales-performance': BarChart2,

@@ -5,6 +5,21 @@ export interface DailyCountStat {
   count: number;
 }
 
+/** True when at least one scheduled volume entry exists for the current month. */
+export function hasCurrentMonthAppointmentVolume(
+  stats: DailyCountStat[],
+  referenceDate = new Date()
+): boolean {
+  const currentMonth = referenceDate.getMonth();
+  const currentYear = referenceDate.getFullYear();
+
+  return stats.some((s) => {
+    if ((s.count || 0) <= 0) return false;
+    const d = new Date(`${s.date}T00:00:00`);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+}
+
 /**
  * Merge unsaved daily volume entry into tracker stats so forecast/grid reflect
  * what the user is typing before they click save.

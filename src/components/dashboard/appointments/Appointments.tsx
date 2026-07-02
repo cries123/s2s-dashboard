@@ -30,6 +30,7 @@ import {
   buildEffectiveAppointmentStats,
   calculateAppointmentForecast,
   forecastGoalPercent,
+  hasCurrentMonthAppointmentVolume,
 } from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 import { PageHeader } from '../../layout/PageHeader';
@@ -576,6 +577,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   };
 
   const metrics = calculateMetrics();
+  const hasForecastData = hasCurrentMonthAppointmentVolume(effectiveStats);
 
   const prevTargetRef = React.useRef(targetValue);
   useEffect(() => {
@@ -656,8 +658,16 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       <KpiStrip
         tiles={[
           { label: 'Appts MTD', value: metrics.monthTotal.toLocaleString() },
-          { label: 'Appt forecast', value: metrics.forecast.toLocaleString(), tone: 'info' },
-          { label: 'Labor gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}`, tone: 'success' },
+          {
+            label: 'Appt forecast',
+            value: hasForecastData ? metrics.forecast.toLocaleString() : '—',
+            tone: hasForecastData ? 'info' : undefined,
+          },
+          {
+            label: 'Labor gross MTD',
+            value: hasForecastData ? `$${Math.round(metrics.mtdGross).toLocaleString()}` : '—',
+            tone: hasForecastData ? 'success' : undefined,
+          },
           { label: 'Working days left', value: String(metrics.daysRemaining) },
         ]}
       />
@@ -673,7 +683,18 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </div>
 
           <div className="flex flex-col gap-4">
-            {[
+            {!hasForecastData ? (
+              <div
+                className="rounded-lg border border-dashed p-8 text-center"
+                style={{ borderColor: 'var(--color-surface-border)' }}
+              >
+                <p className="crm-section-title mb-2">No forecast yet</p>
+                <p className="text-sm text-slate-400 max-w-md mx-auto">
+                  Enter scheduled volume in daily entry to see month-end projections.
+                </p>
+              </div>
+            ) : (
+            [
               { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
               { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
               { label: 'Appointment volume', current: metrics.monthTotal, daily: Number(metrics.avgDaily), forecast: metrics.forecast, target: metrics.monthTarget, isCurrency: false },
@@ -715,7 +736,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                   <p className="crm-label mt-1.5 text-right">{completionPercent}% of monthly goal</p>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
 
