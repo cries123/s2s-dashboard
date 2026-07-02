@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { buildArchiveDestinationOptions } from '../../../lib/operationsViewPeriod';
+import { getPreviousArchiveMonthKey } from '../../../lib/operationsPayTypes';
 
 export interface ArchiveControlModalProps {
   isOpen: boolean;
@@ -29,11 +31,10 @@ export interface ArchiveControlModalProps {
 }
 
 export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArchive }: ArchiveControlModalProps) {
-  // Default to previous month since closing reports are always uploaded a day or two late
-  const [selectedPeriod, setSelectedPeriod] = useState('2026-05'); 
+  const archiveOptions = useMemo(() => buildArchiveDestinationOptions(), []);
+  const [selectedPeriod, setSelectedPeriod] = useState(() => getPreviousArchiveMonthKey());
 
   const handleCommitArchive = () => {
-    // Send data to backend with explicit period routing instructions
     const snapshot = currentData.rawValues || {
       laborSales: 0,
       laborGross: 0,
@@ -65,7 +66,6 @@ export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArc
           </p>
         </div>
 
-        {/* DATE SELECT PICKER INPUT */}
         <div className="space-y-1.5 bg-slate-950 p-3 rounded-lg border border-slate-800">
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
             Target Archive Period
@@ -75,13 +75,14 @@ export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArc
             onChange={(e) => setSelectedPeriod(e.target.value)}
             className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
-            <option value="2026-04">April 2026</option>
-            <option value="2026-05">May 2026 (Last Month Closeout)</option>
-            <option value="2026-06">June 2026 (Current Active Month)</option>
+            {archiveOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* DATA SUMMARY REVIEW */}
         <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 text-xs font-mono space-y-1 text-slate-400">
           <div className="flex justify-between">
             <span>TOTAL THROUGHPUT:</span> 
@@ -93,7 +94,6 @@ export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArc
           </div>
         </div>
 
-        {/* ACTIONS */}
         <div className="flex gap-2 pt-2">
           <button 
             onClick={onClose}

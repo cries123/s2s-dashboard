@@ -16,6 +16,8 @@ import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import {
   EMPTY_PERFORMANCE_TOTALS,
   performanceDocId,
+  formatArchiveMonthLabel,
+  formatArchiveDisplayLabel,
 } from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
@@ -570,9 +572,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       const hasTotals = !!data.totals;
       const archiveLabel =
         targetMonth !== 'active'
-          ? targetMonth === '2026-05'
-            ? 'May 2026 archive'
-            : `${targetMonth} archive`
+          ? `${formatArchiveMonthLabel(targetMonth)} archive`
           : 'active month';
 
       let message = `Saved ${saved.advisorCount} advisor(s) to ${archiveLabel}.`;
@@ -693,7 +693,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
           <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-              🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+              🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
             </span>
           </div>
         ) : (

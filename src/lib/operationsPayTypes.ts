@@ -311,12 +311,11 @@ export function performanceDocId(dealerId: string, month: string): string {
   return month === 'active' ? baseId : `${baseId}_archive_${month}`;
 }
 
-/** Previous calendar month archive key (e.g. June active → 2026-05). */
+/** Previous calendar month archive key (e.g. July active → 2026-06). */
 export function getPreviousArchiveMonthKey(referenceDate = new Date()): string {
   const d = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
   d.setMonth(d.getMonth() - 1);
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  return `${d.getFullYear()}-${month}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export function formatArchiveMonthLabel(monthKey: string): string {
