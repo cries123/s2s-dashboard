@@ -81,7 +81,7 @@ export function DispatchMetricsBar({
               .filter((row) => row.count > 0)
               .slice(0, 8)
               .map((row) => (
-                <TechWorkloadChip key={row.techId} lastName={row.lastName} count={row.count} />
+                <TechWorkloadChip key={row.techId} label={row.displayLabel} count={row.count} />
               ))}
           </div>
         ) : null}
@@ -151,7 +151,7 @@ export function DispatchMetricsBar({
           </p>
           <div className="flex flex-wrap gap-2">
             {techWorkload.map((row) => (
-              <TechWorkloadChip key={row.techId} lastName={row.lastName} count={row.count} />
+              <TechWorkloadChip key={row.techId} label={row.displayLabel} count={row.count} />
             ))}
           </div>
         </div>
@@ -183,7 +183,7 @@ export function DispatchMetricsBar({
   );
 }
 
-function TechWorkloadChip({ lastName, count }: { lastName: string; count: number }) {
+function TechWorkloadChip({ label, count }: { label: string; count: number }) {
   return (
     <span
       className={cn(
@@ -193,7 +193,7 @@ function TechWorkloadChip({ lastName, count }: { lastName: string; count: number
           : 'border-slate-800 bg-slate-950/80 text-slate-500'
       )}
     >
-      <span>{lastName}</span>
+      <span>{label}</span>
       <span className={cn('tabular-nums', count > 0 ? 'text-indigo-300' : 'text-slate-600')}>
         {count}
       </span>

@@ -18,9 +18,32 @@ export function techLastName(label: string): string {
   return parts.length > 1 ? parts[parts.length - 1]! : parts[0] ?? label;
 }
 
+function techNameParts(label: string): { first: string; lastInitial: string } {
+  const parts = label.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: label.trim(), lastInitial: '' };
+  if (parts.length === 1) return { first: parts[0]!, lastInitial: '' };
+  return {
+    first: parts[0]!,
+    lastInitial: parts[parts.length - 1]!.charAt(0).toUpperCase(),
+  };
+}
+
+/** First name on workload chips; last initial when first names collide (e.g. Daniel L / Daniel M). */
+export function techWorkloadChipLabel(label: string, rosterLabels: string[]): string {
+  const { first, lastInitial } = techNameParts(label);
+  const firstCounts = new Map<string, number>();
+  for (const rowLabel of rosterLabels) {
+    const key = techNameParts(rowLabel).first.toLowerCase();
+    firstCounts.set(key, (firstCounts.get(key) ?? 0) + 1);
+  }
+  const needsInitial = (firstCounts.get(first.toLowerCase()) ?? 0) > 1;
+  if (needsInitial && lastInitial) return `${first} ${lastInitial}`;
+  return first;
+}
+
 export interface TechWorkloadRow {
   techId: string;
-  lastName: string;
+  displayLabel: string;
   count: number;
 }
 
@@ -29,13 +52,14 @@ export function buildTechWorkloadSummary(
   roster: PerformanceAdvisorSlot[],
   techRoCounts: Map<string, number>
 ): TechWorkloadRow[] {
+  const labels = roster.map((row) => row.label);
   return roster
     .map((row) => ({
       techId: row.id,
-      lastName: techLastName(row.label),
+      displayLabel: techWorkloadChipLabel(row.label, labels),
       count: techRoCounts.get(normalizeTechNumber(row.id)) ?? 0,
     }))
-    .sort((a, b) => b.count - a.count || a.lastName.localeCompare(b.lastName));
+    .sort((a, b) => b.count - a.count || a.displayLabel.localeCompare(b.displayLabel));
 }
 
 /** Active (incomplete) RO count per normalized tech number. */
