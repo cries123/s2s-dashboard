@@ -171,14 +171,6 @@ export function DealershipAdvancedSettings({
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <FeatureToggle
-            label="Bundle menus (TV)"
-            description="Service bundle menu board in sidebar (default: Hyundai only)"
-            enabled={s.enableBundleMenus ?? dealershipId === 'hyundai'}
-            onToggle={() =>
-              navToggle('enableBundleMenus', s.enableBundleMenus ?? dealershipId === 'hyundai')
-            }
-          />
-          <FeatureToggle
             label="Pot of Gold"
             description="Competition tab in header"
             enabled={s.enablePotOfGoldTab !== false}

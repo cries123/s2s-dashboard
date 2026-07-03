@@ -942,38 +942,6 @@ export default function AdminPanel({
                             </button>
                           </div>
 
-                          <div className="flex items-center justify-between p-3.5 bg-slate-950/80 rounded-xl border border-white/5 shadow-inner">
-                            <div className="space-y-0.5 pr-2">
-                              <span className="text-xs font-black text-white uppercase tracking-wide block">Bundle Menus (TV)</span>
-                              <span className="text-[10px] text-slate-400 font-medium leading-normal block">
-                                Show the service bundle menu board in the sidebar. On by default for Hyundai only.
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentVal =
-                                  dealershipSettings[d.id]?.enableBundleMenus ?? d.id === 'hyundai';
-                                updateSetting(d.id, { enableBundleMenus: !currentVal });
-                              }}
-                              className={cn(
-                                'w-11 h-6 rounded-full transition-colors relative focus:outline-none shrink-0',
-                                (dealershipSettings[d.id]?.enableBundleMenus ?? d.id === 'hyundai')
-                                  ? 'bg-brand-primary'
-                                  : 'bg-slate-800'
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
-                                  (dealershipSettings[d.id]?.enableBundleMenus ?? d.id === 'hyundai')
-                                    ? 'translate-x-5'
-                                    : 'translate-x-0'
-                                )}
-                              />
-                            </button>
-                          </div>
-
                           {/* Dispatch lane capacity */}
                           <div className="space-y-3 pt-3 border-t border-white/5">
                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Dispatch Lane Capacity</label>

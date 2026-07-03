@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2, ShieldAlert
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -29,8 +29,6 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
-import { RecallsPage } from './components/dashboard/customers/RecallsPage';
-import { ServiceBundleMenuBoard } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { ServiceAlertProvider } from './context/ServiceAlertContext';
@@ -262,7 +260,6 @@ function DashboardShell({ user }: { user: User }) {
     currentDealershipId || 'hyundai',
     dealershipSettings
   );
-  const bundleMenusEnabled = mergedDealershipSettings.enableBundleMenus;
 
   const handleSidebarNavigate = React.useCallback((item: SidebarNavItem) => {
     setActiveTab(item.tab);
@@ -285,7 +282,6 @@ function DashboardShell({ user }: { user: User }) {
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
-    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(currentDealershipId === 'hyundai' && modules.showPotOfGoldTab
       ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }]
       : []),
@@ -312,17 +308,11 @@ function DashboardShell({ user }: { user: User }) {
   // If current activeTab is hidden, fallback to first available.
   // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
-    if (activeTab === 'admin' || activeTab === 'manager' || activeTab === 'bundle-menus') return;
+    if (activeTab === 'admin' || activeTab === 'manager') return;
     if (!availableTabs.find(t => t.id === activeTab)) {
       setActiveTab('appointments');
     }
   }, [currentDealershipId, activeTab, availableTabs]);
-
-  React.useEffect(() => {
-    if (activeTab === 'bundle-menus' && !bundleMenusEnabled) {
-      setActiveTab('appointments');
-    }
-  }, [activeTab, bundleMenusEnabled]);
 
   React.useEffect(() => {
     if (prefsLoading || landingApplied) return;
@@ -389,14 +379,6 @@ function DashboardShell({ user }: { user: User }) {
 
   const currentUser = user;
 
-  if (activeTab === 'bundle-menus') {
-    return (
-      <div className="fixed inset-0 z-[200] h-[100dvh] w-screen overflow-hidden bg-[#0e1011]">
-        <ServiceBundleMenuBoard tvMode onClose={() => setActiveTab('appointments')} />
-      </div>
-    );
-  }
-
   return (
     <ServiceAlertProvider>
     <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
@@ -408,7 +390,6 @@ function DashboardShell({ user }: { user: User }) {
         modules={modules}
         currentDealershipId={currentDealershipId}
         enableDispatchTab={dealershipSettings?.enableDispatchTab !== false}
-        enableBundleMenus={bundleMenusEnabled}
         showManager={canSeeManagerPanel(user)}
         showAdmin={canAccessPrimaryAdminSettings(currentUser)}
         activeAlertsCount={activeAlertsCount}
@@ -501,15 +482,6 @@ function DashboardShell({ user }: { user: User }) {
               currentDealershipId={currentDealershipId || 'hyundai'}
               customers={customers}
               showNotification={(msg, isError) => showNotification(msg, isError)}
-            />
-          )}
-
-          {activeTab === 'recalls' && (
-            <RecallsPage
-              onViewProfile={setSelectedProfile}
-              currentDealershipId={currentDealershipId || 'hyundai'}
-              currentUserId={user?.uid || ''}
-              onNotify={(msg, isError) => showNotification(msg, isError)}
             />
           )}
 

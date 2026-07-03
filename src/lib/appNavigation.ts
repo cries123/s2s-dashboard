@@ -9,9 +9,7 @@ export type AppTab =
   | 'pot-of-gold'
   | 'forecast'
   | 'dispatch'
-  | 'recalls'
-  | 'sales-performance'
-  | 'bundle-menus';
+  | 'sales-performance';
 
 export type AdminSubTab =
   | 'users'
@@ -35,8 +33,8 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/service/directory': { activeTab: 'search' },
   '/service/alerts': { activeTab: 'alerts' },
   '/service/dispatch': { activeTab: 'dispatch' },
-  '/service/recalls': { activeTab: 'recalls' },
-  '/service/bundle-menus': { activeTab: 'bundle-menus' },
+  '/service/recalls': { activeTab: 'search' },
+  '/service/bundle-menus': { activeTab: 'search' },
   '/competitions/pot-of-gold': { activeTab: 'pot-of-gold' },
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
@@ -117,8 +115,6 @@ export function buildAppPath(state: AppRouteState): string {
       return '/service/alerts';
     case 'dispatch':
       return '/service/dispatch';
-    case 'recalls':
-      return '/service/recalls';
     case 'pot-of-gold':
       return '/competitions/pot-of-gold';
     case 'appointments':
@@ -127,8 +123,6 @@ export function buildAppPath(state: AppRouteState): string {
       return '/reports/sales-performance';
     case 'forecast':
       return '/reports/forecast';
-    case 'bundle-menus':
-      return '/service/bundle-menus';
     default:
       return '/sales/onboard';
   }
