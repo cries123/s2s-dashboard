@@ -9,6 +9,7 @@ export type AppTab =
   | 'pot-of-gold'
   | 'forecast'
   | 'dispatch'
+  | 'recalls'
   | 'sales-performance'
   | 'bundle-menus';
 
@@ -34,7 +35,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/service/directory': { activeTab: 'search' },
   '/service/alerts': { activeTab: 'alerts' },
   '/service/dispatch': { activeTab: 'dispatch' },
-  '/service/recalls': { activeTab: 'search' },
+  '/service/recalls': { activeTab: 'recalls' },
   '/service/bundle-menus': { activeTab: 'bundle-menus' },
   '/competitions/pot-of-gold': { activeTab: 'pot-of-gold' },
   '/reports/operations': { activeTab: 'appointments' },
@@ -116,6 +117,8 @@ export function buildAppPath(state: AppRouteState): string {
       return '/service/alerts';
     case 'dispatch':
       return '/service/dispatch';
+    case 'recalls':
+      return '/service/recalls';
     case 'pot-of-gold':
       return '/competitions/pot-of-gold';
     case 'appointments':

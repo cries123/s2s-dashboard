@@ -7,6 +7,7 @@ import {
   Search,
   Settings,
   Shield,
+  ShieldAlert,
   Lightbulb,
   Sparkles,
   TrendingUp,
@@ -93,6 +94,13 @@ export function buildSidebarNav({
       tab: 'dispatch',
     });
   }
+  serviceItems.push({
+    id: 'recalls',
+    label: 'Recalls',
+    href: '/service/recalls',
+    icon: ShieldAlert,
+    tab: 'recalls',
+  });
   if (enableBundleMenus) {
     serviceItems.push({
       id: 'bundle-menus',

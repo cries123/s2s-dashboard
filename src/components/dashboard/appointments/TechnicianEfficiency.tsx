@@ -18,11 +18,6 @@ import { cn } from '../../../lib/utils';
 import { EmptyState } from '../../ui/EmptyState';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { TableSkeleton } from '../../ui/Skeleton';
-import {
-  formatArchiveDisplayLabel,
-  formatArchiveMonthLabel,
-  getCurrentYearMonthKey,
-} from '../../../lib/operationsViewPeriod';
 
 interface TechnicianData {
   techName: string;
@@ -286,17 +281,15 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         setReportStartDate(detectedDates.start);
         setReportEndDate(detectedDates.end);
 
-        // Auto-route to saved archive when PDF dates are not in the active month
-        const detectedMonthKey = detectedDates.start.slice(0, 7);
-        const activeMonthKey = getCurrentYearMonthKey();
-        if (detectedMonthKey !== activeMonthKey && selectedMonth === 'active') {
-          targetMonth = detectedMonthKey;
+        // Auto-route to May archive if dates fall in May
+        if (detectedDates.start.startsWith('2026-05')) {
+          targetMonth = '2026-05';
         }
       }
 
       await saveToFirestore(mergedTechs, loadedStart, loadedEnd, targetMonth);
-      if (targetMonth !== 'active' && selectedMonth === 'active') {
-        onSuccess?.(`Detected ${formatArchiveMonthLabel(targetMonth)} dates! Saved ${parsedTechs.length} technicians directly to that saved archive. Active tracker kept clean.`);
+      if (targetMonth === '2026-05' && selectedMonth === 'active') {
+        onSuccess?.(`Detected May dates! Saved ${parsedTechs.length} technicians directly to May 2026 Saved Archive. June active tracker kept clean.`);
       } else {
         onSuccess?.(`Successfully imported & merged ${parsedTechs.length} technicians.`);
       }
@@ -466,7 +459,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-              🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
+              🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
             </span>
           </div>
         ) : (

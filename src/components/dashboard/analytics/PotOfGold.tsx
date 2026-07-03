@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Trophy, Users, Settings, BarChart3, Target, DollarSign, 
   ChevronRight, TrendingUp, Save, Trash2, Download, Upload,
@@ -15,10 +15,6 @@ import { useAuth } from '../../../hooks/useAuth';
 import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { PageSkeleton } from '../../ui/Skeleton';
-import {
-  buildOperationsViewPeriodOptions,
-  formatArchiveDisplayLabel,
-} from '../../../lib/operationsViewPeriod';
 
 interface PerformanceRow {
   code: string;
@@ -62,7 +58,6 @@ interface PotOfGoldProps {
 export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string>('active');
-  const viewPeriodOptions = useMemo(() => buildOperationsViewPeriodOptions(), []);
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -406,11 +401,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="h-9 px-3 bg-slate-950 border border-slate-850 text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer hover:border-slate-750 transition-all"
               >
-                {viewPeriodOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
+                <option value="active">June 2026 (Active)</option>
+                <option value="2026-05">May 2026 (Saved)</option>
+                <option value="2026-04">April 2026 (Saved)</option>
               </select>
             </div>
           </div>
@@ -457,7 +450,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-950 border border-slate-800 rounded-2xl shadow-xl">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
               <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-                🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
+                🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
               </span>
             </div>
           )}

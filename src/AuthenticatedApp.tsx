@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2
+  BarChart2, ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -29,6 +29,7 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
+import { RecallsPage } from './components/dashboard/customers/RecallsPage';
 import { ServiceBundleMenuBoard } from './components/dashboard/service/ServiceBundleMenuPreviewModal';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
@@ -284,6 +285,7 @@ function DashboardShell({ user }: { user: User }) {
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
+    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(currentDealershipId === 'hyundai' && modules.showPotOfGoldTab
       ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }]
       : []),
@@ -499,6 +501,15 @@ function DashboardShell({ user }: { user: User }) {
               currentDealershipId={currentDealershipId || 'hyundai'}
               customers={customers}
               showNotification={(msg, isError) => showNotification(msg, isError)}
+            />
+          )}
+
+          {activeTab === 'recalls' && (
+            <RecallsPage
+              onViewProfile={setSelectedProfile}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              currentUserId={user?.uid || ''}
+              onNotify={(msg, isError) => showNotification(msg, isError)}
             />
           )}
 

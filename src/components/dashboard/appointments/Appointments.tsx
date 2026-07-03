@@ -8,7 +8,8 @@ import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
-  Save, Loader2, FileUp, X, Printer, Archive, Lock, Unlock
+  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
+  BarChart3, Target, Clock, FileUp, X, PieChart, Printer, Archive, Lock, Unlock
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
@@ -28,20 +29,12 @@ import {
 import {
   buildEffectiveAppointmentStats,
   calculateAppointmentForecast,
-  hasCurrentMonthAppointmentVolume,
+  forecastGoalPercent,
 } from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
-import {
-  buildOperationsViewPeriodOptions,
-  formatArchiveMonthLabel,
-  getActiveMonthDateRange,
-} from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { PageSkeleton } from '../../ui/Skeleton';
-import { OperationsDailyPanel } from './OperationsDailyPanel';
-import { OperationsWeekGrid } from './OperationsWeekGrid';
-import { OperationsProjections } from './OperationsProjections';
 
 interface AppointmentsProps {
   currentUser: User;
@@ -77,7 +70,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingDate, setSavingDate] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [targetValue, setTargetValue] = useState(20);
   const [laborTarget, setLaborTarget] = useState(500000);
@@ -110,8 +102,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
 
-  const viewPeriodOptions = React.useMemo(() => buildOperationsViewPeriodOptions(), []);
-
   const handleArchiveAndReset = async (payload: {
     targetYearMonth: string;
     metricsSnapshot: {
@@ -125,7 +115,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   }) => {
     if (!currentUser || !currentDealershipId) return;
     const { targetYearMonth } = payload;
-    const activeMonthRange = getActiveMonthDateRange();
     setIsArchiving(true);
     try {
       // 1. Archive Advisor Performance
@@ -205,8 +194,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           totalGrossParts: 0,
           totalHrs: 0
         },
-        reportStartDate: activeMonthRange.start,
-        reportEndDate: activeMonthRange.end,
+        reportStartDate: "2026-06-01",
+        reportEndDate: "2026-06-30",
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username || currentUser.email || "System Archive Logic"
       });
@@ -240,8 +229,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       // Reset Technician Reports in Active
       await setDoc(activeTechRef, {
         technicians: [],
-        reportStartDate: activeMonthRange.start,
-        reportEndDate: activeMonthRange.end,
+        reportStartDate: "2026-06-01",
+        reportEndDate: "2026-06-30",
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username || currentUser.email || "System Archive Logic"
       });
@@ -358,7 +347,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     return () => unsubscribe();
   }, [selectedDate, currentDealershipId]);
 
-  const openBreakdownEditor = () => {
+  const handleSave = async () => {
     const countNum = parseInt(dailyCount, 10);
     const existing = allStats.find((s) => s.date === selectedDate);
 
@@ -380,73 +369,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       });
     }
     setShowManualBreakdownEntry(true);
-  };
-
-  const buildBreakdownForCount = (
-    countNum: number,
-    existing?: DailyStat
-  ): { diagnosis: number; oilChange: number; recall: number; misc: number } => {
-    if (existing?.breakdown) {
-      const { diagnosis, oilChange, recall, misc } = existing.breakdown;
-      const sum = diagnosis + oilChange + recall + misc;
-      if (sum === countNum) return existing.breakdown;
-      return {
-        diagnosis,
-        oilChange,
-        recall,
-        misc: Math.max(0, countNum - diagnosis - oilChange - recall),
-      };
-    }
-    return { diagnosis: 0, oilChange: 0, recall: 0, misc: countNum };
-  };
-
-  const handleQuickSave = async () => {
-    const countNum = parseInt(dailyCount, 10);
-    if (Number.isNaN(countNum) || countNum < 0) {
-      onError?.('Enter a valid appointment count (0 or higher).');
-      return;
-    }
-
-    const existing = allStats.find((s) => s.date === selectedDate);
-    const breakdown = buildBreakdownForCount(countNum, existing);
-    setSaving(true);
-    setSavingDate(selectedDate);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${appointmentTrackerDocId(currentDealershipId || 'hyundai', selectedDate)}`;
-    try {
-      await saveAppointmentDay(selectedDate, countNum, breakdown, 'manual');
-      await logSystemAction(
-        'Appointments Updated',
-        `Recorded ${countNum} scheduled appointments for ${selectedDate}`,
-        'appointments',
-        currentUser.email,
-        currentUser.username,
-        currentUser.dealershipId
-      );
-      onSuccess?.(`Saved ${countNum} appointments for ${selectedDate}.`);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
-    } finally {
-      setSaving(false);
-      setSavingDate(null);
-    }
-  };
-
-  const handleWeekDaySave = async (date: string, countNum: number) => {
-    const existing = allStats.find((s) => s.date === date);
-    const breakdown = buildBreakdownForCount(countNum, existing);
-    setSavingDate(date);
-    const path = `artifacts/hyundai-sales-to-service/public/data/appointmentTracker/${appointmentTrackerDocId(currentDealershipId || 'hyundai', date)}`;
-    try {
-      await saveAppointmentDay(date, countNum, breakdown, 'manual');
-      if (date === selectedDate) {
-        setDailyCount(countNum.toString());
-      }
-      onSuccess?.(`Saved ${countNum} for ${date}.`);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, path);
-    } finally {
-      setSavingDate(null);
-    }
   };
 
 
@@ -654,7 +576,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   };
 
   const metrics = calculateMetrics();
-  const hasForecastData = hasCurrentMonthAppointmentVolume(effectiveStats);
 
   const prevTargetRef = React.useRef(targetValue);
   useEffect(() => {
@@ -682,8 +603,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         monthLabel: d.toLocaleDateString('en-US', { month: 'short' }),
         dayNum: d.getDate(),
         count: stat ? stat.count : 0,
-        hasData: !!stat,
-        isWeekend: d.getDay() === 0 || d.getDay() === 6,
+        hasData: !!stat
       };
     });
   };
@@ -710,67 +630,223 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
+      <style>{`
+        .custom-centered-date-input::-webkit-calendar-picker-indicator {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        .custom-centered-date-input::-moz-calendar-picker-indicator {
+          display: none !important;
+        }
+      `}</style>
+
       <PageHeader
         title="Operations"
-        description="Log daily scheduled volume, track the week, and review shop performance."
+        description="Appointment volume, gross forecast, and daily shop performance."
         breadcrumbs={[{ label: 'Reports' }, { label: 'Operations' }]}
+        actions={
+          <span className="badge badge-info inline-flex items-center gap-1.5">
+            <Target size={12} />
+            Daily goal: {targetValue}
+          </span>
+        }
       />
-
-      <OperationsDailyPanel
-        selectedDate={selectedDate}
-        dailyCount={dailyCount}
-        saving={saving}
-        isUploadingPdf={isUploadingPdf}
-        targetValue={targetValue}
-        onDateChange={setSelectedDate}
-        onPrevDay={handlePrevDay}
-        onNextDay={handleNextDay}
-        onCountChange={setDailyCount}
-        onQuickSave={handleQuickSave}
-        onOpenBreakdown={openBreakdownEditor}
-        onPdfClick={() => pdfInputRef.current?.click()}
-      />
-
-      <input type="file" ref={pdfInputRef} onChange={handlePdfUpload} accept=".pdf" className="hidden" />
 
       <KpiStrip
         tiles={[
           { label: 'Appts MTD', value: metrics.monthTotal.toLocaleString() },
-          {
-            label: 'Appt forecast',
-            value: hasForecastData ? metrics.forecast.toLocaleString() : '—',
-            tone: hasForecastData ? 'info' : undefined,
-          },
-          {
-            label: 'Labor gross MTD',
-            value: hasForecastData ? `$${Math.round(metrics.mtdGross).toLocaleString()}` : '—',
-            tone: hasForecastData ? 'success' : undefined,
-          },
+          { label: 'Appt forecast', value: metrics.forecast.toLocaleString(), tone: 'info' },
+          { label: 'Labor gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}`, tone: 'success' },
           { label: 'Working days left', value: String(metrics.daysRemaining) },
         ]}
       />
 
-      <OperationsWeekGrid
-        weekDays={weekDays}
-        weekOffset={weekOffset}
-        targetValue={targetValue}
-        selectedDate={selectedDate}
-        savingDate={savingDate}
-        onWeekOffsetChange={setWeekOffset}
-        onSelectDate={(date, count, hasSavedRow) => {
-          setSelectedDate(date);
-          setDailyCount(count > 0 ? count.toString() : hasSavedRow ? '0' : '');
-        }}
-        onSaveDayCount={handleWeekDaySave}
-        onViewBreakdown={(date) => {
-          const row = allStats.find((s) => s.date === date);
-          if (row) setShowBreakdown(row);
-        }}
-        hasBreakdown={(date) => !!allStats.find((s) => s.date === date)?.breakdown}
-      />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="card-base p-6 col-span-1 lg:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+            <h2 className="crm-section-title flex items-center gap-2">
+              <TrendingUp size={18} className="text-brand-primary" />
+              Month-end projections
+            </h2>
+            <span className="badge badge-success">{metrics.daysRemaining} working days left</span>
+          </div>
 
-      <OperationsProjections metrics={metrics} hasForecastData={hasForecastData} />
+          <div className="flex flex-col gap-4">
+            {[
+              { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
+              { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
+              { label: 'Appointment volume', current: metrics.monthTotal, daily: Number(metrics.avgDaily), forecast: metrics.forecast, target: metrics.monthTarget, isCurrency: false },
+            ].map((kpi, idx) => {
+              const completionPercent = forecastGoalPercent(kpi.forecast, kpi.target);
+              const isShortfall = kpi.forecast < kpi.target;
+              return (
+                <div key={idx} className="rounded-lg border p-4" style={{ borderColor: 'var(--color-surface-border)' }}>
+                  <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="crm-label">{kpi.label}</span>
+                        <span className={cn('badge', isShortfall ? 'badge-error' : 'badge-success')}>
+                          {isShortfall ? 'Shortfall' : 'On track'}
+                        </span>
+                      </div>
+                      <p className="crm-kpi-value">
+                        {kpi.isCurrency ? `$${Math.round(kpi.forecast).toLocaleString()}` : Math.round(kpi.forecast).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="crm-label">MTD</p>
+                        <p className="font-medium tabular-nums">{kpi.isCurrency ? `$${Math.round(kpi.current).toLocaleString()}` : Math.round(kpi.current)}</p>
+                      </div>
+                      <div>
+                        <p className="crm-label">Pace/day</p>
+                        <p className="font-medium tabular-nums">{kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}</p>
+                      </div>
+                      <div>
+                        <p className="crm-label">Goal</p>
+                        <p className="font-medium tabular-nums">{kpi.isCurrency ? `$${Math.round(kpi.target).toLocaleString()}` : Math.round(kpi.target)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+                    <div className="h-full bg-brand-primary rounded-full transition-all" style={{ width: `${Math.min(100, completionPercent)}%` }} />
+                  </div>
+                  <p className="crm-label mt-1.5 text-right">{completionPercent}% of monthly goal</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card-base p-6 flex flex-col">
+            <h4 className="crm-section-title mb-4 flex items-center gap-2">
+              <Clock size={16} className="text-brand-primary" /> Daily entry
+            </h4>
+            
+            <div className="space-y-4 flex-1">
+              <div>
+                <label className="input-label">Operations date</label>
+                <div className="flex items-center justify-between bg-slate-900/85 border border-white/5 rounded-2xl px-3 py-1.5 shadow-inner">
+                  <button 
+                    onClick={handlePrevDay} 
+                    className="p-2 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/5 hover:border-white/10 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center shrink-0"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <input 
+                    type="date" 
+                    value={selectedDate} 
+                    onChange={e => setSelectedDate(e.target.value)}
+                    onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err) {} }}
+                    className="bg-transparent border-none text-white text-sm font-black w-full text-center focus:ring-0 cursor-pointer outline-none select-none tracking-wide custom-centered-date-input"
+                  />
+                  <button 
+                    onClick={handleNextDay} 
+                    className="p-2 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/5 hover:border-white/10 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center shrink-0"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="input-label">Scheduled volume</label>
+                <input
+                  type="number"
+                  value={dailyCount}
+                  onChange={e => setDailyCount(e.target.value)}
+                  placeholder="0"
+                  className="input-field text-2xl font-semibold text-center tabular-nums py-3"
+                />
+              </div>
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full btn-primary h-11"
+              >
+                {saving ? (
+                  <Loader2 className="animate-spin text-white" size={18} />
+                ) : (
+                  <>
+                    <Save size={16} className="text-white" />
+                    Record Count Breakouts
+                  </>
+                )}
+              </button>
+
+              <input type="file" ref={pdfInputRef} onChange={handlePdfUpload} accept=".pdf" className="hidden" />
+              <button
+                onClick={() => pdfInputRef.current?.click()}
+                disabled={isUploadingPdf}
+                className="w-full btn-secondary h-10 text-emerald-400"
+              >
+                {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
+                Extract Daily Schedule PDF
+              </button>
+            </div>
+        </div>
+      </div>
+
+      <div className="card-base overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
+          <h3 className="crm-section-title flex items-center gap-2">
+            <CalendarIcon size={16} className="text-brand-primary" />
+            Weekly schedule volume
+          </h3>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setWeekOffset((p) => p - 1)} className="btn-secondary p-2"><ChevronLeft size={14} /></button>
+            <button type="button" onClick={() => setWeekOffset(0)} className="btn-secondary px-3 py-2 text-xs">This week</button>
+            <button type="button" onClick={() => setWeekOffset((p) => p + 1)} className="btn-secondary p-2"><ChevronRight size={14} /></button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="crm-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Date</th>
+                <th className="text-right">Scheduled</th>
+                <th className="text-right">vs goal ({targetValue})</th>
+                <th className="text-right">Breakdown</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weekDays.map((day) => {
+                const fullDayData = allStats.find((s) => s.date === day.date);
+                const isSelected = selectedDate === day.date;
+                const vsGoal = day.count - targetValue;
+                return (
+                  <tr
+                    key={day.date}
+                    onClick={() => {
+                      setSelectedDate(day.date);
+                      setDailyCount(day.count > 0 ? day.count.toString() : fullDayData ? '0' : '');
+                      if (fullDayData?.breakdown) setShowBreakdown(fullDayData);
+                    }}
+                    className={cn('cursor-pointer', isSelected && 'bg-brand-primary/5')}
+                  >
+                    <td className="font-medium">{day.label}</td>
+                    <td className="crm-label">{day.monthLabel} {day.dayNum}</td>
+                    <td className="text-right font-semibold tabular-nums">{day.count}</td>
+                    <td className={cn('text-right tabular-nums', vsGoal < 0 ? 'text-rose-600' : vsGoal === 0 ? 'text-amber-600' : 'text-emerald-600')}>
+                      {vsGoal > 0 ? `+${vsGoal}` : vsGoal}
+                    </td>
+                    <td className="text-right">
+                      {fullDayData?.breakdown ? (
+                        <button type="button" className="text-xs text-brand-primary hover:underline" onClick={(e) => { e.stopPropagation(); setShowBreakdown(fullDayData); }}>View</button>
+                      ) : (
+                        <span className="crm-label">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Breakdown Modal */}
       <AnimatePresence>
@@ -885,74 +961,91 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         )}
       </AnimatePresence>
 
-      <div className="card-base overflow-hidden no-print">
-        <div className="flex flex-col gap-4 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: 'var(--color-surface-border)' }}>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h4 className="crm-section-title">Shop performance</h4>
+      <div className="card-base p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 no-print">
+        <div>
+          <div className="flex items-center gap-2">
+              <h4 className="crm-section-title">Performance tools & audit</h4>
               {selectedMonth !== 'active' ? (
                 allowArchiveEditing ? (
-                  <span className="badge badge-warning">Archive edit mode</span>
+                  <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 animate-pulse">
+                    <span>🔓 Archive Edit Unlocked</span>
+                  </span>
                 ) : (
-                  <span className="badge badge-error">Read-only archive</span>
+                  <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
+                    <span>🔒 Saved Archive</span>
+                  </span>
                 )
               ) : (
-                <span className="badge badge-success">Live</span>
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
+                  <span>● Live Tracking</span>
+                </span>
               )}
             </div>
-            <p className="mt-1 text-xs text-slate-400">
-              {selectedMonth === 'active'
-                ? 'Import advisor and technician reports for the current month.'
+            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wide">
+              {selectedMonth === 'active' 
+                ? "Active performance workspace for the current month. Save last month's figures first before restarting."
                 : allowArchiveEditing
-                  ? `Editing saved data for ${formatArchiveMonthLabel(selectedMonth)}.`
-                  : `Viewing saved data for ${formatArchiveMonthLabel(selectedMonth)}.`}
+                  ? `Archive editing enabled. Any manual entry or PDF import will update the saved numbers for ${selectedMonth === '2026-05' ? 'May 2026' : selectedMonth}.`
+                  : "Displaying historical database metrics in read-only audit mode."
+              }
             </p>
+        </div>
+
+        {/* Dynamic Controls Grid */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Month Period Dropdown */}
+          <div className="flex flex-col gap-1 flex-1 sm:flex-initial">
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">View Period</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                setAllowArchiveEditing(false); // automatically reset to locked on toggle
+              }}
+              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all min-w-[150px]"
+            >
+              <option value="active">June 2026 (Active)</option>
+              <option value="2026-05">May 2026 (Saved)</option>
+              <option value="2026-04">April 2026 (Saved)</option>
+            </select>
           </div>
 
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <span className="input-label mb-0">Period</span>
-              <select
-                value={selectedMonth}
-                onChange={(e) => {
-                  setSelectedMonth(e.target.value);
-                  setAllowArchiveEditing(false);
-                }}
-                className="input-field h-10 min-w-[160px] text-sm"
-              >
-                {viewPeriodOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+          <div className="flex items-end gap-3 flex-1 sm:flex-initial mt-4 sm:mt-0 pt-1 lg:pt-0">
+            {/* Lock / Unlock Archive Editing */}
             {selectedMonth !== 'active' && (
               <button
-                type="button"
                 onClick={() => setAllowArchiveEditing(!allowArchiveEditing)}
-                className={cn('btn-secondary h-10', allowArchiveEditing && 'border-amber-500/40 text-amber-400')}
+                className={cn(
+                  "h-11 px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
+                  allowArchiveEditing 
+                    ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
+                    : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
+                )}
+                title="Unlock editing capability for this historical archive month"
               >
-                {allowArchiveEditing ? <Unlock size={14} /> : <Lock size={14} />}
-                {allowArchiveEditing ? 'Lock' : 'Unlock edit'}
+                {allowArchiveEditing ? <Unlock size={13} /> : <Lock size={13} />}
+                {allowArchiveEditing ? "Lock Archive (Save)" : "Unlock to Edit"}
               </button>
             )}
 
+            {/* Dynamic Custom Archive Option - Only clickable with active tracker */}
             {selectedMonth === 'active' && (
               <button
-                type="button"
                 onClick={() => setShowArchiveModal(true)}
-                className="btn-secondary h-10 text-brand-primary"
+                className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+                title="Configure custom destination archive period and restart workspace"
               >
-                <Archive size={14} />
-                Close month
+                <Archive size={13} />
+                Archive & Restart Monthly
               </button>
             )}
-
-            <button type="button" onClick={() => setIsPrintModalOpen(true)} className="btn-secondary h-10">
-              <Printer size={14} />
-              Print
+ 
+            <button
+              onClick={() => setIsPrintModalOpen(true)}
+              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+            >
+              <Printer size={13} />
+              Print Report
             </button>
           </div>
         </div>
