@@ -226,7 +226,7 @@ export function buildSidebarNav({
         },
         {
           id: 'admin-pbs-sync',
-          label: 'PBS sync',
+          label: 'PBS sync (Hyundai)',
           href: '/admin/pbs-sync',
           icon: Database,
           tab: 'admin',

@@ -1,6 +1,10 @@
 import type { Request } from 'express';
 import { getAdminAuth, getAdminFirestore } from './initFirebaseAdmin.js';
 import { isPbsSyncAuthorized } from '../pbs/pbsSyncAuth.js';
+import {
+  isPbsAutomatedSyncDealership,
+  PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+} from '../pbs/pbsDealershipScope.js';
 
 const PRIMARY_ADMIN_EMAIL = 'admin@hyundai.com';
 
@@ -48,6 +52,7 @@ export async function resolvePbsSyncCaller(req: Request): Promise<PbsSyncCaller 
       username?: string;
       approved?: boolean;
       status?: string;
+      dealershipId?: string;
     };
 
     const isAdmin = data.role === 'admin';
@@ -56,6 +61,11 @@ export async function resolvePbsSyncCaller(req: Request): Promise<PbsSyncCaller 
     const approved = data.approved === true || data.status === 'approved';
 
     if (!approved || (!isAdmin && !isManager)) return null;
+
+    // Managers at other stores cannot trigger Hyundai-only PBS sync.
+    if (!isAdmin && !isPbsAutomatedSyncDealership(data.dealershipId || PBS_AUTOMATED_SYNC_DEALERSHIP_ID)) {
+      return null;
+    }
 
     return {
       uid,

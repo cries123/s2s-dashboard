@@ -12,7 +12,11 @@ import {
   pbsContactVehicleItems,
   pbsRepairOrderGet,
 } from '../pbs/partnerHubClient.js';
-import { dealershipSettingsDoc, PBS_DEALERSHIP_ID } from '../pbs/pbsFirestore.js';
+import { dealershipSettingsDoc } from '../pbs/pbsFirestore.js';
+import {
+  PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+  PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
+} from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { isPacificMorningSyncHour, runPbsSync } from '../pbs/pbsSync.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -118,7 +122,7 @@ export function registerPbsRoutes(app: Express) {
       });
     }
 
-    const dealershipId = PBS_DEALERSHIP_ID;
+    const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
     const snap = await dealershipSettingsDoc(db, dealershipId).get();
     const data = snap.data();
     const state = (data?.pbsSyncState as PbsSyncState | undefined) ?? null;
@@ -127,9 +131,11 @@ export function registerPbsRoutes(app: Express) {
       configured: isPbsPartnerHubConfigured(),
       firestoreAdmin: true,
       dealershipId,
+      dealershipName: PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
+      scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],
       state,
       logs,
-      nextScheduledWindow: 'Daily at 8:00 AM America/Los_Angeles',
+      nextScheduledWindow: 'Daily at 8:00 AM America/Los_Angeles (Hyundai only)',
     });
   });
 

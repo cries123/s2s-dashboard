@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { DealershipSettings, PbsSyncLogEntry } from '../../../types';
 import { fetchPbsSyncStatus, runPbsSyncNow } from '../../../lib/pbsSyncApi';
+import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
 
 interface PbsSyncPanelProps {
@@ -94,6 +95,19 @@ export function PbsSyncPanel({
   onSuccess,
   onError,
 }: PbsSyncPanelProps) {
+  if (!isPbsSyncDealership(dealershipId)) {
+    return (
+      <div className="card-base rounded-2xl border border-white/5 p-6">
+        <p className="text-sm text-slate-300 font-medium">PBS automated sync is not enabled for this store.</p>
+        <p className="text-xs text-slate-500 mt-2 leading-relaxed max-w-2xl">
+          PartnerHUB sync only runs for <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong>.
+          Nissan/Mazda and Ford/Lincoln use separate DMS import workflows — their customer directories are never
+          modified by PBS sync.
+        </p>
+      </div>
+    );
+  }
+
   const [syncing, setSyncing] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
@@ -154,8 +168,9 @@ export function PbsSyncPanel({
   return (
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
-        Pull customers, service history, mileage, and this month&apos;s appointments from PBS PartnerHUB
-        into Directory and Operations. A scheduled job also runs every morning at 8:00 AM Pacific.
+        Pull customers, service history, mileage, and this month&apos;s appointments from PBS PartnerHUB into{' '}
+        <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> only. Other dealerships in this
+        program are not modified. A scheduled job also runs every morning at 8:00 AM Pacific.
       </p>
 
       <div className="card-base rounded-2xl border border-white/5 p-5 space-y-4">

@@ -1,6 +1,8 @@
 import { FieldValue, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
+import { PBS_AUTOMATED_SYNC_DEALERSHIP_ID } from './pbsDealershipScope.js';
 
-export const PBS_DEALERSHIP_ID = 'hyundai';
+/** @deprecated Use PBS_AUTOMATED_SYNC_DEALERSHIP_ID */
+export const PBS_DEALERSHIP_ID = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
 
 const DATA_ROOT = 'artifacts/hyundai-sales-to-service/public/data';
 

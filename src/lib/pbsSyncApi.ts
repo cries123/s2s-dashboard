@@ -64,7 +64,7 @@ export async function runPbsSyncNow(): Promise<PbsSyncRunResponse> {
   const res = await fetch('/api/pbs/sync/run', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ fullRefresh: true }),
+    body: JSON.stringify({ fullRefresh: true, dealershipId: 'hyundai' }),
   });
   const data = await parseJson<PbsSyncRunResponse & { error?: string }>(res);
   if (!res.ok && !data.skipped) {

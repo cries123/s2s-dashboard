@@ -27,6 +27,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { DEALERSHIPS } from '../../../constants';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
 import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
+import { PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { buildDmsProviderSettingsPatch } from '../../../lib/dealershipDmsSettings';
 import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
 import { isCrossDealershipDispatchRoster } from '../../../lib/dispatchTechRoster';
@@ -803,7 +804,7 @@ export default function AdminPanel({
                         />
 
                         {(dealershipSettings[d.id]?.dmsProvider ??
-                          defaultDmsProviderForDealership(d.id)) === 'pbs' ? (
+                          defaultDmsProviderForDealership(d.id)) === 'pbs' && d.id === 'hyundai' ? (
                           <PbsSyncPanel
                             dealershipId={d.id}
                             dealershipName={d.name}
@@ -1149,11 +1150,11 @@ export default function AdminPanel({
 
       {subTab === 'pbs-sync' && panelMode === 'admin' && (
         <PbsSyncPanel
-          dealershipId={currentDealershipId || 'hyundai'}
+          dealershipId="hyundai"
           dealershipName={
-            DEALERSHIPS.find((d) => d.id === (currentDealershipId || 'hyundai'))?.name || 'Hyundai'
+            DEALERSHIPS.find((d) => d.id === 'hyundai')?.name || PBS_SYNC_DEALERSHIP_NAME
           }
-          settings={dealershipSettings[currentDealershipId || 'hyundai']}
+          settings={dealershipSettings.hyundai}
           onSuccess={onSuccess}
           onError={onError}
         />

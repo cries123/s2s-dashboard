@@ -17,12 +17,17 @@ import {
   normalizePhone,
 } from './pbsMappers.js';
 import {
+  customerBelongsToPbsSyncDealership,
+  PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+  pbsAutomatedSyncScopeError,
+  resolvePbsAutomatedSyncDealershipId,
+} from './pbsDealershipScope.js';
+import {
   appointmentTrackerCollection,
   appointmentTrackerDocId,
   commitBatches,
   customersCollection,
   dealershipSettingsDoc,
-  PBS_DEALERSHIP_ID,
   serverTimestamp,
 } from './pbsFirestore.js';
 import type {
@@ -118,8 +123,7 @@ async function loadCustomerIndex(
 
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
-    const owner = (data.dealershipId as string | undefined) || 'hyundai';
-    if (owner !== dealershipId) continue;
+    if (!customerBelongsToPbsSyncDealership(data, dealershipId)) continue;
 
     index.dataById.set(docSnap.id, data);
 
@@ -248,7 +252,24 @@ async function writePbsSyncState(
 
 export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSyncResult> {
   const startedAt = new Date().toISOString();
-  const dealershipId = options.dealershipId || PBS_DEALERSHIP_ID;
+  if (options.dealershipId && !resolvePbsAutomatedSyncDealershipId(options.dealershipId)) {
+    const counts = emptyCounts();
+    const monthRange = monthRangePacific();
+    const fetched = emptyFetched(monthRange.start, monthRange.end);
+    const finishedAt = new Date().toISOString();
+    const error = pbsAutomatedSyncScopeError(options.dealershipId);
+    return {
+      ok: false,
+      startedAt,
+      finishedAt,
+      counts,
+      fetched,
+      summary: error,
+      error,
+    };
+  }
+
+  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
   const counts = emptyCounts();
   const monthRange = monthRangePacific();
   const fetched = emptyFetched(monthRange.start, monthRange.end);
@@ -349,6 +370,8 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
       if (existingId) {
         const existing = index.dataById.get(existingId) || {};
+        if (!customerBelongsToPbsSyncDealership(existing, dealershipId)) continue;
+
         const patch: Record<string, unknown> = {
           ...mapped,
           enableServiceAlert: existing.enableServiceAlert ?? mapped.enableServiceAlert,
