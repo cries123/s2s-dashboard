@@ -67,12 +67,39 @@ export interface PbsSyncCounts {
   appointmentsProcessed: number;
 }
 
+export interface PbsSyncFetched {
+  contactVehicles: number;
+  repairOrders: number;
+  appointments: number;
+  appointmentMonthStart: string;
+  appointmentMonthEnd: string;
+}
+
+export interface PbsSyncLogEntry {
+  id: string;
+  startedAt: string;
+  finishedAt: string;
+  ok: boolean;
+  triggeredBy: 'cron' | 'manual';
+  triggeredByEmail?: string;
+  triggeredByUsername?: string;
+  fullRefresh?: boolean;
+  fetched: PbsSyncFetched;
+  counts: PbsSyncCounts;
+  error?: string;
+  summary: string;
+}
+
 export interface PbsSyncState {
   lastSyncAt: string;
   lastSyncOk: boolean;
   lastError?: string;
   counts?: PbsSyncCounts;
+  fetched?: PbsSyncFetched;
   triggeredBy?: 'cron' | 'manual';
+  triggeredByEmail?: string;
+  triggeredByUsername?: string;
+  summary?: string;
 }
 
 export interface PbsSyncResult {
@@ -80,5 +107,8 @@ export interface PbsSyncResult {
   startedAt: string;
   finishedAt: string;
   counts: PbsSyncCounts;
+  fetched: PbsSyncFetched;
+  summary: string;
   error?: string;
+  logId?: string;
 }

@@ -30,9 +30,12 @@ import type {
   PbsContactVehicle,
   PbsRepairOrder,
   PbsSyncCounts,
+  PbsSyncFetched,
+  PbsSyncLogEntry,
   PbsSyncResult,
   PbsSyncState,
 } from './pbsTypes.js';
+import { appendPbsSyncLog, buildPbsSyncSummary } from './pbsSyncLogs.js';
 
 const MAX_RECENT_VISITS = 25;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
@@ -40,6 +43,8 @@ const REPAIR_ORDER_LOOKBACK_YEARS = 3;
 export interface RunPbsSyncOptions {
   dealershipId?: string;
   triggeredBy?: 'cron' | 'manual';
+  triggeredByEmail?: string;
+  triggeredByUsername?: string;
   /** When true, ignore ModifiedSince watermarks and pull full customer + RO history windows. */
   fullRefresh?: boolean;
 }
@@ -51,6 +56,16 @@ interface CustomerIndex {
   byVehicleRef: Map<string, string>;
   byContactRef: Map<string, string>;
   dataById: Map<string, DocumentData>;
+}
+
+function emptyFetched(monthStart = '', monthEnd = ''): PbsSyncFetched {
+  return {
+    contactVehicles: 0,
+    repairOrders: 0,
+    appointments: 0,
+    appointmentMonthStart: monthStart,
+    appointmentMonthEnd: monthEnd,
+  };
 }
 
 function emptyCounts(): PbsSyncCounts {
@@ -235,40 +250,88 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
   const startedAt = new Date().toISOString();
   const dealershipId = options.dealershipId || PBS_DEALERSHIP_ID;
   const counts = emptyCounts();
+  const monthRange = monthRangePacific();
+  const fetched = emptyFetched(monthRange.start, monthRange.end);
+  const logId = `pbs-${startedAt}`;
+
+  const finish = async (
+    ok: boolean,
+    error?: string,
+    partialCounts = counts,
+    partialFetched = fetched
+  ): Promise<PbsSyncResult> => {
+    const finishedAt = new Date().toISOString();
+    const summary = buildPbsSyncSummary(ok, partialFetched, partialCounts, error);
+    const logEntry: PbsSyncLogEntry = {
+      id: logId,
+      startedAt,
+      finishedAt,
+      ok,
+      triggeredBy: options.triggeredBy || 'manual',
+      triggeredByEmail: options.triggeredByEmail,
+      triggeredByUsername: options.triggeredByUsername,
+      fullRefresh: options.fullRefresh,
+      fetched: partialFetched,
+      counts: partialCounts,
+      error,
+      summary,
+    };
+
+    const db = getAdminFirestore();
+    if (db) {
+      const state: PbsSyncState = {
+        lastSyncAt: finishedAt,
+        lastSyncOk: ok,
+        lastError: error,
+        counts: partialCounts,
+        fetched: partialFetched,
+        triggeredBy: options.triggeredBy,
+        triggeredByEmail: options.triggeredByEmail,
+        triggeredByUsername: options.triggeredByUsername,
+        summary,
+      };
+      await writePbsSyncState(db, dealershipId, state).catch((writeErr) =>
+        console.error('[PBS Sync] Failed to persist sync state', writeErr)
+      );
+      await appendPbsSyncLog(db, dealershipId, logEntry).catch((writeErr) =>
+        console.error('[PBS Sync] Failed to persist sync log', writeErr)
+      );
+    }
+
+    return {
+      ok,
+      startedAt,
+      finishedAt,
+      counts: partialCounts,
+      fetched: partialFetched,
+      summary,
+      error,
+      logId,
+    };
+  };
 
   if (!isPbsPartnerHubConfigured()) {
-    return {
-      ok: false,
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      counts,
-      error: 'PBS PartnerHUB credentials are not configured on the server.',
-    };
+    return finish(false, 'PBS PartnerHUB credentials are not configured on the server.');
   }
 
   const db = getAdminFirestore();
   if (!db) {
-    return {
-      ok: false,
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      counts,
-      error:
-        'FIREBASE_SERVICE_ACCOUNT_JSON is not configured — server-side PBS sync cannot write to Firestore.',
-    };
+    return finish(
+      false,
+      'FIREBASE_SERVICE_ACCOUNT_JSON is not configured — server-side PBS sync cannot write to Firestore.'
+    );
   }
 
   const priorState = await readPbsSyncState(db, dealershipId);
   const modifiedSince =
-    options.fullRefresh || !priorState?.lastSyncOk
-      ? undefined
-      : priorState.lastSyncAt;
+    options.fullRefresh || !priorState?.lastSyncOk ? undefined : priorState.lastSyncAt;
 
   try {
     const index = await loadCustomerIndex(db, dealershipId);
     const customerWrites: Array<(batch: WriteBatch) => void> = [];
 
     const contactVehicles = await fetchAllContactVehicles(modifiedSince);
+    fetched.contactVehicles = contactVehicles.length;
     console.log(`[PBS Sync] Contact vehicles fetched: ${contactVehicles.length}`);
 
     for (const cv of contactVehicles) {
@@ -330,6 +393,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     await commitBatches(db, customerWrites);
 
     const repairOrders = await fetchRepairOrders(modifiedSince);
+    fetched.repairOrders = repairOrders.length;
     console.log(`[PBS Sync] Repair orders fetched: ${repairOrders.length}`);
 
     const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
@@ -384,8 +448,9 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
     await commitBatches(db, visitWrites);
 
-    const { start, end } = monthRangePacific();
+    const { start, end } = monthRange;
     const appointments = await fetchMonthAppointments(start, end);
+    fetched.appointments = appointments.length;
     counts.appointmentsProcessed = appointments.length;
     console.log(`[PBS Sync] Appointments for ${start}..${end}: ${appointments.length}`);
 
@@ -429,18 +494,8 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
     await commitBatches(db, trackerWrites);
 
-    const finishedAt = new Date().toISOString();
-    const state: PbsSyncState = {
-      lastSyncAt: finishedAt,
-      lastSyncOk: true,
-      counts,
-      triggeredBy: options.triggeredBy,
-    };
-    await writePbsSyncState(db, dealershipId, state);
-
-    return { ok: true, startedAt, finishedAt, counts };
+    return finish(true);
   } catch (err) {
-    const finishedAt = new Date().toISOString();
     const message =
       err instanceof PbsPartnerHubError
         ? err.message
@@ -449,16 +504,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
           : 'PBS sync failed';
 
     console.error('[PBS Sync]', err);
-
-    await writePbsSyncState(db, dealershipId, {
-      lastSyncAt: finishedAt,
-      lastSyncOk: false,
-      lastError: message,
-      counts,
-      triggeredBy: options.triggeredBy,
-    }).catch((writeErr) => console.error('[PBS Sync] Failed to persist error state', writeErr));
-
-    return { ok: false, startedAt, finishedAt, counts, error: message };
+    return finish(false, message);
   }
 }
 

@@ -18,7 +18,8 @@ export type AdminSubTab =
   | 'ai-usage'
   | 'suggestions'
   | 'enrollments'
-  | 'import-health';
+  | 'import-health'
+  | 'pbs-sync';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -51,6 +52,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
   '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-health' },
   '/admin/import-health': { activeTab: 'admin', adminSubTab: 'import-health' },
+  '/admin/pbs-sync': { activeTab: 'admin', adminSubTab: 'pbs-sync' },
   '/admin/enrollments': { activeTab: 'admin', adminSubTab: 'enrollments' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
   '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
@@ -98,6 +100,8 @@ export function buildAppPath(state: AppRouteState): string {
         return '/admin/enrollments';
       case 'import-health':
         return '/admin/import-health';
+      case 'pbs-sync':
+        return '/admin/pbs-sync';
       case 'users':
       default:
         return '/admin/users';

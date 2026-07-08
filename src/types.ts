@@ -165,6 +165,9 @@ export interface DealershipSettings {
     lastSyncOk: boolean;
     lastError?: string;
     triggeredBy?: 'cron' | 'manual';
+    triggeredByEmail?: string;
+    triggeredByUsername?: string;
+    summary?: string;
     counts?: {
       customersCreated: number;
       customersUpdated: number;
@@ -172,7 +175,16 @@ export interface DealershipSettings {
       appointmentDaysUpdated: number;
       appointmentsProcessed: number;
     };
+    fetched?: {
+      contactVehicles: number;
+      repairOrders: number;
+      appointments: number;
+      appointmentMonthStart: string;
+      appointmentMonthEnd: string;
+    };
   };
+  /** Recent PBS sync activity log (newest first). */
+  pbsSyncLogs?: PbsSyncLogEntry[];
   /** Defaults merged into new staff preferences on approval. */
   storeWorkspaceDefaults?: StoreWorkspaceDefaults;
   updatedAt: Timestamp;
@@ -200,6 +212,33 @@ export interface DmsImportFailureEntry extends DmsImportHealthEntry {
 export interface DmsImportHealth {
   lastSuccess?: DmsImportHealthEntry;
   recentFailures?: DmsImportFailureEntry[];
+}
+
+export interface PbsSyncLogEntry {
+  id: string;
+  startedAt: string;
+  finishedAt: string;
+  ok: boolean;
+  triggeredBy: 'cron' | 'manual';
+  triggeredByEmail?: string;
+  triggeredByUsername?: string;
+  fullRefresh?: boolean;
+  fetched: {
+    contactVehicles: number;
+    repairOrders: number;
+    appointments: number;
+    appointmentMonthStart: string;
+    appointmentMonthEnd: string;
+  };
+  counts: {
+    customersCreated: number;
+    customersUpdated: number;
+    visitsMerged: number;
+    appointmentDaysUpdated: number;
+    appointmentsProcessed: number;
+  };
+  error?: string;
+  summary: string;
 }
 
 export interface OperationsGoalsSnapshot {
