@@ -3,6 +3,7 @@ import {
   BarChart2,
   Bell,
   Calendar,
+  Database,
   Layers,
   Search,
   Settings,
@@ -222,6 +223,14 @@ export function buildSidebarNav({
           icon: Shield,
           tab: 'admin',
           adminSubTab: 'import-health',
+        },
+        {
+          id: 'admin-pbs-sync',
+          label: 'PBS sync (Hyundai)',
+          href: '/admin/pbs-sync',
+          icon: Database,
+          tab: 'admin',
+          adminSubTab: 'pbs-sync',
         },
       ],
     });

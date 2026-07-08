@@ -27,6 +27,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { DEALERSHIPS } from '../../../constants';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
 import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
+import { PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { buildDmsProviderSettingsPatch } from '../../../lib/dealershipDmsSettings';
 import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
 import { isCrossDealershipDispatchRoster } from '../../../lib/dispatchTechRoster';
@@ -40,6 +41,7 @@ import { SettingsPage } from '../../settings/SettingsPage';
 import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings';
 import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
 import { DmsImportHealthPanel } from './DmsImportHealthPanel';
+import { PbsSyncPanel } from './PbsSyncPanel';
 import { ManagerOperationsConfig } from './ManagerOperationsConfig';
 import { StoreWorkspaceDefaultsSettings } from './StoreWorkspaceDefaultsSettings';
 import { ManagerPermissionsMatrix } from './ManagerPermissionsMatrix';
@@ -82,7 +84,8 @@ type AdminSubTab =
   | 'ai-usage'
   | 'suggestions'
   | 'enrollments'
-  | 'import-health';
+  | 'import-health'
+  | 'pbs-sync';
 
 function getPanelSectionMeta(
   subTab: AdminSubTab,
@@ -142,6 +145,12 @@ function getPanelSectionMeta(
         eyebrow: scope,
         title: 'DMS Import Health',
         description: 'Last successful PDF parse and recent failures per dealership.',
+      };
+    case 'pbs-sync':
+      return {
+        eyebrow: scope,
+        title: 'PBS Data Sync',
+        description: 'Pull customers, service history, and appointments from PartnerHUB.',
       };
     case 'logs':
       return {
@@ -794,6 +803,17 @@ export default function AdminPanel({
                           onUpdate={(patch) => updateSetting(d.id, patch)}
                         />
 
+                        {(dealershipSettings[d.id]?.dmsProvider ??
+                          defaultDmsProviderForDealership(d.id)) === 'pbs' && d.id === 'hyundai' ? (
+                          <PbsSyncPanel
+                            dealershipId={d.id}
+                            dealershipName={d.name}
+                            settings={dealershipSettings[d.id]}
+                            onSuccess={onSuccess}
+                            onError={onError}
+                          />
+                        ) : null}
+
                         <StoreWorkspaceDefaultsSettings
                           defaults={dealershipSettings[d.id]?.storeWorkspaceDefaults ?? {}}
                           onChange={(patch) => updateSetting(d.id, patch)}
@@ -1126,6 +1146,18 @@ export default function AdminPanel({
 
       {subTab === 'import-health' && panelMode === 'admin' && (
         <DmsImportHealthPanel dealershipSettings={dealershipSettings} />
+      )}
+
+      {subTab === 'pbs-sync' && panelMode === 'admin' && (
+        <PbsSyncPanel
+          dealershipId="hyundai"
+          dealershipName={
+            DEALERSHIPS.find((d) => d.id === 'hyundai')?.name || PBS_SYNC_DEALERSHIP_NAME
+          }
+          settings={dealershipSettings.hyundai}
+          onSuccess={onSuccess}
+          onError={onError}
+        />
       )}
 
       {subTab === 'logs' && (

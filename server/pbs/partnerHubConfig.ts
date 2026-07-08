@@ -1,3 +1,8 @@
+import {
+  PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+  PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
+} from './pbsDealershipScope.js';
+
 export interface PbsPartnerHubConfig {
   baseUrl: string;
   username: string;
@@ -43,7 +48,7 @@ export function getPbsPartnerHubPublicStatus() {
       serialNumber: null,
       baseUrl: process.env.PBS_API_BASE_URL || 'https://partnerhub.pbsdealers.com',
       hint:
-        'Set PBS_PARTNER_USERNAME, PBS_PARTNER_PASSWORD, and PBS_SERIAL_NUMBER (8200) in Netlify env vars.',
+        'Set PBS_PARTNER_USERNAME, PBS_PARTNER_PASSWORD, and PBS_SERIAL_NUMBER (8200) in Netlify env vars. Sync applies to Hyundai of Santa Maria only.',
     };
   }
 
@@ -56,6 +61,7 @@ export function getPbsPartnerHubPublicStatus() {
     serialNumber: maskedSerial,
     baseUrl: config.baseUrl,
     scopes: ['Service', 'Contact', 'Vehicle'],
-    dealership: 'Hyundai of Santa Maria',
+    dealership: PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
+    scopedDealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
   };
 }

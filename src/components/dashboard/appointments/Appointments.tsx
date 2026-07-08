@@ -383,7 +383,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     date: string,
     totalCount: number,
     breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
-    source: 'pdf' | 'manual'
+    source: 'pdf' | 'manual' | 'pbs'
   ) => {
     const dealershipId = currentDealershipId || 'hyundai';
     const docId = appointmentTrackerDocId(dealershipId, date);
