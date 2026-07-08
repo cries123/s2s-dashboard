@@ -14,6 +14,7 @@ import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerfor
 import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
 import { registerParseSalesNoteRoute } from "./server/handlers/parseSalesNote.js";
 import { registerAiConfigRoute } from "./server/handlers/aiConfig.js";
+import { registerPbsRoutes } from "./server/handlers/pbsRoutes.js";
 import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
 import {
   rejectIfOpenAiUnavailable,
@@ -115,6 +116,7 @@ export async function createApiApp() {
 
   // API Routes
   registerAiConfigRoute(app);
+  registerPbsRoutes(app);
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", env: process.env.NODE_ENV });
