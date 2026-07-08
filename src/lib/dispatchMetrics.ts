@@ -7,6 +7,7 @@ export interface DispatchMetrics {
   activeCount: number;
   queueCount: number;
   overnightCount: number;
+  writtenToday: number;
   completedToday: number;
   statusCounts: Record<DispatchStatus, number>;
   avgQueueWaitMinutes: number;
@@ -25,6 +26,7 @@ export function computeDispatchMetrics(
   isOvernight: (ro: DispatchRepairOrder) => boolean
 ): DispatchMetrics {
   const active = orders.filter((o) => !o.isCompleted);
+  const writtenToday = orders.filter((o) => o.dateCreated === currentSystemDate).length;
   const completedToday = orders.filter(
     (o) =>
       o.isCompleted &&
@@ -56,6 +58,7 @@ export function computeDispatchMetrics(
     activeCount: active.length,
     queueCount: queue.length,
     overnightCount: active.filter(isOvernight).length,
+    writtenToday,
     completedToday,
     statusCounts,
     avgQueueWaitMinutes,

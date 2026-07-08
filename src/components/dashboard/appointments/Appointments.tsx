@@ -32,6 +32,11 @@ import {
   forecastGoalPercent,
 } from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
+import {
+  buildOperationsViewPeriodOptions,
+  formatArchiveMonthLabel,
+  getActiveMonthDateRange,
+} from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { PageSkeleton } from '../../ui/Skeleton';
@@ -101,6 +106,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [showPerformanceTools, setShowPerformanceTools] = useState(false);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
+  const viewPeriodOptions = React.useMemo(() => buildOperationsViewPeriodOptions(), []);
 
   const handleArchiveAndReset = async (payload: {
     targetYearMonth: string;
@@ -115,6 +121,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   }) => {
     if (!currentUser || !currentDealershipId) return;
     const { targetYearMonth } = payload;
+    const activeMonthRange = getActiveMonthDateRange();
     setIsArchiving(true);
     try {
       // 1. Archive Advisor Performance
@@ -194,8 +201,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           totalGrossParts: 0,
           totalHrs: 0
         },
-        reportStartDate: "2026-06-01",
-        reportEndDate: "2026-06-30",
+        reportStartDate: activeMonthRange.start,
+        reportEndDate: activeMonthRange.end,
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username || currentUser.email || "System Archive Logic"
       });
@@ -229,8 +236,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       // Reset Technician Reports in Active
       await setDoc(activeTechRef, {
         technicians: [],
-        reportStartDate: "2026-06-01",
-        reportEndDate: "2026-06-30",
+        reportStartDate: activeMonthRange.start,
+        reportEndDate: activeMonthRange.end,
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username || currentUser.email || "System Archive Logic"
       });
@@ -376,7 +383,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     date: string,
     totalCount: number,
     breakdown: { diagnosis: number; oilChange: number; recall: number; misc: number },
-    source: 'pdf' | 'manual'
+    source: 'pdf' | 'manual' | 'pbs'
   ) => {
     const dealershipId = currentDealershipId || 'hyundai';
     const docId = appointmentTrackerDocId(dealershipId, date);
@@ -985,7 +992,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               {selectedMonth === 'active' 
                 ? "Active performance workspace for the current month. Save last month's figures first before restarting."
                 : allowArchiveEditing
-                  ? `Archive editing enabled. Any manual entry or PDF import will update the saved numbers for ${selectedMonth === '2026-05' ? 'May 2026' : selectedMonth}.`
+                  ? `Archive editing enabled. Any manual entry or PDF import will update the saved numbers for ${formatArchiveMonthLabel(selectedMonth)}.`
                   : "Displaying historical database metrics in read-only audit mode."
               }
             </p>
@@ -1004,9 +1011,11 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               }}
               className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all min-w-[150px]"
             >
-              <option value="active">June 2026 (Active)</option>
-              <option value="2026-05">May 2026 (Saved)</option>
-              <option value="2026-04">April 2026 (Saved)</option>
+              {viewPeriodOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 

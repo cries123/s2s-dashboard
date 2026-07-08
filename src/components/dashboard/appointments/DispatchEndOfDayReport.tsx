@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react';
-import { Printer, X } from 'lucide-react';
+import { Moon, Printer, X } from 'lucide-react';
 import type { DispatchRepairOrder } from '../../../types';
 import { computeDispatchMetrics, formatWaitMinutes } from '../../../lib/dispatchMetrics';
 import { countOverdueOrders, formatDispatchPromiseClock } from '../../../lib/dispatchPromiseTime';
+import { printDispatchEndOfDayReport } from '../../../lib/dispatchEndOfDayPrint';
+import { sortDispatchOrdersByRoNumber } from '../../../lib/dispatchRoSort';
 import { isOvernightRo } from '../../../lib/dispatchTransitions';
 
 interface DispatchEndOfDayReportProps {
@@ -11,6 +13,7 @@ interface DispatchEndOfDayReportProps {
   orders: DispatchRepairOrder[];
   overdueGraceMinutes?: number;
   onClose: () => void;
+  onNotify?: (message: string, isError?: boolean) => void;
 }
 
 export function DispatchEndOfDayReport({
@@ -19,87 +22,127 @@ export function DispatchEndOfDayReport({
   orders,
   overdueGraceMinutes = 0,
   onClose,
+  onNotify,
 }: DispatchEndOfDayReportProps) {
   const metrics = useMemo(
     () => computeDispatchMetrics(orders, businessDate, (ro) => isOvernightRo(ro, businessDate)),
     [orders, businessDate]
   );
 
-  const active = orders.filter((o) => !o.isCompleted);
-  const createdToday = active.filter((o) => o.dateCreated === businessDate).length;
-  const overdueCount = countOverdueOrders(active, Date.now(), { overdueGraceMinutes });
-  const laneEntries = Object.entries(metrics.avgLaneWaitMinutes).filter(([, v]) => v != null);
+  const downInShop = useMemo(
+    () =>
+      sortDispatchOrdersByRoNumber(
+        orders.filter((o) => !o.isCompleted && o.department === 'down_in_shop')
+      ),
+    [orders]
+  );
 
-  const avgLane =
-    laneEntries.length > 0
-      ? laneEntries.reduce((sum, [, v]) => sum + (v as number), 0) / laneEntries.length
-      : null;
+  const active = orders.filter((o) => !o.isCompleted);
+  const overdueCount = countOverdueOrders(active, Date.now(), { overdueGraceMinutes });
+  const downInShopLaneMinutes = metrics.avgLaneWaitMinutes.down_in_shop;
+
+  const metricTiles = [
+    { label: 'Down in shop', value: String(downInShop.length) },
+    { label: 'Written today', value: String(metrics.writtenToday) },
+    { label: 'Overdue (promise)', value: String(overdueCount) },
+    {
+      label: 'Avg down-in-shop time',
+      value: downInShopLaneMinutes != null ? formatWaitMinutes(downInShopLaneMinutes) : '—',
+    },
+    { label: 'In queue', value: String(metrics.queueCount) },
+    { label: 'Completed today', value: String(metrics.completedToday) },
+  ];
 
   const printReport = () => {
-    window.print();
+    const ok = printDispatchEndOfDayReport({
+      dealershipName,
+      businessDate,
+      generatedAt: new Date().toLocaleString(),
+      metrics: metricTiles,
+      downInShopRows: downInShop.map((ro) => ({
+        roNumber: ro.roNumber,
+        customer: ro.customerLastName || ro.customerName || '—',
+        detail: [
+          ro.techNumber ? `Tech ${ro.techNumber}` : null,
+          ro.promiseTimeAt ? formatDispatchPromiseClock(ro.promiseTimeAt) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || '—',
+      })),
+    });
+
+    if (!ok) {
+      onNotify?.('Allow pop-ups for this site to print the end-of-day report.', true);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4 print:bg-white print:p-0">
-      <div className="card-base max-w-lg w-full rounded-2xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto print:max-h-none print:border-0 print:shadow-none">
-        <div className="flex items-start justify-between gap-3 print:hidden">
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="End of day dispatch report"
+    >
+      <div className="card-base max-w-lg w-full rounded-2xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary">End of day</p>
-            <h2 className="text-lg font-black text-white uppercase">Dispatch snapshot</h2>
+            <h2 className="text-lg font-black text-white uppercase">Down in shop</h2>
+            <p className="text-[10px] text-slate-500 mt-1">Overnight carryover snapshot for end-of-day closeout.</p>
           </div>
           <button type="button" onClick={onClose} className="p-2 text-slate-500 hover:text-white">
             <X size={18} />
           </button>
         </div>
 
-        <div className="text-sm text-slate-300 space-y-1 print:text-black">
-          <p className="font-black text-white print:text-black">{dealershipName}</p>
-          <p className="text-slate-500 print:text-gray-600">Business date: {businessDate}</p>
-          <p className="text-slate-500 print:text-gray-600">Generated: {new Date().toLocaleString()}</p>
+        <div className="text-sm text-slate-300 space-y-1">
+          <p className="font-black text-white">{dealershipName}</p>
+          <p className="text-slate-500">Business date: {businessDate}</p>
+          <p className="text-slate-500">Generated: {new Date().toLocaleString()}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Open ROs', value: String(metrics.activeCount) },
-            { label: 'Created today', value: String(createdToday) },
-            { label: 'Overdue (promise)', value: String(overdueCount) },
-            { label: 'Avg lane time', value: avgLane != null ? formatWaitMinutes(avgLane) : '—' },
-            { label: 'In queue', value: String(metrics.queueCount) },
-            { label: 'Completed today', value: String(metrics.completedToday) },
-          ].map((tile) => (
+          {metricTiles.map((tile) => (
             <div
               key={tile.label}
-              className="rounded-xl border border-white/10 bg-slate-950/50 p-3 print:border-gray-300 print:bg-white"
+              className="rounded-xl border border-white/10 bg-slate-950/50 p-3"
             >
               <p className="text-[9px] font-black uppercase text-slate-500">{tile.label}</p>
-              <p className="text-xl font-black text-white tabular-nums mt-1 print:text-black">{tile.value}</p>
+              <p className="text-xl font-black text-white tabular-nums mt-1">{tile.value}</p>
             </div>
           ))}
         </div>
 
-        {active.length > 0 ? (
-          <div>
-            <p className="text-[9px] font-black uppercase text-slate-500 mb-2">Open repair orders</p>
-            <ul className="space-y-1.5 text-xs max-h-48 overflow-y-auto print:max-h-none">
-              {active.slice(0, 40).map((ro) => (
+        <div>
+          <p className="text-[9px] font-black uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+            <Moon size={10} className="text-amber-400" />
+            Down in shop repair orders
+          </p>
+          {downInShop.length > 0 ? (
+            <ul className="space-y-1.5 text-xs max-h-48 overflow-y-auto no-scrollbar">
+              {downInShop.map((ro) => (
                 <li
                   key={ro.id}
-                  className="flex justify-between gap-2 border-b border-white/5 pb-1 print:border-gray-200"
+                  className="flex justify-between gap-2 border-b border-white/5 pb-1"
                 >
-                  <span className="font-bold text-white print:text-black">
-                    RO {ro.roNumber} · {ro.customerLastName || '—'}
+                  <span className="font-bold text-white">
+                    RO {ro.roNumber} · {ro.customerLastName || ro.customerName || '—'}
                   </span>
                   <span className="text-slate-500 shrink-0">
-                    {ro.department}
+                    {ro.techNumber ? `Tech ${ro.techNumber}` : '—'}
                     {ro.promiseTimeAt ? ` · ${formatDispatchPromiseClock(ro.promiseTimeAt)}` : ''}
                   </span>
                 </li>
               ))}
             </ul>
-          </div>
-        ) : null}
+          ) : (
+            <p className="text-xs text-slate-500 py-4 text-center border border-dashed border-slate-800 rounded-xl">
+              No vehicles down in shop
+            </p>
+          )}
+        </div>
 
-        <div className="flex gap-2 print:hidden">
+        <div className="flex gap-2">
           <button
             type="button"
             onClick={printReport}

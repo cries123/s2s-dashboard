@@ -3,13 +3,12 @@ import {
   BarChart2,
   Bell,
   Calendar,
+  Database,
   Layers,
   Search,
   Settings,
   Shield,
-  ShieldAlert,
   Lightbulb,
-  Sparkles,
   TrendingUp,
   Trophy,
   UserPlus,
@@ -43,7 +42,6 @@ interface BuildSidebarNavArgs {
   };
   currentDealershipId: string | null;
   enableDispatchTab: boolean;
-  enableBundleMenus: boolean;
   showManager: boolean;
   showAdmin: boolean;
   activeAlertsCount: number;
@@ -53,7 +51,6 @@ export function buildSidebarNav({
   modules,
   currentDealershipId,
   enableDispatchTab,
-  enableBundleMenus,
   showManager,
   showAdmin,
   activeAlertsCount,
@@ -92,22 +89,6 @@ export function buildSidebarNav({
       href: '/service/dispatch',
       icon: Layers,
       tab: 'dispatch',
-    });
-  }
-  serviceItems.push({
-    id: 'recalls',
-    label: 'Recalls',
-    href: '/service/recalls',
-    icon: ShieldAlert,
-    tab: 'recalls',
-  });
-  if (enableBundleMenus) {
-    serviceItems.push({
-      id: 'bundle-menus',
-      label: 'Bundle menus (TV)',
-      href: '/service/bundle-menus',
-      icon: Sparkles,
-      tab: 'bundle-menus',
     });
   }
   sections.push({ id: 'service', label: 'Service', items: serviceItems });
@@ -242,6 +223,14 @@ export function buildSidebarNav({
           icon: Shield,
           tab: 'admin',
           adminSubTab: 'import-health',
+        },
+        {
+          id: 'admin-pbs-sync',
+          label: 'PBS sync (Hyundai)',
+          href: '/admin/pbs-sync',
+          icon: Database,
+          tab: 'admin',
+          adminSubTab: 'pbs-sync',
         },
       ],
     });

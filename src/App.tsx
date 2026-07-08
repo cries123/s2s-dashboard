@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers, ShieldAlert,
+  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
   BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,7 +28,6 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
-import { RecallsPage } from './components/dashboard/customers/RecallsPage';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -236,7 +235,6 @@ export default function App() {
     { id: 'vin-search', label: 'VIN Search', icon: Search },
     { id: 'forecast', label: 'Forecast', icon: TrendingUp },
     { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
-    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
@@ -413,7 +411,7 @@ export default function App() {
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
             >
               <NavLink 
                 href="/service/directory" 
@@ -439,13 +437,6 @@ export default function App() {
                   Dispatch
                 </NavLink>
               )}
-              <NavLink 
-                href="/service/recalls" 
-                onClick={() => setActiveTab('recalls')}
-                isActive={activeTab === 'recalls'}
-              >
-                Recalls
-              </NavLink>
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
@@ -678,15 +669,6 @@ export default function App() {
 
           {activeTab === 'vin-search' && (
             <VinLookup />
-          )}
-
-          {activeTab === 'recalls' && (
-            <RecallsPage
-              onViewProfile={setSelectedProfile}
-              currentDealershipId={currentDealershipId || 'hyundai'}
-              currentUserId={currentUser?.uid || ''}
-              onNotify={(msg, isError) => showNotification(msg, isError)}
-            />
           )}
 
           {activeTab === 'pot-of-gold' && (

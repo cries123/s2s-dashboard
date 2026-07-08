@@ -48,7 +48,6 @@ export function buildMobileNavSections({
   if (enableDispatchTab) {
     serviceItems.push({ tabId: 'dispatch', label: 'Dispatch', href: '/service/dispatch' });
   }
-  serviceItems.push({ tabId: 'recalls', label: 'Recalls', href: '/service/recalls' });
   sections.push({ id: 'service', label: 'Service', icon: Calendar, items: serviceItems });
 
   if (currentDealershipId === 'hyundai' && modules.showPotOfGoldTab) {

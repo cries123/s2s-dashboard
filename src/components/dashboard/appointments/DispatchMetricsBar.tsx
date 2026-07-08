@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, AlertTriangle, CheckCircle2, Clock, Inbox, Moon, Wrench } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ClipboardList, Clock, Inbox, Moon, Wrench } from 'lucide-react';
 import { DISPATCH_PRODUCTION_LANES } from '../../../lib/dispatchConfig';
 import {
   computeDispatchMetrics,
@@ -81,7 +81,7 @@ export function DispatchMetricsBar({
               .filter((row) => row.count > 0)
               .slice(0, 8)
               .map((row) => (
-                <TechWorkloadChip key={row.techId} lastName={row.lastName} count={row.count} />
+                <TechWorkloadChip key={row.techId} label={row.displayLabel} count={row.count} />
               ))}
           </div>
         ) : null}
@@ -98,7 +98,7 @@ export function DispatchMetricsBar({
         </h2>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2">
         {overdueCount > 0 ? (
           <MetricTile
             icon={AlertTriangle}
@@ -116,6 +116,12 @@ export function DispatchMetricsBar({
         />
         <MetricTile icon={Activity} label="Active ROs" value={String(metrics.activeCount)} />
         <MetricTile icon={Moon} label="Overnight" value={String(metrics.overnightCount)} />
+        <MetricTile
+          icon={ClipboardList}
+          label="Written today"
+          value={String(metrics.writtenToday)}
+          accent="text-sky-400"
+        />
         <MetricTile
           icon={CheckCircle2}
           label="Completed today"
@@ -145,7 +151,7 @@ export function DispatchMetricsBar({
           </p>
           <div className="flex flex-wrap gap-2">
             {techWorkload.map((row) => (
-              <TechWorkloadChip key={row.techId} lastName={row.lastName} count={row.count} />
+              <TechWorkloadChip key={row.techId} label={row.displayLabel} count={row.count} />
             ))}
           </div>
         </div>
@@ -177,7 +183,7 @@ export function DispatchMetricsBar({
   );
 }
 
-function TechWorkloadChip({ lastName, count }: { lastName: string; count: number }) {
+function TechWorkloadChip({ label, count }: { label: string; count: number }) {
   return (
     <span
       className={cn(
@@ -187,7 +193,7 @@ function TechWorkloadChip({ lastName, count }: { lastName: string; count: number
           : 'border-slate-800 bg-slate-950/80 text-slate-500'
       )}
     >
-      <span>{lastName}</span>
+      <span>{label}</span>
       <span className={cn('tabular-nums', count > 0 ? 'text-indigo-300' : 'text-slate-600')}>
         {count}
       </span>

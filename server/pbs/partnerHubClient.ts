@@ -66,7 +66,17 @@ export async function pbsContactGet(criteria: Record<string, unknown> = {}) {
 }
 
 export async function pbsContactVehicleGet(criteria: Record<string, unknown> = {}) {
-  return pbsPartnerHubRequest<{ ContactVehicles?: unknown[] }>('ContactVehicleGet', criteria);
+  return pbsPartnerHubRequest<{ Items?: unknown[]; ContactVehicles?: unknown[] }>(
+    'ContactVehicleGet',
+    criteria
+  );
+}
+
+/** PartnerHUB returns `Items`; older wrappers used `ContactVehicles`. */
+export function pbsContactVehicleItems(
+  response: { Items?: unknown[]; ContactVehicles?: unknown[] } | null | undefined
+): unknown[] {
+  return response?.Items ?? response?.ContactVehicles ?? [];
 }
 
 export async function pbsRepairOrderGet(criteria: Record<string, unknown> = {}) {

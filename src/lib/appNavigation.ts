@@ -9,9 +9,7 @@ export type AppTab =
   | 'pot-of-gold'
   | 'forecast'
   | 'dispatch'
-  | 'recalls'
-  | 'sales-performance'
-  | 'bundle-menus';
+  | 'sales-performance';
 
 export type AdminSubTab =
   | 'users'
@@ -20,7 +18,8 @@ export type AdminSubTab =
   | 'ai-usage'
   | 'suggestions'
   | 'enrollments'
-  | 'import-health';
+  | 'import-health'
+  | 'pbs-sync';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -35,8 +34,8 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/service/directory': { activeTab: 'search' },
   '/service/alerts': { activeTab: 'alerts' },
   '/service/dispatch': { activeTab: 'dispatch' },
-  '/service/recalls': { activeTab: 'recalls' },
-  '/service/bundle-menus': { activeTab: 'bundle-menus' },
+  '/service/recalls': { activeTab: 'search' },
+  '/service/bundle-menus': { activeTab: 'search' },
   '/competitions/pot-of-gold': { activeTab: 'pot-of-gold' },
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
@@ -53,6 +52,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
   '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-health' },
   '/admin/import-health': { activeTab: 'admin', adminSubTab: 'import-health' },
+  '/admin/pbs-sync': { activeTab: 'admin', adminSubTab: 'pbs-sync' },
   '/admin/enrollments': { activeTab: 'admin', adminSubTab: 'enrollments' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
   '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
@@ -100,6 +100,8 @@ export function buildAppPath(state: AppRouteState): string {
         return '/admin/enrollments';
       case 'import-health':
         return '/admin/import-health';
+      case 'pbs-sync':
+        return '/admin/pbs-sync';
       case 'users':
       default:
         return '/admin/users';
@@ -117,8 +119,6 @@ export function buildAppPath(state: AppRouteState): string {
       return '/service/alerts';
     case 'dispatch':
       return '/service/dispatch';
-    case 'recalls':
-      return '/service/recalls';
     case 'pot-of-gold':
       return '/competitions/pot-of-gold';
     case 'appointments':
@@ -127,8 +127,6 @@ export function buildAppPath(state: AppRouteState): string {
       return '/reports/sales-performance';
     case 'forecast':
       return '/reports/forecast';
-    case 'bundle-menus':
-      return '/service/bundle-menus';
     default:
       return '/sales/onboard';
   }

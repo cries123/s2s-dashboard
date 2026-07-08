@@ -27,6 +27,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { DEALERSHIPS } from '../../../constants';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
 import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
+import { PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { buildDmsProviderSettingsPatch } from '../../../lib/dealershipDmsSettings';
 import { dispatchTechRosterForDealership } from '../../../constants/dispatchTechDefaults';
 import { isCrossDealershipDispatchRoster } from '../../../lib/dispatchTechRoster';
@@ -40,6 +41,7 @@ import { SettingsPage } from '../../settings/SettingsPage';
 import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings';
 import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
 import { DmsImportHealthPanel } from './DmsImportHealthPanel';
+import { PbsSyncPanel } from './PbsSyncPanel';
 import { ManagerOperationsConfig } from './ManagerOperationsConfig';
 import { StoreWorkspaceDefaultsSettings } from './StoreWorkspaceDefaultsSettings';
 import { ManagerPermissionsMatrix } from './ManagerPermissionsMatrix';
@@ -82,7 +84,8 @@ type AdminSubTab =
   | 'ai-usage'
   | 'suggestions'
   | 'enrollments'
-  | 'import-health';
+  | 'import-health'
+  | 'pbs-sync';
 
 function getPanelSectionMeta(
   subTab: AdminSubTab,
@@ -142,6 +145,12 @@ function getPanelSectionMeta(
         eyebrow: scope,
         title: 'DMS Import Health',
         description: 'Last successful PDF parse and recent failures per dealership.',
+      };
+    case 'pbs-sync':
+      return {
+        eyebrow: scope,
+        title: 'PBS Data Sync',
+        description: 'Pull customers, service history, and appointments from PartnerHUB.',
       };
     case 'logs':
       return {
@@ -794,6 +803,17 @@ export default function AdminPanel({
                           onUpdate={(patch) => updateSetting(d.id, patch)}
                         />
 
+                        {(dealershipSettings[d.id]?.dmsProvider ??
+                          defaultDmsProviderForDealership(d.id)) === 'pbs' && d.id === 'hyundai' ? (
+                          <PbsSyncPanel
+                            dealershipId={d.id}
+                            dealershipName={d.name}
+                            settings={dealershipSettings[d.id]}
+                            onSuccess={onSuccess}
+                            onError={onError}
+                          />
+                        ) : null}
+
                         <StoreWorkspaceDefaultsSettings
                           defaults={dealershipSettings[d.id]?.storeWorkspaceDefaults ?? {}}
                           onChange={(patch) => updateSetting(d.id, patch)}
@@ -937,38 +957,6 @@ export default function AdminPanel({
                                 className={cn(
                                   "absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md",
                                   (dealershipSettings[d.id]?.enableDispatchTab !== false) ? "translate-x-5" : "translate-x-0"
-                                )}
-                              />
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between p-3.5 bg-slate-950/80 rounded-xl border border-white/5 shadow-inner">
-                            <div className="space-y-0.5 pr-2">
-                              <span className="text-xs font-black text-white uppercase tracking-wide block">Bundle Menus (TV)</span>
-                              <span className="text-[10px] text-slate-400 font-medium leading-normal block">
-                                Show the service bundle menu board in the sidebar. On by default for Hyundai only.
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentVal =
-                                  dealershipSettings[d.id]?.enableBundleMenus ?? d.id === 'hyundai';
-                                updateSetting(d.id, { enableBundleMenus: !currentVal });
-                              }}
-                              className={cn(
-                                'w-11 h-6 rounded-full transition-colors relative focus:outline-none shrink-0',
-                                (dealershipSettings[d.id]?.enableBundleMenus ?? d.id === 'hyundai')
-                                  ? 'bg-brand-primary'
-                                  : 'bg-slate-800'
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
-                                  (dealershipSettings[d.id]?.enableBundleMenus ?? d.id === 'hyundai')
-                                    ? 'translate-x-5'
-                                    : 'translate-x-0'
                                 )}
                               />
                             </button>
@@ -1158,6 +1146,18 @@ export default function AdminPanel({
 
       {subTab === 'import-health' && panelMode === 'admin' && (
         <DmsImportHealthPanel dealershipSettings={dealershipSettings} />
+      )}
+
+      {subTab === 'pbs-sync' && panelMode === 'admin' && (
+        <PbsSyncPanel
+          dealershipId="hyundai"
+          dealershipName={
+            DEALERSHIPS.find((d) => d.id === 'hyundai')?.name || PBS_SYNC_DEALERSHIP_NAME
+          }
+          settings={dealershipSettings.hyundai}
+          onSuccess={onSuccess}
+          onError={onError}
+        />
       )}
 
       {subTab === 'logs' && (
