@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from 'express';
+import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
 import {
   getPbsPartnerHubPublicStatus,
   isPbsPartnerHubConfigured,
@@ -8,8 +9,13 @@ import {
   pbsAppointmentGet,
   pbsContactGet,
   pbsContactVehicleGet,
+  pbsContactVehicleItems,
   pbsRepairOrderGet,
 } from '../pbs/partnerHubClient.js';
+import { dealershipSettingsDoc, PBS_DEALERSHIP_ID } from '../pbs/pbsFirestore.js';
+import { isPbsSyncAuthorized } from '../pbs/pbsSyncAuth.js';
+import { isPacificMorningSyncHour, runPbsSync } from '../pbs/pbsSync.js';
+import type { PbsSyncState } from '../pbs/pbsTypes.js';
 
 function daysAgoIso(days: number): string {
   const d = new Date();
@@ -54,7 +60,7 @@ export function registerPbsRoutes(app: Express) {
         modifiedSince,
         counts: {
           contacts: contacts.Contacts?.length ?? 0,
-          contactVehicles: contactVehicles.ContactVehicles?.length ?? 0,
+          contactVehicles: pbsContactVehicleItems(contactVehicles).length,
           repairOrders: repairOrders.RepairOrders?.length ?? 0,
           appointments: appointments.Appointments?.length ?? 0,
         },
@@ -96,6 +102,61 @@ export function registerPbsRoutes(app: Express) {
     try {
       const data = await pbsAppointmentGet(req.body ?? {});
       res.json(data);
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /** Last PBS sync status (no secrets). */
+  app.get('/api/pbs/sync/status', async (_req, res) => {
+    const db = getAdminFirestore();
+    if (!db) {
+      return res.json({
+        configured: isPbsPartnerHubConfigured(),
+        firestoreAdmin: false,
+        state: null,
+      });
+    }
+
+    const dealershipId = PBS_DEALERSHIP_ID;
+    const snap = await dealershipSettingsDoc(db, dealershipId).get();
+    const state = (snap.data()?.pbsSyncState as PbsSyncState | undefined) ?? null;
+    res.json({
+      configured: isPbsPartnerHubConfigured(),
+      firestoreAdmin: true,
+      dealershipId,
+      state,
+      nextScheduledWindow: 'Daily at 8:00 AM America/Los_Angeles',
+    });
+  });
+
+  /**
+   * Run PBS → Directory / Operations sync.
+   * Auth: Authorization Bearer PBS_SYNC_SECRET (or SYSTEM_WORKERS_PASSWORD).
+   */
+  app.post('/api/pbs/sync/run', async (req: Request, res: Response) => {
+    if (!isPbsSyncAuthorized(req)) {
+      return res.status(401).json({ error: 'Unauthorized PBS sync request.' });
+    }
+
+    const fullRefresh = Boolean(req.body?.fullRefresh);
+    const force = Boolean(req.body?.force);
+    const cron = Boolean(req.body?.cron);
+
+    if (cron && !force && !isPacificMorningSyncHour()) {
+      return res.json({
+        ok: true,
+        skipped: true,
+        reason: 'Outside 8:00 AM America/Los_Angeles sync window.',
+      });
+    }
+
+    try {
+      const result = await runPbsSync({
+        triggeredBy: cron ? 'cron' : 'manual',
+        fullRefresh,
+      });
+      return res.status(result.ok ? 200 : 500).json(result);
     } catch (err) {
       return handlePbsError(res, err);
     }

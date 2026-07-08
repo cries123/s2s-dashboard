@@ -1,6 +1,6 @@
 import type { AppointmentParseResult } from '../types';
 
-function categorizeAppointmentBlock(block: string): 'recall' | 'oilChange' | 'diagnosis' | 'misc' {
+export function categorizeAppointmentBlock(block: string): 'recall' | 'oilChange' | 'diagnosis' | 'misc' {
   const isRecall =
     block.includes('RECALL') ||
     block.includes('CAMPAIGN') ||

@@ -159,6 +159,20 @@ export interface DealershipSettings {
   dispatchMidnightSweep?: DispatchMidnightSweepConfig;
   /** Last successful / failed DMS PDF imports (admin import health). */
   dmsImportHealth?: DmsImportHealth;
+  /** Automated PBS PartnerHUB sync status. */
+  pbsSyncState?: {
+    lastSyncAt: string;
+    lastSyncOk: boolean;
+    lastError?: string;
+    triggeredBy?: 'cron' | 'manual';
+    counts?: {
+      customersCreated: number;
+      customersUpdated: number;
+      visitsMerged: number;
+      appointmentDaysUpdated: number;
+      appointmentsProcessed: number;
+    };
+  };
   /** Defaults merged into new staff preferences on approval. */
   storeWorkspaceDefaults?: StoreWorkspaceDefaults;
   updatedAt: Timestamp;
@@ -315,6 +329,12 @@ export interface Customer {
   dealershipId?: string;
   notes?: string;
   salesman?: string;
+  /** PBS PartnerHUB contact id — used for automated sync matching. */
+  pbsContactId?: string;
+  /** PBS PartnerHUB vehicle id — used for automated sync matching. */
+  pbsVehicleId?: string;
+  /** ISO timestamp of last PBS sync touch. */
+  pbsSyncedAt?: string;
 }
 
 export interface ContactLog {
@@ -350,6 +370,9 @@ export interface DailyStat {
     recall: number;
     misc: number;
   };
+  source?: 'pdf' | 'manual' | 'pbs';
+  updatedBy?: string;
+  pbsSyncedAt?: string;
 }
 
 export type DepartmentColumnId = 
