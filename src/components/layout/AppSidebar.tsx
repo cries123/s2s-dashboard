@@ -55,7 +55,7 @@ export function AppSidebar({
   });
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 shrink-0 app-sidebar border-r h-screen sticky top-0">
+    <aside className="hidden lg:flex flex-col w-60 shrink-0 app-sidebar border-r h-screen sticky top-0 min-h-0">
       <div className="px-4 py-4 border-b space-y-3" style={{ borderColor: 'var(--color-sidebar-border)' }}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-brand-primary flex items-center justify-center text-white shrink-0">
@@ -78,7 +78,7 @@ export function AppSidebar({
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <nav className="flex-1 min-h-0 overflow-y-auto no-scrollbar px-3 py-4 space-y-6">
         {sections.map((section) => (
           <div key={section.id}>
             <p
