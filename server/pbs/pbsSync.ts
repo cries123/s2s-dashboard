@@ -412,7 +412,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     const contactVehicles = dedupeContactVehiclesByVin(contactVehiclesRaw);
     fetched.contactVehicles = contactVehicles.length;
     console.log(
-      `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN`
+      `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN (${modifiedSince ? 'incremental since ' + modifiedSince : 'full fleet'})`
     );
 
     for (const cv of contactVehicles) {
@@ -456,7 +456,9 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
     const repairOrders = await fetchRepairOrders(modifiedSince);
     fetched.repairOrders = repairOrders.length;
-    console.log(`[PBS Sync] Repair orders fetched: ${repairOrders.length}`);
+    console.log(
+      `[PBS Sync] Repair orders fetched: ${repairOrders.length} (${modifiedSince ? 'incremental since ' + modifiedSince : 'full 3-year window'})`
+    );
 
     const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
     for (const ro of repairOrders) {

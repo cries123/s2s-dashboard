@@ -5,7 +5,7 @@ import {
   AlertTriangle, ShieldCheck, MessageSquare, Info, Shield, HelpCircle, ArrowRight,
   Sparkles, CheckCircle2, Languages, Clock, Loader2
 } from 'lucide-react';
-import { collection, doc, getDocs, orderBy, query, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Customer, User } from '../../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -47,82 +47,18 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   useEffect(() => {
     if (activeTab !== 'history') return;
 
-    let cancelled = false;
-    async function loadTimeline() {
-      setTimelineLoading(true);
-      try {
-        const logSnap = await getDocs(
-          query(
-            collection(
-              db,
-              'artifacts',
-              'hyundai-sales-to-service',
-              'public',
-              'data',
-              'customers',
-              customer.id,
-              'contactLog'
-            ),
-            orderBy('timestamp', 'desc')
-          )
-        );
+    const serviceEvents: TimelineEvent[] = (customer.recentVisits || []).map((visit, idx) => ({
+      id: `service-${visit.id || idx}`,
+      type: 'service' as const,
+      date: new Date(visit.date),
+      title: `Repair order #${visit.soNumber}`,
+      subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
+      body: visit.requests,
+      meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,
+    }));
 
-        const contactEvents: TimelineEvent[] = logSnap.docs.map((docSnap) => {
-          const data = docSnap.data();
-          const ts = data.timestamp;
-          const date =
-            ts && typeof ts.toDate === 'function'
-              ? ts.toDate()
-              : new Date(data.timestamp || Date.now());
-          const outcome = String(data.outcome || 'Contact');
-          const isCampaign = outcome.toLowerCase().includes('campaign') || outcome.toLowerCase().includes('suspend');
-          return {
-            id: `contact-${docSnap.id}`,
-            type: isCampaign ? 'campaign' : 'contact',
-            date,
-            title: outcome,
-            subtitle: data.username ? `Logged by ${data.username}` : undefined,
-            body: data.notes ? String(data.notes) : undefined,
-            meta: data.appointmentSet ? 'Appointment set' : undefined,
-          };
-        });
-
-        const serviceEvents: TimelineEvent[] = (customer.recentVisits || []).map((visit, idx) => ({
-          id: `service-${visit.id || idx}`,
-          type: 'service' as const,
-          date: new Date(visit.date),
-          title: `Repair order #${visit.soNumber}`,
-          subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
-          body: visit.requests,
-          meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,
-        }));
-
-        if (!cancelled) {
-          setTimelineEvents([...serviceEvents, ...contactEvents]);
-        }
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) {
-          const serviceEvents: TimelineEvent[] = (customer.recentVisits || []).map((visit, idx) => ({
-            id: `service-${visit.id || idx}`,
-            type: 'service' as const,
-            date: new Date(visit.date),
-            title: `Repair order #${visit.soNumber}`,
-            subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
-            body: visit.requests,
-            meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,
-          }));
-          setTimelineEvents(serviceEvents);
-        }
-      } finally {
-        if (!cancelled) setTimelineLoading(false);
-      }
-    }
-
-    loadTimeline();
-    return () => {
-      cancelled = true;
-    };
+    setTimelineEvents(serviceEvents);
+    setTimelineLoading(false);
   }, [activeTab, customer.id, customer.recentVisits]);
 
   const handleSaveNotesInline = async () => {

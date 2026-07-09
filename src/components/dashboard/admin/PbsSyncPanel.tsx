@@ -116,6 +116,7 @@ export function PbsSyncPanel({
   }
 
   const [syncing, setSyncing] = useState(false);
+  const [fullRefreshing, setFullRefreshing] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
@@ -166,17 +167,23 @@ export function PbsSyncPanel({
     ? `https://console.firebase.google.com/project/${diagnostics.firebaseProjectId}/usage`
     : 'https://console.firebase.google.com/';
 
-  const handleSync = async () => {
-    setSyncing(true);
+  const handleSync = async (fullRefresh = false) => {
+    if (fullRefresh) setFullRefreshing(true);
+    else setSyncing(true);
     try {
-      const result = await runPbsSyncNow();
+      const result = await runPbsSyncNow({ fullRefresh });
       if (result.skipped) {
         onError?.(result.reason || 'Sync was skipped.');
         return;
       }
       await refreshStatus();
       if (result.ok) {
-        onSuccess?.(result.summary || 'PBS data pulled into Directory and Operations.');
+        onSuccess?.(
+          result.summary ||
+            (fullRefresh
+              ? 'Full PBS fleet refresh completed.'
+              : 'PBS changes since last sync pulled.')
+        );
       } else {
         onError?.(result.error || result.summary || 'PBS sync failed.');
       }
@@ -184,16 +191,19 @@ export function PbsSyncPanel({
       onError?.(err instanceof Error ? err.message : 'PBS sync failed.');
     } finally {
       setSyncing(false);
+      setFullRefreshing(false);
     }
   };
 
   return (
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
-        Pull the full Hyundai fleet from PBS PartnerHUB (matched by VIN) and update Directory profiles
-        with the current registered owner, phone, and vehicle details. Also refreshes Operations
+        Pull Hyundai customer/vehicle changes from PBS PartnerHUB (matched by VIN). Use{' '}
+        <strong className="text-slate-300">Pull changes</strong> for updates since the last
+        successful sync; use <strong className="text-slate-300">Full fleet refresh</strong> only
+        when you need to rebuild the entire directory from PBS. Also refreshes Operations
         appointment counts, advisor performance, technician efficiency, service reminders, vehicle
-        inventory, and the dispatch board from open repair orders. Only{' '}
+        inventory, and the dispatch board. Only{' '}
         <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> is modified. A scheduled
         job also runs every morning at 8:00 AM Pacific.
       </p>
@@ -210,20 +220,36 @@ export function PbsSyncPanel({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSync}
-            disabled={syncing || !canPullFromPbs}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all',
-              canPullFromPbs
-                ? 'bg-brand-primary text-slate-950 hover:brightness-110 disabled:opacity-60'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            )}
-          >
-            {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-            {syncing ? 'Pulling from PBS…' : 'Pull from PBS now'}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleSync(false)}
+              disabled={syncing || fullRefreshing || !canPullFromPbs}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all',
+                canPullFromPbs
+                  ? 'bg-brand-primary text-slate-950 hover:brightness-110 disabled:opacity-60'
+                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+              )}
+            >
+              {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+              {syncing ? 'Pulling changes…' : 'Pull changes'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSync(true)}
+              disabled={syncing || fullRefreshing || !canPullFromPbs}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all border',
+                canPullFromPbs
+                  ? 'border-white/10 text-slate-200 hover:bg-white/5 disabled:opacity-60'
+                  : 'border-slate-800 text-slate-500 cursor-not-allowed'
+              )}
+            >
+              {fullRefreshing ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
+              {fullRefreshing ? 'Full refresh…' : 'Full fleet refresh'}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

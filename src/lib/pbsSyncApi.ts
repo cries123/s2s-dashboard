@@ -75,12 +75,15 @@ export async function fetchPbsSyncStatus(): Promise<PbsSyncStatusResponse> {
   return { ...data, logs: data.logs ?? [] };
 }
 
-export async function runPbsSyncNow(): Promise<PbsSyncRunResponse> {
+export async function runPbsSyncNow(options: { fullRefresh?: boolean } = {}): Promise<PbsSyncRunResponse> {
   const headers = await bearerHeaders();
   const res = await fetch('/api/pbs/sync/run', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ fullRefresh: true, dealershipId: 'hyundai' }),
+    body: JSON.stringify({
+      fullRefresh: options.fullRefresh === true,
+      dealershipId: 'hyundai',
+    }),
   });
   const data = await parseJson<PbsSyncRunResponse & { error?: string }>(res);
   if (!res.ok && !data.skipped) {

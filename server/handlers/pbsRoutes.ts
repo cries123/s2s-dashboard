@@ -189,7 +189,7 @@ export function registerPbsRoutes(app: Express) {
       return res.status(401).json({ error: 'Unauthorized PBS sync request.' });
     }
 
-    const fullRefresh = req.body?.fullRefresh !== false;
+    const fullRefresh = req.body?.fullRefresh === true;
     const force = Boolean(req.body?.force);
     const cron = Boolean(req.body?.cron);
 
