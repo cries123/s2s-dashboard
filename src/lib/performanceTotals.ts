@@ -38,12 +38,31 @@ export function resolvePerformanceTotalsFromDoc(
         reportEndDate?: string;
       }
     | null
-    | undefined
+    | undefined,
+  options: { advisorSubset?: boolean } = {}
 ): ResolvedPerformanceTotals | null {
   if (!data) return null;
 
   const advisors = data.advisors ?? [];
   let baseTotals: PerformanceTotalsDoc | null = data.totals ? { ...data.totals } : null;
+
+  // Shop-wide totals from Firestore should not be replaced by a filtered advisor roster.
+  if (options.advisorSubset && baseTotals) {
+    const totalGrossParts =
+      Number(baseTotals.totalGrossParts ?? baseTotals.totalPartsGross) || 0;
+    return {
+      totalGross: Number(baseTotals.totalGross) || 0,
+      totalLabor: Number(baseTotals.totalLabor) || 0,
+      totalParts: Number(baseTotals.totalParts) || 0,
+      totalGrossParts,
+      totalSales:
+        Number(baseTotals.totalSales) ||
+        (Number(baseTotals.totalLabor) || 0) + (Number(baseTotals.totalParts) || 0),
+      totalHrs: Number(baseTotals.totalHrs) || 0,
+      reportStartDate: data.reportStartDate,
+      reportEndDate: data.reportEndDate,
+    };
+  }
 
   if (advisors.length > 0) {
     const computedGross = advisors.reduce(
@@ -59,11 +78,11 @@ export function resolvePerformanceTotalsFromDoc(
     const storedGross = Number(baseTotals?.totalGross) || 0;
     const storedLabor = Number(baseTotals?.totalLabor) || 0;
 
+    // Prefer stored shop totals when present; only recompute when missing or advisors sum higher.
     if (
       !baseTotals ||
-      Math.abs(storedGross - computedGross) > 10 ||
-      Math.abs(storedLabor - computedLabor) > 10 ||
-      computedGross > storedGross
+      computedGross > storedGross + 10 ||
+      computedLabor > storedLabor + 10
     ) {
       baseTotals = {
         totalGross: computedGross,

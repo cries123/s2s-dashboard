@@ -32,7 +32,6 @@ import {
   forecastGoalPercent,
 } from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
-import { filterAdvisorsByPerformanceRoster } from '../../../lib/advisorNameUtils';
 import { defaultPerformanceAdvisorRoster } from '../../../constants/dealerDefaults';
 import {
   buildOperationsViewPeriodOptions,
@@ -590,25 +589,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     }
   };
 
-  const effectiveAdvisorRoster = React.useMemo(
-    () =>
-      performanceAdvisorRoster.length > 0
-        ? performanceAdvisorRoster
-        : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [],
-    [performanceAdvisorRoster, currentDealershipId]
-  );
-
   const resolvedPerformance = React.useMemo(() => {
     if (!activePerformanceData) return null;
-    const advisors = filterAdvisorsByPerformanceRoster(
-      activePerformanceData.advisors ?? [],
-      effectiveAdvisorRoster
-    );
-    return resolvePerformanceTotalsFromDoc({
-      ...activePerformanceData,
-      advisors,
-    });
-  }, [activePerformanceData, effectiveAdvisorRoster]);
+    return resolvePerformanceTotalsFromDoc(activePerformanceData);
+  }, [activePerformanceData]);
 
   const effectiveStats = React.useMemo(
     () => buildEffectiveAppointmentStats(allStats, selectedDate, dailyCount),

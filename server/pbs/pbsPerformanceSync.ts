@@ -78,16 +78,33 @@ export async function syncPbsAdvisorPerformance(
   const aggregate = aggregatePbsAdvisorPerformance(repairOrders, partsInvoices, monthStart, monthEnd);
   const reportEndDate = performanceReportEndDate(monthEnd);
 
+  const existingSnap = await advisorPerformanceDoc(db, dealershipId).get();
+  const existing = existingSnap.exists ? existingSnap.data() : undefined;
+  const preserveImportedLabor =
+    existing &&
+    (existing.source === 'csr-pdf' || existing.source === 'dms-pdf') &&
+    Number(existing.totals?.totalGross) > 0;
+
+  const totalsToWrite = preserveImportedLabor
+    ? {
+        ...aggregate.totals,
+        totalGross: Number(existing.totals?.totalGross) || aggregate.totals.totalGross,
+        totalLabor: Number(existing.totals?.totalLabor) || aggregate.totals.totalLabor,
+        totalHrs: Number(existing.totals?.totalHrs) || aggregate.totals.totalHrs,
+      }
+    : aggregate.totals;
+
   await advisorPerformanceDoc(db, dealershipId).set(
     stripUndefinedDeep({
       advisors: aggregate.advisors,
-      totals: aggregate.totals,
+      totals: totalsToWrite,
       reportStartDate: aggregate.reportStartDate,
       reportEndDate,
-      source: 'pbs-sync',
+      source: preserveImportedLabor ? existing.source : 'pbs-sync',
       pbsSyncedAt: syncedAt,
       partsInvoicesSkipped: Boolean(skippedReason),
       partsInvoicesSkipReason: skippedReason,
+      laborGrossPreservedFromImport: preserveImportedLabor || undefined,
       updatedAt: serverTimestamp(),
     }),
     { merge: false }

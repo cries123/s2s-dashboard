@@ -295,6 +295,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         ...(newData.reportEndDate && { reportEndDate: newData.reportEndDate }),
         ...(newData.payTypes && { payTypes: newData.payTypes }),
         advisorMix: mixRows,
+        source: isPbsDealership ? 'csr-pdf' : 'dms-pdf',
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       }, { merge: false }); // Disable automatic merge to cleanly replace any junk advisors
@@ -643,12 +644,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
   // Calculate totals and projections
   const getPerformanceMetrics = () => {
-    const resolved = resolvePerformanceTotalsFromDoc({
-      advisors: visibleAdvisors,
-      totals,
-      reportStartDate,
-      reportEndDate,
-    });
+    const resolved = resolvePerformanceTotalsFromDoc(
+      {
+        advisors: visibleAdvisors,
+        totals,
+        reportStartDate,
+        reportEndDate,
+      },
+      { advisorSubset: visibleAdvisors.length < advisors.length }
+    );
     const baseTotals = resolved
       ? {
           totalGross: resolved.totalGross,
@@ -740,9 +744,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             <p className="text-[10px] text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
               Parts totals are incomplete — PBS denied access to cashiered parts invoices
               {partsInvoicesSkipReason ? ` (${partsInvoicesSkipReason})` : ''}. Counter/walk-in parts
-              (e.g. Parts CRO on your CSR productivity report) are missing. Only parts attached to
-              repair orders are included. Ask PBS/PartnerHUB to enable <strong className="text-amber-200">PartsInvoiceGet</strong> for
-              your account, then pull changes again.
+              are not included. Ask PBS/PartnerHUB to enable <strong className="text-amber-200">PartsInvoiceGet</strong> if
+              you need parts accuracy.
+            </p>
+          )}
+          {isPbsDealership && performanceSource === 'csr-pdf' && selectedMonth === 'active' && (
+            <p className="text-[10px] text-emerald-400/90 mt-2 max-w-2xl leading-relaxed">
+              Labor gross is from your imported CSR productivity report (matches PBS). Pull changes will
+              refresh advisor rows but keep imported labor gross until you import a newer PDF.
+            </p>
+          )}
+          {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && (
+            <p className="text-[10px] text-slate-500 mt-2 max-w-2xl leading-relaxed">
+              Labor gross is computed from cashiered repair orders via PBS. For an exact match to the CSR
+              productivity report, import that PDF here — PBS has no dedicated productivity report API.
             </p>
           )}
         </div>
