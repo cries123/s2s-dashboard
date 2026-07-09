@@ -23,8 +23,9 @@ export function categorizeAppointmentBlock(block: string): 'recall' | 'oilChange
     block.includes('LOST POWER') ||
     block.includes('ADVISE');
 
-  if (isRecall) return 'recall';
+  // Oil change wins when combined with recall/diag lines on the same RO (common at dealers).
   if (isOil) return 'oilChange';
+  if (isRecall) return 'recall';
   if (isDiag) return 'diagnosis';
   return 'misc';
 }

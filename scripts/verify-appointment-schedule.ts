@@ -9,6 +9,8 @@ import {
 import { parsePbsIso, pbsIsoToPacificMinutes } from '../server/pbs/pbsMappers.js';
 import type { PbsAppointment } from '../server/pbs/pbsTypes.js';
 
+import { categorizeAppointmentBlock } from '../server/dms/parsers/appointments.ts';
+
 function assert(condition: boolean, message: string) {
   if (!condition) {
     console.error(`FAIL: ${message}`);
@@ -64,6 +66,13 @@ assert(slot!.isWaiter === true, 'preserves waiter flag');
 const parsed = parsePbsIso('2026-07-09T14:00:00.0000000-07:00');
 assert(Boolean(parsed), 'parses PBS 7-digit fractional ISO');
 assert(pbsIsoToPacificMinutes('2026-07-09T14:00:00.0000000-07:00') === 14 * 60, 'Pacific minutes from PBS ISO');
+
+const oilAndRecall =
+  'PERFORM FULL SYNTHETIC OIL & FILTER CHANGE PERFORMED RECALL 302 FRONT VIEW CAMERA';
+assert(
+  categorizeAppointmentBlock(oilAndRecall.toUpperCase()) === 'oilChange',
+  'oil change takes priority over recall in combined concern text'
+);
 
 console.log('Verification PASSED — appointment schedule mapping');
 console.log(JSON.stringify(slot, null, 2));

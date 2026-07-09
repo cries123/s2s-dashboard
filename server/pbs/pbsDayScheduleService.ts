@@ -85,7 +85,7 @@ export async function getOrHydrateDaySchedule(
 
   if (!options.forceRefresh) {
     const snap = await ref.get();
-    if (snap.exists()) {
+    if (snap.exists) {
       const appointments = (snap.data()?.appointments as ScheduledAppointmentSlot[] | undefined) ?? [];
       if (appointments.length > 0) {
         return { appointments, source: 'firestore', hydrated: false };

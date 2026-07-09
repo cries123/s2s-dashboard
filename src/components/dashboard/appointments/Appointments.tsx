@@ -315,7 +315,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
     const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubPerf = onSnapshot(perfRef, (snap) => {
-      if (snap.exists()) {
+      if (snap.exists) {
         setActivePerformanceData(snap.data());
       } else {
         setActivePerformanceData(null);
@@ -326,7 +326,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     const activeTechId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
     const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', activeTechId);
     const unsubTech = onSnapshot(techRef, (snap) => {
-      if (snap.exists()) {
+      if (snap.exists) {
         setActiveTechData(snap.data());
       }
     });
@@ -377,25 +377,35 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         if (cancelled) return;
         setScheduleLoadError(err instanceof Error ? err.message : 'Failed to load schedule from PBS.');
       } finally {
-        if (!cancelled) setScheduleHydrating(false);
+        if (!cancelled) {
+          setScheduleHydrating(false);
+          setScheduleLoading(false);
+        }
       }
     };
 
     setScheduleLoading(true);
     setScheduleLoadError(null);
 
+    // Load from PBS immediately when we know appointments exist — don't wait for an empty Firestore doc.
+    if (trackerCount > 0 && canHydrateFromPbs) {
+      void hydrateFromPbs(false);
+    }
+
     const unsubscribe = onSnapshot(
       scheduleRef,
       (snap) => {
         if (cancelled) return;
-        const slots = snap.exists()
-          ? ((snap.data().appointments as ScheduledAppointmentSlot[]) || [])
+        const slots = snap.exists
+          ? ((snap.data()?.appointments as ScheduledAppointmentSlot[]) || [])
           : [];
-        setScheduleAppointments(slots);
-        setScheduleLoading(false);
-
-        if (slots.length === 0 && trackerCount > 0 && canHydrateFromPbs) {
-          void hydrateFromPbs(false);
+        if (slots.length > 0) {
+          setScheduleAppointments(slots);
+          setScheduleLoading(false);
+          setScheduleHydrating(false);
+        } else if (trackerCount === 0) {
+          setScheduleAppointments([]);
+          setScheduleLoading(false);
         }
       },
       (error) => {
