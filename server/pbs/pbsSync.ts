@@ -490,10 +490,15 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     const visitWrites: Array<(batch: WriteBatch) => void> = [];
     for (const [customerId, incomingVisits] of visitsByCustomer) {
       const existing = index.dataById.get(customerId) || {};
+      const vehicleRef = String(
+        existing.pbsVehicleId || incomingVisits[0]?.pbsVehicleRef || ''
+      ).trim();
+      if (!vehicleRef) continue;
+
       const merged = mergeVehiclePbsServiceVisits(
         existing.recentVisits as Array<Record<string, unknown>> | undefined,
         incomingVisits,
-        customerVehicleRef || vehicleRef,
+        vehicleRef,
         MAX_RECENT_VISITS
       );
       if (merged.length === 0) continue;
