@@ -48,6 +48,64 @@ export function pbsIsoToPacificMinutes(iso: string | undefined | null): number |
   return hour * 60 + minute;
 }
 
+function hasExplicitTimezoneOffset(iso: string): boolean {
+  return /[+-]\d{2}:\d{2}$/.test(iso.replace(/\.\d+/, ''));
+}
+
+/** PBS AppointmentTime with only a Z suffix is dealership wall clock, not UTC. */
+export function pbsWallClockPacificMinutes(iso: string | undefined | null): number | null {
+  const d = parsePbsIso(iso);
+  if (!d) return null;
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
+
+export function pbsWallClockPacificDate(iso: string | undefined | null): string | null {
+  if (!iso || iso.startsWith('0001-01-01')) return null;
+  const match = iso.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Resolve appointment start time for the schedule board.
+ * Prefer true UTC (AppointmentTimeUTC), then offset-aware local, then wall-clock Z.
+ */
+export function pbsAppointmentToPacificMinutes(
+  appointmentTime?: string | null,
+  appointmentTimeUtc?: string | null
+): number | null {
+  if (appointmentTimeUtc && !appointmentTimeUtc.startsWith('0001-01-01')) {
+    const fromUtc = pbsIsoToPacificMinutes(appointmentTimeUtc);
+    if (fromUtc !== null) return fromUtc;
+  }
+
+  if (!appointmentTime || appointmentTime.startsWith('0001-01-01')) return null;
+
+  if (hasExplicitTimezoneOffset(appointmentTime)) {
+    return pbsIsoToPacificMinutes(appointmentTime);
+  }
+
+  return pbsWallClockPacificMinutes(appointmentTime);
+}
+
+/** Pacific calendar date for an appointment (day bucket). */
+export function pbsAppointmentPacificDate(
+  appointmentTime?: string | null,
+  appointmentTimeUtc?: string | null
+): string | null {
+  if (appointmentTimeUtc && !appointmentTimeUtc.startsWith('0001-01-01')) {
+    const fromUtc = pbsIsoToDateString(appointmentTimeUtc);
+    if (fromUtc) return fromUtc;
+  }
+
+  if (!appointmentTime || appointmentTime.startsWith('0001-01-01')) return null;
+
+  if (hasExplicitTimezoneOffset(appointmentTime)) {
+    return pbsIsoToDateString(appointmentTime);
+  }
+
+  return pbsWallClockPacificDate(appointmentTime);
+}
+
 export function defaultScheduleStartMinutes(): number {
   return DEFAULT_SCHEDULE_START_MINUTES;
 }
@@ -238,8 +296,7 @@ export function aggregateAppointmentsByDay(
     if (!isActivePbsAppointment(appt)) continue;
 
     const date =
-      pbsIsoToDateString(appt.AppointmentTime) ||
-      pbsIsoToDateString(appt.AppointmentTimeUTC);
+      pbsAppointmentPacificDate(appt.AppointmentTime, appt.AppointmentTimeUTC);
     if (!date || date < monthStart || date > monthEnd) continue;
 
     const concern = appointmentConcernText(appt);

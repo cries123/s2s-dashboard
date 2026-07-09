@@ -77,6 +77,23 @@ export interface PbsAppointment {
   RequestLines?: PbsAppointmentRequestLine[];
 }
 
+export interface PbsAppointmentContactVehicleInfo {
+  AppointmentId?: string;
+  AppointmentNumber?: number;
+  AppointmentIsWaiter?: boolean;
+  AppointmentTime?: string;
+  AppointmentPickupTime?: string;
+  AppointmentStatus?: string;
+  ContactId?: string;
+  ContactFirstName?: string;
+  ContactLastName?: string;
+  VehicleId?: string;
+  VehicleYear?: string;
+  VehicleMake?: string;
+  VehicleModel?: string;
+  VehicleTrim?: string;
+}
+
 export interface PbsSyncCounts {
   customersCreated: number;
   customersUpdated: number;

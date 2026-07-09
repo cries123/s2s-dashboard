@@ -2,6 +2,7 @@ import { Timestamp, type DocumentData, type Firestore, type WriteBatch } from 'f
 import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
 import {
   pbsAppointmentGet,
+  pbsAppointmentContactVehicleInfoGet,
   pbsContactVehicleGet,
   pbsContactVehicleItems,
   pbsRepairOrderGet,
@@ -34,10 +35,13 @@ import {
 } from './pbsFirestore.js';
 import {
   buildAppointmentCustomerLookup,
+  buildAppointmentDisplayInfoMap,
+  type PbsAppointmentDisplayInfo,
   syncAppointmentSchedule,
 } from './pbsAppointmentSchedule.js';
 import type {
   PbsAppointment,
+  PbsAppointmentContactVehicleInfo,
   PbsContactVehicle,
   PbsRepairOrder,
   PbsSyncCounts,
@@ -167,10 +171,10 @@ async function loadCustomerIndex(
     const phone = normalizePhone(String(data.phone || ''));
     if (phone) index.byPhone.set(phone, docSnap.id);
 
-    const vehicleRef = String(data.pbsVehicleId || '');
+    const vehicleRef = String(data.pbsVehicleId || '').trim().toLowerCase();
     if (vehicleRef) index.byVehicleRef.set(vehicleRef, docSnap.id);
 
-    const contactRef = String(data.pbsContactId || '');
+    const contactRef = String(data.pbsContactId || '').trim().toLowerCase();
     if (contactRef) index.byContactRef.set(contactRef, docSnap.id);
   }
 
@@ -194,7 +198,7 @@ function resolveCustomerIdByVehicle(
     if (hit) return hit;
   }
   if (keys.vehicleRef) {
-    const hit = index.byVehicleRef.get(keys.vehicleRef);
+    const hit = index.byVehicleRef.get(keys.vehicleRef.trim().toLowerCase());
     if (hit) return hit;
   }
   return undefined;
@@ -219,11 +223,11 @@ function resolveCustomerId(
     if (hit) return hit;
   }
   if (keys.vehicleRef) {
-    const hit = index.byVehicleRef.get(keys.vehicleRef);
+    const hit = index.byVehicleRef.get(keys.vehicleRef.trim().toLowerCase());
     if (hit) return hit;
   }
   if (keys.contactRef) {
-    const hit = index.byContactRef.get(keys.contactRef);
+    const hit = index.byContactRef.get(keys.contactRef.trim().toLowerCase());
     if (hit) return hit;
   }
   if (keys.phone) {
@@ -245,9 +249,9 @@ function registerCustomerInIndex(
   if (vin) index.byVin.set(vin, docId);
   const phone = normalizePhone(String(data.phone || ''));
   if (phone) index.byPhone.set(phone, docId);
-  const vehicleRef = String(data.pbsVehicleId || '');
+  const vehicleRef = String(data.pbsVehicleId || '').trim().toLowerCase();
   if (vehicleRef) index.byVehicleRef.set(vehicleRef, docId);
-  const contactRef = String(data.pbsContactId || '');
+  const contactRef = String(data.pbsContactId || '').trim().toLowerCase();
   if (contactRef) index.byContactRef.set(contactRef, docId);
 }
 
@@ -277,6 +281,15 @@ async function fetchRepairOrders(modifiedSince?: string): Promise<PbsRepairOrder
 async function fetchMonthAppointments(start: string, end: string): Promise<PbsAppointment[]> {
   const response = await pbsAppointmentGet(monthAppointmentCriteria(start, end));
   return (response.Appointments || []) as PbsAppointment[];
+}
+
+async function fetchMonthAppointmentDisplayInfo(
+  start: string,
+  end: string
+): Promise<Map<string, PbsAppointmentDisplayInfo>> {
+  const response = await pbsAppointmentContactVehicleInfoGet(monthAppointmentCriteria(start, end));
+  const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
+  return buildAppointmentDisplayInfoMap(items);
 }
 
 async function readPbsSyncState(
@@ -522,7 +535,10 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     await commitBatches(db, visitWrites);
 
     const { start, end } = monthRange;
-    const appointments = await fetchMonthAppointments(start, end);
+    const [appointments, appointmentDisplayInfo] = await Promise.all([
+      fetchMonthAppointments(start, end),
+      fetchMonthAppointmentDisplayInfo(start, end),
+    ]);
     fetched.appointments = appointments.length;
     counts.appointmentsProcessed = appointments.length;
     console.log(`[PBS Sync] Appointments for ${start}..${end}: ${appointments.length}`);
@@ -576,7 +592,8 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         start,
         end,
         scheduleLookup,
-        startedAt
+        startedAt,
+        appointmentDisplayInfo
       );
       counts.appointmentScheduleDays = scheduleResult.daysWritten;
       counts.appointmentScheduleSlots = scheduleResult.slotsWritten;

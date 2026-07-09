@@ -9,12 +9,17 @@ import {
 } from './pbsFirestore.js';
 import {
   buildAppointmentCustomerLookup,
+  buildAppointmentDisplayInfoMap,
   mapPbsAppointmentToSlot,
+  type PbsAppointmentDisplayInfo,
   type ScheduledAppointmentSlot,
 } from './pbsAppointmentSchedule.js';
-import { normalizePhone, pbsIsoToDateString } from './pbsMappers.js';
-import { pbsAppointmentGet } from './partnerHubClient.js';
-import type { PbsAppointment } from './pbsTypes.js';
+import { pbsAppointmentPacificDate } from './pbsMappers.js';
+import {
+  pbsAppointmentContactVehicleInfoGet,
+  pbsAppointmentGet,
+} from './partnerHubClient.js';
+import type { PbsAppointment, PbsAppointmentContactVehicleInfo } from './pbsTypes.js';
 
 function monthBoundsForDate(date: string): { start: string; end: string } {
   const [year, month] = date.split('-').map(Number);
@@ -23,6 +28,13 @@ function monthBoundsForDate(date: string): { start: string; end: string } {
   return {
     start: `${year}-${monthStr}-01`,
     end: `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+function appointmentCriteria(start: string, end: string): Record<string, unknown> {
+  return {
+    AppointmentSince: `${start}T00:00:00.0000000-07:00`,
+    AppointmentUntil: `${end}T23:59:59.9999999-07:00`,
   };
 }
 
@@ -38,32 +50,38 @@ async function loadCustomerIndex(db: Firestore, dealershipId: string) {
 
     dataById.set(docSnap.id, data);
 
-    const vehicleRef = String(data.pbsVehicleId || '');
+    const vehicleRef = String(data.pbsVehicleId || '').trim().toLowerCase();
     if (vehicleRef) byVehicleRef.set(vehicleRef, docSnap.id);
 
-    const contactRef = String(data.pbsContactId || '');
+    const contactRef = String(data.pbsContactId || '').trim().toLowerCase();
     if (contactRef) byContactRef.set(contactRef, docSnap.id);
-
-    void normalizePhone(String(data.phone || ''));
   }
 
   return { byVehicleRef, byContactRef, dataById };
 }
 
+async function fetchAppointmentDisplayInfo(
+  start: string,
+  end: string
+): Promise<Map<string, PbsAppointmentDisplayInfo>> {
+  const response = await pbsAppointmentContactVehicleInfoGet(appointmentCriteria(start, end));
+  const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
+  return buildAppointmentDisplayInfoMap(items);
+}
+
 function slotsForDate(
   appointments: PbsAppointment[],
   date: string,
-  lookup: ReturnType<typeof buildAppointmentCustomerLookup>
+  lookup: ReturnType<typeof buildAppointmentCustomerLookup>,
+  displayInfoByAppointmentId: Map<string, PbsAppointmentDisplayInfo>
 ): ScheduledAppointmentSlot[] {
   const slots: ScheduledAppointmentSlot[] = [];
 
   for (const appt of appointments) {
-    const timeIso = appt.AppointmentTime || appt.AppointmentTimeUTC;
-    const apptDate =
-      pbsIsoToDateString(timeIso) || pbsIsoToDateString(appt.AppointmentTimeUTC);
+    const apptDate = pbsAppointmentPacificDate(appt.AppointmentTime, appt.AppointmentTimeUTC);
     if (apptDate !== date) continue;
 
-    const slot = mapPbsAppointmentToSlot(appt, lookup);
+    const slot = mapPbsAppointmentToSlot(appt, lookup, displayInfoByAppointmentId);
     if (slot) slots.push(slot);
   }
 
@@ -94,14 +112,15 @@ export async function getOrHydrateDaySchedule(
   }
 
   const { start, end } = monthBoundsForDate(date);
-  const response = await pbsAppointmentGet({
-    AppointmentSince: `${start}T00:00:00.0000000-07:00`,
-    AppointmentUntil: `${end}T23:59:59.9999999-07:00`,
-  });
-  const appointments = (response.Appointments || []) as PbsAppointment[];
+  const criteria = appointmentCriteria(start, end);
+  const [appointmentResponse, displayInfoByAppointmentId] = await Promise.all([
+    pbsAppointmentGet(criteria),
+    fetchAppointmentDisplayInfo(start, end),
+  ]);
+  const appointments = (appointmentResponse.Appointments || []) as PbsAppointment[];
   const index = await loadCustomerIndex(db, dealershipId);
   const lookup = buildAppointmentCustomerLookup(index);
-  const slots = slotsForDate(appointments, date, lookup);
+  const slots = slotsForDate(appointments, date, lookup, displayInfoByAppointmentId);
   const syncedAt = new Date().toISOString();
 
   await ref.set(

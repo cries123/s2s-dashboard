@@ -87,6 +87,10 @@ export async function pbsAppointmentGet(criteria: Record<string, unknown> = {}) 
   return pbsPartnerHubRequest<{ Appointments?: unknown[] }>('AppointmentGet', criteria);
 }
 
+export async function pbsAppointmentContactVehicleInfoGet(criteria: Record<string, unknown> = {}) {
+  return pbsPartnerHubRequest<{ Items?: unknown[] }>('AppointmentContactVehicleInfoGet', criteria);
+}
+
 export async function pbsPartsInvoiceGet(criteria: Record<string, unknown> = {}) {
   return pbsPartnerHubRequest<{ PartsInvoices?: unknown[] }>('PartsInvoiceGet', criteria);
 }

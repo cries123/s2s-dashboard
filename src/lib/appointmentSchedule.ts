@@ -127,7 +127,10 @@ export function formatScheduleTime(minutes: number): string {
   const minute = minutes % 60;
   const period = hour24 >= 12 ? 'PM' : 'AM';
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
-  return minute === 0 ? `${hour12}${period.toLowerCase()}` : `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
+  if (minute === 0) {
+    return `${hour12} ${period}`;
+  }
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
 export function scheduleHourLabels(): { minutes: number; label: string }[] {
