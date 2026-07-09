@@ -4,6 +4,11 @@
  */
 import { mapPbsOpenRepairOrderToDispatch, mapPbsDispatchStatus, mapPbsDepartment } from '../server/pbs/pbsDispatchMapper.js';
 import {
+  filterRetailServiceVisits,
+  isExcludedPbsServiceVisit,
+  mapRepairOrderToVisit,
+} from '../server/pbs/pbsMappers.js';
+import {
   isActivePbsWorkplanReminder,
   isInventoryPbsVehicle,
   isOpenPbsRepairOrder,
@@ -38,6 +43,40 @@ assert(mapPbsReminderDueDate('2026-08-15T00:00:00.0000000-07:00') === '2026-08-1
 
 assert(isInventoryPbsVehicle({ Status: 'In Stock', Inventory: 1 }), 'inventory vehicle by status');
 assert(!isInventoryPbsVehicle({ Status: 'Sold', IsInactive: false }), 'sold vehicle excluded');
+
+assert(
+  isExcludedPbsServiceVisit('PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.', 8),
+  'excludes PDI visits'
+);
+assert(
+  !isExcludedPbsServiceVisit(
+    'PERFORM SMOG INSPECTION.; PERFORM OIL/FILTER CHANGE',
+    24464
+  ),
+  'keeps retail service visits'
+);
+
+const pdiVisit = mapRepairOrderToVisit({
+  RawRepairOrderNumber: '117828',
+  DateCashiered: '2026-06-29T18:00:00.0000000-07:00',
+  MileageOut: 8,
+  Requests: [{ RequestDescription: 'PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.' }],
+});
+assert(pdiVisit === null, 'mapRepairOrderToVisit drops PDI');
+
+const retailVisit = mapRepairOrderToVisit({
+  RawRepairOrderNumber: '117778',
+  DateCashiered: '2026-06-29T18:00:00.0000000-07:00',
+  MileageOut: 24464,
+  Requests: [{ RequestDescription: 'PERFORM OIL/FILTER CHANGE' }],
+});
+assert(retailVisit?.mileage === 24464, 'keeps retail visit mileage');
+
+const cleaned = filterRetailServiceVisits([
+  { date: '2026-06-29', soNumber: '117828', mileage: 8, requests: 'PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.' },
+  { date: '2026-06-29', soNumber: '117778', mileage: 24464, requests: 'PERFORM OIL/FILTER CHANGE' },
+]);
+assert(cleaned.length === 1 && cleaned[0].mileage === 24464, 'filters mixed visit log');
 
 const index: PbsCustomerIndexMaps = {
   byContactRef: new Map([['contact-1', 'cust-1']]),

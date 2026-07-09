@@ -105,6 +105,39 @@ export function repairOrderSoNumber(ro: PbsRepairOrder): string {
   return String(raw).replace(/^SO/i, '').trim();
 }
 
+/** Lot prep / PDI — not retail customer service history. */
+export function isExcludedPbsServiceVisit(requests: string, mileage = 0): boolean {
+  const text = (requests || '').toUpperCase();
+  if (!text) return false;
+
+  if (
+    text.includes('PRE-DELIVERY') ||
+    text.includes('PREDELIVERY') ||
+    text.includes('PRE DELIVERY') ||
+    text.includes('MANUFACTURER PRE-DELIVERY') ||
+    /\bPDI\b/.test(text)
+  ) {
+    return true;
+  }
+
+  // Recon lane safety/battery work at delivery mileage — not owner service visits.
+  if (mileage > 0 && mileage < 75 && text.includes('USED VEHICLE SAFETY INSPECTION')) {
+    return true;
+  }
+
+  return false;
+}
+
+export function filterRetailServiceVisits<T extends { requests?: unknown; mileage?: unknown }>(
+  visits: T[] | undefined
+): T[] {
+  return (visits || []).filter((visit) => {
+    const requests = String(visit.requests || '');
+    const mileage = Number(visit.mileage) || 0;
+    return !isExcludedPbsServiceVisit(requests, mileage);
+  });
+}
+
 export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   soNumber: string;
   date: string;
@@ -127,6 +160,8 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
       .map((r) => r.RequestDescription?.trim())
       .filter(Boolean)
       .join('; ') || 'Service visit';
+
+  if (isExcludedPbsServiceVisit(requests, mileage)) return null;
 
   return {
     soNumber,
@@ -222,9 +257,11 @@ export function mergeServiceVisits(
     }
   }
 
-  return Array.from(bySo.values())
-    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-    .slice(0, maxVisits);
+  return filterRetailServiceVisits(
+    Array.from(bySo.values())
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+      .slice(0, maxVisits)
+  );
 }
 
 export function latestVisitDate(visits: Array<{ date?: string }>): string | undefined {
