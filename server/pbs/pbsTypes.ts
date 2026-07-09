@@ -23,6 +23,8 @@ export interface PbsContactVehicle {
   VehicleLastServiceDate?: string;
   VehicleLastServiceMileage?: number;
   VehicleLastSaleDate?: string;
+  VehicleLastUpdate?: string;
+  ContactLastUpdate?: string;
 }
 
 export interface PbsRepairOrderRequest {
@@ -62,6 +64,7 @@ export interface PbsAppointment {
 export interface PbsSyncCounts {
   customersCreated: number;
   customersUpdated: number;
+  ownerChanges: number;
   visitsMerged: number;
   appointmentDaysUpdated: number;
   appointmentsProcessed: number;

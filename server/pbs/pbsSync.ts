@@ -42,6 +42,10 @@ import type {
   PbsSyncState,
 } from './pbsTypes.js';
 import { appendPbsSyncLog, buildPbsSyncSummary } from './pbsSyncLogs.js';
+import {
+  buildPbsCustomerUpdatePatch,
+  dedupeContactVehiclesByVin,
+} from './pbsCustomerMerge.js';
 
 const MAX_RECENT_VISITS = 25;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
@@ -78,6 +82,7 @@ function emptyCounts(): PbsSyncCounts {
   return {
     customersCreated: 0,
     customersUpdated: 0,
+    ownerChanges: 0,
     visitsMerged: 0,
     appointmentDaysUpdated: 0,
     appointmentsProcessed: 0,
@@ -145,6 +150,29 @@ async function loadCustomerIndex(
   }
 
   return index;
+}
+
+function resolveCustomerIdByVehicle(
+  index: CustomerIndex,
+  keys: {
+    vinLast8?: string;
+    vin?: string;
+    vehicleRef?: string;
+  }
+): string | undefined {
+  if (keys.vinLast8) {
+    const hit = index.byVinLast8.get(keys.vinLast8.toUpperCase());
+    if (hit) return hit;
+  }
+  if (keys.vin) {
+    const hit = index.byVin.get(keys.vin.toUpperCase());
+    if (hit) return hit;
+  }
+  if (keys.vehicleRef) {
+    const hit = index.byVehicleRef.get(keys.vehicleRef);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 function resolveCustomerId(
@@ -352,48 +380,30 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     const index = await loadCustomerIndex(db, dealershipId);
     const customerWrites: Array<(batch: WriteBatch) => void> = [];
 
-    const contactVehicles = await fetchAllContactVehicles(modifiedSince);
+    const contactVehiclesRaw = await fetchAllContactVehicles(modifiedSince);
+    const contactVehicles = dedupeContactVehiclesByVin(contactVehiclesRaw);
     fetched.contactVehicles = contactVehicles.length;
-    console.log(`[PBS Sync] Contact vehicles fetched: ${contactVehicles.length}`);
+    console.log(
+      `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN`
+    );
 
     for (const cv of contactVehicles) {
       const mapped = mapContactVehicleToCustomerFields(cv, dealershipId);
       const vinLast8 = String(mapped.vinLast8 || '');
       if (!vinLast8) continue;
 
-      const existingId = resolveCustomerId(index, {
+      const existingId = resolveCustomerIdByVehicle(index, {
         vinLast8,
         vin: String(mapped.vin || ''),
-        phone: normalizePhone(String(mapped.phone || '')),
         vehicleRef: cv.VehicleId,
-        contactRef: cv.ContactId,
       });
 
       if (existingId) {
         const existing = index.dataById.get(existingId) || {};
         if (!customerBelongsToPbsSyncDealership(existing, dealershipId)) continue;
 
-        const patch = stripUndefinedDeep({
-          ...mapped,
-          enableServiceAlert: existing.enableServiceAlert ?? mapped.enableServiceAlert,
-          serviceAlertTriggered: existing.serviceAlertTriggered ?? false,
-          serviceReminderDueDate: existing.serviceReminderDueDate,
-          serviceAlertIntervalDays: existing.serviceAlertIntervalDays,
-          serviceAlertBufferDays: existing.serviceAlertBufferDays,
-          serviceAlertOverrideDate: existing.serviceAlertOverrideDate,
-          stopAlertInfo: existing.stopAlertInfo,
-          notes: existing.notes,
-          soldByUserId: existing.soldByUserId,
-          soldByUsername: existing.soldByUsername,
-          lastContactOutcome: existing.lastContactOutcome,
-          lastContactUserId: existing.lastContactUserId,
-          lastContactUsername: existing.lastContactUsername,
-          lastAcknowledgedCycle: existing.lastAcknowledgedCycle ?? 0,
-          addedBy: existing.addedBy,
-          addedByUsername: existing.addedByUsername,
-          createdAt: existing.createdAt,
-          pbsSyncedAt: startedAt,
-        });
+        const { patch, ownerChanged } = buildPbsCustomerUpdatePatch(existing, mapped, startedAt);
+        if (ownerChanged) counts.ownerChanges += 1;
 
         const ref = customersCollection(db).doc(existingId);
         customerWrites.push((batch) => batch.set(ref, patch, { merge: true }));

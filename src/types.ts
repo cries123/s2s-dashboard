@@ -171,6 +171,7 @@ export interface DealershipSettings {
     counts?: {
       customersCreated: number;
       customersUpdated: number;
+      ownerChanges?: number;
       visitsMerged: number;
       appointmentDaysUpdated: number;
       appointmentsProcessed: number;
@@ -233,6 +234,7 @@ export interface PbsSyncLogEntry {
   counts: {
     customersCreated: number;
     customersUpdated: number;
+    ownerChanges?: number;
     visitsMerged: number;
     appointmentDaysUpdated: number;
     appointmentsProcessed: number;

@@ -36,7 +36,7 @@ export function buildPbsSyncSummary(
 
   return [
     `Pulled ${fetched.contactVehicles} customer/vehicle records, ${fetched.repairOrders} repair orders, and ${fetched.appointments} appointments (${fetched.appointmentMonthStart} through ${fetched.appointmentMonthEnd}).`,
-    `Directory: ${counts.customersCreated} new, ${counts.customersUpdated} updated.`,
+    `Directory: ${counts.customersCreated} new, ${counts.customersUpdated} updated${counts.ownerChanges ? `, ${counts.ownerChanges} owner changes` : ''}.`,
     `Service history: ${counts.visitsMerged} visits merged.`,
     `Operations: ${counts.appointmentDaysUpdated} days refreshed (${counts.appointmentsProcessed} appointments in month).`,
   ].join(' ');
