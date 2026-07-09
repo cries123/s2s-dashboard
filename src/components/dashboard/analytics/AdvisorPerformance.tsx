@@ -92,6 +92,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [pbsSyncedAt, setPbsSyncedAt] = useState<string | null>(null);
   const [performanceSource, setPerformanceSource] = useState<string | null>(null);
+  const [partsInvoicesSkipped, setPartsInvoicesSkipped] = useState(false);
+  const [partsInvoicesSkipReason, setPartsInvoicesSkipReason] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch Dealership Settings (for target)
@@ -150,6 +152,10 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         setReportEndDate(data.reportEndDate);
         setPbsSyncedAt(typeof data.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
         setPerformanceSource(typeof data.source === 'string' ? data.source : null);
+        setPartsInvoicesSkipped(data.partsInvoicesSkipped === true);
+        setPartsInvoicesSkipReason(
+          typeof data.partsInvoicesSkipReason === 'string' ? data.partsInvoicesSkipReason : null
+        );
         if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
         else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
         else setAdvisorMix([]);
@@ -160,6 +166,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         setReportEndDate(undefined);
         setPbsSyncedAt(null);
         setPerformanceSource(null);
+        setPartsInvoicesSkipped(false);
+        setPartsInvoicesSkipReason(null);
         setAdvisorMix([]);
       }
       setLoading(false);
@@ -726,6 +734,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             <p className="text-[10px] text-slate-500 mt-1 font-medium">
               Active period: {reportStartDate} – {reportEndDate}
               {pbsSyncedAt ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}` : ''}
+            </p>
+          )}
+          {isPbsDealership && partsInvoicesSkipped && selectedMonth === 'active' && (
+            <p className="text-[10px] text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
+              Parts totals are incomplete — PBS denied access to cashiered parts invoices
+              {partsInvoicesSkipReason ? ` (${partsInvoicesSkipReason})` : ''}. Counter/walk-in parts
+              (e.g. Parts CRO on your CSR productivity report) are missing. Only parts attached to
+              repair orders are included. Ask PBS/PartnerHUB to enable <strong className="text-amber-200">PartsInvoiceGet</strong> for
+              your account, then pull changes again.
             </p>
           )}
         </div>

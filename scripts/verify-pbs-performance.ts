@@ -33,6 +33,20 @@ const repairOrders: PbsRepairOrderFull[] = [
     CSR: 'Lemmy',
     CustomerSummary: { Labour: 300, Parts: 100 },
   },
+  {
+    RawRepairOrderNumber: '1003',
+    DateCashiered: '2026-07-08T18:00:00.0000000-07:00',
+    Status: 'Cashiered',
+    CSR: 'Jaryn',
+    Requests: [
+      {
+        CSR: 'Jaryn',
+        LabourLines: [{ Price: 400, Cost: 100, SoldHours: 1.5 }],
+        PartLines: [{ ExtendedPrice: 50, Cost: 20, Shipped: 1 }],
+      },
+    ],
+    WarrantySummary: { Labour: 200, Parts: 75 },
+  },
 ];
 
 const partsInvoices: PbsPartsInvoiceFull[] = [
@@ -58,6 +72,10 @@ assert(Boolean(frank), 'includes Frank');
 assert(Boolean(lemmy), 'includes Lemmy');
 assert((frank?.grossLabor || 0) > 0, 'Frank has labor gross');
 assert((frank?.grossParts || 0) > 0, 'Frank has parts gross from RO + counter invoice');
+const jaryn = result.advisors.find((row) => row.name === 'Jaryn');
+assert(Boolean(jaryn), 'includes Jaryn');
+assert((jaryn?.laborSold || 0) >= 600, 'Jaryn includes request labor plus warranty summary delta');
+assert((jaryn?.partsSold || 0) >= 125, 'Jaryn includes request parts plus warranty summary delta');
 assert(result.totals.totalGross > 0, 'totals include labor gross');
 assert(result.totals.totalGrossParts > 0, 'totals include parts gross');
 

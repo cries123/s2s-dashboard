@@ -86,6 +86,8 @@ export async function syncPbsAdvisorPerformance(
       reportEndDate,
       source: 'pbs-sync',
       pbsSyncedAt: syncedAt,
+      partsInvoicesSkipped: Boolean(skippedReason),
+      partsInvoicesSkipReason: skippedReason,
       updatedAt: serverTimestamp(),
     }),
     { merge: false }

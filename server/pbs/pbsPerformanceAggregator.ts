@@ -31,6 +31,22 @@ function isCashieredRepairOrder(ro: PbsRepairOrderFull): boolean {
   return true;
 }
 
+function sumPayTypeSummaries(ro: PbsRepairOrderFull): {
+  laborSold: number;
+  partsSold: number;
+} {
+  let laborSold = 0;
+  let partsSold = 0;
+
+  for (const summary of [ro.CustomerSummary, ro.WarrantySummary, ro.InternalSummary]) {
+    if (!summary) continue;
+    laborSold += num(summary.Labour);
+    partsSold += num(summary.Parts);
+  }
+
+  return { laborSold, partsSold };
+}
+
 function sumRequestLines(req: PbsRepairOrderRequestFull): {
   laborSold: number;
   laborCost: number;
@@ -87,11 +103,9 @@ function sumRepairOrder(ro: PbsRepairOrderFull): {
   }
 
   if (laborSold === 0 && partsSold === 0) {
-    const summary = ro.CustomerSummary || ro.WarrantySummary || ro.InternalSummary;
-    if (summary) {
-      laborSold += num(summary.Labour);
-      partsSold += num(summary.Parts);
-    }
+    const summary = sumPayTypeSummaries(ro);
+    laborSold += summary.laborSold;
+    partsSold += summary.partsSold;
   }
 
   return { laborSold, laborCost, partsSold, partsCost, hrsSold };
@@ -148,6 +162,7 @@ function attributeRepairOrder(buckets: Map<string, AdvisorBucket>, ro: PbsRepair
   }
 
   let attributed = false;
+
   for (const req of requests) {
     const advisor = req.CSR || defaultAdvisor;
     const amounts = sumRequestLines(req);
@@ -162,9 +177,30 @@ function attributeRepairOrder(buckets: Map<string, AdvisorBucket>, ro: PbsRepair
     attributed = true;
   }
 
-  if (!attributed) {
-    addToBucket(buckets, defaultAdvisor, sumRepairOrder(ro), soNumber || undefined);
+  if (attributed) {
+    // Warranty and internal amounts often appear only on RO pay-type summaries, not in request lines.
+    for (const summary of [ro.WarrantySummary, ro.InternalSummary]) {
+      if (!summary) continue;
+      const laborSold = num(summary.Labour);
+      const partsSold = num(summary.Parts);
+      if (laborSold === 0 && partsSold === 0) continue;
+      addToBucket(
+        buckets,
+        defaultAdvisor,
+        {
+          laborSold,
+          laborCost: 0,
+          partsSold,
+          partsCost: 0,
+          hrsSold: 0,
+        },
+        soNumber || undefined
+      );
+    }
+    return;
   }
+
+  addToBucket(buckets, defaultAdvisor, sumRepairOrder(ro), soNumber || undefined);
 }
 
 function attributePartLines(
