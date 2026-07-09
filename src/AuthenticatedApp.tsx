@@ -18,6 +18,7 @@ import CustomerForm from './components/dashboard/customers/CustomerForm';
 import SalesPerformance from './components/dashboard/analytics/SalesPerformance';
 import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
 import Appointments from './components/dashboard/appointments/Appointments';
+import DaySchedule from './components/dashboard/appointments/DaySchedule';
 import { CustomerDirectory } from './components/dashboard/customers/CustomerDirectory';
 import AdminPanel from './components/dashboard/admin/AdminPanel';
 import ManagerDashboard from './components/dashboard/admin/ManagerDashboard';
@@ -281,6 +282,7 @@ function DashboardShell({ user }: { user: User }) {
     { id: 'search', label: 'Directory', icon: Search },
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
+    { id: 'schedule', label: 'Schedule', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
     ...(currentDealershipId === 'hyundai' && modules.showPotOfGoldTab
       ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }]
@@ -474,6 +476,13 @@ function DashboardShell({ user }: { user: User }) {
                 onError={msg => showNotification(msg, true)}
               />
             </div>
+          )}
+
+          {activeTab === 'schedule' && (
+            <DaySchedule
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              onError={(msg) => showNotification(msg, true)}
+            />
           )}
 
           {activeTab === 'dispatch' && (

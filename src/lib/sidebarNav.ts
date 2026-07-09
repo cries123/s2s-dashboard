@@ -3,6 +3,7 @@ import {
   BarChart2,
   Bell,
   Calendar,
+  CalendarDays,
   Database,
   Layers,
   Search,
@@ -116,6 +117,13 @@ export function buildSidebarNav({
       href: '/reports/operations',
       icon: Calendar,
       tab: 'appointments',
+    },
+    {
+      id: 'schedule',
+      label: 'Schedule',
+      href: '/reports/schedule',
+      icon: CalendarDays,
+      tab: 'schedule',
     },
   ];
   if (modules.showSalesPerformanceTab) {

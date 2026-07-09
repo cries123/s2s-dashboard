@@ -61,6 +61,7 @@ export function buildMobileNavSections({
 
   const reportItems: MobileNavSection['items'] = [
     { tabId: 'appointments', label: 'Operations', href: '/reports/operations' },
+    { tabId: 'schedule', label: 'Schedule', href: '/reports/schedule' },
   ];
   if (modules.showSalesPerformanceTab) {
     reportItems.push({
