@@ -1,4 +1,5 @@
 import type { DmsProviderId } from './dmsProviders';
+import { getDealershipStaffConfig } from '../lib/dealershipStaff';
 
 export interface PerformanceAdvisorSlot {
   id: string;
@@ -23,5 +24,6 @@ export function defaultPerformanceAdvisorRoster(
   dealershipId: string
 ): PerformanceAdvisorSlot[] | undefined {
   if (dealershipId === 'ford') return FORD_PERFORMANCE_ADVISOR_ROSTER;
-  return undefined;
+  const roster = getDealershipStaffConfig(dealershipId).performanceAdvisorRoster;
+  return roster.length > 0 ? roster : undefined;
 }

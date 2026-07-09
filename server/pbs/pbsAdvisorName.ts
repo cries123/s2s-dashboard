@@ -46,3 +46,29 @@ export function isRealPbsAdvisorName(name: string): boolean {
 
   return true;
 }
+
+export function matchesPerformanceAdvisorRoster(
+  name: string,
+  roster: { label: string }[] | undefined
+): boolean {
+  if (!roster?.length) return true;
+  const norm = name.toLowerCase().replace(/[^a-z]/g, '');
+  if (!norm) return false;
+
+  return roster.some((slot) => {
+    const slotNorm = slot.label.toLowerCase().replace(/[^a-z]/g, '');
+    if (!slotNorm) return false;
+    if (norm === slotNorm) return true;
+    if (norm.includes(slotNorm) || slotNorm.includes(norm)) return true;
+    const last = slot.label.trim().split(/\s+/).pop()?.toLowerCase() ?? '';
+    return last.length > 2 && norm.includes(last.replace(/[^a-z]/g, ''));
+  });
+}
+
+export function filterAdvisorsByPerformanceRoster<T extends { name: string }>(
+  advisors: T[],
+  roster: { label: string }[] | undefined
+): T[] {
+  if (!roster?.length) return advisors;
+  return advisors.filter((row) => matchesPerformanceAdvisorRoster(row.name, roster));
+}

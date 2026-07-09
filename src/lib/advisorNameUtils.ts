@@ -104,6 +104,14 @@ export function matchesPerformanceAdvisorRoster(
   });
 }
 
+export function filterAdvisorsByPerformanceRoster<T extends { name: string }>(
+  advisors: T[],
+  roster: { label: string }[] | undefined
+): T[] {
+  if (!roster?.length) return advisors;
+  return advisors.filter((row) => matchesPerformanceAdvisorRoster(row.name, roster));
+}
+
 /** Legacy PBS demo names — reject when importing DealerBuilt reports. */
 export function isPhantomPbsAdvisorName(name: string): boolean {
   const n = name.toLowerCase().trim();

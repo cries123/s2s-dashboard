@@ -32,6 +32,8 @@ import {
   forecastGoalPercent,
 } from '../../../lib/appointmentForecast';
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
+import { filterAdvisorsByPerformanceRoster } from '../../../lib/advisorNameUtils';
+import { defaultPerformanceAdvisorRoster } from '../../../constants/dealerDefaults';
 import {
   buildOperationsViewPeriodOptions,
   formatArchiveMonthLabel,
@@ -122,6 +124,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [activePerformanceData, setActivePerformanceData] = useState<any>(null);
   const [activeTechData, setActiveTechData] = useState<any>(null);
+  const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState(
+    () => defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
+  );
   const [showPerformanceTools, setShowPerformanceTools] = useState(false);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
@@ -283,6 +288,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         setTargetValue(data.appointmentTarget || 20);
         setLaborTarget(data.laborGrossTarget || 500000);
         setPartsTarget(data.partsSalesTarget || 300000);
+        const roster = Array.isArray(data.performanceAdvisorRoster)
+          ? data.performanceAdvisorRoster
+          : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
+        setPerformanceAdvisorRoster(roster);
       }
     });
 
@@ -581,7 +590,25 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     }
   };
 
-  const resolvedPerformance = resolvePerformanceTotalsFromDoc(activePerformanceData);
+  const effectiveAdvisorRoster = React.useMemo(
+    () =>
+      performanceAdvisorRoster.length > 0
+        ? performanceAdvisorRoster
+        : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [],
+    [performanceAdvisorRoster, currentDealershipId]
+  );
+
+  const resolvedPerformance = React.useMemo(() => {
+    if (!activePerformanceData) return null;
+    const advisors = filterAdvisorsByPerformanceRoster(
+      activePerformanceData.advisors ?? [],
+      effectiveAdvisorRoster
+    );
+    return resolvePerformanceTotalsFromDoc({
+      ...activePerformanceData,
+      advisors,
+    });
+  }, [activePerformanceData, effectiveAdvisorRoster]);
 
   const effectiveStats = React.useMemo(
     () => buildEffectiveAppointmentStats(allStats, selectedDate, dailyCount),
@@ -644,6 +671,13 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
   const formatProjectionValue = (value: number, isCurrency: boolean) =>
     isCurrency ? `$${Math.round(value).toLocaleString()}` : Math.round(value).toLocaleString();
+
+  const formatSelectedDateLabel = (isoDate: string) =>
+    new Date(`${isoDate}T12:00:00`).toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
 
   const handlePrevDay = () => {
     setSelectedDate(addDaysToDateString(selectedDate, -1));
@@ -719,7 +753,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             <span className="crm-label">{metrics.daysRemaining} working days left</span>
           </div>
 
-          <div className="hidden md:grid md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {projectionRows.map((kpi) => {
               const completionPercent = forecastGoalPercent(kpi.forecast, kpi.target);
               const onTrack = kpi.forecast >= kpi.target;
@@ -727,7 +761,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 <div key={kpi.label} className="rounded-lg border p-4" style={{ borderColor: 'var(--color-surface-border)' }}>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="crm-label">{kpi.label}</span>
-                    <span className={cn('badge text-[10px]', onTrack ? 'badge-success' : 'badge-error')}>
+                    <span className={cn('badge text-[10px] shrink-0', onTrack ? 'badge-success' : 'badge-error')}>
                       {onTrack ? 'On track' : 'Shortfall'}
                     </span>
                   </div>
@@ -753,42 +787,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               );
             })}
           </div>
-
-          <div className="md:hidden overflow-x-auto -mx-1 px-1">
-            <table className="crm-table w-full min-w-[520px]">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th className="text-right">MTD</th>
-                  <th className="text-right">Pace</th>
-                  <th className="text-right">Forecast</th>
-                  <th className="text-right">Goal</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projectionRows.map((kpi) => {
-                  const onTrack = kpi.forecast >= kpi.target;
-                  return (
-                    <tr key={kpi.label}>
-                      <td className="font-medium">{kpi.label}</td>
-                      <td className="text-right tabular-nums">{formatProjectionValue(kpi.current, kpi.isCurrency)}</td>
-                      <td className="text-right tabular-nums">
-                        {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}
-                      </td>
-                      <td className="text-right tabular-nums font-medium">{formatProjectionValue(kpi.forecast, kpi.isCurrency)}</td>
-                      <td className="text-right tabular-nums">{formatProjectionValue(kpi.target, kpi.isCurrency)}</td>
-                      <td>
-                        <span className={cn('badge text-[10px]', onTrack ? 'badge-success' : 'badge-error')}>
-                          {onTrack ? 'On track' : 'Shortfall'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </div>
 
         <div className="card-base p-4 flex flex-col">
@@ -798,28 +796,32 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
           <div className="space-y-3 flex-1">
             <div
-              className="grid grid-cols-[1.75rem_1fr_1.75rem] items-center rounded-lg border px-1 py-1"
+              className="relative flex items-center justify-center rounded-lg border py-2 px-9"
               style={{ borderColor: 'var(--color-surface-border)' }}
             >
               <button
                 type="button"
                 onClick={handlePrevDay}
-                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors justify-self-start"
+                className="absolute left-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
                 aria-label="Previous day"
               >
                 <ChevronLeft size={14} />
               </button>
+              <span className="text-xs font-semibold tabular-nums text-white pointer-events-none select-none">
+                {formatSelectedDateLabel(selectedDate)}
+              </span>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 onClick={(e) => { try { e.currentTarget.showPicker(); } catch {} }}
-                className="w-full min-w-0 bg-transparent border-none text-white text-xs font-semibold text-center focus:ring-0 cursor-pointer outline-none custom-centered-date-input justify-self-center"
+                aria-label="Operations date"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer custom-centered-date-input"
               />
               <button
                 type="button"
                 onClick={handleNextDay}
-                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors justify-self-end"
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
                 aria-label="Next day"
               >
                 <ChevronRight size={14} />

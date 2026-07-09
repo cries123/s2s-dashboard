@@ -28,6 +28,7 @@ import {
 } from '../../../constants/dealerDefaults';
 import {
   cleanAdvisorName,
+  filterAdvisorsByPerformanceRoster,
   isPhantomPbsAdvisorName,
   isRealAdvisorName,
   matchesPerformanceAdvisorRoster,
@@ -38,7 +39,7 @@ import {
   extractOperationsPayTypes,
   type AdvisorMixRow,
 } from '../../../lib/operationsPayTypes';
-import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
+import { resolvePerformanceTotalsFromDoc, workingDaysThroughIsoDate } from '../../../lib/performanceTotals';
 
 interface UpsellItem {
   code: string;
@@ -168,6 +169,11 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     performanceAdvisorRoster.length > 0
       ? performanceAdvisorRoster
       : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
+
+  const visibleAdvisors = React.useMemo(
+    () => filterAdvisorsByPerformanceRoster(advisors, effectiveAdvisorRoster),
+    [advisors, effectiveAdvisorRoster]
+  );
 
   const saveToFirestore = async (
     newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
@@ -612,7 +618,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   // Calculate totals and projections
   const getPerformanceMetrics = () => {
     const resolved = resolvePerformanceTotalsFromDoc({
-      advisors,
+      advisors: visibleAdvisors,
       totals,
       reportStartDate,
       reportEndDate,
@@ -632,19 +638,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
     const today = new Date();
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const elapsedDays = today.getDate();
+    const paceDays = reportEndDate
+      ? Math.max(1, workingDaysThroughIsoDate(reportEndDate, today))
+      : Math.max(1, today.getDate());
     
-    // Pace/Forecast calculation
-    const avgDailyGross = (baseTotals.totalGross || 0) / Math.max(1, elapsedDays);
+    // Pace/Forecast calculation (working days through report end when available)
+    const avgDailyGross = (baseTotals.totalGross || 0) / paceDays;
     const grossForecast = Math.round(avgDailyGross * daysInMonth);
     
-    const avgDailySales = (baseTotals.totalSales || 0) / Math.max(1, elapsedDays);
+    const avgDailySales = (baseTotals.totalSales || 0) / paceDays;
     const salesForecast = Math.round(avgDailySales * daysInMonth);
 
-    const avgDailyParts = (baseTotals.totalParts || 0) / Math.max(1, elapsedDays);
+    const avgDailyParts = (baseTotals.totalParts || 0) / paceDays;
     const partsForecast = Math.round(avgDailyParts * daysInMonth);
 
-    const avgDailyGrossParts = (baseTotals.totalGrossParts || 0) / Math.max(1, elapsedDays);
+    const avgDailyGrossParts = (baseTotals.totalGrossParts || 0) / paceDays;
     const grossPartsForecast = Math.round(avgDailyGrossParts * daysInMonth);
 
     return {
@@ -654,8 +662,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       partsForecast,
       grossPartsForecast,
       daysInMonth,
-      elapsedDays,
-      daysRemaining: daysInMonth - elapsedDays
+      elapsedDays: paceDays,
+      daysRemaining: daysInMonth - today.getDate()
     };
   };
 
@@ -793,7 +801,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         )}
       </AnimatePresence>
 
-      {!advisors.length && !isImporting && (
+      {!visibleAdvisors.length && !isImporting && (
         <EmptyState
           title="No productivity data yet"
           description="Import a PBS or DealerBuilt productivity PDF to populate advisor labor, parts, and gross totals for this month."
@@ -806,7 +814,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       )}
 
       <AnimatePresence>
-        {advisors.length > 0 && (
+        {visibleAdvisors.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -857,7 +865,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {advisors.map((advisor, idx) => (
+              {visibleAdvisors.map((advisor, idx) => (
                 <div key={idx} className="group flex flex-col bg-slate-900/50 border border-slate-800 rounded-3xl overflow-hidden hover:border-slate-700 transition-all hover:shadow-2xl hover:shadow-black/50">
                   <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/30">
                     <div className="flex items-center gap-4">
