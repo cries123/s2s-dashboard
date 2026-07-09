@@ -1053,7 +1053,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
       <AnimatePresence>
         {scheduleDate && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-stretch sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.98, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1063,7 +1063,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-800">
                 <div>
                   <h3 className="crm-section-title">Day schedule</h3>
-                  <p className="crm-label mt-0.5">Appointments by time and technician from PBS</p>
+                  <p className="crm-label mt-0.5">Appointments by technician from PBS — tap for details</p>
                 </div>
                 <button
                   type="button"
