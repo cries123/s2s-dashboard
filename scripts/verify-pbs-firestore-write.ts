@@ -158,7 +158,6 @@ if (failed) {
   process.exit(1);
 }
 
-import { mapPbsContactName } from '../server/pbs/pbsMappers.js';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
