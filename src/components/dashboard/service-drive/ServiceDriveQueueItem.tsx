@@ -15,6 +15,7 @@ import { calculateServiceCycle } from '../../../lib/alerts';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
+import { formatCustomerDisplayName } from '../../../lib/customerName';
 
 const REASON_META: Record<
   ServiceDriveReason,
@@ -149,7 +150,7 @@ export function ServiceDriveQueueItem({
                 onClick={() => onViewProfile(customer)}
                 className="text-lg sm:text-xl font-black text-white hover:text-brand-primary transition-colors text-left uppercase italic tracking-tight"
               >
-                {customer.firstName} {customer.lastName}
+                {formatCustomerDisplayName(customer.firstName, customer.lastName)}
               </button>
 
               <p className="text-[11px] font-bold text-slate-400 mt-1">

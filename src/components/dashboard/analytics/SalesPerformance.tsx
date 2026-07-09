@@ -23,6 +23,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { customerMatchesDealership } from '../../../lib/customerScope';
+import { formatCustomerDisplayName } from '../../../lib/customerName';
 
 interface SalesPerformanceProps {
   customers: Customer[];
@@ -366,7 +367,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                           
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-xs font-black text-white group-hover/cust:text-brand-primary transition-colors uppercase italic">{c.firstName} {c.lastName}</p>
+                              <p className="text-xs font-black text-white group-hover/cust:text-brand-primary transition-colors uppercase italic">{formatCustomerDisplayName(c.firstName, c.lastName)}</p>
                               <span className="inline-block text-[8px] font-mono text-slate-400 font-bold uppercase mt-1 leading-none">{c.year} {c.model} &bull; <span className="text-brand-secondary">{c.vinLast8}</span></span>
                             </div>
                           </div>

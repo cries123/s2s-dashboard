@@ -1,4 +1,5 @@
 import { Customer } from '../types';
+import { formatCustomerDisplayName } from './customerName';
 import { DispatchRepairOrder } from '../types';
 
 function normalizeNamePart(value: string): string {
@@ -23,7 +24,7 @@ export function enrichDispatchFromCustomer(customer: Customer): Partial<Dispatch
   return {
     customerId: customer.id,
     customerLastName: customer.lastName,
-    customerName: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
+    customerName: formatCustomerDisplayName(customer.firstName, customer.lastName),
     phoneNumber: customer.phone,
     vinLastEight: customer.vinLast8,
     year: customer.year,

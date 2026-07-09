@@ -3,7 +3,7 @@
  * Run: npx tsx scripts/verify-pbs-firestore-write.ts
  */
 import { Timestamp } from 'firebase-admin/firestore';
-import { mapContactVehicleToCustomerFields } from '../server/pbs/pbsMappers.js';
+import { mapContactVehicleToCustomerFields, mapPbsContactName } from '../server/pbs/pbsMappers.js';
 import { stripUndefinedDeep } from '../server/pbs/pbsFirestore.js';
 import type { PbsContactVehicle } from '../server/pbs/pbsTypes.js';
 
@@ -158,4 +158,26 @@ if (failed) {
   process.exit(1);
 }
 
-console.log('\nVerification PASSED — PBS customer writes are Firestore-safe');
+import { mapPbsContactName } from '../server/pbs/pbsMappers.js';
+
+function assert(condition: boolean, message: string) {
+  if (!condition) {
+    console.error(`FAIL: ${message}`);
+    process.exit(1);
+  }
+}
+
+assert(
+  mapPbsContactName({ ContactLastName: 'DUBLIN HYUNDAI' }).firstName === '',
+  'business last-name-only has empty firstName'
+);
+assert(
+  mapPbsContactName({ ContactLastName: 'DUBLIN HYUNDAI' }).lastName === 'DUBLIN HYUNDAI',
+  'business last-name-only keeps lastName'
+);
+assert(
+  mapPbsContactName({ ContactFirstName: 'Unknown', ContactLastName: 'DUBLIN HYUNDAI' }).firstName === '',
+  'strips Unknown first name'
+);
+
+console.log('Verification PASSED — PBS customer writes are Firestore-safe');

@@ -12,6 +12,7 @@ import {
   DirectoryMakeFilter,
   matchesDirectoryMakeFilter,
 } from '../../../lib/directoryMakeFilters';
+import { formatCustomerDisplayName } from '../../../lib/customerName';
 
 interface CustomerDirectoryProps {
   customers: Customer[];
@@ -145,7 +146,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
       header: 'Customer',
       render: (c: Customer) => (
         <div>
-          <p className="font-medium">{c.firstName} {c.lastName}</p>
+          <p className="font-medium">{formatCustomerDisplayName(c.firstName, c.lastName)}</p>
           <p className="crm-label text-xs">{c.phone || 'No phone'}</p>
         </div>
       ),

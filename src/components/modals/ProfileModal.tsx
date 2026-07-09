@@ -16,6 +16,7 @@ import {
   CustomerTimeline,
   type TimelineEvent,
 } from '../dashboard/customers/CustomerTimeline';
+import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
 
 interface ProfileModalProps {
   customer: Customer;
@@ -397,7 +398,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
     return gradients[isNaN(sum) ? 0 : sum % gradients.length];
   };
 
-  const initials = `${(customer.firstName || '').charAt(0)}${(customer.lastName || '').charAt(0)}`.toUpperCase() || 'CU';
+  const displayName = formatCustomerDisplayName(customer.firstName, customer.lastName);
+  const initials = customerDisplayInitials(customer.firstName, customer.lastName);
 
   return (
     <div className="modal-overlay sm:p-4 p-0 !items-start sm:!items-center overflow-y-auto scroll-smooth">
@@ -420,7 +422,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
             <div className="space-y-1">
               <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
                 <h3 className="text-lg sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
-                  {customer.firstName} {customer.lastName}
+                  {displayName}
                 </h3>
                 <span className={cn(
                   "badge text-[8px] sm:text-[9px] font-black tracking-widest uppercase py-0.5 sm:py-1 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg",
@@ -470,7 +472,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
             )}
             
             <button 
-              onClick={() => onDelete(customer.id, `${customer.firstName} ${customer.lastName}`)}
+              onClick={() => onDelete(customer.id, displayName)}
               className="p-2 sm:p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-all"
               title="Delete Customer Profile"
             >

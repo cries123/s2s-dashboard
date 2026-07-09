@@ -37,12 +37,31 @@ export function pickContactPhone(cv: PbsContactVehicle): string {
   return '';
 }
 
+/** PBS often omits first name for businesses — avoid storing "Unknown" before the real name. */
+export function mapPbsContactName(cv: PbsContactVehicle): { firstName: string; lastName: string } {
+  const first = (cv.ContactFirstName || '').trim();
+  const last = (cv.ContactLastName || '').trim();
+  const firstIsPlaceholder = !first || first.toLowerCase() === 'unknown';
+
+  if (firstIsPlaceholder && last) {
+    return { firstName: '', lastName: last };
+  }
+  if (first && !last) {
+    return { firstName: first, lastName: '' };
+  }
+  if (firstIsPlaceholder && !last) {
+    return { firstName: '', lastName: 'Customer' };
+  }
+  return { firstName: first, lastName: last };
+}
+
 export function mapContactVehicleToCustomerFields(
   cv: PbsContactVehicle,
   dealershipId: string
 ): Record<string, unknown> {
   const vin = (cv.VehicleVIN || '').replace(/\s/g, '').toUpperCase();
   const vinLast8 = vinLast8FromVin(vin);
+  const { firstName, lastName } = mapPbsContactName(cv);
   const mileage =
     cv.VehicleOdometer && cv.VehicleOdometer > 0
       ? String(cv.VehicleOdometer)
@@ -54,8 +73,8 @@ export function mapContactVehicleToCustomerFields(
   const soldDate = pbsIsoToDateString(cv.VehicleLastSaleDate) ?? '';
 
   return stripUndefinedDeep({
-    firstName: (cv.ContactFirstName || 'Unknown').trim(),
-    lastName: (cv.ContactLastName || 'Customer').trim(),
+    firstName,
+    lastName: lastName || 'Customer',
     phone: pickContactPhone(cv),
     email: (cv.ContactEmailAddress || '').trim(),
     address: cv.ContactAddress?.trim() || undefined,

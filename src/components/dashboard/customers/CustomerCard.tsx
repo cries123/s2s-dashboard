@@ -10,6 +10,7 @@ import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
 import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
+import { formatCustomerDisplayName } from '../../../lib/customerName';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -109,7 +110,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
               onClick={() => onViewProfile(customer)}
               className="text-xl font-black text-white hover:text-brand-primary transition-colors text-left leading-none tracking-tight uppercase italic"
             >
-              {customer.firstName} {customer.lastName}
+              {formatCustomerDisplayName(customer.firstName, customer.lastName)}
             </button>
             
             <div className="flex flex-col gap-1.5 mt-3">
