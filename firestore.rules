@@ -173,6 +173,10 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
     }
 
+    match /artifacts/hyundai-sales-to-service/public/data/appointmentSchedule/{docId} {
+      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+    }
+
     function userDealershipId() {
       return userExists() && 'dealershipId' in userData() ? userData().dealershipId : '';
     }

@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
-import { User, DailyStat } from '../../../types';
+import { User, DailyStat, ScheduledAppointmentSlot, PerformanceAdvisorSlot } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
@@ -15,6 +15,7 @@ import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
+import { DayScheduleBoard } from './DayScheduleBoard';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -34,6 +35,8 @@ import {
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 import { filterAdvisorsByPerformanceRoster } from '../../../lib/advisorNameUtils';
 import { defaultPerformanceAdvisorRoster } from '../../../constants/dealerDefaults';
+import { dispatchTechRosterFromSettings } from '../../../lib/dispatchTechRoster';
+import { appointmentScheduleDocId } from '../../../lib/appointmentSchedule';
 import {
   buildOperationsViewPeriodOptions,
   formatArchiveMonthLabel,
@@ -128,6 +131,10 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     () => defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
   );
   const [showPerformanceTools, setShowPerformanceTools] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState<string | null>(null);
+  const [scheduleAppointments, setScheduleAppointments] = useState<ScheduledAppointmentSlot[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [dispatchTechRoster, setDispatchTechRoster] = useState<PerformanceAdvisorSlot[]>([]);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
   const viewPeriodOptions = React.useMemo(() => buildOperationsViewPeriodOptions(), []);
@@ -292,6 +299,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           ? data.performanceAdvisorRoster
           : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
         setPerformanceAdvisorRoster(roster);
+        setDispatchTechRoster(
+          dispatchTechRosterFromSettings(
+            { dispatchTechRoster: data.dispatchTechRoster },
+            currentDealershipId
+          )
+        );
       }
     });
 
@@ -321,6 +334,44 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       unsubTech();
     };
   }, [currentDealershipId]);
+
+  useEffect(() => {
+    if (!scheduleDate || !currentDealershipId) {
+      setScheduleAppointments([]);
+      return;
+    }
+
+    const docId = appointmentScheduleDocId(currentDealershipId, scheduleDate);
+    const scheduleRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'appointmentSchedule',
+      docId
+    );
+
+    setScheduleLoading(true);
+    const unsubscribe = onSnapshot(
+      scheduleRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setScheduleAppointments((data.appointments as ScheduledAppointmentSlot[]) || []);
+        } else {
+          setScheduleAppointments([]);
+        }
+        setScheduleLoading(false);
+      },
+      () => {
+        setScheduleAppointments([]);
+        setScheduleLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [scheduleDate, currentDealershipId]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -870,7 +921,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 <th>Date</th>
                 <th className="text-right">Scheduled</th>
                 <th className="text-right">vs goal ({targetValue})</th>
-                <th className="text-right">Breakdown</th>
+                <th className="text-right">Schedule</th>
               </tr>
             </thead>
             <tbody>
@@ -884,7 +935,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                     onClick={() => {
                       setSelectedDate(day.date);
                       setDailyCount(day.count > 0 ? day.count.toString() : fullDayData ? '0' : '');
-                      if (fullDayData?.breakdown) setShowBreakdown(fullDayData);
+                      if (day.count > 0) {
+                        setScheduleDate(day.date);
+                      }
                     }}
                     className={cn('cursor-pointer', isSelected && 'bg-brand-primary/5')}
                   >
@@ -895,8 +948,29 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                       {vsGoal > 0 ? `+${vsGoal}` : vsGoal}
                     </td>
                     <td className="text-right">
-                      {fullDayData?.breakdown ? (
-                        <button type="button" className="text-xs text-brand-primary hover:underline" onClick={(e) => { e.stopPropagation(); setShowBreakdown(fullDayData); }}>View</button>
+                      {day.count > 0 ? (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-primary hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDate(day.date);
+                            setScheduleDate(day.date);
+                          }}
+                        >
+                          Schedule
+                        </button>
+                      ) : fullDayData?.breakdown ? (
+                        <button
+                          type="button"
+                          className="text-xs text-brand-primary hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowBreakdown(fullDayData);
+                          }}
+                        >
+                          View
+                        </button>
                       ) : (
                         <span className="crm-label">—</span>
                       )}
@@ -908,6 +982,48 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </table>
         </div>
       </div>
+
+      <AnimatePresence>
+        {scheduleDate && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 12 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-800">
+                <div>
+                  <h3 className="crm-section-title">Day schedule</h3>
+                  <p className="crm-label mt-0.5">Appointments by time and technician from PBS</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setScheduleDate(null)}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5"
+                  aria-label="Close schedule"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-5 overflow-auto flex-1">
+                {scheduleLoading ? (
+                  <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
+                    <Loader2 className="animate-spin" size={18} />
+                    Loading schedule…
+                  </div>
+                ) : (
+                  <DayScheduleBoard
+                    date={scheduleDate}
+                    appointments={scheduleAppointments}
+                    techRoster={dispatchTechRoster}
+                  />
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Breakdown Modal */}
       <AnimatePresence>

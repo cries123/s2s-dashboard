@@ -14,6 +14,14 @@ export function appointmentTrackerCollection(db: Firestore) {
   return db.collection(`${DATA_ROOT}/appointmentTracker`);
 }
 
+export function appointmentScheduleCollection(db: Firestore) {
+  return db.collection(`${DATA_ROOT}/appointmentSchedule`);
+}
+
+export function appointmentScheduleDocId(dealershipId: string, date: string): string {
+  return `${dealershipId}_${date}`;
+}
+
 export function dealershipSettingsDoc(db: Firestore, dealershipId: string) {
   return db.doc(`${DATA_ROOT}/dealershipSettings/${dealershipId}`);
 }

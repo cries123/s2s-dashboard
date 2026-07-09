@@ -38,7 +38,7 @@ export function buildPbsSyncSummary(
     `Pulled ${fetched.contactVehicles} customer/vehicle records, ${fetched.repairOrders} repair orders, and ${fetched.appointments} appointments (${fetched.appointmentMonthStart} through ${fetched.appointmentMonthEnd}).`,
     `Directory: ${counts.customersCreated} new, ${counts.customersUpdated} updated${counts.ownerChanges ? `, ${counts.ownerChanges} owner changes` : ''}.`,
     `Service history: ${counts.visitsMerged} visits merged.`,
-    `Operations: ${counts.appointmentDaysUpdated} days refreshed (${counts.appointmentsProcessed} appointments in month).`,
+    `Operations: ${counts.appointmentDaysUpdated} days refreshed (${counts.appointmentsProcessed} appointments in month), ${counts.appointmentScheduleSlots} schedule slots.`,
     `Advisor performance: ${counts.performanceAdvisors} advisors from ${counts.performanceRepairOrders} cashiered ROs and ${counts.performancePartsInvoices} parts invoices (${fetched.performanceMonthStart || ''} through ${fetched.performanceMonthEnd || ''}).`,
     `Technician efficiency: ${counts.technicianReports} techs from ${counts.timeClockActivities} clock punches.`,
     `Service reminders: ${counts.serviceRemindersUpdated} customers updated from ${counts.workplanRemindersFetched} PBS reminders.`,

@@ -453,7 +453,31 @@ export interface DailyStat {
   pbsSyncedAt?: string;
 }
 
-export type DepartmentColumnId = 
+export interface ScheduledAppointmentSlot {
+  id: string;
+  appointmentNumber: string;
+  startMinutes: number;
+  durationMinutes: number;
+  techNumber: string;
+  advisor: string;
+  customerName: string;
+  vehicleLabel: string;
+  status: string;
+  concern: string;
+  category: 'diagnosis' | 'oilChange' | 'recall' | 'misc';
+  isWaiter: boolean;
+  pickupTimeLabel?: string;
+}
+
+export interface DayAppointmentSchedule {
+  date: string;
+  dealershipId: string;
+  appointments: ScheduledAppointmentSlot[];
+  source?: 'pbs-sync';
+  pbsSyncedAt?: string;
+}
+
+export type DepartmentColumnId =
   | 'lube' 
   | 'quick_service' 
   | 'ac_electrical' 

@@ -48,16 +48,32 @@ export interface PbsRepairOrder {
 
 export interface PbsAppointmentRequestLine {
   RequestDescription?: string;
+  CSR?: string;
+  CSRRef?: string;
+  Tech?: string;
+  TechRef?: string;
+  Skill?: string;
+  AllowedHours?: number;
+  RequestCode?: string;
 }
 
 export interface PbsAppointment {
   AppointmentId?: string;
+  Id?: string;
+  AppointmentNumber?: number | string;
+  RawAppointmentNumber?: string;
   AppointmentTime?: string;
   AppointmentTimeUTC?: string;
+  PickupTime?: string;
+  PickupTimeUTC?: string;
   Status?: string;
   ContactRef?: string;
   VehicleRef?: string;
   MileageIn?: number;
+  Advisor?: string;
+  AdvisorRef?: string;
+  IsWaiter?: boolean;
+  Notes?: string;
   RequestLines?: PbsAppointmentRequestLine[];
 }
 
@@ -68,6 +84,8 @@ export interface PbsSyncCounts {
   visitsMerged: number;
   appointmentDaysUpdated: number;
   appointmentsProcessed: number;
+  appointmentScheduleDays: number;
+  appointmentScheduleSlots: number;
   performanceAdvisors: number;
   performanceRepairOrders: number;
   performancePartsInvoices: number;

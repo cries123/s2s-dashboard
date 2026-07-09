@@ -32,6 +32,10 @@ import {
   serverTimestamp,
   stripUndefinedDeep,
 } from './pbsFirestore.js';
+import {
+  buildAppointmentCustomerLookup,
+  syncAppointmentSchedule,
+} from './pbsAppointmentSchedule.js';
 import type {
   PbsAppointment,
   PbsContactVehicle,
@@ -92,9 +96,11 @@ function emptyCounts(): PbsSyncCounts {
     customersUpdated: 0,
     ownerChanges: 0,
     visitsMerged: 0,
-    appointmentDaysUpdated: 0,
-    appointmentsProcessed: 0,
-    performanceAdvisors: 0,
+  appointmentDaysUpdated: 0,
+  appointmentsProcessed: 0,
+  appointmentScheduleDays: 0,
+  appointmentScheduleSlots: 0,
+  performanceAdvisors: 0,
     performanceRepairOrders: 0,
     performancePartsInvoices: 0,
     technicianReports: 0,
@@ -558,6 +564,19 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     }
 
     await commitBatches(db, trackerWrites);
+
+    const scheduleLookup = buildAppointmentCustomerLookup(index);
+    const scheduleResult = await syncAppointmentSchedule(
+      db,
+      dealershipId,
+      appointments,
+      start,
+      end,
+      scheduleLookup,
+      startedAt
+    );
+    counts.appointmentScheduleDays = scheduleResult.daysWritten;
+    counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
 
     const { start: perfStart, end: perfEnd } = monthRange;
     fetched.performanceMonthStart = perfStart;

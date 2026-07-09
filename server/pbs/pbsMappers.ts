@@ -25,6 +25,34 @@ export function pbsIsoToDateString(iso: string | undefined | null): string | nul
   return d.toLocaleDateString('en-CA', { timeZone: PACIFIC_TZ });
 }
 
+/** Minutes from midnight Pacific for scheduler positioning. */
+export function pbsIsoToPacificMinutes(iso: string | undefined | null): number | null {
+  if (!iso || iso.startsWith('0001-01-01')) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC_TZ,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(d);
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+  return hour * 60 + minute;
+}
+
+export function formatPacificTimeLabel(iso: string | undefined | null): string | null {
+  if (!iso || iso.startsWith('0001-01-01')) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString('en-US', {
+    timeZone: PACIFIC_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export function pickContactPhone(cv: PbsContactVehicle): string {
   const candidates = [cv.ContactCellPhone, cv.ContactHomePhone, cv.ContactBusinessPhone];
   for (const raw of candidates) {
