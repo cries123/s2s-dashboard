@@ -1058,7 +1058,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               initial={{ opacity: 0, scale: 0.98, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: 12 }}
-              className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+              className="bg-slate-900 border border-slate-800 rounded-none sm:rounded-2xl w-full h-[100dvh] sm:h-auto max-w-6xl sm:max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
             >
               <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-800">
                 <div>
