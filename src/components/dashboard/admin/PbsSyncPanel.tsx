@@ -73,6 +73,10 @@ function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
           { label: 'Ops days', value: entry.counts.appointmentDaysUpdated },
           { label: 'Perf advisors', value: entry.counts.performanceAdvisors ?? 0 },
           { label: 'Cashiered ROs', value: entry.counts.performanceRepairOrders ?? 0 },
+          { label: 'Tech reports', value: entry.counts.technicianReports ?? 0 },
+          { label: 'Reminders', value: entry.counts.serviceRemindersUpdated ?? 0 },
+          { label: 'Inventory', value: entry.counts.inventoryVehiclesWritten ?? 0 },
+          { label: 'Dispatch ROs', value: entry.counts.dispatchOrdersUpserted ?? 0 },
         ].map((chip) => (
           <span
             key={chip.label}
@@ -188,8 +192,8 @@ export function PbsSyncPanel({
       <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
         Pull the full Hyundai fleet from PBS PartnerHUB (matched by VIN) and update Directory profiles
         with the current registered owner, phone, and vehicle details. Also refreshes Operations
-        appointment counts and month-to-date advisor performance (labor/parts gross) from cashiered
-        repair orders and parts invoices. Only{' '}
+        appointment counts, advisor performance, technician efficiency, service reminders, vehicle
+        inventory, and the dispatch board from open repair orders. Only{' '}
         <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> is modified. A scheduled
         job also runs every morning at 8:00 AM Pacific.
       </p>

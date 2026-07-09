@@ -90,3 +90,23 @@ export async function pbsAppointmentGet(criteria: Record<string, unknown> = {}) 
 export async function pbsPartsInvoiceGet(criteria: Record<string, unknown> = {}) {
   return pbsPartnerHubRequest<{ PartsInvoices?: unknown[] }>('PartsInvoiceGet', criteria);
 }
+
+export async function pbsTimeClockActivityGet(criteria: Record<string, unknown> = {}) {
+  return pbsPartnerHubRequest<{ TimeClockActivities?: unknown[] }>('TimeClockActivityGet', criteria);
+}
+
+export async function pbsWorkplanReminderGet(criteria: Record<string, unknown> = {}) {
+  return pbsPartnerHubRequest<{ Reminders?: unknown[] }>('WorkplanReminderGet', criteria);
+}
+
+export async function pbsLotGet(criteria: Record<string, unknown> = {}) {
+  return pbsPartnerHubRequest<{ Lots?: unknown[] }>('LotGet', criteria);
+}
+
+export async function pbsVehicleGet(criteria: Record<string, unknown> = {}) {
+  return pbsPartnerHubRequest<{ Vehicles?: unknown[] }>('VehicleGet', criteria);
+}
+
+export async function pbsEmployeeGet(criteria: Record<string, unknown> = {}) {
+  return pbsPartnerHubRequest<{ Employees?: unknown[] }>('EmployeeGet', criteria);
+}

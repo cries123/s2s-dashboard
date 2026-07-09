@@ -40,5 +40,9 @@ export function buildPbsSyncSummary(
     `Service history: ${counts.visitsMerged} visits merged.`,
     `Operations: ${counts.appointmentDaysUpdated} days refreshed (${counts.appointmentsProcessed} appointments in month).`,
     `Advisor performance: ${counts.performanceAdvisors} advisors from ${counts.performanceRepairOrders} cashiered ROs and ${counts.performancePartsInvoices} parts invoices (${fetched.performanceMonthStart || ''} through ${fetched.performanceMonthEnd || ''}).`,
+    `Technician efficiency: ${counts.technicianReports} techs from ${counts.timeClockActivities} clock punches.`,
+    `Service reminders: ${counts.serviceRemindersUpdated} customers updated from ${counts.workplanRemindersFetched} PBS reminders.`,
+    `Inventory: ${counts.inventoryVehiclesWritten} vehicles across ${counts.inventoryLots} lots (${counts.inventoryVehiclesFetched} fetched).`,
+    `Dispatch: ${counts.dispatchOrdersUpserted} open ROs synced, ${counts.dispatchOrdersCompleted} closed.`,
   ].join(' ');
 }

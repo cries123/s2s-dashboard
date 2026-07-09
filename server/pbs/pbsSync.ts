@@ -47,6 +47,11 @@ import {
   dedupeContactVehiclesByVin,
 } from './pbsCustomerMerge.js';
 import { syncPbsAdvisorPerformance } from './pbsPerformanceSync.js';
+import { syncPbsDispatchBoard } from './pbsDispatchSync.js';
+import { syncPbsVehicleInventory } from './pbsInventorySync.js';
+import { syncPbsTechnicianPerformance } from './pbsTechnicianSync.js';
+import { syncPbsWorkplanReminders } from './pbsWorkplanReminderSync.js';
+import type { PbsCustomerIndexMaps } from './pbsExtendedTypes.js';
 
 const MAX_RECENT_VISITS = 25;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
@@ -90,6 +95,24 @@ function emptyCounts(): PbsSyncCounts {
     performanceAdvisors: 0,
     performanceRepairOrders: 0,
     performancePartsInvoices: 0,
+    technicianReports: 0,
+    timeClockActivities: 0,
+    workplanRemindersFetched: 0,
+    serviceRemindersUpdated: 0,
+    inventoryLots: 0,
+    inventoryVehiclesFetched: 0,
+    inventoryVehiclesWritten: 0,
+    openRepairOrdersFetched: 0,
+    dispatchOrdersUpserted: 0,
+    dispatchOrdersCompleted: 0,
+  };
+}
+
+function toCustomerIndexMaps(index: CustomerIndex): PbsCustomerIndexMaps {
+  return {
+    byContactRef: index.byContactRef,
+    byVehicleRef: index.byVehicleRef,
+    dataById: index.dataById as Map<string, Record<string, unknown>>,
   };
 }
 
@@ -541,6 +564,44 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     counts.performancePartsInvoices = performance.partsInvoicesProcessed;
     fetched.performanceRepairOrders = performance.repairOrdersProcessed;
     fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
+
+    const technician = await syncPbsTechnicianPerformance(
+      db,
+      dealershipId,
+      perfStart,
+      perfEnd,
+      startedAt
+    );
+    counts.technicianReports = technician.technicians;
+    counts.timeClockActivities = technician.clockActivities;
+    fetched.timeClockActivities = technician.clockActivities;
+
+    const reminders = await syncPbsWorkplanReminders(
+      db,
+      dealershipId,
+      toCustomerIndexMaps(index),
+      startedAt
+    );
+    counts.workplanRemindersFetched = reminders.remindersFetched;
+    counts.serviceRemindersUpdated = reminders.customersUpdated;
+    fetched.workplanReminders = reminders.remindersFetched;
+
+    const inventory = await syncPbsVehicleInventory(db, dealershipId, startedAt);
+    counts.inventoryLots = inventory.lots;
+    counts.inventoryVehiclesFetched = inventory.vehiclesFetched;
+    counts.inventoryVehiclesWritten = inventory.vehiclesWritten;
+    fetched.inventoryVehicles = inventory.vehiclesFetched;
+
+    const dispatch = await syncPbsDispatchBoard(
+      db,
+      dealershipId,
+      toCustomerIndexMaps(index),
+      startedAt
+    );
+    counts.openRepairOrdersFetched = dispatch.openRepairOrdersFetched;
+    counts.dispatchOrdersUpserted = dispatch.dispatchOrdersUpserted;
+    counts.dispatchOrdersCompleted = dispatch.dispatchOrdersCompleted;
+    fetched.openRepairOrders = dispatch.openRepairOrdersFetched;
 
     return finish(true);
   } catch (err) {

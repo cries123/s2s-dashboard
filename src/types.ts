@@ -175,6 +175,19 @@ export interface DealershipSettings {
       visitsMerged: number;
       appointmentDaysUpdated: number;
       appointmentsProcessed: number;
+      performanceAdvisors?: number;
+      performanceRepairOrders?: number;
+      performancePartsInvoices?: number;
+      technicianReports?: number;
+      timeClockActivities?: number;
+      workplanRemindersFetched?: number;
+      serviceRemindersUpdated?: number;
+      inventoryLots?: number;
+      inventoryVehiclesFetched?: number;
+      inventoryVehiclesWritten?: number;
+      openRepairOrdersFetched?: number;
+      dispatchOrdersUpserted?: number;
+      dispatchOrdersCompleted?: number;
     };
     fetched?: {
       contactVehicles: number;
@@ -182,8 +195,15 @@ export interface DealershipSettings {
       appointments: number;
       appointmentMonthStart: string;
       appointmentMonthEnd: string;
+      timeClockActivities?: number;
+      workplanReminders?: number;
+      inventoryVehicles?: number;
+      openRepairOrders?: number;
     };
   };
+  /** PBS LotGet lot codes for inventory tracking. */
+  pbsInventoryLots?: Array<{ lotId: string; code: string; description: string }>;
+  pbsInventorySyncedAt?: string;
   /** Recent PBS sync activity log (newest first). */
   pbsSyncLogs?: PbsSyncLogEntry[];
   /** Defaults merged into new staff preferences on approval. */
@@ -230,6 +250,10 @@ export interface PbsSyncLogEntry {
     appointments: number;
     appointmentMonthStart: string;
     appointmentMonthEnd: string;
+    timeClockActivities?: number;
+    workplanReminders?: number;
+    inventoryVehicles?: number;
+    openRepairOrders?: number;
   };
   counts: {
     customersCreated: number;
@@ -241,6 +265,16 @@ export interface PbsSyncLogEntry {
     performanceAdvisors?: number;
     performanceRepairOrders?: number;
     performancePartsInvoices?: number;
+    technicianReports?: number;
+    timeClockActivities?: number;
+    workplanRemindersFetched?: number;
+    serviceRemindersUpdated?: number;
+    inventoryLots?: number;
+    inventoryVehiclesFetched?: number;
+    inventoryVehiclesWritten?: number;
+    openRepairOrdersFetched?: number;
+    dispatchOrdersUpserted?: number;
+    dispatchOrdersCompleted?: number;
   };
   error?: string;
   summary: string;

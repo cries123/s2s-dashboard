@@ -71,6 +71,16 @@ export interface PbsSyncCounts {
   performanceAdvisors: number;
   performanceRepairOrders: number;
   performancePartsInvoices: number;
+  technicianReports: number;
+  timeClockActivities: number;
+  workplanRemindersFetched: number;
+  serviceRemindersUpdated: number;
+  inventoryLots: number;
+  inventoryVehiclesFetched: number;
+  inventoryVehiclesWritten: number;
+  openRepairOrdersFetched: number;
+  dispatchOrdersUpserted: number;
+  dispatchOrdersCompleted: number;
 }
 
 export interface PbsSyncFetched {
@@ -83,6 +93,10 @@ export interface PbsSyncFetched {
   performanceMonthEnd?: string;
   performanceRepairOrders?: number;
   performancePartsInvoices?: number;
+  timeClockActivities?: number;
+  workplanReminders?: number;
+  inventoryVehicles?: number;
+  openRepairOrders?: number;
 }
 
 export interface PbsSyncLogEntry {

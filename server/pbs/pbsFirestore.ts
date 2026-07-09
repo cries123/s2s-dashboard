@@ -23,6 +23,28 @@ export function advisorPerformanceDoc(db: Firestore, dealershipId: string) {
   return db.doc(`${DATA_ROOT}/performance/${docId}`);
 }
 
+export function technicianPerformanceDoc(db: Firestore, dealershipId: string) {
+  const docId = dealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${dealershipId}`;
+  return db.doc(`${DATA_ROOT}/performance/${docId}`);
+}
+
+export function dispatchOrdersCollection(db: Firestore) {
+  return db.collection(`${DATA_ROOT}/dispatchOrders`);
+}
+
+export function vehicleInventoryCollection(db: Firestore) {
+  return db.collection(`${DATA_ROOT}/vehicleInventory`);
+}
+
+export function dispatchOrderDocId(pbsRepairOrderId: string): string {
+  return `pbs-ro-${pbsRepairOrderId}`;
+}
+
+export function inventoryVehicleDocId(vehicleId: string, vin?: string): string {
+  const key = (vehicleId || vin || '').trim();
+  return `pbs-${key}`;
+}
+
 export function appointmentTrackerDocId(dealershipId: string, date: string): string {
   return `${dealershipId}_${date}`;
 }

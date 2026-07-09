@@ -197,6 +197,12 @@ service cloud.firestore {
       allow delete: if (isApproved() || isSystemWorker()) && canAccessDispatchData(resource.data);
     }
 
+    match /artifacts/hyundai-sales-to-service/public/data/vehicleInventory/{vehicleId} {
+      allow read: if (isApproved() || isAdmin() || isSystemWorker()) &&
+                     resource.data.dealershipId == userDealershipId();
+      allow write: if isAdmin() || isSystemWorker();
+    }
+
     match /artifacts/hyundai-sales-to-service/public/data/vehicleRecalls/{recallId} {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
     }
