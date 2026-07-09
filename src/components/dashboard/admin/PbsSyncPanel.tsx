@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -9,7 +9,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { DealershipSettings, PbsSyncLogEntry } from '../../../types';
-import { fetchPbsSyncStatus, runPbsSyncNow, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
+import { fetchPbsSyncStatus, runPbsSyncNow, waitForPbsSyncCompletion, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
 
@@ -101,14 +101,8 @@ function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
   );
 }
 
-export function PbsSyncPanel({
-  dealershipId,
-  dealershipName,
-  settings,
-  onSuccess,
-  onError,
-}: PbsSyncPanelProps) {
-  if (!isPbsSyncDealership(dealershipId)) {
+export function PbsSyncPanel(props: PbsSyncPanelProps) {
+  if (!isPbsSyncDealership(props.dealershipId)) {
     return (
       <div className="card-base rounded-2xl border border-white/5 p-6">
         <p className="text-sm text-slate-300 font-medium">PBS automated sync is not enabled for this store.</p>
@@ -121,6 +115,15 @@ export function PbsSyncPanel({
     );
   }
 
+  return <PbsSyncPanelInner {...props} />;
+}
+
+function PbsSyncPanelInner({
+  dealershipName,
+  settings,
+  onSuccess,
+  onError,
+}: PbsSyncPanelProps) {
   const [syncing, setSyncing] = useState(false);
   const [fullRefreshing, setFullRefreshing] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
@@ -130,7 +133,11 @@ export function PbsSyncPanel({
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
+  const [serverState, setServerState] = useState<PbsSyncStatusResponse['state']>(null);
   const [logs, setLogs] = useState<PbsSyncLogEntry[]>(settings?.pbsSyncLogs ?? []);
+  const [panelMessage, setPanelMessage] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const resumeChecked = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -142,11 +149,16 @@ export function PbsSyncPanel({
       setFirestoreError(status.firestoreError ?? null);
       setFirestoreQuotaExceeded(Boolean(status.firestoreQuotaExceeded));
       setDiagnostics(status.diagnostics);
+      setServerState(status.state);
       if (status.logs.length > 0) {
         setLogs(status.logs);
       }
+      return status;
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load PBS sync status';
+      setPanelError(message);
       console.error('[PbsSyncPanel] status error', err);
+      return null;
     } finally {
       setStatusLoading(false);
     }
@@ -162,7 +174,7 @@ export function PbsSyncPanel({
     }
   }, [settings?.pbsSyncLogs]);
 
-  const lastState = settings?.pbsSyncState;
+  const lastState = serverState ?? settings?.pbsSyncState;
   const displayLogs = logs.length > 0 ? logs : settings?.pbsSyncLogs ?? [];
   const credentialsReady = configured && firestoreAdmin;
   const canPullFromPbs = credentialsReady;
@@ -174,32 +186,104 @@ export function PbsSyncPanel({
     : 'https://console.firebase.google.com/';
 
   const handleSync = async (fullRefresh = false) => {
+    if (!canPullFromPbs) {
+      const reason = !configured
+        ? 'PBS credentials are not configured on the server.'
+        : 'Firebase service account is not configured for server writes.';
+      setPanelError(reason);
+      onError?.(reason);
+      return;
+    }
+
+    setPanelError(null);
+    setPanelMessage(
+      fullRefresh
+        ? 'Full fleet refresh started — pulling all customers and repair orders. This usually takes 2–5 minutes.'
+        : 'Pulling PBS changes — this usually takes 2–5 minutes. You can leave this page open.'
+    );
     if (fullRefresh) setFullRefreshing(true);
     else setSyncing(true);
+
     try {
       const result = await runPbsSyncNow({ fullRefresh });
+      await refreshStatus();
       if (result.skipped) {
-        onError?.(result.reason || 'Sync was skipped.');
+        const message = result.reason || 'Sync was skipped.';
+        setPanelError(message);
+        onError?.(message);
         return;
       }
-      await refreshStatus();
       if (result.ok) {
-        onSuccess?.(
+        const message =
           result.summary ||
-            (fullRefresh
-              ? 'Full PBS fleet refresh completed.'
-              : 'PBS changes since last sync pulled.')
-        );
+          (fullRefresh
+            ? 'Full PBS fleet refresh completed.'
+            : 'PBS changes since last sync pulled.');
+        setPanelMessage(null);
+        onSuccess?.(message);
       } else {
-        onError?.(result.error || result.summary || 'PBS sync failed.');
+        const message = result.error || result.summary || 'PBS sync failed.';
+        setPanelError(message);
+        onError?.(message);
       }
     } catch (err) {
-      onError?.(err instanceof Error ? err.message : 'PBS sync failed.');
+      const message = err instanceof Error ? err.message : 'PBS sync failed.';
+      setPanelError(message);
+      onError?.(message);
+      await refreshStatus();
     } finally {
       setSyncing(false);
       setFullRefreshing(false);
+      setPanelMessage(null);
     }
   };
+
+  useEffect(() => {
+    if (resumeChecked.current || statusLoading || syncing || fullRefreshing) return;
+    if (!serverState?.syncInProgress) return;
+    resumeChecked.current = true;
+    setPanelMessage('A PBS sync is already running — waiting for it to finish…');
+    setSyncing(true);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await waitForPbsSyncCompletion(serverState.syncStartedAt);
+        if (cancelled) return;
+        await refreshStatus();
+        if (result.ok) {
+          onSuccess?.(result.summary || 'PBS sync completed.');
+        } else if (!result.skipped) {
+          const message = result.error || result.summary || 'PBS sync failed.';
+          setPanelError(message);
+          onError?.(message);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'PBS sync failed.';
+        setPanelError(message);
+        onError?.(message);
+      } finally {
+        if (!cancelled) {
+          setSyncing(false);
+          setPanelMessage(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    statusLoading,
+    serverState?.syncInProgress,
+    serverState?.syncStartedAt,
+    syncing,
+    fullRefreshing,
+    refreshStatus,
+    onSuccess,
+    onError,
+  ]);
 
   return (
     <div className="space-y-5">
@@ -258,6 +342,26 @@ export function PbsSyncPanel({
           </div>
         </div>
 
+        {panelMessage ? (
+          <div className="rounded-xl border border-brand-primary/30 bg-brand-primary/10 p-3 flex items-start gap-2">
+            <Loader2 size={14} className="animate-spin text-brand-primary shrink-0 mt-0.5" />
+            <p className="text-xs text-slate-200 leading-relaxed">{panelMessage}</p>
+          </div>
+        ) : null}
+
+        {panelError ? (
+          <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-3 text-xs text-rose-200/90">
+            {panelError}
+          </div>
+        ) : null}
+
+        {!canPullFromPbs && !statusLoading ? (
+          <div className="rounded-xl border border-slate-700/50 bg-slate-950/40 p-3 text-xs text-slate-400">
+            Pull is disabled until PBS credentials and the Firebase service account are configured on the server.
+            Check the status cards above after Netlify redeploys.
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
             <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">PBS credentials</p>
@@ -292,7 +396,12 @@ export function PbsSyncPanel({
             <p className="text-xs font-bold text-slate-200 mt-1">
               {lastState?.lastSyncAt ? formatWhen(lastState.lastSyncAt) : 'Never'}
             </p>
-            {lastState?.lastSyncOk === false ? (
+            {lastState?.syncInProgress ? (
+              <p className="text-[10px] text-brand-primary mt-1 flex items-center gap-1">
+                <Loader2 size={10} className="animate-spin" />
+                Sync in progress…
+              </p>
+            ) : lastState?.lastSyncOk === false ? (
               <p className="text-[10px] text-rose-400 mt-1 line-clamp-2">{lastState.lastError}</p>
             ) : lastState?.summary ? (
               <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{lastState.summary}</p>

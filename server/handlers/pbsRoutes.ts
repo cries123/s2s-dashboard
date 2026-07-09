@@ -19,7 +19,7 @@ import {
   PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
-import { isPacificMorningSyncHour, runPbsSync } from '../pbs/pbsSync.js';
+import { isPacificMorningSyncHour, startPbsSyncBackground } from '../pbs/pbsSync.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -202,13 +202,31 @@ export function registerPbsRoutes(app: Express) {
     }
 
     try {
-      const result = await runPbsSync({
+      const start = await startPbsSyncBackground({
         triggeredBy: cron ? 'cron' : 'manual',
         triggeredByEmail: caller.email,
         triggeredByUsername: caller.username,
         fullRefresh,
       });
-      return res.status(result.ok ? 200 : 500).json(result);
+
+      if (!start.accepted) {
+        const status = start.inProgress ? 409 : 503;
+        return res.status(status).json({
+          ok: false,
+          accepted: false,
+          inProgress: start.inProgress,
+          syncStartedAt: start.startedAt,
+          summary: start.message,
+          error: start.message,
+        });
+      }
+
+      return res.status(202).json({
+        ok: true,
+        accepted: true,
+        startedAt: start.startedAt,
+        summary: start.message,
+      });
     } catch (err) {
       return handlePbsError(res, err);
     }

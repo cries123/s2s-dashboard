@@ -147,6 +147,15 @@ export interface PbsSyncState {
   triggeredByEmail?: string;
   triggeredByUsername?: string;
   summary?: string;
+  syncInProgress?: boolean;
+  syncStartedAt?: string;
+}
+
+export interface PbsSyncStartResult {
+  accepted: boolean;
+  inProgress?: boolean;
+  startedAt?: string;
+  message: string;
 }
 
 export interface PbsSyncResult {

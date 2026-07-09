@@ -11,7 +11,7 @@
   external_node_modules = ["firebase-admin", "canvas"]
 
 [functions.api]
-  timeout = 120
+  timeout = 300
 
 [functions."pbs-daily-sync"]
   schedule = "@hourly"

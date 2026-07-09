@@ -44,6 +44,7 @@ import type {
   PbsSyncFetched,
   PbsSyncLogEntry,
   PbsSyncResult,
+  PbsSyncStartResult,
   PbsSyncState,
 } from './pbsTypes.js';
 import { appendPbsSyncLog, buildPbsSyncSummary } from './pbsSyncLogs.js';
@@ -363,6 +364,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         triggeredByEmail: options.triggeredByEmail,
         triggeredByUsername: options.triggeredByUsername,
         summary,
+        syncInProgress: false,
       };
       await writePbsSyncState(db, dealershipId, state).catch((writeErr) =>
         console.error('[PBS Sync] Failed to persist sync state', writeErr)
@@ -677,4 +679,72 @@ export function isPacificMorningSyncHour(reference = new Date()): boolean {
     })
   );
   return hour === 8;
+}
+
+const SYNC_STALE_MS = 20 * 60 * 1000;
+
+/** Start PBS sync in the background — returns immediately while work continues server-side. */
+export async function startPbsSyncBackground(
+  options: RunPbsSyncOptions = {}
+): Promise<PbsSyncStartResult> {
+  if (options.dealershipId && !resolvePbsAutomatedSyncDealershipId(options.dealershipId)) {
+    return { accepted: false, message: pbsAutomatedSyncScopeError(options.dealershipId) };
+  }
+
+  if (!isPbsPartnerHubConfigured()) {
+    return {
+      accepted: false,
+      message: 'PBS PartnerHUB credentials are not configured on the server.',
+    };
+  }
+
+  const db = getAdminFirestore();
+  if (!db) {
+    return {
+      accepted: false,
+      message:
+        'FIREBASE_SERVICE_ACCOUNT_JSON is not configured — server-side PBS sync cannot write to Firestore.',
+    };
+  }
+
+  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+  const priorState = await readPbsSyncState(db, dealershipId);
+
+  if (priorState?.syncInProgress && priorState.syncStartedAt) {
+    const age = Date.now() - new Date(priorState.syncStartedAt).getTime();
+    if (age < SYNC_STALE_MS) {
+      return {
+        accepted: false,
+        inProgress: true,
+        startedAt: priorState.syncStartedAt,
+        message: 'A PBS sync is already running.',
+      };
+    }
+    console.warn('[PBS Sync] Clearing stale syncInProgress flag before starting a new sync.');
+  }
+
+  const startedAt = new Date().toISOString();
+  await writePbsSyncState(db, dealershipId, {
+    lastSyncAt: priorState?.lastSyncAt ?? startedAt,
+    lastSyncOk: priorState?.lastSyncOk ?? false,
+    lastError: priorState?.lastError,
+    counts: priorState?.counts,
+    fetched: priorState?.fetched,
+    summary: priorState?.summary,
+    triggeredBy: priorState?.triggeredBy,
+    triggeredByEmail: priorState?.triggeredByEmail,
+    triggeredByUsername: priorState?.triggeredByUsername,
+    syncInProgress: true,
+    syncStartedAt: startedAt,
+  });
+
+  void runPbsSync(options).catch((err) => {
+    console.error('[PBS Sync] Background sync failed unexpectedly:', err);
+  });
+
+  return {
+    accepted: true,
+    startedAt,
+    message: 'PBS sync started — this usually takes 2–5 minutes.',
+  };
 }

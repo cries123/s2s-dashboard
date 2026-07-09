@@ -7,7 +7,12 @@ type ServerlessHandler = ReturnType<typeof serverless>;
 let cached: ServerlessHandler | null = null;
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  context.callbackWaitsForEmptyEventLoop = false;
+  const requestUrl = event.rawUrl || event.path || '';
+  const isPbsSyncRun =
+    event.httpMethod === 'POST' &&
+    (requestUrl.includes('/api/pbs/sync/run') || requestUrl.includes('pbs/sync/run'));
+  // Keep the function alive until background PBS sync finishes.
+  context.callbackWaitsForEmptyEventLoop = isPbsSyncRun;
 
   if (!cached) {
     const app = await createApiApp();

@@ -168,6 +168,8 @@ export interface DealershipSettings {
     triggeredByEmail?: string;
     triggeredByUsername?: string;
     summary?: string;
+    syncInProgress?: boolean;
+    syncStartedAt?: string;
     counts?: {
       customersCreated: number;
       customersUpdated: number;

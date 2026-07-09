@@ -24,6 +24,8 @@ export interface PbsSyncStatusResponse {
     lastSyncOk: boolean;
     lastError?: string;
     summary?: string;
+    syncInProgress?: boolean;
+    syncStartedAt?: string;
     triggeredBy?: 'cron' | 'manual';
     triggeredByEmail?: string;
     triggeredByUsername?: string;
@@ -45,6 +47,15 @@ export interface PbsSyncRunResponse {
   logId?: string;
   skipped?: boolean;
   reason?: string;
+  accepted?: boolean;
+  inProgress?: boolean;
+}
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 15 * 60 * 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function bearerHeaders(): Promise<HeadersInit> {
@@ -66,6 +77,67 @@ async function parseJson<T>(res: Response): Promise<T> {
   throw new Error(text || `Request failed (${res.status})`);
 }
 
+function logEntryToRunResponse(entry: PbsSyncLogEntry): PbsSyncRunResponse {
+  return {
+    ok: entry.ok,
+    startedAt: entry.startedAt,
+    finishedAt: entry.finishedAt,
+    summary: entry.summary,
+    counts: entry.counts,
+    fetched: entry.fetched,
+    error: entry.error,
+    logId: entry.id,
+  };
+}
+
+function stateToRunResponse(
+  state: NonNullable<PbsSyncStatusResponse['state']>
+): PbsSyncRunResponse | null {
+  if (!state.lastSyncAt) return null;
+  return {
+    ok: state.lastSyncOk,
+    startedAt: state.syncStartedAt || state.lastSyncAt,
+    finishedAt: state.lastSyncAt,
+    summary: state.summary || (state.lastSyncOk ? 'PBS sync completed.' : 'PBS sync failed.'),
+    counts: state.counts || ({} as PbsSyncLogEntry['counts']),
+    fetched: state.fetched || ({} as PbsSyncLogEntry['fetched']),
+    error: state.lastError,
+  };
+}
+
+async function pollPbsSyncUntilComplete(
+  startedAfter?: string
+): Promise<PbsSyncRunResponse> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+    const status = await fetchPbsSyncStatus();
+
+    if (status.state?.syncInProgress) {
+      continue;
+    }
+
+    const matchingLog = status.logs.find(
+      (entry) => !startedAfter || entry.startedAt >= startedAfter
+    );
+    if (matchingLog) {
+      return logEntryToRunResponse(matchingLog);
+    }
+
+    if (status.state && !status.state.syncInProgress) {
+      const fromState = stateToRunResponse(status.state);
+      if (fromState && (!startedAfter || fromState.startedAt >= startedAfter)) {
+        return fromState;
+      }
+    }
+  }
+
+  throw new Error(
+    'PBS sync is still running after 15 minutes. Refresh the sync log — it may have finished on the server.'
+  );
+}
+
 export async function fetchPbsSyncStatus(): Promise<PbsSyncStatusResponse> {
   const res = await fetch('/api/pbs/sync/status');
   const data = await parseJson<PbsSyncStatusResponse & { error?: string }>(res);
@@ -85,9 +157,30 @@ export async function runPbsSyncNow(options: { fullRefresh?: boolean } = {}): Pr
       dealershipId: 'hyundai',
     }),
   });
-  const data = await parseJson<PbsSyncRunResponse & { error?: string }>(res);
-  if (!res.ok && !data.skipped) {
+  const data = await parseJson<PbsSyncRunResponse & { error?: string; syncStartedAt?: string }>(res);
+
+  if (res.status === 409 && data.inProgress) {
+    return pollPbsSyncUntilComplete(data.syncStartedAt || data.startedAt);
+  }
+
+  if (!res.ok && !data.skipped && !data.accepted) {
     throw new Error(data.error || data.summary || 'PBS sync failed');
   }
+
+  if (data.skipped) {
+    return data;
+  }
+
+  if (res.status === 202 || data.accepted) {
+    return pollPbsSyncUntilComplete(data.startedAt);
+  }
+
   return data;
+}
+
+/** Poll Firestore until an in-flight sync finishes (does not start a new sync). */
+export async function waitForPbsSyncCompletion(
+  startedAfter?: string
+): Promise<PbsSyncRunResponse> {
+  return pollPbsSyncUntilComplete(startedAfter);
 }
