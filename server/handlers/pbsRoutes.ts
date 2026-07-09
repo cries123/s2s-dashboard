@@ -19,6 +19,7 @@ import {
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { isPacificMorningSyncHour, runPbsSync } from '../pbs/pbsSync.js';
+import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
 
 function daysAgoIso(days: number): string {
@@ -113,12 +114,15 @@ export function registerPbsRoutes(app: Express) {
 
   /** Last PBS sync status (no secrets). */
   app.get('/api/pbs/sync/status', async (_req, res) => {
+    const diagnostics = getPbsEnvDiagnostics();
     const db = getAdminFirestore();
     if (!db) {
       return res.json({
-        configured: isPbsPartnerHubConfigured(),
+        configured: diagnostics.pbsConfigured,
         firestoreAdmin: false,
+        diagnostics,
         state: null,
+        logs: [],
       });
     }
 
@@ -128,8 +132,9 @@ export function registerPbsRoutes(app: Express) {
     const state = (data?.pbsSyncState as PbsSyncState | undefined) ?? null;
     const logs = (data?.pbsSyncLogs as PbsSyncLogEntry[] | undefined) ?? [];
     res.json({
-      configured: isPbsPartnerHubConfigured(),
+      configured: diagnostics.pbsConfigured,
       firestoreAdmin: true,
+      diagnostics,
       dealershipId,
       dealershipName: PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
       scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],

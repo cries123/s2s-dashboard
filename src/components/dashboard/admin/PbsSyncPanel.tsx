@@ -9,7 +9,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { DealershipSettings, PbsSyncLogEntry } from '../../../types';
-import { fetchPbsSyncStatus, runPbsSyncNow } from '../../../lib/pbsSyncApi';
+import { fetchPbsSyncStatus, runPbsSyncNow, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
 
@@ -112,6 +112,7 @@ export function PbsSyncPanel({
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
   const [logs, setLogs] = useState<PbsSyncLogEntry[]>(settings?.pbsSyncLogs ?? []);
 
   const refreshStatus = useCallback(async () => {
@@ -120,6 +121,7 @@ export function PbsSyncPanel({
       const status = await fetchPbsSyncStatus();
       setConfigured(status.configured);
       setFirestoreAdmin(status.firestoreAdmin);
+      setDiagnostics(status.diagnostics);
       if (status.logs.length > 0) {
         setLogs(status.logs);
       }
@@ -228,9 +230,26 @@ export function PbsSyncPanel({
         </div>
 
         {!ready && !statusLoading ? (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100/90">
-            Set PBS PartnerHUB credentials and <code className="text-amber-200">FIREBASE_SERVICE_ACCOUNT_JSON</code>{' '}
-            in Netlify environment variables before using sync.
+          <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100/90 space-y-2">
+            <p>
+              Server-side env vars are not ready yet. After saving variables in Netlify, trigger a new{' '}
+              <strong className="text-amber-50">production deploy</strong> — saving alone does not update live
+              functions.
+            </p>
+            {diagnostics?.missingPbsVars?.length ? (
+              <p>
+                Missing PBS vars on the server:{' '}
+                <code className="text-amber-100">{diagnostics.missingPbsVars.join(', ')}</code>
+              </p>
+            ) : null}
+            {diagnostics?.serviceAccountMessage ? (
+              <p>{diagnostics.serviceAccountMessage}</p>
+            ) : (
+              <p>
+                Set <code className="text-amber-100">FIREBASE_SERVICE_ACCOUNT_JSON</code> to the entire downloaded
+                Firebase service-account JSON file (not just the private key).
+              </p>
+            )}
           </div>
         ) : null}
       </div>

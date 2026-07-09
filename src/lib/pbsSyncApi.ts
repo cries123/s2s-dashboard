@@ -4,6 +4,16 @@ import type { PbsSyncLogEntry } from '../types';
 export interface PbsSyncStatusResponse {
   configured: boolean;
   firestoreAdmin: boolean;
+  diagnostics?: {
+    pbsConfigured: boolean;
+    missingPbsVars: string[];
+    firestoreAdminReady: boolean;
+    serviceAccountStatus: string;
+    serviceAccountMessage: string;
+    hasServiceAccountJson: boolean;
+    hasServiceAccountBase64: boolean;
+    redeployHint: string;
+  };
   dealershipId?: string;
   state: {
     lastSyncAt: string;
