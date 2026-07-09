@@ -238,6 +238,9 @@ export interface PbsSyncLogEntry {
     visitsMerged: number;
     appointmentDaysUpdated: number;
     appointmentsProcessed: number;
+    performanceAdvisors?: number;
+    performanceRepairOrders?: number;
+    performancePartsInvoices?: number;
   };
   error?: string;
   summary: string;

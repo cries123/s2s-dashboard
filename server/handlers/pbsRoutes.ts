@@ -10,6 +10,7 @@ import {
   pbsContactGet,
   pbsContactVehicleGet,
   pbsContactVehicleItems,
+  pbsPartsInvoiceGet,
   pbsRepairOrderGet,
 } from '../pbs/partnerHubClient.js';
 import { dealershipSettingsDoc } from '../pbs/pbsFirestore.js';
@@ -107,6 +108,15 @@ export function registerPbsRoutes(app: Express) {
   app.post('/api/pbs/appointment-get', async (req: Request, res: Response) => {
     try {
       const data = await pbsAppointmentGet(req.body ?? {});
+      res.json(data);
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  app.post('/api/pbs/parts-invoice-get', async (req: Request, res: Response) => {
+    try {
+      const data = await pbsPartsInvoiceGet(req.body ?? {});
       res.json(data);
     } catch (err) {
       return handlePbsError(res, err);

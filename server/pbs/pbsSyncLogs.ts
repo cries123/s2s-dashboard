@@ -39,5 +39,6 @@ export function buildPbsSyncSummary(
     `Directory: ${counts.customersCreated} new, ${counts.customersUpdated} updated${counts.ownerChanges ? `, ${counts.ownerChanges} owner changes` : ''}.`,
     `Service history: ${counts.visitsMerged} visits merged.`,
     `Operations: ${counts.appointmentDaysUpdated} days refreshed (${counts.appointmentsProcessed} appointments in month).`,
+    `Advisor performance: ${counts.performanceAdvisors} advisors from ${counts.performanceRepairOrders} cashiered ROs and ${counts.performancePartsInvoices} parts invoices (${fetched.performanceMonthStart || ''} through ${fetched.performanceMonthEnd || ''}).`,
   ].join(' ');
 }

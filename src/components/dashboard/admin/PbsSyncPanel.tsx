@@ -71,6 +71,8 @@ function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
           { label: 'Owner changes', value: entry.counts.ownerChanges ?? 0 },
           { label: 'Visits merged', value: entry.counts.visitsMerged },
           { label: 'Ops days', value: entry.counts.appointmentDaysUpdated },
+          { label: 'Perf advisors', value: entry.counts.performanceAdvisors ?? 0 },
+          { label: 'Cashiered ROs', value: entry.counts.performanceRepairOrders ?? 0 },
         ].map((chip) => (
           <span
             key={chip.label}
@@ -185,9 +187,9 @@ export function PbsSyncPanel({
     <div className="space-y-5">
       <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
         Pull the full Hyundai fleet from PBS PartnerHUB (matched by VIN) and update Directory profiles
-        with the current registered owner, phone, and vehicle details. Resold vehicles overwrite stale
-        customer names when PBS shows a new owner. Service history, mileage, and this month&apos;s
-        appointments sync into Operations. Only{' '}
+        with the current registered owner, phone, and vehicle details. Also refreshes Operations
+        appointment counts and month-to-date advisor performance (labor/parts gross) from cashiered
+        repair orders and parts invoices. Only{' '}
         <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> is modified. A scheduled
         job also runs every morning at 8:00 AM Pacific.
       </p>

@@ -68,6 +68,9 @@ export interface PbsSyncCounts {
   visitsMerged: number;
   appointmentDaysUpdated: number;
   appointmentsProcessed: number;
+  performanceAdvisors: number;
+  performanceRepairOrders: number;
+  performancePartsInvoices: number;
 }
 
 export interface PbsSyncFetched {
@@ -76,6 +79,10 @@ export interface PbsSyncFetched {
   appointments: number;
   appointmentMonthStart: string;
   appointmentMonthEnd: string;
+  performanceMonthStart?: string;
+  performanceMonthEnd?: string;
+  performanceRepairOrders?: number;
+  performancePartsInvoices?: number;
 }
 
 export interface PbsSyncLogEntry {

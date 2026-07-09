@@ -46,6 +46,7 @@ import {
   buildPbsCustomerUpdatePatch,
   dedupeContactVehiclesByVin,
 } from './pbsCustomerMerge.js';
+import { syncPbsAdvisorPerformance } from './pbsPerformanceSync.js';
 
 const MAX_RECENT_VISITS = 25;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
@@ -86,6 +87,9 @@ function emptyCounts(): PbsSyncCounts {
     visitsMerged: 0,
     appointmentDaysUpdated: 0,
     appointmentsProcessed: 0,
+    performanceAdvisors: 0,
+    performanceRepairOrders: 0,
+    performancePartsInvoices: 0,
   };
 }
 
@@ -527,6 +531,16 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     }
 
     await commitBatches(db, trackerWrites);
+
+    const { start: perfStart, end: perfEnd } = monthRange;
+    fetched.performanceMonthStart = perfStart;
+    fetched.performanceMonthEnd = perfEnd;
+    const performance = await syncPbsAdvisorPerformance(db, dealershipId, perfStart, perfEnd, startedAt);
+    counts.performanceAdvisors = performance.advisors;
+    counts.performanceRepairOrders = performance.repairOrdersProcessed;
+    counts.performancePartsInvoices = performance.partsInvoicesProcessed;
+    fetched.performanceRepairOrders = performance.repairOrdersProcessed;
+    fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
 
     return finish(true);
   } catch (err) {

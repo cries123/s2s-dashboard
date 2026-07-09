@@ -18,6 +18,11 @@ export function dealershipSettingsDoc(db: Firestore, dealershipId: string) {
   return db.doc(`${DATA_ROOT}/dealershipSettings/${dealershipId}`);
 }
 
+export function advisorPerformanceDoc(db: Firestore, dealershipId: string) {
+  const docId = dealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${dealershipId}`;
+  return db.doc(`${DATA_ROOT}/performance/${docId}`);
+}
+
 export function appointmentTrackerDocId(dealershipId: string, date: string): string {
   return `${dealershipId}_${date}`;
 }
