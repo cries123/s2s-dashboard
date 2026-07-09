@@ -8,8 +8,8 @@ import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
-  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, TrendingDown, Calendar as CalendarIcon, 
-  BarChart3, Target, Clock, FileUp, X, PieChart, Printer, Archive, Lock, Unlock
+  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, Calendar as CalendarIcon, 
+  Target, Clock, FileUp, X, Printer, Archive, Lock, Unlock
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
@@ -38,8 +38,27 @@ import {
   getActiveMonthDateRange,
 } from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
-import { KpiStrip } from '../../ui/KpiStrip';
 import { PageSkeleton } from '../../ui/Skeleton';
+
+function ProjectionProgressBar({ percent, onTrack }: { percent: number; onTrack: boolean }) {
+  const fillWidth = Math.min(100, Math.max(0, percent));
+  return (
+    <div className="relative pt-1">
+      <div className="relative h-3 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+        <div
+          className={cn('h-full rounded-full transition-all duration-500', onTrack ? 'bg-emerald-500' : 'bg-rose-500')}
+          style={{ width: `${fillWidth}%` }}
+        />
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-white/70 shadow-sm pointer-events-none z-10"
+          style={{ left: '100%', transform: 'translateX(-50%)' }}
+          title="Monthly goal"
+        />
+      </div>
+      <p className="crm-label mt-1 text-right tabular-nums">{percent}% of goal</p>
+    </div>
+  );
+}
 
 interface AppointmentsProps {
   currentUser: User;
@@ -617,12 +636,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
   const weekDays = getWeekDays();
 
-  const getStatusColor = (count: number, hasData: boolean) => {
-    if (!hasData && count === 0) return 'bg-slate-900 border-slate-800 text-slate-600';
-    if (count < targetValue) return 'bg-rose-500/10 border-rose-500/30 text-rose-500';
-    if (count === targetValue) return 'bg-orange-500/10 border-orange-500/30 text-orange-500';
-    return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500';
-  };
+  const projectionRows = [
+    { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
+    { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
+    { label: 'Appointments', current: metrics.monthTotal, daily: Number(metrics.avgDaily), forecast: metrics.forecast, target: metrics.monthTarget, isCurrency: false },
+  ];
+
+  const formatProjectionValue = (value: number, isCurrency: boolean) =>
+    isCurrency ? `$${Math.round(value).toLocaleString()}` : Math.round(value).toLocaleString();
 
   const handlePrevDay = () => {
     setSelectedDate(addDaysToDateString(selectedDate, -1));
@@ -660,139 +681,167 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         }
       />
 
-      <KpiStrip
-        tiles={[
-          { label: 'Appts MTD', value: metrics.monthTotal.toLocaleString() },
-          { label: 'Appt forecast', value: metrics.forecast.toLocaleString(), tone: 'info' },
-          { label: 'Labor gross MTD', value: `$${Math.round(metrics.mtdGross).toLocaleString()}`, tone: 'success' },
-          { label: 'Working days left', value: String(metrics.daysRemaining) },
-        ]}
-      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="card-base px-5 py-4">
+          <p className="crm-label">Appt forecast</p>
+          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{Math.round(metrics.forecast).toLocaleString()}</p>
+          <p className="crm-label mt-1.5">
+            {metrics.monthTotal.toLocaleString()} MTD · {metrics.daysRemaining} working days left
+          </p>
+        </div>
+        <div className="card-base px-5 py-4">
+          <p className="crm-label">Labor pace</p>
+          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">${Math.round(metrics.laborDailyAvg).toLocaleString()}<span className="text-lg text-slate-400 font-medium">/day</span></p>
+          <p className="crm-label mt-1.5">
+            ${Math.round(metrics.mtdGross).toLocaleString()} MTD · goal ${Math.round(metrics.laborTarget).toLocaleString()}
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card-base p-6 col-span-1 lg:col-span-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div className="card-base p-5 col-span-1 lg:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <h2 className="crm-section-title flex items-center gap-2">
               <TrendingUp size={18} className="text-brand-primary" />
               Month-end projections
             </h2>
-            <span className="badge badge-success">{metrics.daysRemaining} working days left</span>
+            <span className="crm-label">{metrics.daysRemaining} working days left</span>
           </div>
 
-          <div className="flex flex-col gap-4">
-            {[
-              { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
-              { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
-              { label: 'Appointment volume', current: metrics.monthTotal, daily: Number(metrics.avgDaily), forecast: metrics.forecast, target: metrics.monthTarget, isCurrency: false },
-            ].map((kpi, idx) => {
+          <div className="hidden md:grid md:grid-cols-3 gap-4">
+            {projectionRows.map((kpi) => {
               const completionPercent = forecastGoalPercent(kpi.forecast, kpi.target);
-              const isShortfall = kpi.forecast < kpi.target;
+              const onTrack = kpi.forecast >= kpi.target;
               return (
-                <div key={idx} className="rounded-lg border p-4" style={{ borderColor: 'var(--color-surface-border)' }}>
-                  <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div key={kpi.label} className="rounded-lg border p-4" style={{ borderColor: 'var(--color-surface-border)' }}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="crm-label">{kpi.label}</span>
+                    <span className={cn('badge text-[10px]', onTrack ? 'badge-success' : 'badge-error')}>
+                      {onTrack ? 'On track' : 'Shortfall'}
+                    </span>
+                  </div>
+                  <p className="text-xl font-semibold tabular-nums mb-3">{formatProjectionValue(kpi.forecast, kpi.isCurrency)}</p>
+                  <div className="grid grid-cols-3 gap-2 text-xs mb-3">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="crm-label">{kpi.label}</span>
-                        <span className={cn('badge', isShortfall ? 'badge-error' : 'badge-success')}>
-                          {isShortfall ? 'Shortfall' : 'On track'}
-                        </span>
-                      </div>
-                      <p className="crm-kpi-value">
-                        {kpi.isCurrency ? `$${Math.round(kpi.forecast).toLocaleString()}` : Math.round(kpi.forecast).toLocaleString()}
+                      <p className="crm-label">MTD</p>
+                      <p className="font-medium tabular-nums">{formatProjectionValue(kpi.current, kpi.isCurrency)}</p>
+                    </div>
+                    <div>
+                      <p className="crm-label">Pace</p>
+                      <p className="font-medium tabular-nums">
+                        {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}
                       </p>
                     </div>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="crm-label">MTD</p>
-                        <p className="font-medium tabular-nums">{kpi.isCurrency ? `$${Math.round(kpi.current).toLocaleString()}` : Math.round(kpi.current)}</p>
-                      </div>
-                      <div>
-                        <p className="crm-label">Pace/day</p>
-                        <p className="font-medium tabular-nums">{kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}</p>
-                      </div>
-                      <div>
-                        <p className="crm-label">Goal</p>
-                        <p className="font-medium tabular-nums">{kpi.isCurrency ? `$${Math.round(kpi.target).toLocaleString()}` : Math.round(kpi.target)}</p>
-                      </div>
+                    <div>
+                      <p className="crm-label">Goal</p>
+                      <p className="font-medium tabular-nums">{formatProjectionValue(kpi.target, kpi.isCurrency)}</p>
                     </div>
                   </div>
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
-                    <div className="h-full bg-brand-primary rounded-full transition-all" style={{ width: `${Math.min(100, completionPercent)}%` }} />
-                  </div>
-                  <p className="crm-label mt-1.5 text-right">{completionPercent}% of monthly goal</p>
+                  <ProjectionProgressBar percent={completionPercent} onTrack={onTrack} />
                 </div>
               );
             })}
           </div>
+
+          <div className="md:hidden overflow-x-auto -mx-1 px-1">
+            <table className="crm-table w-full min-w-[520px]">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th className="text-right">MTD</th>
+                  <th className="text-right">Pace</th>
+                  <th className="text-right">Forecast</th>
+                  <th className="text-right">Goal</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectionRows.map((kpi) => {
+                  const onTrack = kpi.forecast >= kpi.target;
+                  return (
+                    <tr key={kpi.label}>
+                      <td className="font-medium">{kpi.label}</td>
+                      <td className="text-right tabular-nums">{formatProjectionValue(kpi.current, kpi.isCurrency)}</td>
+                      <td className="text-right tabular-nums">
+                        {kpi.isCurrency ? `$${Math.round(kpi.daily).toLocaleString()}` : kpi.daily.toFixed(1)}
+                      </td>
+                      <td className="text-right tabular-nums font-medium">{formatProjectionValue(kpi.forecast, kpi.isCurrency)}</td>
+                      <td className="text-right tabular-nums">{formatProjectionValue(kpi.target, kpi.isCurrency)}</td>
+                      <td>
+                        <span className={cn('badge text-[10px]', onTrack ? 'badge-success' : 'badge-error')}>
+                          {onTrack ? 'On track' : 'Shortfall'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div className="card-base p-6 flex flex-col">
-            <h4 className="crm-section-title mb-4 flex items-center gap-2">
-              <Clock size={16} className="text-brand-primary" /> Daily entry
-            </h4>
-            
-            <div className="space-y-4 flex-1">
-              <div>
-                <label className="input-label">Operations date</label>
-                <div className="flex items-center justify-between bg-slate-900/85 border border-white/5 rounded-2xl px-3 py-1.5 shadow-inner">
-                  <button 
-                    onClick={handlePrevDay} 
-                    className="p-2 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/5 hover:border-white/10 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center shrink-0"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <input 
-                    type="date" 
-                    value={selectedDate} 
-                    onChange={e => setSelectedDate(e.target.value)}
-                    onClick={(e) => { try { e.currentTarget.showPicker(); } catch(err) {} }}
-                    className="bg-transparent border-none text-white text-sm font-black w-full text-center focus:ring-0 cursor-pointer outline-none select-none tracking-wide custom-centered-date-input"
-                  />
-                  <button 
-                    onClick={handleNextDay} 
-                    className="p-2 hover:bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/5 hover:border-white/10 transition-all duration-200 cursor-pointer text-xs flex items-center justify-center shrink-0"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-              
-              <div>
-                <label className="input-label">Scheduled volume</label>
-                <input
-                  type="number"
-                  value={dailyCount}
-                  onChange={e => setDailyCount(e.target.value)}
-                  placeholder="0"
-                  className="input-field text-2xl font-semibold text-center tabular-nums py-3"
-                />
-              </div>
+        <div className="card-base p-4 flex flex-col">
+          <h4 className="crm-section-title mb-3 flex items-center gap-2 text-sm">
+            <Clock size={14} className="text-brand-primary" /> Daily entry
+          </h4>
 
+          <div className="space-y-3 flex-1">
+            <div className="flex items-center gap-1 rounded-lg border px-1 py-0.5" style={{ borderColor: 'var(--color-surface-border)' }}>
               <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full btn-primary h-11"
+                type="button"
+                onClick={handlePrevDay}
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
+                aria-label="Previous day"
               >
-                {saving ? (
-                  <Loader2 className="animate-spin text-white" size={18} />
-                ) : (
-                  <>
-                    <Save size={16} className="text-white" />
-                    Record Count Breakouts
-                  </>
-                )}
+                <ChevronLeft size={14} />
               </button>
-
-              <input type="file" ref={pdfInputRef} onChange={handlePdfUpload} accept=".pdf" className="hidden" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                onClick={(e) => { try { e.currentTarget.showPicker(); } catch {} }}
+                className="flex-1 min-w-0 bg-transparent border-none text-white text-xs font-semibold text-center focus:ring-0 cursor-pointer outline-none custom-centered-date-input"
+              />
               <button
-                onClick={() => pdfInputRef.current?.click()}
-                disabled={isUploadingPdf}
-                className="w-full btn-secondary h-10 text-emerald-400"
+                type="button"
+                onClick={handleNextDay}
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
+                aria-label="Next day"
               >
-                {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <FileUp size={14} />}
-                Extract Daily Schedule PDF
+                <ChevronRight size={14} />
               </button>
             </div>
+
+            <div className="flex items-stretch gap-2">
+              <input
+                type="number"
+                value={dailyCount}
+                onChange={(e) => setDailyCount(e.target.value)}
+                placeholder="0"
+                aria-label="Scheduled volume"
+                className="input-field flex-1 text-lg font-semibold text-center tabular-nums py-2 min-w-0"
+              />
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="btn-primary px-4 shrink-0"
+              >
+                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              </button>
+            </div>
+
+            <input type="file" ref={pdfInputRef} onChange={handlePdfUpload} accept=".pdf" className="hidden" />
+            <button
+              type="button"
+              onClick={() => pdfInputRef.current?.click()}
+              disabled={isUploadingPdf}
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5"
+            >
+              {isUploadingPdf ? <Loader2 className="animate-spin" size={12} /> : <FileUp size={12} />}
+              Import schedule PDF
+            </button>
+          </div>
         </div>
       </div>
 
