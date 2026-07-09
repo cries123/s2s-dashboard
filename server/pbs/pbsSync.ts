@@ -566,17 +566,23 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     await commitBatches(db, trackerWrites);
 
     const scheduleLookup = buildAppointmentCustomerLookup(index);
-    const scheduleResult = await syncAppointmentSchedule(
-      db,
-      dealershipId,
-      appointments,
-      start,
-      end,
-      scheduleLookup,
-      startedAt
-    );
-    counts.appointmentScheduleDays = scheduleResult.daysWritten;
-    counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
+    try {
+      const scheduleResult = await syncAppointmentSchedule(
+        db,
+        dealershipId,
+        appointments,
+        start,
+        end,
+        scheduleLookup,
+        startedAt
+      );
+      counts.appointmentScheduleDays = scheduleResult.daysWritten;
+      counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
+    } catch (scheduleErr) {
+      const message = scheduleErr instanceof Error ? scheduleErr.message : String(scheduleErr);
+      console.error('[PBS Sync] Appointment schedule failed:', scheduleErr);
+      counts.appointmentScheduleError = message;
+    }
 
     const { start: perfStart, end: perfEnd } = monthRange;
     fetched.performanceMonthStart = perfStart;
@@ -589,6 +595,9 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
       counts.performancePartsInvoices = performance.partsInvoicesProcessed;
       fetched.performanceRepairOrders = performance.repairOrdersProcessed;
       fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
+      if (performance.partsInvoicesSkipped) {
+        counts.performanceSyncWarning = `Parts invoices skipped (${performance.partsInvoicesSkipReason}). Labor/parts gross from RO lines only.`;
+      }
     } catch (perfErr) {
       const message = perfErr instanceof Error ? perfErr.message : String(perfErr);
       console.error('[PBS Sync] Advisor performance failed:', perfErr);

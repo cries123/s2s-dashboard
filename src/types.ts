@@ -265,6 +265,7 @@ export interface PbsSyncLogEntry {
     performanceAdvisors?: number;
     performanceRepairOrders?: number;
     performancePartsInvoices?: number;
+    performanceSyncWarning?: string;
     technicianReports?: number;
     timeClockActivities?: number;
     workplanRemindersFetched?: number;

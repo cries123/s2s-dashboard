@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { pbsPartsInvoiceGet, pbsRepairOrderGet } from './partnerHubClient.js';
+import { pbsPartsInvoiceGet, pbsRepairOrderGet, PbsPartnerHubError } from './partnerHubClient.js';
 import { aggregatePbsAdvisorPerformance } from './pbsPerformanceAggregator.js';
 import type { PbsPartsInvoiceFull, PbsRepairOrderFull } from './pbsPerformanceTypes.js';
 import { advisorPerformanceDoc, serverTimestamp, stripUndefinedDeep } from './pbsFirestore.js';
@@ -21,6 +21,30 @@ async function fetchCashieredPartsInvoices(monthStart: string, monthEnd: string)
   return (response.PartsInvoices || []) as PbsPartsInvoiceFull[];
 }
 
+/** Parts invoices are optional — many PBS accounts return 401 for PartsInvoiceGet. */
+async function fetchCashieredPartsInvoicesOptional(
+  monthStart: string,
+  monthEnd: string
+): Promise<{ invoices: PbsPartsInvoiceFull[]; skippedReason?: string }> {
+  try {
+    const invoices = await fetchCashieredPartsInvoices(monthStart, monthEnd);
+    return { invoices };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isAccessDenied =
+      (err instanceof PbsPartnerHubError && err.status === 401) ||
+      message.includes('401');
+    console.warn(
+      `[PBS Sync] PartsInvoiceGet ${isAccessDenied ? 'unauthorized (401)' : 'failed'} — advisor performance will use cashiered ROs only:`,
+      message
+    );
+    return {
+      invoices: [],
+      skippedReason: message,
+    };
+  }
+}
+
 function performanceReportEndDate(monthEnd: string, reference = new Date()): string {
   const today = reference.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
   return today < monthEnd ? today : monthEnd;
@@ -38,14 +62,17 @@ export async function syncPbsAdvisorPerformance(
   partsInvoicesProcessed: number;
   totalGross: number;
   totalGrossParts: number;
+  partsInvoicesSkipped?: boolean;
+  partsInvoicesSkipReason?: string;
 }> {
-  const [repairOrders, partsInvoices] = await Promise.all([
-    fetchCashieredRepairOrders(monthStart, monthEnd),
-    fetchCashieredPartsInvoices(monthStart, monthEnd),
-  ]);
+  const repairOrders = await fetchCashieredRepairOrders(monthStart, monthEnd);
+  const { invoices: partsInvoices, skippedReason } = await fetchCashieredPartsInvoicesOptional(
+    monthStart,
+    monthEnd
+  );
 
   console.log(
-    `[PBS Sync] Performance sources: ${repairOrders.length} cashiered ROs, ${partsInvoices.length} parts invoices (${monthStart}..${monthEnd})`
+    `[PBS Sync] Performance sources: ${repairOrders.length} cashiered ROs, ${partsInvoices.length} parts invoices (${monthStart}..${monthEnd})${skippedReason ? ' [parts invoices skipped]' : ''}`
   );
 
   const aggregate = aggregatePbsAdvisorPerformance(repairOrders, partsInvoices, monthStart, monthEnd);
@@ -74,5 +101,7 @@ export async function syncPbsAdvisorPerformance(
     partsInvoicesProcessed: aggregate.partsInvoicesProcessed,
     totalGross: aggregate.totals.totalGross,
     totalGrossParts: aggregate.totals.totalGrossParts,
+    partsInvoicesSkipped: Boolean(skippedReason),
+    partsInvoicesSkipReason: skippedReason,
   };
 }

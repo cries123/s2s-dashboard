@@ -88,6 +88,12 @@ function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
         ))}
       </div>
 
+      {entry.counts.performanceSyncWarning ? (
+        <p className="text-[11px] text-amber-400/90 mt-2 line-clamp-3">
+          {entry.counts.performanceSyncWarning}
+        </p>
+      ) : null}
+
       {entry.error ? (
         <p className="text-[11px] text-rose-400/90 mt-2 line-clamp-3">{entry.error}</p>
       ) : null}

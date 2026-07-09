@@ -86,10 +86,12 @@ export interface PbsSyncCounts {
   appointmentsProcessed: number;
   appointmentScheduleDays: number;
   appointmentScheduleSlots: number;
+  appointmentScheduleError?: string;
   performanceAdvisors: number;
   performanceRepairOrders: number;
   performancePartsInvoices: number;
   performanceSyncError?: string;
+  performanceSyncWarning?: string;
   technicianReports: number;
   timeClockActivities: number;
   technicianSyncError?: string;
