@@ -20,7 +20,7 @@ import {
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { isPacificMorningSyncHour, runPbsSync } from '../pbs/pbsSync.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
-import { formatFirestoreError } from '../pbs/firestoreErrors.js';
+import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
 
 function daysAgoIso(days: number): string {
@@ -157,6 +157,7 @@ export function registerPbsRoutes(app: Express) {
           firestoreAdmin: true,
           firestoreReachable: false,
           firestoreError: formatFirestoreError(firestoreErr),
+          firestoreQuotaExceeded: isFirestoreQuotaError(firestoreErr),
           diagnostics,
           dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
           state: null,

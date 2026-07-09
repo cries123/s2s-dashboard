@@ -24,6 +24,7 @@ export function getPbsEnvDiagnostics() {
     serviceAccountMessage: serviceAccount.message,
     hasServiceAccountJson: envPresent('FIREBASE_SERVICE_ACCOUNT_JSON'),
     hasServiceAccountBase64: envPresent('FIREBASE_SERVICE_ACCOUNT_JSON_BASE64'),
+    firebaseProjectId: process.env.VITE_FIREBASE_PROJECT_ID?.trim() || null,
     redeployHint:
       'After changing Netlify env vars you must trigger a new production deploy (Deploys → Trigger deploy). Saving variables alone is not enough.',
   };

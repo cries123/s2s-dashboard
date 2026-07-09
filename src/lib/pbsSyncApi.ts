@@ -6,6 +6,7 @@ export interface PbsSyncStatusResponse {
   firestoreAdmin: boolean;
   firestoreReachable?: boolean;
   firestoreError?: string;
+  firestoreQuotaExceeded?: boolean;
   diagnostics?: {
     pbsConfigured: boolean;
     missingPbsVars: string[];
@@ -14,6 +15,7 @@ export interface PbsSyncStatusResponse {
     serviceAccountMessage: string;
     hasServiceAccountJson: boolean;
     hasServiceAccountBase64: boolean;
+    firebaseProjectId?: string | null;
     redeployHint: string;
   };
   dealershipId?: string;

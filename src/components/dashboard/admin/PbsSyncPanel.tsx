@@ -114,6 +114,7 @@ export function PbsSyncPanel({
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
   const [firestoreReachable, setFirestoreReachable] = useState(true);
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
+  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
   const [logs, setLogs] = useState<PbsSyncLogEntry[]>(settings?.pbsSyncLogs ?? []);
 
@@ -125,6 +126,7 @@ export function PbsSyncPanel({
       setFirestoreAdmin(status.firestoreAdmin);
       setFirestoreReachable(status.firestoreReachable !== false);
       setFirestoreError(status.firestoreError ?? null);
+      setFirestoreQuotaExceeded(Boolean(status.firestoreQuotaExceeded));
       setDiagnostics(status.diagnostics);
       if (status.logs.length > 0) {
         setLogs(status.logs);
@@ -148,7 +150,14 @@ export function PbsSyncPanel({
 
   const lastState = settings?.pbsSyncState;
   const displayLogs = logs.length > 0 ? logs : settings?.pbsSyncLogs ?? [];
-  const ready = configured && firestoreAdmin && firestoreReachable;
+  const credentialsReady = configured && firestoreAdmin;
+  const canPullFromPbs = credentialsReady;
+  const statusHealthy = credentialsReady && firestoreReachable;
+  const missingPbsVars = diagnostics?.missingPbsVars ?? [];
+  const needsEnvSetup = !configured || !firestoreAdmin;
+  const firebaseUsageUrl = diagnostics?.firebaseProjectId
+    ? `https://console.firebase.google.com/project/${diagnostics.firebaseProjectId}/usage`
+    : 'https://console.firebase.google.com/';
 
   const handleSync = async () => {
     setSyncing(true);
@@ -194,10 +203,10 @@ export function PbsSyncPanel({
           <button
             type="button"
             onClick={handleSync}
-            disabled={syncing || !ready}
+            disabled={syncing || !canPullFromPbs}
             className={cn(
               'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all',
-              ready
+              canPullFromPbs
                 ? 'bg-brand-primary text-slate-950 hover:brightness-110 disabled:opacity-60'
                 : 'bg-slate-800 text-slate-500 cursor-not-allowed'
             )}
@@ -249,26 +258,61 @@ export function PbsSyncPanel({
           </div>
         </div>
 
-        {!ready && !statusLoading ? (
+        {!statusHealthy && !statusLoading ? (
           <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100/90 space-y-2">
-            <p>
-              Server-side env vars are not ready yet. After saving variables in Netlify, trigger a new{' '}
-              <strong className="text-amber-50">production deploy</strong> — saving alone does not update live
-              functions.
-            </p>
-            {diagnostics?.missingPbsVars?.length ? (
-              <p>
-                Missing PBS vars on the server:{' '}
-                <code className="text-amber-100">{diagnostics.missingPbsVars.join(', ')}</code>
-              </p>
-            ) : null}
-            {diagnostics?.serviceAccountMessage ? (
-              <p>{diagnostics.serviceAccountMessage}</p>
+            {firestoreQuotaExceeded ? (
+              <>
+                <p>
+                  <strong className="text-amber-50">Firebase read/write quota is exceeded.</strong> PBS credentials
+                  and the service account are configured correctly — Firestore is temporarily blocking requests.
+                </p>
+                <p>
+                  Open{' '}
+                  <a
+                    href={firebaseUsageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-50 underline underline-offset-2 hover:text-white"
+                  >
+                    Firebase Console → Usage
+                  </a>{' '}
+                  to check daily limits and billing, or wait for the quota to reset (usually midnight Pacific).
+                </p>
+                <p className="text-amber-200/80">
+                  The dashboard loads the full customer list on every visit, which can use up the free-tier quota
+                  quickly. Upgrading to the Blaze (pay-as-you-go) plan removes the hard daily cap.
+                </p>
+              </>
+            ) : needsEnvSetup ? (
+              <>
+                <p>
+                  Server-side env vars are not ready yet. After saving variables in Netlify, trigger a new{' '}
+                  <strong className="text-amber-50">production deploy</strong> — saving alone does not update live
+                  functions.
+                </p>
+                {missingPbsVars.length ? (
+                  <p>
+                    Missing PBS vars on the server:{' '}
+                    <code className="text-amber-100">{missingPbsVars.join(', ')}</code>
+                  </p>
+                ) : null}
+                {diagnostics?.serviceAccountMessage ? (
+                  <p>{diagnostics.serviceAccountMessage}</p>
+                ) : (
+                  <p>
+                    Set <code className="text-amber-100">FIREBASE_SERVICE_ACCOUNT_JSON</code> to the entire
+                    downloaded Firebase service-account JSON file (not just the private key).
+                  </p>
+                )}
+              </>
             ) : (
-              <p>
-                Set <code className="text-amber-100">FIREBASE_SERVICE_ACCOUNT_JSON</code> to the entire downloaded
-                Firebase service-account JSON file (not just the private key).
-              </p>
+              <>
+                <p>
+                  Firestore could not be reached from the server. PBS credentials and the service account look
+                  configured — this is usually a temporary Firebase outage or permission issue.
+                </p>
+                {firestoreError ? <p>{firestoreError}</p> : null}
+              </>
             )}
           </div>
         ) : null}

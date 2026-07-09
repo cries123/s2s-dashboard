@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Customer } from '../types';
 import { isPreviewMode } from '../lib/previewMode';
@@ -39,8 +39,11 @@ export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
       'customers'
     );
 
-    // Load full CRM once, then scope in memory per dealership (all stores — not Hyundai-only).
-    const q = query(collectionRef);
+    // Scope reads at the database when possible to reduce Firestore quota usage.
+    const q =
+      dealershipId && dealershipId !== 'hyundai'
+        ? query(collectionRef, where('dealershipId', '==', dealershipId))
+        : query(collectionRef);
 
     const unsubscribe = onSnapshot(
       q,
