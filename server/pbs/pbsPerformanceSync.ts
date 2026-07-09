@@ -2,27 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { pbsPartsInvoiceGet, pbsRepairOrderGet } from './partnerHubClient.js';
 import { aggregatePbsAdvisorPerformance } from './pbsPerformanceAggregator.js';
 import type { PbsPartsInvoiceFull, PbsRepairOrderFull } from './pbsPerformanceTypes.js';
-import { filterAdvisorsByPerformanceRoster } from './pbsAdvisorName.js';
-import { advisorPerformanceDoc, dealershipSettingsDoc, serverTimestamp, stripUndefinedDeep } from './pbsFirestore.js';
-
-const HYUNDAI_PERFORMANCE_ROSTER = [
-  { label: 'Frank' },
-  { label: 'Lemmy' },
-  { label: 'Jaryn' },
-];
-
-async function loadPerformanceAdvisorRoster(
-  db: Firestore,
-  dealershipId: string
-): Promise<{ label: string }[]> {
-  const snap = await dealershipSettingsDoc(db, dealershipId).get();
-  const fromSettings = snap.data()?.performanceAdvisorRoster;
-  if (Array.isArray(fromSettings) && fromSettings.length > 0) {
-    return fromSettings.map((row: { label?: string }) => ({ label: String(row.label || '') })).filter((row) => row.label);
-  }
-  if (dealershipId === 'hyundai') return HYUNDAI_PERFORMANCE_ROSTER;
-  return [];
-}
+import { advisorPerformanceDoc, serverTimestamp, stripUndefinedDeep } from './pbsFirestore.js';
 
 function monthCashieredCriteria(start: string, end: string): Record<string, unknown> {
   return {
@@ -69,24 +49,12 @@ export async function syncPbsAdvisorPerformance(
   );
 
   const aggregate = aggregatePbsAdvisorPerformance(repairOrders, partsInvoices, monthStart, monthEnd);
-  const roster = await loadPerformanceAdvisorRoster(db, dealershipId);
-  const advisors = filterAdvisorsByPerformanceRoster(aggregate.advisors, roster);
-  const totals = advisors.length
-    ? {
-        totalSales: Math.round(advisors.reduce((sum, row) => sum + row.totalSales, 0) * 100) / 100,
-        totalLabor: Math.round(advisors.reduce((sum, row) => sum + row.laborSold, 0) * 100) / 100,
-        totalGross: Math.round(advisors.reduce((sum, row) => sum + row.grossLabor, 0) * 100) / 100,
-        totalParts: Math.round(advisors.reduce((sum, row) => sum + row.partsSold, 0) * 100) / 100,
-        totalGrossParts: Math.round(advisors.reduce((sum, row) => sum + row.grossParts, 0) * 100) / 100,
-        totalHrs: Math.round(advisors.reduce((sum, row) => sum + row.hrsSold, 0) * 100) / 100,
-      }
-    : aggregate.totals;
   const reportEndDate = performanceReportEndDate(monthEnd);
 
   await advisorPerformanceDoc(db, dealershipId).set(
     stripUndefinedDeep({
-      advisors,
-      totals,
+      advisors: aggregate.advisors,
+      totals: aggregate.totals,
       reportStartDate: aggregate.reportStartDate,
       reportEndDate,
       source: 'pbs-sync',
@@ -97,14 +65,14 @@ export async function syncPbsAdvisorPerformance(
   );
 
   console.log(
-    `[PBS Sync] Advisor performance written: ${advisors.length} advisors, labor gross $${totals.totalGross}, parts gross $${totals.totalGrossParts}`
+    `[PBS Sync] Advisor performance written: ${aggregate.advisors.length} advisors, labor gross $${aggregate.totals.totalGross}, parts gross $${aggregate.totals.totalGrossParts}`
   );
 
   return {
-    advisors: advisors.length,
+    advisors: aggregate.advisors.length,
     repairOrdersProcessed: aggregate.repairOrdersProcessed,
     partsInvoicesProcessed: aggregate.partsInvoicesProcessed,
-    totalGross: totals.totalGross,
-    totalGrossParts: totals.totalGrossParts,
+    totalGross: aggregate.totals.totalGross,
+    totalGrossParts: aggregate.totals.totalGrossParts,
   };
 }

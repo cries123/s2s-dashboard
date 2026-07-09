@@ -71,8 +71,10 @@ export interface PbsSyncCounts {
   performanceAdvisors: number;
   performanceRepairOrders: number;
   performancePartsInvoices: number;
+  performanceSyncError?: string;
   technicianReports: number;
   timeClockActivities: number;
+  technicianSyncError?: string;
   workplanRemindersFetched: number;
   serviceRemindersUpdated: number;
   inventoryLots: number;
@@ -81,6 +83,7 @@ export interface PbsSyncCounts {
   openRepairOrdersFetched: number;
   dispatchOrdersUpserted: number;
   dispatchOrdersCompleted: number;
+  extendedSyncError?: string;
 }
 
 export interface PbsSyncFetched {

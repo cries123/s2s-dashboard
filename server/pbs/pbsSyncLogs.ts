@@ -44,5 +44,10 @@ export function buildPbsSyncSummary(
     `Service reminders: ${counts.serviceRemindersUpdated} customers updated from ${counts.workplanRemindersFetched} PBS reminders.`,
     `Inventory: ${counts.inventoryVehiclesWritten} vehicles across ${counts.inventoryLots} lots (${counts.inventoryVehiclesFetched} fetched).`,
     `Dispatch: ${counts.dispatchOrdersUpserted} open ROs synced, ${counts.dispatchOrdersCompleted} closed.`,
-  ].join(' ');
+    counts.performanceSyncError ? `Advisor performance error: ${counts.performanceSyncError}` : '',
+    counts.technicianSyncError ? `Technician sync error: ${counts.technicianSyncError}` : '',
+    counts.extendedSyncError ? `Extended sync error: ${counts.extendedSyncError}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }

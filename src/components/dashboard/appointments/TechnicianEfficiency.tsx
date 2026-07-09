@@ -21,8 +21,10 @@ import { TableSkeleton } from '../../ui/Skeleton';
 import {
   formatArchiveDisplayLabel,
   formatArchiveMonthLabel,
+  getActiveMonthDateRange,
   getCurrentYearMonthKey,
 } from '../../../lib/operationsViewPeriod';
+import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
 
 interface TechnicianData {
   techName: string;
@@ -65,8 +67,13 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     flaggedHours: ''
   });
 
-  const [reportStartDate, setReportStartDate] = useState("2026-05-16");
-  const [reportEndDate, setReportEndDate] = useState("2026-05-28");
+  const activeRange = React.useMemo(() => getActiveMonthDateRange(), []);
+  const [reportStartDate, setReportStartDate] = useState(activeRange.start);
+  const [reportEndDate, setReportEndDate] = useState(activeRange.end);
+  const [pbsSyncedAt, setPbsSyncedAt] = useState<string | null>(null);
+  const [performanceSource, setPerformanceSource] = useState<string | null>(null);
+
+  const isPbsDealership = defaultDmsProviderForDealership(currentDealershipId) === 'pbs';
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -180,8 +187,12 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         if (data.reportEndDate) {
           setReportEndDate(data.reportEndDate);
         }
+        setPbsSyncedAt(typeof data.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
+        setPerformanceSource(typeof data.source === 'string' ? data.source : null);
       } else {
         setTechnicians([]);
+        setPbsSyncedAt(null);
+        setPerformanceSource(null);
       }
       setLoading(false);
     }, (err) => {
@@ -455,7 +466,17 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
             <h2 className="crm-section-title">Technician efficiency</h2>
             {reportStartDate && reportEndDate && (
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                Active Report Period: {formatDateRangeShort(reportStartDate, reportEndDate)}
+                Active report period: {formatDateRangeShort(reportStartDate, reportEndDate)}
+              </p>
+            )}
+            {selectedMonth !== 'active' && (
+              <p className="text-[10px] text-amber-400/90 font-medium mt-1">
+                PBS sync writes to the active month only — switch View Period to July (Active).
+              </p>
+            )}
+            {selectedMonth === 'active' && pbsSyncedAt && (
+              <p className="text-[10px] text-slate-500 font-medium mt-1">
+                PBS synced {new Date(pbsSyncedAt).toLocaleString()}
               </p>
             )}
           </div>
@@ -598,7 +619,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start relative z-10">
         {/* DRAG-AND-DROP FILE UPLOADER */}
-        {(selectedMonth === 'active' || allowArchiveEditing) && (
+        {(selectedMonth === 'active' || allowArchiveEditing) && !isPbsDealership && (
           <div className="col-span-1 xl:col-span-1">
           <div
             onDragOver={onDragOver}
@@ -669,15 +690,23 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
 
         {/* PERFORMANCE LIST SECTION */}
         <div className={cn(
-          "col-span-1 xl:col-span-2 space-y-4",
-          (selectedMonth !== 'active' && !allowArchiveEditing) && "xl:col-span-3 col-span-full"
+          "col-span-1 space-y-4",
+          isPbsDealership || (selectedMonth !== 'active' && !allowArchiveEditing) ? "xl:col-span-3" : "xl:col-span-2"
         )}>
           {loading ? (
             <TableSkeleton rows={5} cols={4} />
           ) : technicians.length === 0 ? (
             <EmptyState
-              title="No technician data yet"
-              description='Upload a technician summary PDF or use "Add technician" to start tracking flagged hours and efficiency.'
+              title={isPbsDealership ? 'No technician data for this period' : 'No technician data yet'}
+              description={
+                isPbsDealership
+                  ? selectedMonth !== 'active'
+                    ? 'PBS sync writes to the active month only. Set View Period to July (Active), then run Pull changes in Admin → PBS Sync.'
+                    : performanceSource === 'pbs-sync' && pbsSyncedAt
+                      ? `PBS pulled on ${new Date(pbsSyncedAt).toLocaleString()} but returned 0 technicians for ${reportStartDate}. Check Admin → PBS Sync log for Tech reports and clock punches.`
+                      : 'Run Pull changes in Admin → PBS Sync to load July clock hours and flagged hours from PBS.'
+                  : 'Upload a technician summary PDF or use "Add technician" to start tracking flagged hours and efficiency.'
+              }
             />
           ) : (
             <div className="bg-slate-900/40 border border-white/5 rounded-3xl overflow-hidden shadow-inner">

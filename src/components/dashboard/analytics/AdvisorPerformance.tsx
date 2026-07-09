@@ -15,9 +15,10 @@ import { KpiStrip } from '../../ui/KpiStrip';
 import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import {
   EMPTY_PERFORMANCE_TOTALS,
-  performanceDocId,
   formatArchiveMonthLabel,
   formatArchiveDisplayLabel,
+  getActiveMonthDateRange,
+  performanceDocId,
 } from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
@@ -89,6 +90,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
   );
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [pbsSyncedAt, setPbsSyncedAt] = useState<string | null>(null);
+  const [performanceSource, setPerformanceSource] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch Dealership Settings (for target)
@@ -145,6 +148,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         if (data.totals) setTotals(data.totals);
         setReportStartDate(data.reportStartDate);
         setReportEndDate(data.reportEndDate);
+        setPbsSyncedAt(typeof data.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
+        setPerformanceSource(typeof data.source === 'string' ? data.source : null);
         if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
         else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
         else setAdvisorMix([]);
@@ -153,6 +158,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         setTotals(null);
         setReportStartDate(undefined);
         setReportEndDate(undefined);
+        setPbsSyncedAt(null);
+        setPerformanceSource(null);
         setAdvisorMix([]);
       }
       setLoading(false);
@@ -170,10 +177,13 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       ? performanceAdvisorRoster
       : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
 
-  const visibleAdvisors = React.useMemo(
-    () => filterAdvisorsByPerformanceRoster(advisors, effectiveAdvisorRoster),
-    [advisors, effectiveAdvisorRoster]
-  );
+  const visibleAdvisors = React.useMemo(() => {
+    const filtered = filterAdvisorsByPerformanceRoster(advisors, effectiveAdvisorRoster);
+    if (filtered.length > 0 || effectiveAdvisorRoster.length === 0) return filtered;
+    return advisors;
+  }, [advisors, effectiveAdvisorRoster]);
+
+  const isPbsDealership = effectiveDmsProvider === 'pbs';
 
   const saveToFirestore = async (
     newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
@@ -321,22 +331,30 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     );
 
     try {
+      const activeRange = getActiveMonthDateRange();
       await setDoc(advisorRef, {
         advisors: [],
         totals: EMPTY_PERFORMANCE_TOTALS,
+        reportStartDate: selectedMonth === 'active' ? activeRange.start : undefined,
+        reportEndDate: selectedMonth === 'active' ? activeRange.end : undefined,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
       });
 
       await setDoc(techRef, {
         technicians: [],
+        reportStartDate: selectedMonth === 'active' ? activeRange.start : undefined,
+        reportEndDate: selectedMonth === 'active' ? activeRange.end : undefined,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid,
       });
 
       setImportStatus({
         type: 'success',
-        message: 'Reset complete — 0 advisors and 0 technicians for this view period.',
+        message:
+          selectedMonth === 'active'
+            ? 'Reset complete. Run Pull changes in Admin → PBS Sync to repopulate July advisor and technician data.'
+            : `Reset complete for ${formatArchiveMonthLabel(selectedMonth)} archive. PBS pull only repopulates the active month.`,
       });
     } catch (error: any) {
       console.error('Error resetting performance database:', error);
@@ -694,7 +712,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             <Users size={18} className="text-brand-secondary" />
             Advisor performance
           </h3>
-          <p className="crm-label mt-1">Labor, parts, and gross totals from productivity imports.</p>
+          <p className="crm-label mt-1">
+            {isPbsDealership
+              ? 'Labor, parts, and gross totals from PBS cashiered ROs (current month).'
+              : 'Labor, parts, and gross totals from productivity imports.'}
+          </p>
+          {selectedMonth !== 'active' && (
+            <p className="text-[10px] text-amber-400/90 mt-1 font-medium">
+              Viewing saved archive — PBS pull only updates the active month. Switch View Period to July (Active).
+            </p>
+          )}
+          {selectedMonth === 'active' && reportStartDate && reportEndDate && (
+            <p className="text-[10px] text-slate-500 mt-1 font-medium">
+              Active period: {reportStartDate} – {reportEndDate}
+              {pbsSyncedAt ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}` : ''}
+            </p>
+          )}
         </div>
         
         {selectedMonth !== 'active' && !allowArchiveEditing ? (
@@ -743,15 +776,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               Manual Entry
             </button>
             
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isImporting}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer touch-manipulation min-h-[44px]"
-            >
-              {isImporting ? <Loader2 size={14} className="animate-spin shrink-0" /> : <FileUp size={14} className="shrink-0" />}
-              <span className="md:hidden">{isImporting ? "Importing..." : "Import PDF Report"}</span>
-              <span className="hidden md:inline">{isImporting ? (importProgress ? "Importing..." : "Importing...") : "Import PDF Productivity Report"}</span>
-            </button>
+            {!isPbsDealership && (
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer touch-manipulation min-h-[44px]"
+              >
+                {isImporting ? <Loader2 size={14} className="animate-spin shrink-0" /> : <FileUp size={14} className="shrink-0" />}
+                <span className="md:hidden">{isImporting ? "Importing..." : "Import PDF Report"}</span>
+                <span className="hidden md:inline">{isImporting ? (importProgress ? "Importing..." : "Importing...") : "Import PDF Productivity Report"}</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -803,12 +838,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
       {!visibleAdvisors.length && !isImporting && (
         <EmptyState
-          title="No productivity data yet"
-          description="Import a PBS or DealerBuilt productivity PDF to populate advisor labor, parts, and gross totals for this month."
+          title={isPbsDealership ? 'No advisor data for this period' : 'No productivity data yet'}
+          description={
+            isPbsDealership
+              ? selectedMonth !== 'active'
+                ? 'PBS sync writes to the active month only. Set View Period to the current month, then run Pull changes in Admin → PBS Sync.'
+                : performanceSource === 'pbs-sync' && pbsSyncedAt
+                  ? `PBS pulled on ${new Date(pbsSyncedAt).toLocaleString()} but returned 0 advisors for ${reportStartDate || 'this month'}. Check Admin → PBS Sync log for Perf advisors and Cashiered ROs — both should be > 0.`
+                  : 'Run Pull changes in Admin → PBS Sync to load July cashiered RO totals for Frank, Lemmy, and Jaryn.'
+              : 'Import a PBS or DealerBuilt productivity PDF to populate advisor labor, parts, and gross totals for this month.'
+          }
           action={
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-primary">
-              Import productivity PDF
-            </button>
+            !isPbsDealership ? (
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-primary">
+                Import productivity PDF
+              </button>
+            ) : undefined
           }
         />
       )}

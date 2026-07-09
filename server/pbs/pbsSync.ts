@@ -48,6 +48,7 @@ import {
   dedupeContactVehiclesByVin,
 } from './pbsCustomerMerge.js';
 import { syncPbsAdvisorPerformance } from './pbsPerformanceSync.js';
+import { monthRangePacific } from './pbsMonthRange.js';
 import { syncPbsDispatchBoard } from './pbsDispatchSync.js';
 import { syncPbsVehicleInventory } from './pbsInventorySync.js';
 import { syncPbsTechnicianPerformance } from './pbsTechnicianSync.js';
@@ -121,17 +122,6 @@ function yearsAgoIso(years: number): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() - years);
   return d.toISOString();
-}
-
-function monthRangePacific(reference = new Date()): { start: string; end: string } {
-  const year = reference.getFullYear();
-  const month = reference.getMonth();
-  const monthStr = String(month + 1).padStart(2, '0');
-  const lastDay = new Date(year, month + 1, 0).getDate();
-  return {
-    start: `${year}-${monthStr}-01`,
-    end: `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`,
-  };
 }
 
 function monthAppointmentCriteria(start: string, end: string): Record<string, unknown> {
@@ -572,50 +562,69 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     const { start: perfStart, end: perfEnd } = monthRange;
     fetched.performanceMonthStart = perfStart;
     fetched.performanceMonthEnd = perfEnd;
-    const performance = await syncPbsAdvisorPerformance(db, dealershipId, perfStart, perfEnd, startedAt);
-    counts.performanceAdvisors = performance.advisors;
-    counts.performanceRepairOrders = performance.repairOrdersProcessed;
-    counts.performancePartsInvoices = performance.partsInvoicesProcessed;
-    fetched.performanceRepairOrders = performance.repairOrdersProcessed;
-    fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
 
-    const technician = await syncPbsTechnicianPerformance(
-      db,
-      dealershipId,
-      perfStart,
-      perfEnd,
-      startedAt
-    );
-    counts.technicianReports = technician.technicians;
-    counts.timeClockActivities = technician.clockActivities;
-    fetched.timeClockActivities = technician.clockActivities;
+    try {
+      const performance = await syncPbsAdvisorPerformance(db, dealershipId, perfStart, perfEnd, startedAt);
+      counts.performanceAdvisors = performance.advisors;
+      counts.performanceRepairOrders = performance.repairOrdersProcessed;
+      counts.performancePartsInvoices = performance.partsInvoicesProcessed;
+      fetched.performanceRepairOrders = performance.repairOrdersProcessed;
+      fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
+    } catch (perfErr) {
+      const message = perfErr instanceof Error ? perfErr.message : String(perfErr);
+      console.error('[PBS Sync] Advisor performance failed:', perfErr);
+      counts.performanceSyncError = message;
+    }
 
-    const reminders = await syncPbsWorkplanReminders(
-      db,
-      dealershipId,
-      toCustomerIndexMaps(index),
-      startedAt
-    );
-    counts.workplanRemindersFetched = reminders.remindersFetched;
-    counts.serviceRemindersUpdated = reminders.customersUpdated;
-    fetched.workplanReminders = reminders.remindersFetched;
+    try {
+      const technician = await syncPbsTechnicianPerformance(
+        db,
+        dealershipId,
+        perfStart,
+        perfEnd,
+        startedAt
+      );
+      counts.technicianReports = technician.technicians;
+      counts.timeClockActivities = technician.clockActivities;
+      fetched.timeClockActivities = technician.clockActivities;
+    } catch (techErr) {
+      const message = techErr instanceof Error ? techErr.message : String(techErr);
+      console.error('[PBS Sync] Technician performance failed:', techErr);
+      counts.technicianSyncError = message;
+    }
 
-    const inventory = await syncPbsVehicleInventory(db, dealershipId, startedAt);
-    counts.inventoryLots = inventory.lots;
-    counts.inventoryVehiclesFetched = inventory.vehiclesFetched;
-    counts.inventoryVehiclesWritten = inventory.vehiclesWritten;
-    fetched.inventoryVehicles = inventory.vehiclesFetched;
+    try {
+      const reminders = await syncPbsWorkplanReminders(
+        db,
+        dealershipId,
+        toCustomerIndexMaps(index),
+        startedAt
+      );
+      counts.workplanRemindersFetched = reminders.remindersFetched;
+      counts.serviceRemindersUpdated = reminders.customersUpdated;
+      fetched.workplanReminders = reminders.remindersFetched;
 
-    const dispatch = await syncPbsDispatchBoard(
-      db,
-      dealershipId,
-      toCustomerIndexMaps(index),
-      startedAt
-    );
-    counts.openRepairOrdersFetched = dispatch.openRepairOrdersFetched;
-    counts.dispatchOrdersUpserted = dispatch.dispatchOrdersUpserted;
-    counts.dispatchOrdersCompleted = dispatch.dispatchOrdersCompleted;
-    fetched.openRepairOrders = dispatch.openRepairOrdersFetched;
+      const inventory = await syncPbsVehicleInventory(db, dealershipId, startedAt);
+      counts.inventoryLots = inventory.lots;
+      counts.inventoryVehiclesFetched = inventory.vehiclesFetched;
+      counts.inventoryVehiclesWritten = inventory.vehiclesWritten;
+      fetched.inventoryVehicles = inventory.vehiclesFetched;
+
+      const dispatch = await syncPbsDispatchBoard(
+        db,
+        dealershipId,
+        toCustomerIndexMaps(index),
+        startedAt
+      );
+      counts.openRepairOrdersFetched = dispatch.openRepairOrdersFetched;
+      counts.dispatchOrdersUpserted = dispatch.dispatchOrdersUpserted;
+      counts.dispatchOrdersCompleted = dispatch.dispatchOrdersCompleted;
+      fetched.openRepairOrders = dispatch.openRepairOrdersFetched;
+    } catch (extendedErr) {
+      const message = extendedErr instanceof Error ? extendedErr.message : String(extendedErr);
+      console.error('[PBS Sync] Extended sync (reminders/inventory/dispatch) failed:', extendedErr);
+      counts.extendedSyncError = message;
+    }
 
     return finish(true);
   } catch (err) {
