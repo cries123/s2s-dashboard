@@ -112,6 +112,8 @@ export function PbsSyncPanel({
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
+  const [firestoreReachable, setFirestoreReachable] = useState(true);
+  const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
   const [logs, setLogs] = useState<PbsSyncLogEntry[]>(settings?.pbsSyncLogs ?? []);
 
@@ -121,6 +123,8 @@ export function PbsSyncPanel({
       const status = await fetchPbsSyncStatus();
       setConfigured(status.configured);
       setFirestoreAdmin(status.firestoreAdmin);
+      setFirestoreReachable(status.firestoreReachable !== false);
+      setFirestoreError(status.firestoreError ?? null);
       setDiagnostics(status.diagnostics);
       if (status.logs.length > 0) {
         setLogs(status.logs);
@@ -144,7 +148,7 @@ export function PbsSyncPanel({
 
   const lastState = settings?.pbsSyncState;
   const displayLogs = logs.length > 0 ? logs : settings?.pbsSyncLogs ?? [];
-  const ready = configured && firestoreAdmin;
+  const ready = configured && firestoreAdmin && firestoreReachable;
 
   const handleSync = async () => {
     setSyncing(true);
@@ -212,9 +216,25 @@ export function PbsSyncPanel({
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
             <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Server writes</p>
-            <p className={cn('text-xs font-bold mt-1', firestoreAdmin ? 'text-emerald-300' : 'text-rose-300')}>
-              {firestoreAdmin ? 'Ready' : 'Service account missing'}
+            <p
+              className={cn(
+                'text-xs font-bold mt-1',
+                firestoreAdmin && firestoreReachable
+                  ? 'text-emerald-300'
+                  : firestoreAdmin
+                    ? 'text-amber-300'
+                    : 'text-rose-300'
+              )}
+            >
+              {firestoreAdmin && firestoreReachable
+                ? 'Ready'
+                : firestoreAdmin
+                  ? 'Firestore unreachable'
+                  : 'Service account missing'}
             </p>
+            {firestoreError ? (
+              <p className="text-[10px] text-amber-400/90 mt-1 line-clamp-3">{firestoreError}</p>
+            ) : null}
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
             <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Last sync</p>

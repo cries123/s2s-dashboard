@@ -4,6 +4,8 @@ import type { PbsSyncLogEntry } from '../types';
 export interface PbsSyncStatusResponse {
   configured: boolean;
   firestoreAdmin: boolean;
+  firestoreReachable?: boolean;
+  firestoreError?: string;
   diagnostics?: {
     pbsConfigured: boolean;
     missingPbsVars: string[];
@@ -64,8 +66,10 @@ async function parseJson<T>(res: Response): Promise<T> {
 
 export async function fetchPbsSyncStatus(): Promise<PbsSyncStatusResponse> {
   const res = await fetch('/api/pbs/sync/status');
-  const data = await parseJson<PbsSyncStatusResponse>(res);
-  if (!res.ok) throw new Error((data as { error?: string }).error || 'Failed to load PBS sync status');
+  const data = await parseJson<PbsSyncStatusResponse & { error?: string }>(res);
+  if (!res.ok && !data.firestoreError) {
+    throw new Error(data.error || 'Failed to load PBS sync status');
+  }
   return { ...data, logs: data.logs ?? [] };
 }
 

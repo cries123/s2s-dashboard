@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
+import { getAdminFirestore, getFirebaseAdminInitError } from '../admin/initFirebaseAdmin.js';
 import {
   getPbsPartnerHubPublicStatus,
   isPbsPartnerHubConfigured,
@@ -20,6 +20,7 @@ import {
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { isPacificMorningSyncHour, runPbsSync } from '../pbs/pbsSync.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
+import { formatFirestoreError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
 
 function daysAgoIso(days: number): string {
@@ -114,34 +115,57 @@ export function registerPbsRoutes(app: Express) {
 
   /** Last PBS sync status (no secrets). */
   app.get('/api/pbs/sync/status', async (_req, res) => {
-    const diagnostics = getPbsEnvDiagnostics();
-    const db = getAdminFirestore();
-    if (!db) {
-      return res.json({
-        configured: diagnostics.pbsConfigured,
-        firestoreAdmin: false,
-        diagnostics,
-        state: null,
-        logs: [],
-      });
-    }
+    try {
+      const diagnostics = {
+        ...getPbsEnvDiagnostics(),
+        firebaseAdminInitError: getFirebaseAdminInitError(),
+      };
+      const db = getAdminFirestore();
+      if (!db) {
+        return res.json({
+          configured: diagnostics.pbsConfigured,
+          firestoreAdmin: false,
+          firestoreReachable: false,
+          diagnostics,
+          state: null,
+          logs: [],
+        });
+      }
 
-    const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
-    const snap = await dealershipSettingsDoc(db, dealershipId).get();
-    const data = snap.data();
-    const state = (data?.pbsSyncState as PbsSyncState | undefined) ?? null;
-    const logs = (data?.pbsSyncLogs as PbsSyncLogEntry[] | undefined) ?? [];
-    res.json({
-      configured: diagnostics.pbsConfigured,
-      firestoreAdmin: true,
-      diagnostics,
-      dealershipId,
-      dealershipName: PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
-      scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],
-      state,
-      logs,
-      nextScheduledWindow: 'Daily at 8:00 AM America/Los_Angeles (Hyundai only)',
-    });
+      const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+      try {
+        const snap = await dealershipSettingsDoc(db, dealershipId).get();
+        const data = snap.data();
+        const state = (data?.pbsSyncState as PbsSyncState | undefined) ?? null;
+        const logs = (data?.pbsSyncLogs as PbsSyncLogEntry[] | undefined) ?? [];
+        return res.json({
+          configured: diagnostics.pbsConfigured,
+          firestoreAdmin: true,
+          firestoreReachable: true,
+          diagnostics,
+          dealershipId,
+          dealershipName: PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
+          scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],
+          state,
+          logs,
+          nextScheduledWindow: 'Daily at 8:00 AM America/Los_Angeles (Hyundai only)',
+        });
+      } catch (firestoreErr) {
+        console.error('[PBS] sync/status Firestore read failed:', firestoreErr);
+        return res.status(503).json({
+          configured: diagnostics.pbsConfigured,
+          firestoreAdmin: true,
+          firestoreReachable: false,
+          firestoreError: formatFirestoreError(firestoreErr),
+          diagnostics,
+          dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+          state: null,
+          logs: [],
+        });
+      }
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
   });
 
   /**
