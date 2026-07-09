@@ -16,6 +16,14 @@ export function toLocalDateString(date: Date): string {
   return local.toISOString().split('T')[0];
 }
 
+/** Shift a YYYY-MM-DD string by calendar days in local time. */
+export function addDaysToDateString(dateStr: string, deltaDays: number): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + deltaDays);
+  return toLocalDateString(date);
+}
+
 /** Tenant-scoped doc id — one document per dealership per day. */
 export function appointmentTrackerDocId(dealershipId: string, date: string): string {
   return `${dealershipId}_${date}`;

@@ -1,61 +1,35 @@
 import { Customer } from "../types";
+import {
+  computeServiceReminderDueDate,
+  formatReminderDate,
+  getCustomerServiceReminderDueDate,
+  getLastServiceDate,
+  isReminderDue,
+  SERVICE_REMINDER_MONTHS,
+} from "./serviceReminder";
+
+export { getLastServiceDate };
 import { DEFAULT_SERVICE_ALERT_INTERVAL_DAYS } from "./dealershipSettingsUtils";
 
+const REMINDER_INTERVAL_DAYS = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS;
+
 export function getAverageServiceIntervalDays(
-  customer: Customer,
-  fallbackIntervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  _customer: Customer,
+  _fallbackIntervalDays: number = REMINDER_INTERVAL_DAYS
 ): number {
-  const visits = customer.recentVisits || [];
-  if (visits.length < 2) {
-    return fallbackIntervalDays;
-  }
-
-  const sorted = [...visits].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  let totalDays = 0;
-  let calculationCount = 0;
-
-  for (let i = 1; i < sorted.length; i++) {
-    const prevTime = new Date(sorted[i - 1].date).getTime();
-    const currTime = new Date(sorted[i].date).getTime();
-    if (!isNaN(prevTime) && !isNaN(currTime)) {
-      const diff = (currTime - prevTime) / (1000 * 60 * 60 * 24);
-      if (diff > 0) {
-        totalDays += diff;
-        calculationCount++;
-      }
-    }
-  }
-
-  return calculationCount > 0 ? totalDays / calculationCount : fallbackIntervalDays;
+  return REMINDER_INTERVAL_DAYS;
 }
 
 export function getAverageServiceIntervalMonths(
-  customer: Customer,
-  fallbackIntervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  _customer: Customer,
+  _fallbackIntervalDays: number = REMINDER_INTERVAL_DAYS
 ): number {
-  const days = getAverageServiceIntervalDays(customer, fallbackIntervalDays);
-  return Number((days / 30.4375).toFixed(1));
-}
-
-export function getLastServiceDate(customer: Customer): Date | null {
-  const visits = customer.recentVisits || [];
-  if (visits.length === 0) {
-    if (customer.soldDate) {
-      const sd = new Date(customer.soldDate + 'T00:00:00');
-      return isNaN(sd.getTime()) ? null : sd;
-    }
-    return null;
-  }
-
-  const sorted = [...visits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const d = new Date(sorted[0].date + 'T00:00:00');
-  return isNaN(d.getTime()) ? null : d;
+  return SERVICE_REMINDER_MONTHS;
 }
 
 export function calculateServiceCycle(
   soldDateStr: string,
-  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  intervalDays: number = REMINDER_INTERVAL_DAYS
 ): number {
   if (!soldDateStr) return 0;
   try {
@@ -74,58 +48,25 @@ export function calculateServiceCycle(
 
 export function getNextServiceMilestone(
   customerOrSoldDate: Customer | string,
-  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  _intervalDays: number = REMINDER_INTERVAL_DAYS,
+  _bufferDays: number = 0
 ): string {
   if (!customerOrSoldDate) return 'N/A';
 
   if (typeof customerOrSoldDate === 'string') {
-    try {
-      const soldDate = new Date(customerOrSoldDate + 'T00:00:00');
-      if (isNaN(soldDate.getTime())) return 'N/A';
-
-      const currentCycle = calculateServiceCycle(customerOrSoldDate, intervalDays);
-      const nextMilestoneDate = new Date(soldDate.getTime());
-      nextMilestoneDate.setDate(nextMilestoneDate.getDate() + (currentCycle + 1) * intervalDays);
-
-      return nextMilestoneDate.toLocaleDateString();
-    } catch {
-      return 'N/A';
-    }
+    return formatReminderDate(computeServiceReminderDueDate(customerOrSoldDate));
   }
 
-  const customer = customerOrSoldDate;
-  const avgDays = getAverageServiceIntervalDays(customer, intervalDays);
-  const lastDate = getLastServiceDate(customer);
-  if (!lastDate) return 'N/A';
-
-  const nextDue = new Date(lastDate.getTime() + avgDays * 24 * 60 * 60 * 1000);
-  return nextDue.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const dueStr = getCustomerServiceReminderDueDate(customerOrSoldDate);
+  return dueStr ? formatReminderDate(dueStr) : 'N/A';
 }
 
 export function isServiceAlertActive(
   customer: Customer,
-  intervalDays: number = DEFAULT_SERVICE_ALERT_INTERVAL_DAYS
+  _intervalDays: number = REMINDER_INTERVAL_DAYS,
+  _bufferDays: number = 0
 ): boolean {
   if (!customer.enableServiceAlert) return false;
   if (customer.stopAlertInfo) return false;
-
-  const avgDays = getAverageServiceIntervalDays(customer, intervalDays);
-  const lastDate = getLastServiceDate(customer);
-  if (!lastDate) return false;
-
-  const nextDue = new Date(lastDate.getTime() + avgDays * 24 * 60 * 60 * 1000);
-  const now = new Date();
-
-  if (customer.lastServiceContact) {
-    const lastContactTime = new Date(customer.lastServiceContact.seconds * 1000).getTime();
-    if (lastContactTime > lastDate.getTime() && lastContactTime > nextDue.getTime()) {
-      return false;
-    }
-  }
-
-  return now.getTime() >= nextDue.getTime();
+  return isReminderDue(customer);
 }

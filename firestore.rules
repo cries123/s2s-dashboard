@@ -173,11 +173,35 @@ service cloud.firestore {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
     }
 
+    function userDealershipId() {
+      return userExists() && 'dealershipId' in userData() ? userData().dealershipId : '';
+    }
+
+    function canAccessDispatchData(data) {
+      return isAdmin() ||
+             isSystemWorker() ||
+             (userExists() && data.dealershipId == userDealershipId());
+    }
+
     match /artifacts/hyundai-sales-to-service/public/data/dispatchOrders/{orderId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+      allow read: if (isApproved() || isSystemWorker()) && canAccessDispatchData(resource.data);
+
+      allow create: if (isApproved() || isSystemWorker()) &&
+                       incoming().dealershipId is string &&
+                       canAccessDispatchData(incoming());
+
+      allow update: if (isApproved() || isSystemWorker()) &&
+                       canAccessDispatchData(resource.data) &&
+                       (isAdmin() || isSystemWorker() || incoming().dealershipId == resource.data.dealershipId);
+
+      allow delete: if (isApproved() || isSystemWorker()) && canAccessDispatchData(resource.data);
     }
 
     match /artifacts/hyundai-sales-to-service/public/data/vehicleRecalls/{recallId} {
+      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+    }
+
+    match /artifacts/hyundai-sales-to-service/public/data/recallCampaignLeads/{leadId} {
       allow read, write: if isApproved() || isAdmin() || isSystemWorker();
     }
 
@@ -202,6 +226,21 @@ service cloud.firestore {
     match /artifacts/hyundai-sales-to-service/public/audit/systemLogs/{logId} {
       allow read: if isApproved() || isAdmin() || (isTenantManager() && resource.data.dealershipId == userData().dealershipId);
       allow write: if isSignedIn();
+    }
+
+    // --- User suggestions (top-bar feedback) ---
+    match /artifacts/hyundai-sales-to-service/public/data/suggestions/{suggestionId} {
+      allow create: if isApproved() &&
+                       incoming().message is string &&
+                       incoming().message.size() > 0 &&
+                       incoming().message.size() <= 2000 &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().userEmail is string &&
+                       incoming().username is string &&
+                       incoming().dealershipId is string &&
+                       incoming().status == 'new';
+
+      allow read, update, delete: if isAdmin();
     }
   }
 }

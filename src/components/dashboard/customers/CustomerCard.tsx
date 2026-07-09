@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Customer, User } from '../../../types';
 import { Phone, Mail, Car, Calendar, History, Trash2, Edit2, Loader2, FastForward, Database, CheckCircle2, ChevronDown, ChevronUp, Wrench } from 'lucide-react';
-import { Timestamp, addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { Timestamp, addDoc, collection, deleteField, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { cn } from '../../../lib/utils';
-import { calculateServiceCycle, getNextServiceMilestone } from '../../../lib/alerts';
+import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
+import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -28,6 +29,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   isAlert 
 }) => {
   const { preferences } = usePreferences();
+  const serviceAlerts = useServiceAlertHelpers();
   const [showMaintenance, setShowMaintenance] = useState(false);
 
   const lastVisit = customer.recentVisits?.[0];
@@ -45,16 +47,18 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         appointmentSet
       });
 
-      // Update customer - reset specifically to the current milestone cycle
-      const currentCycle = calculateServiceCycle(customer.soldDate);
+      const nextDue = computeServiceReminderDueDate(new Date());
 
       await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id), {
         lastServiceContact: serverTimestamp(),
         lastContactOutcome: outcome,
         lastContactUserId: currentUser.uid,
         lastContactUsername: currentUser.username,
-        lastAcknowledgedCycle: currentCycle,
-        serviceAlertTriggered: false
+        lastAcknowledgedCycle: serviceAlerts.calculateServiceCycle(customer.soldDate),
+        serviceAlertTriggered: false,
+        serviceReminderDueDate: nextDue,
+        serviceAlertOverrideDate: deleteField(),
+        serviceAlertHoldUntil: deleteField(),
       });
 
       if (onRefresh) onRefresh(`Logged ${outcome} and cleared alert for ${customer.firstName}.`);
@@ -84,7 +88,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const maintenanceTasks = getRecommendedServices(monthsOwned);
 
   return (
-    <div className={cn("card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-100 dark:bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl", preferences.crmDisplay.density === "compact" && "text-[95%]")}>
+    <div className={cn("card-base card-interactive p-0 overflow-hidden border-slate-800/40 group bg-slate-900/30 backdrop-blur-sm shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl", preferences.crmDisplay.density === "compact" && "text-[95%]")}>
       <div className="p-5">
         <div className="flex justify-between items-start gap-3">
           <div className="flex-1">
@@ -193,7 +197,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           <div className="flex flex-col text-right">
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">S2S Alert Range</span>
             <span className="text-[10px] font-black text-brand-secondary uppercase italic">
-              {getNextServiceMilestone(customer)}
+              {serviceAlerts.getNextServiceMilestone(customer)}
             </span>
           </div>
         </div>

@@ -1,14 +1,22 @@
 import { Customer } from '../types';
 import { DispatchRepairOrder } from '../types';
 
+function normalizeNamePart(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+/** Exact last-name match only (case-insensitive, normalized punctuation). */
 export function findCustomersByLastName(customers: Customer[], lastName: string): Customer[] {
-  const q = lastName.trim().toLowerCase();
+  const q = normalizeNamePart(lastName);
   if (!q) return [];
 
-  return customers.filter((c) => {
-    const ln = (c.lastName || '').toLowerCase();
-    return ln === q || ln.startsWith(q);
-  });
+  return customers
+    .filter((customer) => normalizeNamePart(customer.lastName || '') === q)
+    .sort((a, b) => (a.lastName || '').localeCompare(b.lastName || ''));
 }
 
 export function enrichDispatchFromCustomer(customer: Customer): Partial<DispatchRepairOrder> {
@@ -21,6 +29,34 @@ export function enrichDispatchFromCustomer(customer: Customer): Partial<Dispatch
     year: customer.year,
     model: customer.model,
   };
+}
+
+export function splitDispatchCustomerName(
+  customerName?: string,
+  customerLastName?: string
+): { firstName: string; lastName: string } {
+  const last = (customerLastName || '').trim();
+  const full = (customerName || '').trim();
+
+  if (last) {
+    if (full && full.toLowerCase() !== last.toLowerCase()) {
+      if (full.toLowerCase().endsWith(last.toLowerCase())) {
+        return {
+          firstName: full.slice(0, full.length - last.length).trim(),
+          lastName: last,
+        };
+      }
+      const parts = full.split(/\s+/);
+      if (parts.length > 1 && parts[parts.length - 1].toLowerCase() === last.toLowerCase()) {
+        return { firstName: parts.slice(0, -1).join(' '), lastName: last };
+      }
+    }
+    return { firstName: full && full.toLowerCase() !== last.toLowerCase() ? full : '', lastName: last };
+  }
+
+  const parts = full.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { firstName: '', lastName: parts[0] || '' };
+  return { firstName: parts.slice(0, -1).join(' '), lastName: parts[parts.length - 1] };
 }
 
 export function displayCustomerLastName(ro: DispatchRepairOrder): string {

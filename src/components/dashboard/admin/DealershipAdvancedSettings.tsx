@@ -1,12 +1,8 @@
 import React from 'react';
-import { Trophy, Cloud, KeyRound, Bell, Monitor, Wrench } from 'lucide-react';
+import { Trophy, Cloud, KeyRound, Monitor, Wrench } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { DISPATCH_PRODUCTION_LANES } from '../../../lib/dispatchConfig';
-import {
-  clampServiceAlertIntervalDays,
-  DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-  DEFAULT_WEATHER,
-} from '../../../lib/dealershipSettingsUtils';
+import { DEFAULT_WEATHER } from '../../../lib/dealershipSettingsUtils';
 import {
   getDealershipStaffConfig,
   type CompetitionAdvisorSlot,
@@ -123,26 +119,6 @@ export function DealershipAdvancedSettings({
 
   return (
     <div className="space-y-6 pt-4 border-t border-white/5">
-      <div className="space-y-3">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
-          <Bell size={12} className="text-brand-primary" />
-          Service alert interval
-        </label>
-        <p className="text-[10px] text-slate-500">Days between service-due reminders (30–730). Default {DEFAULT_SERVICE_ALERT_INTERVAL_DAYS}.</p>
-        <input
-          type="number"
-          min={30}
-          max={730}
-          value={(s.serviceAlertIntervalDays as number) ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS}
-          onChange={(e) =>
-            onUpdateSetting(dealershipId, {
-              serviceAlertIntervalDays: clampServiceAlertIntervalDays(Number(e.target.value) || DEFAULT_SERVICE_ALERT_INTERVAL_DAYS),
-            })
-          }
-          className="w-32 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
-        />
-      </div>
-
       <div className="space-y-3">
         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
           <KeyRound size={12} /> Enrollment join code — {dealershipName}

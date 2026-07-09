@@ -43,6 +43,7 @@ import {
   rejectIfOpenAiUnavailable,
 } from '../requireOpenAi.js';
 import { extractOperationsPayTypes } from '../../../src/lib/operationsPayTypes.ts';
+import { looksLikeAvgPerRo, looksLikeGpPercent } from '../parsers/saleTypeRowAmounts.js';
 
 function withPayTypes(payload: Record<string, unknown>, reportText: string) {
   const payTypes = extractOperationsPayTypes(reportText);
@@ -78,8 +79,58 @@ function validatePbsPerformance(
       const normName = cleanName(a.name);
       const lSold = a.laborSold !== undefined ? Number(a.laborSold) : 0;
       const pSold = a.partsSold !== undefined ? Number(a.partsSold) : 0;
-      const gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
-      const hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
+      let gLab = a.grossLabor !== undefined ? Number(a.grossLabor) : 0;
+      let gParts = a.grossParts !== undefined ? Number(a.grossParts) : 0;
+      let hSold = a.hrsSold !== undefined ? Number(a.hrsSold) : 0;
+      let elrVal = a.elr !== undefined ? Number(a.elr) : 0;
+      const soCount = a.soCount !== undefined ? Math.round(Number(a.soCount)) : 0;
+
+      const refAdvisor = ref.advisors?.find(
+        (r: any) => r.name?.toLowerCase() === normName.toLowerCase()
+      );
+      if (refAdvisor) {
+        if (
+          lSold > 0 &&
+          (gLab <= 0 ||
+            Math.abs(gLab - lSold) < 0.02 ||
+            gLab / lSold > 0.995 ||
+            looksLikeAvgPerRo(gLab, lSold, soCount) ||
+            (gLab > 0 && gLab < lSold * 0.2 && looksLikeGpPercent(gLab)))
+        ) {
+          const refGross = Number(refAdvisor.grossLabor) || 0;
+          if (refGross > 0 && !looksLikeAvgPerRo(refGross, lSold, soCount)) {
+            gLab = refGross;
+          }
+        }
+        if (soCount > 0 && lSold > 0 && !hSold) {
+          hSold = Number(refAdvisor.hrsSold) || hSold;
+        }
+        if (
+          lSold > 0 &&
+          (elrVal <= 0 ||
+            looksLikeAvgPerRo(elrVal, lSold, soCount) ||
+            (hSold <= 0 && elrVal > 0))
+        ) {
+          const refElr = Number(refAdvisor.elr) || 0;
+          if (refElr > 0 && !looksLikeAvgPerRo(refElr, lSold, soCount)) {
+            elrVal = refElr;
+          } else if (hSold > 0) {
+            elrVal = Math.round((lSold / hSold) * 100) / 100;
+          } else {
+            elrVal = 0;
+          }
+        }
+      }
+      if (
+        refAdvisor &&
+        pSold > 0 &&
+        (gParts <= 0 || Math.abs(gParts - pSold) < 0.02 || gParts / pSold > 0.995)
+      ) {
+        const refPartsGross = Number(refAdvisor.grossParts) || 0;
+        if (refPartsGross > 0 && refPartsGross < pSold * 0.995) {
+          gParts = refPartsGross;
+        }
+      }
 
       return {
         ...a,
@@ -89,7 +140,7 @@ function validatePbsPerformance(
         laborSold: lSold,
         grossLabor: gLab,
         partsSold: pSold,
-        grossParts: a.grossParts !== undefined ? Number(a.grossParts) : 0,
+        grossParts: gParts,
         totalSales:
           a.totalSales !== undefined
             ? Number(a.totalSales)
@@ -101,8 +152,8 @@ function validatePbsPerformance(
               ? Math.round((gLab / lSold) * 1000) / 10
               : 0,
         elr:
-          a.elr !== undefined
-            ? Number(a.elr)
+          elrVal > 0
+            ? elrVal
             : hSold > 0
               ? Math.round((lSold / hSold) * 100) / 100
               : 0,
@@ -111,15 +162,43 @@ function validatePbsPerformance(
     });
 
     if (parsed.totals) {
+      let totalLabor = Number(parsed.totals.totalLabor) || 0;
+      let totalGross = Number(parsed.totals.totalGross) || 0;
+      let totalParts = Number(parsed.totals.totalParts) || 0;
+      let totalGrossParts = Number(parsed.totals.totalGrossParts) || 0;
+
+      if (
+        ref.totals &&
+        totalLabor > 0 &&
+        (totalGross <= 0 ||
+          Math.abs(totalGross - totalLabor) < 0.02 ||
+          totalGross / totalLabor > 0.995)
+      ) {
+        const refGross = Number(ref.totals.totalGross) || 0;
+        if (refGross > 0 && refGross < totalLabor * 0.995) {
+          totalGross = refGross;
+        }
+      }
+      if (
+        ref.totals &&
+        totalParts > 0 &&
+        (totalGrossParts <= 0 ||
+          Math.abs(totalGrossParts - totalParts) < 0.02 ||
+          totalGrossParts / totalParts > 0.995)
+      ) {
+        const refPartsGross = Number(ref.totals.totalGrossParts) || 0;
+        if (refPartsGross > 0 && refPartsGross < totalParts * 0.995) {
+          totalGrossParts = refPartsGross;
+        }
+      }
+
       parsed.totals = {
         totalSales:
-          Number(parsed.totals.totalSales) ||
-          Number(parsed.totals.totalLabor || 0) +
-            Number(parsed.totals.totalParts || 0),
-        totalLabor: Number(parsed.totals.totalLabor) || 0,
-        totalGross: Number(parsed.totals.totalGross) || 0,
-        totalParts: Number(parsed.totals.totalParts) || 0,
-        totalGrossParts: Number(parsed.totals.totalGrossParts) || 0,
+          Number(parsed.totals.totalSales) || totalLabor + totalParts,
+        totalLabor,
+        totalGross,
+        totalParts,
+        totalGrossParts,
         totalHrs: Number(parsed.totals.totalHrs) || 0,
       };
     } else if (ref.totals) {
@@ -267,9 +346,22 @@ export function registerParsePerformanceRoute(
 
           return res.json(withPayTypes({ ...validateDealerBuiltPerformance(merged), isAiParsed: true, dmsProvider: 'dealerbuilt' }, text));
         } catch (err: unknown) {
-          console.error('[DealerBuilt Performance] OpenAI error:', err);
+          console.error('[DealerBuilt Performance] OpenAI error, trying deterministic fallback:', err);
+          if (deterministic.advisors.length > 0) {
+            return res.json(
+              withPayTypes(
+                {
+                  ...validateDealerBuiltPerformance(deterministic),
+                  isAiParsed: false,
+                  parseMethod: 'deterministic',
+                  dmsProvider: 'dealerbuilt',
+                },
+                text
+              )
+            );
+          }
           return res.status(openAiFailureStatus(err)).json({
-            error: `OpenAI parse failed: ${openAiFailureMessage(err)}`,
+            error: `Could not parse DealerBuilt report. ${openAiFailureMessage(err)}`,
             requiresOpenAi: true,
           });
         }
@@ -295,7 +387,7 @@ export function registerParsePerformanceRoute(
               content: `You are an expert automotive Service Advisor/CSR productivity and performance report parser. Extract metrics cleanly and with high precision.
 For each service advisor cleanly identify:
 - name: Clean name from the report (never invent names)
-- soCount, hrsSold, laborSold, grossLabor, partsSold, grossParts, totalSales, gpPercent, elr
+- soCount, hrsSold, laborSold (Sale Type Sales column), grossLabor (Sale Type Gross column — NOT sales, NOT cost, NOT Lab Sold Avg/SO, NOT GP%), partsSold, grossParts, totalSales, gpPercent, elr (Effective Labor Rate — NOT Avg/SO per RO)
 
 Also overall department totals: totalSales, totalLabor, totalGross, totalParts, totalGrossParts, totalHrs
 

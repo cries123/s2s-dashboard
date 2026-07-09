@@ -11,6 +11,11 @@ import fs from "fs";
 import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
 import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } from "./server/dms/index.js";
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
+import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
+import { registerParseSalesNoteRoute } from "./server/handlers/parseSalesNote.js";
+import { registerAiConfigRoute } from "./server/handlers/aiConfig.js";
+import { registerPbsRoutes } from "./server/handlers/pbsRoutes.js";
+import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
 import {
   rejectIfOpenAiUnavailable,
   openAiFailureMessage,
@@ -110,8 +115,11 @@ export async function createApiApp() {
   });
 
   // API Routes
+  registerAiConfigRoute(app);
+  registerPbsRoutes(app);
+
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", env: process.env.NODE_ENV, hasKey: false });
+    res.json({ status: "ok", env: process.env.NODE_ENV });
   });
 
   // NHTSA Proxies to avoid CORS/403 issues
@@ -631,6 +639,15 @@ export async function createApiApp() {
     performanceSchemaGemini,
   });
 
+  registerParseRecallCampaignRoute(app, {
+    extractTextFromPDFBuffer,
+    getOpenAIClient,
+  });
+
+  registerParseSalesNoteRoute(app, { getOpenAIClient });
+
+  registerOutreachRoutes(app);
+
   app.post("/api/gemini-parse-dms", async (req, res) => {
     let openaiFailureReason: 'openai_auth_failed' | 'openai_quota_exhausted' | 'openai_api_failed' | 'openai_key_masked' | null = null;
     let openaiFailureError: string | null = null;
@@ -1011,7 +1028,16 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: [
+          '.cursorvm.com',
+          '.agent.cvm.dev',
+          '.trycloudflare.com',
+          '.loca.lt',
+          'localhost',
+        ],
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

@@ -2,19 +2,49 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# S2S Dashboard
 
-This contains everything you need to run your app locally.
+## AI integration (no local key storage)
 
-View your app in AI Studio: https://ai.studio/apps/4e6bb5c0-3499-41a1-983e-16467a405e78
+All AI features (productivity PDF import, sales note scan, DMS parsing, etc.) call **`/api/*` routes on the server**. The browser never sees or stores OpenAI/Gemini keys.
 
-## Run Locally
+**For dealership staff using the live site:** nothing to install or configure on your computer — AI works when the site admin has set keys on the host.
 
-**Prerequisites:**  Node.js
+### Production — Netlify (recommended)
 
+1. Netlify → your site → **Site configuration** → **Environment variables**
+2. Add **`OPENAI_API_KEY`** (full key from [OpenAI](https://platform.openai.com/api-keys))
+3. Scope: **Functions** (required). Do **not** use a `VITE_` prefix.
+4. Optional: **`GEMINI_API_KEY`** for Gemini-based forecast parsing
+5. **Deploy** (or trigger redeploy after saving variables)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Verify: open `https://your-site.netlify.app/api/ai-config` — should show `"openai": true` (no key value is ever returned).
+
+### Local development (optional)
+
+Only needed if you run the app on your own machine:
+
+```bash
+npm install
+cp .env.example .env.local   # optional
+npm run dev
+```
+
+Or use **`npx netlify dev`** linked to your site — Netlify injects cloud env vars with no `.env.local` file.
+
+## Run locally
+
+**Prerequisites:** Node.js
+
+```bash
+npm install
+npm run dev
+```
+
+Firebase client config uses `VITE_FIREBASE_*` in `.env.local` for local builds (these are public Firebase web keys, not OpenAI secrets).
+
+## Security
+
+- Never commit `.env`, `.env.local`, or API keys to GitHub
+- Revoke any exposed keys at OpenAI and create new ones
+- Keys belong only in **Netlify environment variables** (production) or local `.env.local` (dev)

@@ -4,8 +4,9 @@ import CustomerCard from './CustomerCard';
 import { History, Loader2, Phone } from 'lucide-react';
 import { writeBatch, doc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { isServiceAlertActive, calculateServiceCycle } from '../../../lib/alerts';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
+import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
+import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 
 interface ServiceAlertsProps {
   customers: Customer[];
@@ -15,48 +16,80 @@ interface ServiceAlertsProps {
   onRefresh: (msg?: string, isError?: boolean) => void;
 }
 
-export default function ServiceAlerts({ customers, currentUser, onViewProfile, onViewLog, onRefresh }: ServiceAlertsProps) {
-  const activeAlerts = customers.filter(isServiceAlertActive);
+export default function ServiceAlerts({
+  customers,
+  currentUser,
+  onViewProfile,
+  onViewLog,
+  onRefresh,
+}: ServiceAlertsProps) {
+  const serviceAlerts = useServiceAlertHelpers();
+  const activeAlerts = customers.filter(serviceAlerts.isServiceAlertActive);
 
   const [isResetting, setIsResetting] = React.useState(false);
 
   const handleResetAll = async () => {
     const alertsToProcess = [...activeAlerts];
     if (alertsToProcess.length === 0) return;
-    
-    if (!confirm(`Confirm complete reset of all ${alertsToProcess.length} service cycle reminders? This will log a 'Bulk Cycle Reset' for each customer.`)) return;
-    
+
+    if (
+      !confirm(
+        `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new 6-month reminder from today.`
+      )
+    ) {
+      return;
+    }
+
     setIsResetting(true);
     let totalProcessed = 0;
-    
+    const nextDue = computeServiceReminderDueDate(new Date());
+
     try {
       const chunkSize = 200;
-      
+
       for (let i = 0; i < alertsToProcess.length; i += chunkSize) {
         const batch = writeBatch(db);
         const currentChunk = alertsToProcess.slice(i, i + chunkSize);
 
-        currentChunk.forEach(c => {
-          const currentCycle = calculateServiceCycle(c.soldDate);
-          const customerRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', c.id);
-          
-          const logRef = doc(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', c.id, 'contactLog'));
+        currentChunk.forEach((c) => {
+          const customerRef = doc(
+            db,
+            'artifacts',
+            'hyundai-sales-to-service',
+            'public',
+            'data',
+            'customers',
+            c.id
+          );
+
+          const logRef = doc(
+            collection(
+              db,
+              'artifacts',
+              'hyundai-sales-to-service',
+              'public',
+              'data',
+              'customers',
+              c.id,
+              'contactLog'
+            )
+          );
           batch.set(logRef, {
             timestamp: serverTimestamp(),
             userId: currentUser.uid,
             username: currentUser.username,
             outcome: 'Bulk Cycle Reset',
-            notes: `Maintenance reminders were reset to cycle ${currentCycle} (approx. ${currentCycle * 6} months from sale).`,
-            appointmentSet: false
+            notes: `Service reminder reset. Next due ${nextDue} (6 months from today).`,
+            appointmentSet: false,
           });
 
           batch.update(customerRef, {
             lastServiceContact: serverTimestamp(),
-            lastAcknowledgedCycle: currentCycle,
+            serviceReminderDueDate: nextDue,
             serviceAlertTriggered: false,
             lastContactOutcome: 'Bulk Cycle Reset',
             lastContactUsername: currentUser.username,
-            lastContactUserId: currentUser.uid
+            lastContactUserId: currentUser.uid,
           });
         });
 
@@ -64,7 +97,7 @@ export default function ServiceAlerts({ customers, currentUser, onViewProfile, o
         totalProcessed += currentChunk.length;
       }
 
-      onRefresh(`Successfully reset service cycles for ${totalProcessed} customers.`, false);
+      onRefresh(`Successfully reset service reminders for ${totalProcessed} customers.`, false);
     } catch (err) {
       console.error('Batch commit failed:', err);
       try {
@@ -91,12 +124,13 @@ export default function ServiceAlerts({ customers, currentUser, onViewProfile, o
               )}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Tap a customer to log contact or open their profile. Optimized for BDC mobile outreach.
+              Tap a customer to log contact or open their profile. Reminders are set for 6 months
+              after enrollment or last outreach.
             </p>
           </div>
-          
+
           {activeAlerts.length > 0 && (
-            <button 
+            <button
               onClick={handleResetAll}
               disabled={isResetting}
               className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs sm:text-sm py-2.5 px-4 shadow-lg shadow-emerald-900/20 disabled:opacity-50 w-full sm:w-auto min-h-[44px]"
@@ -126,14 +160,17 @@ export default function ServiceAlerts({ customers, currentUser, onViewProfile, o
               <History size={32} />
             </div>
             <h3 className="text-lg font-bold text-white">All Clear!</h3>
-            <p className="text-slate-400 mt-1 max-w-md mx-auto text-sm">No pending service alerts. Every customer is accounted for and your pipeline is healthy.</p>
+            <p className="text-slate-400 mt-1 max-w-md mx-auto text-sm">
+              No pending service alerts. Every customer is accounted for and your pipeline is
+              healthy.
+            </p>
           </div>
         ) : (
-          activeAlerts.map(customer => (
-            <CustomerCard 
-              key={customer.id} 
-              customer={customer} 
-              currentUser={currentUser} 
+          activeAlerts.map((customer) => (
+            <CustomerCard
+              key={customer.id}
+              customer={customer}
+              currentUser={currentUser}
               onViewProfile={(c: Customer) => onViewProfile(c)}
               onViewLog={(c: Customer) => onViewLog(c)}
               onRefresh={onRefresh}

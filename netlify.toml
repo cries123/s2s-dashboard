@@ -13,6 +13,10 @@
 [functions.api]
   timeout = 120
 
+[functions."pbs-daily-sync"]
+  schedule = "@hourly"
+  timeout = 300
+
 # API routes must be proxied to the serverless function BEFORE the SPA fallback.
 [[redirects]]
   from = "/api/*"

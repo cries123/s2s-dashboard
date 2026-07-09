@@ -1,8 +1,14 @@
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { loadServiceAccountFromEnv } from './parseServiceAccountJson.js';
 
 let adminApp: App | null = null;
+let lastInitError: string | null = null;
+
+export function getFirebaseAdminInitError(): string | null {
+  return lastInitError;
+}
 
 export function getFirebaseAdminApp(): App | null {
   if (adminApp) return adminApp;
@@ -11,27 +17,26 @@ export function getFirebaseAdminApp(): App | null {
     return adminApp;
   }
 
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
-  if (!raw) {
-    console.warn(
-      '[Master Users Admin] FIREBASE_SERVICE_ACCOUNT_JSON is not set — email/password admin actions are disabled.'
-    );
+  const loaded = loadServiceAccountFromEnv();
+  if (loaded.status !== 'ready' || !loaded.serviceAccount) {
+    lastInitError = loaded.message;
+    console.warn('[Master Users Admin]', loaded.message);
     return null;
   }
 
   try {
-    const serviceAccount = JSON.parse(raw) as {
-      project_id?: string;
-      client_email?: string;
-      private_key?: string;
-    };
     adminApp = initializeApp({
-      credential: cert(serviceAccount as Parameters<typeof cert>[0]),
+      credential: cert(loaded.serviceAccount as Parameters<typeof cert>[0]),
     });
+    lastInitError = null;
     console.log('[Master Users Admin] Firebase Admin SDK initialized.');
     return adminApp;
   } catch (error) {
-    console.error('[Master Users Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', error);
+    lastInitError =
+      error instanceof Error
+        ? `Firebase Admin init failed: ${error.message}`
+        : 'Firebase Admin init failed.';
+    console.error('[Master Users Admin]', lastInitError);
     return null;
   }
 }

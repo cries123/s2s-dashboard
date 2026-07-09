@@ -1,6 +1,7 @@
 import { Customer } from '../types';
 import { WorkQueueItem, ServiceDriveReason, ServiceDrivePriority, QueuePriorityProfile } from '../types';
-import { isServiceAlertActive, getLastServiceDate, getAverageServiceIntervalDays } from './alerts';
+import { isServiceAlertActive } from './alerts';
+import { getCustomerServiceReminderDueDate, parseReminderDate } from './serviceReminder';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const DEFAULT_STALE_CONTACT_DAYS = 3;
@@ -31,10 +32,10 @@ export function daysSince(date: Date | null): number | null {
 
 export function getServiceDaysOverdue(customer: Customer): number {
   if (!isServiceAlertActive(customer)) return 0;
-  const lastDate = getLastServiceDate(customer);
-  if (!lastDate) return 0;
-  const avgDays = getAverageServiceIntervalDays(customer);
-  const dueDate = new Date(lastDate.getTime() + avgDays * MS_PER_DAY);
+  const dueStr = getCustomerServiceReminderDueDate(customer);
+  if (!dueStr) return 0;
+  const dueDate = parseReminderDate(dueStr);
+  if (!dueDate) return 0;
   const overdue = Math.floor((Date.now() - dueDate.getTime()) / MS_PER_DAY);
   return Math.max(0, overdue);
 }

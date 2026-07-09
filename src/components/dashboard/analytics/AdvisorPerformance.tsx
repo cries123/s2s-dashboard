@@ -8,10 +8,16 @@ import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
+import { EmptyState } from '../../ui/EmptyState';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import {
   EMPTY_PERFORMANCE_TOTALS,
   performanceDocId,
+  formatArchiveMonthLabel,
+  formatArchiveDisplayLabel,
 } from '../../../lib/operationsViewPeriod';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
@@ -31,8 +37,8 @@ import {
   computeAdvisorMix,
   extractOperationsPayTypes,
   type AdvisorMixRow,
-  type OperationsPayTypeSummary,
 } from '../../../lib/operationsPayTypes';
+import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 
 interface UpsellItem {
   code: string;
@@ -70,7 +76,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [totals, setTotals] = useState<any>(null);
-  const [payTypes, setPayTypes] = useState<OperationsPayTypeSummary | null>(null);
+  const [reportStartDate, setReportStartDate] = useState<string | undefined>();
+  const [reportEndDate, setReportEndDate] = useState<string | undefined>();
   const [advisorMix, setAdvisorMix] = useState<AdvisorMixRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [laborTarget, setLaborTarget] = useState(500000);
@@ -135,15 +142,16 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
           setAdvisors([]);
         }
         if (data.totals) setTotals(data.totals);
-        if (data.payTypes) setPayTypes(data.payTypes as OperationsPayTypeSummary);
-        else setPayTypes(null);
+        setReportStartDate(data.reportStartDate);
+        setReportEndDate(data.reportEndDate);
         if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
         else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
         else setAdvisorMix([]);
       } else {
         setAdvisors([]);
         setTotals(null);
-        setPayTypes(null);
+        setReportStartDate(undefined);
+        setReportEndDate(undefined);
         setAdvisorMix([]);
       }
       setLoading(false);
@@ -182,9 +190,15 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     const normalizeName = (rawName: string) => cleanAdvisorName(rawName, effectiveDmsProvider);
 
+    let acceptedIncoming = 0;
+
     if (overwrite) {
       updatedAdvisors = newData.advisors
-        .filter((a) => acceptAdvisor(a.name))
+        .filter((a) => {
+          if (!acceptAdvisor(a.name)) return false;
+          acceptedIncoming += 1;
+          return true;
+        })
         .map((a) => ({ ...a, name: normalizeName(a.name) }));
     } else {
       updatedAdvisors = [...advisors]
@@ -193,6 +207,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
       newData.advisors.forEach((newAdvisor) => {
         if (!acceptAdvisor(newAdvisor.name)) return;
+        acceptedIncoming += 1;
         const normalizedName = normalizeName(newAdvisor.name);
 
         const idx = updatedAdvisors.findIndex(a => a.name.toLowerCase().trim() === normalizedName.toLowerCase().trim());
@@ -227,8 +242,8 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     const docId = performanceDocId('advisorReports', currentDealershipId, targetMonth);
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
 
-    const skippedCount = Math.max(0, incomingCount - updatedAdvisors.length);
-    if (incomingCount > 0 && updatedAdvisors.length === 0) {
+    const skippedCount = Math.max(0, incomingCount - acceptedIncoming);
+    if (incomingCount > 0 && acceptedIncoming === 0) {
       const parsedNames = (newData.advisors ?? []).map((a) => a.name).join(', ');
       const phantomPbsOnly = (newData.advisors ?? []).every((a) =>
         isPhantomPbsAdvisorName(a.name)
@@ -249,6 +264,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
     try {
       await setDoc(docRef, {
+        dealershipId: currentDealershipId,
         advisors: updatedAdvisors,
         ...(newData.totals && { totals: newData.totals }),
         ...(newData.reportStartDate && { reportStartDate: newData.reportStartDate }),
@@ -358,28 +374,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   };
 
 
-  const monthKeyFromIsoDate = (iso?: string | null): string | null => {
-    if (!iso || !/^\d{4}-\d{2}/.test(iso)) return null;
-    return iso.slice(0, 7);
-  };
-
-  /** When editing an archive month, always save to that month. */
-  const resolveImportTargetMonth = (
-    parsed: { reportStartDate?: string; reportEndDate?: string },
-    reportText: string
-  ): string => {
-    if (selectedMonth !== 'active') return selectedMonth;
-    const fromParsed =
-      monthKeyFromIsoDate(parsed.reportStartDate) ||
-      monthKeyFromIsoDate(parsed.reportEndDate);
-    if (fromParsed) return fromParsed;
-    const detected = detectDateRangeFromText(reportText);
-    if (detected?.start) {
-      const key = monthKeyFromIsoDate(detected.start);
-      if (key) return key;
-    }
-    return selectedMonth;
-  };
+  /** Always save to the month selected in the Operations workspace (active or archive). */
+  const resolveImportTargetMonth = (): string => selectedMonth;
 
   const detectDateRangeFromText = (text: string): { start: string; end: string } | null => {
     if (!text) return null;
@@ -550,7 +546,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         };
       }
 
-      const targetMonth = resolveImportTargetMonth(data, reportText);
+      const targetMonth = resolveImportTargetMonth();
 
       if (!data.advisors?.length) {
         throw new Error(
@@ -570,34 +566,42 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       // Refresh UI immediately (don't wait for Firestore listener)
       setAdvisors(saved.advisors);
       if (saved.totals) setTotals(saved.totals);
-      if (extractedPayTypes) setPayTypes(extractedPayTypes);
-
+      if (data.reportStartDate) setReportStartDate(data.reportStartDate);
+      if (data.reportEndDate) setReportEndDate(data.reportEndDate);
       const hasUpsells = data.advisors.some((a: any) => a.upsells && a.upsells.length > 0);
       const hasTotals = !!data.totals;
       const archiveLabel =
         targetMonth !== 'active'
-          ? targetMonth === '2026-05'
-            ? 'May 2026 archive'
-            : `${targetMonth} archive`
+          ? `${formatArchiveMonthLabel(targetMonth)} archive`
           : 'active month';
 
       let message = `Saved ${saved.advisorCount} advisor(s) to ${archiveLabel}.`;
       if (saved.skippedCount > 0) {
         message += ` (${saved.skippedCount} row(s) skipped — not on roster)`;
       }
-      if (targetMonth !== selectedMonth && selectedMonth === 'active') {
-        message += ' Switch the month selector to view the archive you just updated.';
-      } else if (hasUpsells && hasTotals) {
+      if (hasUpsells && hasTotals) {
         message = `Productivity + upsell data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
       } else if (hasTotals) {
         message = `Productivity data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
       }
 
       setImportStatus({ type: 'success', message });
+      await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'advisor_performance',
+        userEmail: currentUser?.email,
+      });
       
     } catch (error: any) {
       console.error('Performance Import Error:', error);
-      setImportStatus({ type: 'error', message: error.message || 'Error importing PDF. Please try again.' });
+      const message = error.message || 'Error importing PDF. Please try again.';
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'advisor_performance',
+        error: message,
+        userEmail: currentUser?.email,
+      });
+      setImportStatus({ type: 'error', message });
     } finally {
       setIsImporting(false);
       setImportProgress(null);
@@ -607,32 +611,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
   // Calculate totals and projections
   const getPerformanceMetrics = () => {
-    let baseTotals = totals;
-    
-    // Always compute or check based on the sum of advisors if advisors exist
-    if (advisors.length > 0) {
-      const computedGross = advisors.reduce((a, b) => a + (Number(b.grossLabor) || 0), 0);
-      const computedLabor = advisors.reduce((a, b) => a + (Number(b.laborSold) || 0), 0);
-      const computedParts = advisors.reduce((a, b) => a + (Number(b.partsSold) || 0), 0);
-      const computedGrossParts = advisors.reduce((a, b) => a + (Number(b.grossParts) || 0), 0);
-      const computedSales = computedLabor + computedParts;
-      const computedHrs = advisors.reduce((a, b) => a + (Number(b.hrsSold) || 0), 0);
-
-      // Reconcile and override baseTotals if missing, or if sum of advisors is higher or different due to partial category extraction (e.g. Customer Labor C instead of Total)
-      if (!baseTotals || Math.abs(baseTotals.totalGross - computedGross) > 10.0 || Math.abs(baseTotals.totalLabor - computedLabor) > 10.0 || computedGross > baseTotals.totalGross) {
-        baseTotals = {
-          totalGross: computedGross,
-          totalLabor: computedLabor,
-          totalParts: computedParts,
-          totalGrossParts: computedGrossParts,
-          totalSales: computedSales,
-          totalHrs: computedHrs,
-        };
-      } else {
-        // Even if baseTotals exists, verify totalSales is indeed Labor + Parts
-        baseTotals.totalSales = (Number(baseTotals.totalLabor) || 0) + (Number(baseTotals.totalParts) || 0);
-      }
-    }
+    const resolved = resolvePerformanceTotalsFromDoc({
+      advisors,
+      totals,
+      reportStartDate,
+      reportEndDate,
+    });
+    const baseTotals = resolved
+      ? {
+          totalGross: resolved.totalGross,
+          totalLabor: resolved.totalLabor,
+          totalParts: resolved.totalParts,
+          totalGrossParts: resolved.totalGrossParts,
+          totalSales: resolved.totalSales,
+          totalHrs: resolved.totalHrs,
+        }
+      : null;
 
     if (!baseTotals) return null;
 
@@ -667,9 +661,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 gap-4">
-        <Loader2 className="animate-spin text-brand-secondary" size={32} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing Performance Dashboard...</p>
+      <div className="space-y-6">
+        <KpiStripSkeleton count={5} />
+        <TableSkeleton rows={6} cols={5} />
       </div>
     );
   }
@@ -688,17 +682,18 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Users size={20} className="text-brand-secondary" />
-            Advisor Performance Tracking
+          <h3 className="crm-section-title flex items-center gap-2">
+            <Users size={18} className="text-brand-secondary" />
+            Advisor performance
           </h3>
+          <p className="crm-label mt-1">Labor, parts, and gross totals from productivity imports.</p>
         </div>
         
         {selectedMonth !== 'active' && !allowArchiveEditing ? (
           <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-              🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+              🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
             </span>
           </div>
         ) : (
@@ -799,16 +794,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       </AnimatePresence>
 
       {!advisors.length && !isImporting && (
-        <div className="flex flex-col items-center justify-center py-20 bg-slate-900/10 rounded-3xl border-2 border-dashed border-slate-800/50">
-          <BarChart3 size={48} className="text-slate-800 mb-4" />
-          <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Awaiting PDF Data</p>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-4 text-brand-primary text-xs font-black uppercase tracking-widest hover:underline"
-          >
-            Click here to select file
-          </button>
-        </div>
+        <EmptyState
+          title="No productivity data yet"
+          description="Import a PBS or DealerBuilt productivity PDF to populate advisor labor, parts, and gross totals for this month."
+          action={
+            <button type="button" onClick={() => fileInputRef.current?.click()} className="btn-primary">
+              Import productivity PDF
+            </button>
+          }
+        />
       )}
 
       <AnimatePresence>
@@ -818,96 +812,48 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             animate={{ opacity: 1, y: 0 }}
             className="space-y-8"
           >
-            {/* Global Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Labor Sales MTD Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Labor Sales MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalLabor.toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Daily Avg</span>
-                  <span className="text-xs font-black text-slate-200">${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Labor Gross Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-brand-secondary uppercase tracking-widest mb-1">Labor Gross MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalGross.toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-brand-secondary uppercase tracking-widest">{Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}% GP</span>
-                  <span className="text-xs font-black text-slate-200">${(metrics.totalGross / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Part Sales Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Part Sales MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${(metrics.totalParts || 0).toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Daily Avg</span>
-                  <span className="text-xs font-black text-slate-200">${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Parts Gross Box */}
-              <div className="p-5 bg-[#0a0f1d]/65 border border-white/5 hover:border-white/10 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg">
-                <div>
-                  <p className="text-[10px] font-black text-emerald-550 uppercase tracking-widest mb-1">Parts Gross MTD</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${(metrics.totalGrossParts || 0).toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between gap-2.5">
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">{Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}% GP</span>
-                  <span className="text-xs font-black text-emerald-400">${((metrics.totalGrossParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                </div>
-              </div>
-
-              {/* Store Throughput Box */}
-              <div className="p-5 bg-gradient-to-br from-brand-primary/15 to-brand-primary/5 border border-brand-primary/20 hover:border-brand-primary/30 rounded-2xl flex flex-col justify-between min-h-[110px] transition-all duration-300 shadow-lg shadow-brand-primary/5">
-                <div>
-                  <p className="text-[10px] font-black text-brand-primary uppercase tracking-widest mb-1">Store Throughput</p>
-                  <p className="text-2xl font-black text-white leading-none tracking-tight">${metrics.totalSales.toLocaleString()}</p>
-                </div>
-                <div className="mt-3 pt-2.5 border-brand-primary/10 border-t flex flex-col gap-0.5">
-                  <div className="flex items-center justify-between text-[9px] font-black uppercase text-brand-primary/80">
-                    <span>Pace</span>
-                    <span className="text-emerald-450">${metrics.salesForecast.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs font-black">
-                    <span className="text-[9px] text-slate-500 uppercase tracking-widest">Daily Avg</span>
-                    <span className="text-slate-200">${(metrics.totalSales / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, {maximumFractionDigits: 0})}/D</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-
-            {payTypes && (
-              <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-3xl space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-black text-white uppercase tracking-widest">Pay Type Mix (RO)</h4>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                      Customer pay portion: <span className="text-brand-secondary">{payTypes.customerPayPortionPercent}%</span>
-                    </p>
-                  </div>
-                </div>
-                <table className="w-full text-left text-xs">
-                  <thead><tr className="text-[9px] uppercase text-slate-500"><th className="py-2">Type</th><th className="text-right">ROs</th><th className="text-right">Mix</th><th className="text-right">ELR</th><th className="text-right">GP</th></tr></thead>
-                  <tbody>
-                    {([['Customer', payTypes.customer], ['Warranty', payTypes.warranty], ['Internal', payTypes.internal]] as const).map(([label, seg]) => (
-                      <tr key={label} className="text-white border-t border-slate-800"><td className="py-2">{label}</td><td className="text-right font-mono">{seg.roCount}</td><td className="text-right font-mono text-brand-secondary">{seg.mixPercent}%</td><td className="text-right font-mono">${seg.elr.toFixed(2)}</td><td className="text-right font-mono">{seg.gpPercent}%</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            {metrics && (
+              <KpiStrip
+                columns={5}
+                tiles={[
+                  {
+                    label: 'Labor sales MTD',
+                    value: `$${metrics.totalLabor.toLocaleString()}`,
+                    sublabel: 'Daily avg',
+                    subvalue: `$${(metrics.totalLabor / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, { maximumFractionDigits: 0 })}/d`,
+                  },
+                  {
+                    label: 'Labor gross MTD',
+                    value: `$${metrics.totalGross.toLocaleString()}`,
+                    sublabel: 'GP',
+                    subvalue: `${Math.round((metrics.totalGross / (metrics.totalLabor || 1)) * 100)}%`,
+                    tone: 'info',
+                  },
+                  {
+                    label: 'Parts sales MTD',
+                    value: `$${(metrics.totalParts || 0).toLocaleString()}`,
+                    sublabel: 'Daily avg',
+                    subvalue: `$${((metrics.totalParts || 0) / Math.max(1, metrics.elapsedDays)).toLocaleString(undefined, { maximumFractionDigits: 0 })}/d`,
+                  },
+                  {
+                    label: 'Parts gross MTD',
+                    value: `$${(metrics.totalGrossParts || 0).toLocaleString()}`,
+                    sublabel: 'GP',
+                    subvalue: `${Math.round(((metrics.totalGrossParts || 0) / (metrics.totalParts || 1)) * 100)}%`,
+                    tone: 'success',
+                  },
+                  {
+                    label: 'Store throughput',
+                    value: `$${metrics.totalSales.toLocaleString()}`,
+                    sublabel: 'Forecast pace',
+                    subvalue: `$${metrics.salesForecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    tone: 'info',
+                  },
+                ]}
+              />
             )}
+
+
 
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

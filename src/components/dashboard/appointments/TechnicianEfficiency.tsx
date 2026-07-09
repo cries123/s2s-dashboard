@@ -5,6 +5,7 @@ import {
 import { db } from '../../../firebase';
 import { User } from '../../../types';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
@@ -14,6 +15,14 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
+import { EmptyState } from '../../ui/EmptyState';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { TableSkeleton } from '../../ui/Skeleton';
+import {
+  formatArchiveDisplayLabel,
+  formatArchiveMonthLabel,
+  getCurrentYearMonthKey,
+} from '../../../lib/operationsViewPeriod';
 
 interface TechnicianData {
   techName: string;
@@ -277,23 +286,36 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         setReportStartDate(detectedDates.start);
         setReportEndDate(detectedDates.end);
 
-        // Auto-route to May archive if dates fall in May
-        if (detectedDates.start.startsWith('2026-05')) {
-          targetMonth = '2026-05';
+        const detectedMonthKey = detectedDates.start.slice(0, 7);
+        const activeMonthKey = getCurrentYearMonthKey();
+        if (detectedMonthKey !== activeMonthKey && selectedMonth === 'active') {
+          targetMonth = detectedMonthKey;
         }
       }
 
       await saveToFirestore(mergedTechs, loadedStart, loadedEnd, targetMonth);
-      if (targetMonth === '2026-05' && selectedMonth === 'active') {
-        onSuccess?.(`Detected May dates! Saved ${parsedTechs.length} technicians directly to May 2026 Saved Archive. June active tracker kept clean.`);
+      if (targetMonth !== 'active' && selectedMonth === 'active') {
+        onSuccess?.(`Detected ${formatArchiveMonthLabel(targetMonth)} dates! Saved ${parsedTechs.length} technicians to that saved archive.`);
       } else {
         onSuccess?.(`Successfully imported & merged ${parsedTechs.length} technicians.`);
       }
+      await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'technician_productivity',
+        userEmail: currentUser?.email,
+      });
       setParsing(false);
 
     } catch (err: any) {
       console.error("[TechnicianEfficiency] Upload error:", err);
-      onError?.(err?.message || "Parsing failed. Defaulting to manual data entry is supported.");
+      const message = err?.message || "Parsing failed. Defaulting to manual data entry is supported.";
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'technician_productivity',
+        error: message,
+        userEmail: currentUser?.email,
+      });
+      onError?.(message);
       setParsing(false);
     }
   };
@@ -429,8 +451,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
             <Gauge size={22} className="text-brand-primary animate-pulse" />
           </div>
           <div>
-            <span className="text-[9px] font-black text-brand-primary uppercase tracking-widest block mb-0.5">Real-time Performance Metrics</span>
-            <h2 className="text-xl font-black text-white tracking-wider uppercase">Technician Efficiency Tracker</h2>
+            <span className="crm-label block mb-0.5">Shop floor metrics</span>
+            <h2 className="crm-section-title">Technician efficiency</h2>
             {reportStartDate && reportEndDate && (
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                 Active Report Period: {formatDateRangeShort(reportStartDate, reportEndDate)}
@@ -443,7 +465,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-              🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+              🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
             </span>
           </div>
         ) : (
@@ -651,18 +673,12 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
           (selectedMonth !== 'active' && !allowArchiveEditing) && "xl:col-span-3 col-span-full"
         )}>
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <Loader2 className="animate-spin text-brand-primary mb-3" size={28} />
-              <p className="text-xs uppercase font-black tracking-widest">Synchronizing Performance Tables...</p>
-            </div>
+            <TableSkeleton rows={5} cols={4} />
           ) : technicians.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 border border-dashed border-white/5 rounded-3xl min-h-[300px] bg-white/[0.01]">
-              <Clock size={36} className="text-slate-600 mb-4" />
-              <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">No performance logs recorded</h3>
-              <p className="text-[10px] text-slate-500 text-center max-w-[340px] font-medium leading-relaxed">
-                Upload a technician performance PDF report to auto-parse details, or register a technician manually using the "Add Technician" button above to track efficiency metrics.
-              </p>
-            </div>
+            <EmptyState
+              title="No technician data yet"
+              description='Upload a technician summary PDF or use "Add technician" to start tracking flagged hours and efficiency.'
+            />
           ) : (
             <div className="bg-slate-900/40 border border-white/5 rounded-3xl overflow-hidden shadow-inner">
               <div className="overflow-x-auto">

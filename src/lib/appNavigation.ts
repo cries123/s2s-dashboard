@@ -9,10 +9,17 @@ export type AppTab =
   | 'pot-of-gold'
   | 'forecast'
   | 'dispatch'
-  | 'recalls'
   | 'sales-performance';
 
-export type AdminSubTab = 'users' | 'logs' | 'master-users' | 'ai-usage' | 'import-history';
+export type AdminSubTab =
+  | 'users'
+  | 'logs'
+  | 'master-users'
+  | 'ai-usage'
+  | 'suggestions'
+  | 'enrollments'
+  | 'import-health'
+  | 'pbs-sync';
 export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
 
 export interface AppRouteState {
@@ -27,7 +34,8 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/service/directory': { activeTab: 'search' },
   '/service/alerts': { activeTab: 'alerts' },
   '/service/dispatch': { activeTab: 'dispatch' },
-  '/service/recalls': { activeTab: 'recalls' },
+  '/service/recalls': { activeTab: 'search' },
+  '/service/bundle-menus': { activeTab: 'search' },
   '/competitions/pot-of-gold': { activeTab: 'pot-of-gold' },
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
@@ -36,14 +44,18 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
   '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
   '/manager/logs': { activeTab: 'manager', managerSubTab: 'logs' },
-  // Legacy admin operation settings URL → manager operations
-  '/admin/operation-settings': { activeTab: 'manager', managerSubTab: 'operations' },
+  '/admin/operations': { activeTab: 'admin', adminSubTab: 'users' },
+  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/user-settings': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/users': { activeTab: 'admin', adminSubTab: 'users' },
   '/admin/master-users': { activeTab: 'admin', adminSubTab: 'master-users' },
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
-  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-history' },
+  '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-health' },
+  '/admin/import-health': { activeTab: 'admin', adminSubTab: 'import-health' },
+  '/admin/pbs-sync': { activeTab: 'admin', adminSubTab: 'pbs-sync' },
+  '/admin/enrollments': { activeTab: 'admin', adminSubTab: 'enrollments' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
+  '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
 };
 
 const DEFAULT_ROUTE: AppRouteState = { activeTab: 'add' };
@@ -80,10 +92,16 @@ export function buildAppPath(state: AppRouteState): string {
         return '/admin/master-users';
       case 'ai-usage':
         return '/admin/ai-usage';
-      case 'import-history':
-        return '/admin/import-history';
       case 'logs':
         return '/admin/logs';
+      case 'suggestions':
+        return '/admin/suggestions';
+      case 'enrollments':
+        return '/admin/enrollments';
+      case 'import-health':
+        return '/admin/import-health';
+      case 'pbs-sync':
+        return '/admin/pbs-sync';
       case 'users':
       default:
         return '/admin/users';
@@ -101,8 +119,6 @@ export function buildAppPath(state: AppRouteState): string {
       return '/service/alerts';
     case 'dispatch':
       return '/service/dispatch';
-    case 'recalls':
-      return '/service/recalls';
     case 'pot-of-gold':
       return '/competitions/pot-of-gold';
     case 'appointments':

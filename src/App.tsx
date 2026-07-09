@@ -8,7 +8,7 @@ import { Customer, User } from './types';
 import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
-  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers, ShieldAlert,
+  Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
   BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -28,7 +28,6 @@ import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard
 import ProfileModal from './components/modals/ProfileModal';
 import InjectModal from './components/modals/InjectModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 
 import { isServiceAlertActive, calculateServiceCycle } from './lib/alerts';
 
@@ -154,7 +153,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(
-    initialRoute.adminSubTab ?? 'operations'
+    initialRoute.adminSubTab ?? 'users'
   );
 
   // Artificial delay for loading screen
@@ -236,7 +235,6 @@ export default function App() {
     { id: 'vin-search', label: 'VIN Search', icon: Search },
     { id: 'forecast', label: 'Forecast', icon: TrendingUp },
     { id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 },
-    { id: 'recalls', label: 'Recalls', icon: ShieldAlert },
     ...(user && user.role === 'admin' ? [{ id: 'admin', label: 'Admin', icon: Settings }] : []),
   ];
 
@@ -413,7 +411,7 @@ export default function App() {
             {/* 2. SERVICE DROPDOWN */}
             <NavDropdown 
               label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
+              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch'}
             >
               <NavLink 
                 href="/service/directory" 
@@ -439,13 +437,6 @@ export default function App() {
                   Dispatch
                 </NavLink>
               )}
-              <NavLink 
-                href="/service/recalls" 
-                onClick={() => setActiveTab('recalls')}
-                isActive={activeTab === 'recalls'}
-              >
-                Recalls
-              </NavLink>
             </NavDropdown>
 
             {/* 3. COMPETITIONS DROPDOWN */}
@@ -499,16 +490,6 @@ export default function App() {
                 isActive={activeTab === 'admin'}
               >
                 <NavLink 
-                  href="/admin/operation-settings" 
-                  onClick={() => {
-                    setActiveTab('admin');
-                    setAdminSubTab('operations');
-                  }}
-                  isActive={activeTab === 'admin' && adminSubTab === 'operations'}
-                >
-                  Operation Settings
-                </NavLink>
-                <NavLink 
                   href="/admin/user-settings" 
                   onClick={() => {
                     setActiveTab('admin');
@@ -546,7 +527,7 @@ export default function App() {
                   </div>
                   <span className="min-w-[80px] text-left">
                     {activeTab === 'admin' 
-                      ? `Admin: ${adminSubTab === 'operations' ? 'Operations' : adminSubTab === 'users' ? 'Users' : 'Logs'}`
+                      ? `Admin: ${adminSubTab === 'users' ? 'Users' : 'Logs'}`
                       : availableTabs.find(t => t.id === activeTab)?.label
                     }
                   </span>
@@ -576,7 +557,7 @@ export default function App() {
                           onClick={() => {
                             setActiveTab(tab.id as any);
                             if (tab.id === 'admin') {
-                              setAdminSubTab('operations');
+                              setAdminSubTab('users');
                             }
                             setIsMobileNavOpen(false);
                           }}
@@ -681,16 +662,13 @@ export default function App() {
             <DispatchBoard 
               key={currentDealershipId || 'hyundai'}
               currentDealershipId={currentDealershipId || 'hyundai'}
+              customers={customers}
               showNotification={(msg, isError) => showNotification(msg, isError)}
             />
           )}
 
           {activeTab === 'vin-search' && (
             <VinLookup />
-          )}
-
-          {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
           )}
 
           {activeTab === 'pot-of-gold' && (

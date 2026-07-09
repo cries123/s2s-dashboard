@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2, ShieldAlert
+  BarChart2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -27,10 +27,11 @@ import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
 import ProfileModal from './components/modals/ProfileModal';
+import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
-import { VehicleRecalls } from './components/dashboard/customers/VehicleRecalls';
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
+import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
@@ -44,7 +45,13 @@ import {
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
+import { AppSidebar } from './components/layout/AppSidebar';
+import { AppTopBar } from './components/layout/AppTopBar';
+import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
+import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
 import { buildMobileNavSections } from './lib/mobileNavSections';
+import { isPreviewMode } from './lib/previewMode';
+import type { SidebarNavItem } from './lib/sidebarNav';
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
 import {
   type AdminSubTab,
@@ -158,7 +165,13 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 }
 
 function DashboardShell({ user }: { user: User }) {
-  const initialRoute = React.useMemo(() => readInitialAppRoute(), []);
+  const initialRoute = React.useMemo(() => {
+    const route = readInitialAppRoute();
+    if (isPreviewMode) {
+      return { ...route, activeTab: 'dispatch' as AppTab };
+    }
+    return route;
+  }, []);
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'users');
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
@@ -188,6 +201,12 @@ function DashboardShell({ user }: { user: User }) {
     setCurrentDealershipId(dealershipId);
     storeDealershipId(dealershipId);
   }, []);
+
+  React.useEffect(() => {
+    if (isPreviewMode) {
+      selectDealership('ford');
+    }
+  }, [selectDealership]);
 
   // Sync current dealership with user's dealership on load
   React.useEffect(() => {
@@ -241,7 +260,16 @@ function DashboardShell({ user }: { user: User }) {
     currentDealershipId || 'hyundai',
     dealershipSettings
   );
-  const serviceAlerts = useServiceAlertInterval(mergedDealershipSettings.serviceAlertIntervalDays);
+
+  const handleSidebarNavigate = React.useCallback((item: SidebarNavItem) => {
+    setActiveTab(item.tab);
+    if (item.adminSubTab) setAdminSubTab(item.adminSubTab);
+    if (item.managerSubTab) {
+      setManagerSubTab(item.managerSubTab);
+      if (item.managerSubTab === 'team') setManagerDashboardSubTab('users');
+    }
+  }, []);
+  const serviceAlerts = useServiceAlertInterval();
   const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
@@ -305,6 +333,7 @@ function DashboardShell({ user }: { user: User }) {
 
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
 
   const showNotification = (text: string, isError = false) => {
@@ -351,335 +380,45 @@ function DashboardShell({ user }: { user: User }) {
   const currentUser = user;
 
   return (
-    <div className="min-h-screen bg-surface-base text-slate-200 selection:bg-brand-primary selection:text-white relative overflow-x-hidden md:overflow-x-visible">
-      {/* Aesthetic Background Elements */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-primary/5 blur-[120px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-brand-secondary/5 blur-[100px] rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-[30%] right-[10%] w-[20%] h-[20%] bg-indigo-500/5 blur-[80px] rounded-full animate-pulse" style={{ animationDelay: '2s' }} />
-      </div>
+    <ServiceAlertProvider>
+    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
+      <AppSidebar
+        dealershipName={currentDealership.name}
+        activeTab={activeTab}
+        adminSubTab={adminSubTab}
+        managerSubTab={managerSubTab}
+        modules={modules}
+        currentDealershipId={currentDealershipId}
+        enableDispatchTab={dealershipSettings?.enableDispatchTab !== false}
+        showManager={canSeeManagerPanel(user)}
+        showAdmin={canAccessPrimaryAdminSettings(currentUser)}
+        activeAlertsCount={activeAlertsCount}
+        canSwitchDealership={canSwitchDealership(currentUser)}
+        onDealershipChange={(id) => {
+          selectDealership(id);
+          showNotification(`Switched to ${DEALERSHIPS.find((d) => d.id === id)?.name || id}`);
+        }}
+        onNavigate={handleSidebarNavigate}
+      />
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 shadow-xl shadow-black/20">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-3 flex items-center justify-between gap-4 relative">
-          {/* Logo Section */}
-          <div className="flex items-center gap-3 shrink-0 relative">
-            <button 
-              onClick={() => {
-                if (canSwitchDealership(currentUser)) {
-                  setIsDealershipDropdownOpen(!isDealershipDropdownOpen);
-                } else {
-                  showNotification("Only system admins can switch dealerships.", true);
-                }
-              }}
-              className={cn(
-                "w-10 h-10 bg-brand-primary rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25 border border-white/10 transition-all z-50",
-                canSwitchDealership(currentUser) ? "hover:scale-110 active:scale-95 cursor-pointer" : "opacity-80 cursor-default"
-              )}
-            >
-              <LayoutDashboard className="text-white" size={20} />
-            </button>
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <AppTopBar
+        user={currentUser}
+        dealershipName={currentDealership.name}
+        currentDealershipId={currentDealershipId}
+        enrollmentJoinCode={mergedDealershipSettings.enrollmentJoinCode}
+        onDealershipChange={(id) => {
+          selectDealership(id);
+          showNotification(`Switched to ${DEALERSHIPS.find((d) => d.id === id)?.name || id}`);
+        }}
+        onSignOut={handleSignOut}
+        onOpenSuggestions={() => setShowSuggestionModal(true)}
+      />
 
-            <AnimatePresence>
-              {isDealershipDropdownOpen && canSwitchDealership(currentUser) && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-[40]" 
-                    onClick={() => setIsDealershipDropdownOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: 10, x: -20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: 10, x: -20 }}
-                    className="absolute top-12 left-0 w-64 bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-[50]"
-                  >
-                    <div className="px-4 py-2 border-b border-white/5 bg-slate-800/50">
-                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Select Dealership</span>
-                    </div>
-                    {DEALERSHIPS.map((dealership) => (
-                      <button
-                        key={dealership.id}
-                        onClick={() => {
-                          selectDealership(dealership.id);
-                          setIsDealershipDropdownOpen(false);
-                          showNotification(`Switched to ${dealership.name}`);
-                        }}
-                        className={cn(
-                          "w-full text-left px-4 py-3 text-[10px] font-black uppercase tracking-widest transition-all border-b border-white/5 last:border-0 hover:bg-white/5",
-                          currentDealershipId === dealership.id ? "text-brand-primary bg-brand-primary/5" : "text-slate-400"
-                        )}
-                      >
-                        {dealership.name}
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-
-            <div className="block min-w-0">
-              <h1 className="text-base font-black text-white leading-none tracking-tighter uppercase whitespace-nowrap">
-                S2S <span className="text-brand-primary">Dashboard</span>
-              </h1>
-              <p className="text-[7.5px] lg:text-[8px] font-bold text-slate-500 uppercase tracking-wider mt-1 max-w-[124px] xl:max-w-none truncate">{currentDealership.name}</p>
-            </div>
-          </div>
-
-          {/* Navigation Section */}
-          <nav className="flex-1 hidden md:flex items-center justify-center gap-1.5 px-2">
-            
-            {/* 1. SALES DROPDOWN */}
-            <NavDropdown 
-              label="Sales" 
-              isActive={activeTab === 'add' || activeTab === 'vin-search'}
-            >
-              <NavLink 
-                href="/sales/onboard" 
-                onClick={() => setActiveTab('add')}
-                isActive={activeTab === 'add'}
-              >
-                Onboard
-              </NavLink>
-              {modules.showVinSearchTab && (
-                <NavLink 
-                  href="/sales/vin-search" 
-                  onClick={() => setActiveTab('vin-search')}
-                  isActive={activeTab === 'vin-search'}
-                >
-                  VIN Search
-                </NavLink>
-              )}
-            </NavDropdown>
-
-            {/* 2. SERVICE DROPDOWN */}
-            <NavDropdown 
-              label="Service" 
-              isActive={activeTab === 'search' || activeTab === 'alerts' || activeTab === 'dispatch' || activeTab === 'recalls'}
-            >
-              <NavLink 
-                href="/service/directory" 
-                onClick={() => setActiveTab('search')}
-                isActive={activeTab === 'search'}
-              >
-                Directory
-              </NavLink>
-              <NavLink 
-                href="/service/alerts" 
-                onClick={() => setActiveTab('alerts')}
-                isActive={activeTab === 'alerts'}
-                badge={activeAlertsCount}
-              >
-                Alerts
-              </NavLink>
-              {dealershipSettings?.enableDispatchTab !== false && (
-                <NavLink 
-                  href="/service/dispatch" 
-                  onClick={() => setActiveTab('dispatch')}
-                  isActive={activeTab === 'dispatch'}
-                >
-                  Dispatch
-                </NavLink>
-              )}
-              <NavLink 
-                href="/service/recalls" 
-                onClick={() => setActiveTab('recalls')}
-                isActive={activeTab === 'recalls'}
-              >
-                Recalls
-              </NavLink>
-            </NavDropdown>
-
-            {/* 3. COMPETITIONS DROPDOWN */}
-            {currentDealershipId === 'hyundai' && modules.showPotOfGoldTab && (
-              <NavDropdown 
-                label="Competitions" 
-                isActive={activeTab === 'pot-of-gold'}
-              >
-                <NavLink 
-                  href="/competitions/pot-of-gold" 
-                  onClick={() => setActiveTab('pot-of-gold')}
-                  isActive={activeTab === 'pot-of-gold'}
-                >
-                  Pot of Gold
-                </NavLink>
-              </NavDropdown>
-            )}
-
-            {/* 4. REPORTS DROPDOWN */}
-            <NavDropdown 
-              label="Reports" 
-              isActive={activeTab === 'appointments' || activeTab === 'forecast' || activeTab === 'sales-performance'}
-            >
-              <NavLink 
-                href="/reports/operations" 
-                onClick={() => setActiveTab('appointments')}
-                isActive={activeTab === 'appointments'}
-              >
-                Operations
-              </NavLink>
-              {modules.showSalesPerformanceTab && (
-                <NavLink 
-                  href="/reports/sales-performance" 
-                  onClick={() => setActiveTab('sales-performance')}
-                  isActive={activeTab === 'sales-performance'}
-                >
-                  Sales Performance
-                </NavLink>
-              )}
-              {modules.showForecastTab && (
-                <NavLink 
-                  href="/reports/forecast" 
-                  onClick={() => setActiveTab('forecast')}
-                  isActive={activeTab === 'forecast'}
-                >
-                  Forecast
-                </NavLink>
-              )}
-            </NavDropdown>
-
-            {/* 5. MANAGER DROPDOWN */}
-            {canSeeManagerPanel(user) && (
-              <NavDropdown 
-                label="Manager" 
-                isActive={activeTab === 'manager'}
-              >
-                <NavLink 
-                  href="/manager/operations" 
-                  onClick={() => {
-                    setActiveTab('manager');
-                    setManagerSubTab('operations');
-                  }}
-                  isActive={activeTab === 'manager' && managerSubTab === 'operations'}
-                >
-                  Operation Settings
-                </NavLink>
-                <NavLink 
-                  href="/manager/preferences" 
-                  onClick={() => {
-                    setActiveTab('manager');
-                    setManagerSubTab('preferences');
-                  }}
-                  isActive={activeTab === 'manager' && managerSubTab === 'preferences'}
-                >
-                  Preferences
-                </NavLink>
-                <NavLink 
-                  href="/manager/team" 
-                  onClick={() => {
-                    setActiveTab('manager');
-                    setManagerSubTab('team'); setManagerDashboardSubTab('users');
-                  }}
-                  isActive={activeTab === 'manager' && managerSubTab === 'team'}
-                >
-                  Team Approvals
-                </NavLink>
-                <NavLink 
-                  href="/manager/logs" 
-                  onClick={() => {
-                    setActiveTab('manager');
-                    setManagerSubTab('logs');
-                  }}
-                  isActive={activeTab === 'manager' && managerSubTab === 'logs'}
-                >
-                  Logs
-                </NavLink>
-              </NavDropdown>
-            )}
-
-          </nav>
-
-          {/* Mobile header: page title hidden — bottom nav shows section */}
-          <div className="flex-1 md:hidden min-w-0" aria-hidden="true" />
-
-          {/* Profile Section */}
-          <div className="flex items-center gap-3 shrink-0 pl-3 border-l border-white/10 relative">
-            {canAccessPrimaryAdminSettings(currentUser) && (
-              <div className="relative z-[60]" ref={adminMenuRef}>
-                <button
-                  onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
-                  className={cn(
-                    'w-9 h-9 flex items-center justify-center border rounded-lg transition-all shadow-sm',
-                    activeTab === 'admin'
-                      ? 'bg-brand-primary/20 border-brand-primary/40 text-brand-primary'
-                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-brand-primary/10 hover:border-brand-primary/30'
-                  )}
-                  title="Admin Settings"
-                >
-                  <Settings size={16} />
-                </button>
-                <AnimatePresence>
-                  {isAdminMenuOpen && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0, y: 6, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 6, scale: 0.95 }}
-                        className="absolute right-0 top-11 w-52 rounded-2xl bg-slate-900 border border-white/10 shadow-2xl overflow-hidden z-[60] py-1.5 p-1"
-                      >
-                        <NavLink href="/admin/users" onClick={() => { setActiveTab('admin'); setAdminSubTab('users'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'users'}>
-                          User Settings
-                        </NavLink>
-                        <NavLink
-                          href="/admin/master-users"
-                          onClick={() => {
-                            setActiveTab('admin');
-                            setAdminSubTab('master-users');
-                            setIsAdminMenuOpen(false);
-                          }}
-                          isActive={activeTab === 'admin' && adminSubTab === 'master-users'}
-                        >
-                          Master Users
-                        </NavLink>
-                        <NavLink
-                          href="/admin/ai-usage"
-                          onClick={() => {
-                            setActiveTab('admin');
-                            setAdminSubTab('ai-usage');
-                            setIsAdminMenuOpen(false);
-                          }}
-                          isActive={activeTab === 'admin' && adminSubTab === 'ai-usage'}
-                        >
-                          AI Usage
-                        </NavLink>
-                        <NavLink
-                          href="/admin/import-history"
-                          onClick={() => {
-                            setActiveTab('admin');
-                            setAdminSubTab('import-history');
-                            setIsAdminMenuOpen(false);
-                          }}
-                          isActive={activeTab === 'admin' && adminSubTab === 'import-history'}
-                        >
-                          Import History
-                        </NavLink>
-                        <NavLink href="/admin/logs" onClick={() => { setActiveTab('admin'); setAdminSubTab('logs'); setIsAdminMenuOpen(false); }} isActive={activeTab === 'admin' && adminSubTab === 'logs'}>
-                          Audit Logs
-                        </NavLink>
-                      </motion.div>
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-             <div className="hidden lg:flex flex-col items-end">
-               <p className="text-[10px] font-black text-white leading-none uppercase tracking-tight">{currentUser.username}</p>
-               <div className="flex items-center gap-1 mt-1">
-                  <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
-                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">{currentUser.jobTitle}</p>
-               </div>
-             </div>
-             
-
-             <button 
-               onClick={handleSignOut}
-               className="w-9 h-9 flex items-center justify-center bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-rose-500/20 hover:border-rose-500/30 rounded-lg transition-all shadow-sm"
-               title="Sign Out"
-             >
-               <LogOut size={16} />
-             </button>
-          </div>
-        </div>
-      </header>
+      <DealershipAnnouncementBanner
+        dealershipId={currentDealershipId || 'hyundai'}
+        announcement={dealershipSettings?.announcement}
+      />
 
       {/* Main Content */}
       <main className="section-container animate-fade-in app-main-with-mobile-nav">
@@ -713,12 +452,14 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'alerts' && (
-            <ServiceAlerts 
-              customers={customers} 
-              currentUser={currentUser} 
+            <ServiceAlerts
+              customers={customers}
+              currentUser={currentUser}
               onViewProfile={setSelectedProfile}
-              onViewLog={c => setSelectedProfile(c)}
-              onRefresh={(msg, isError) => showNotification(msg || "Alerts updated successfully.", isError)}
+              onViewLog={(c) => setSelectedProfile(c)}
+              onRefresh={(msg, isError) =>
+                showNotification(msg || 'Alerts updated successfully.', isError)
+              }
             />
           )}
 
@@ -742,10 +483,6 @@ function DashboardShell({ user }: { user: User }) {
               customers={customers}
               showNotification={(msg, isError) => showNotification(msg, isError)}
             />
-          )}
-
-          {activeTab === 'recalls' && (
-            <VehicleRecalls onViewProfile={setSelectedProfile} />
           )}
 
           {activeTab === 'vin-search' && (
@@ -778,6 +515,7 @@ function DashboardShell({ user }: { user: User }) {
             <ManagerDashboard
               activeSubTab={managerDashboardSubTab}
               onChangeSubTab={setManagerDashboardSubTab}
+              currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
             />
@@ -832,6 +570,16 @@ function DashboardShell({ user }: { user: User }) {
         />
       )}
 
+      {showSuggestionModal && (
+        <SuggestionModal
+          user={currentUser}
+          dealershipId={currentDealershipId || currentUser.dealershipId || 'hyundai'}
+          onClose={() => setShowSuggestionModal(false)}
+          onSuccess={(msg) => showNotification(msg)}
+          onError={(msg) => showNotification(msg, true)}
+        />
+      )}
+
       <MobileBottomNav
         activeTab={activeTab}
         managerSubTab={managerSubTab}
@@ -846,7 +594,9 @@ function DashboardShell({ user }: { user: User }) {
           }
         }}
       />
+      </div>
     </div>
+    </ServiceAlertProvider>
   );
 }
 
@@ -857,13 +607,13 @@ export default function AuthenticatedApp() {
     return <LoadingScreen />;
   }
 
-  if (!user) {
+  if (!user && !isPreviewMode) {
     return <LoginView />;
   }
 
   return (
-    <PreferencesProvider user={user}>
-      <DashboardShell user={user} />
+    <PreferencesProvider user={user!}>
+      <DashboardShell user={user!} />
     </PreferencesProvider>
   );
 }

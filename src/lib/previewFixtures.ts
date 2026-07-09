@@ -1,0 +1,180 @@
+import { Timestamp } from 'firebase/firestore';
+import type { Customer, DealershipSettings, DispatchRepairOrder, User } from '../types';
+import { getDispatchDatePst } from './dispatchPst';
+
+const previewNow = Timestamp.now();
+
+export const PREVIEW_CUSTOMERS: Customer[] = [
+  {
+    id: 'preview-cust-manion',
+    firstName: '',
+    lastName: 'Manion',
+    phone: '',
+    email: '',
+    make: 'Ford',
+    model: 'F-150',
+    year: '2022',
+    vinLast8: 'G2054992',
+    soldDate: '2023-01-15',
+    language: 'English',
+    enableServiceAlert: false,
+    serviceAlertTriggered: false,
+    createdAt: previewNow,
+    addedBy: 'preview-user',
+    dealershipId: 'ford',
+  },
+];
+
+export const PREVIEW_USER: User = {
+  uid: 'preview-user',
+  email: 'preview@local.dev',
+  username: 'Preview User',
+  role: 'admin',
+  jobTitle: 'Preview',
+  status: 'approved',
+  dealershipId: 'ford',
+};
+
+export function buildPreviewDispatchOrders(
+  dealershipId: string,
+  businessDate: string
+): DispatchRepairOrder[] {
+  const base = {
+    dealershipId,
+    lifecycleStatus: 'active' as const,
+    status: 'WIP' as const,
+    isCompleted: false,
+    isWaiting: false,
+    isPdl: false,
+    dateCreated: businessDate,
+    lastUpdated: new Date().toISOString(),
+  };
+
+  return [
+    {
+      ...base,
+      id: 'preview-queue-1',
+      roNumber: '883710',
+      techNumber: '8508',
+      tagNumber: 'A-100',
+      customerLastName: 'Martinez',
+      customerName: 'Martinez',
+      department: 'unassigned',
+      currentLaneId: 'unassigned',
+      concern: 'Oil change and tire rotation',
+    },
+    {
+      ...base,
+      id: 'preview-lube-1',
+      roNumber: '883715',
+      techNumber: '8485',
+      tagNumber: '8082',
+      customerLastName: 'Manion',
+      customerName: 'MANION',
+      department: 'lube',
+      currentLaneId: 'lube',
+      promiseTimeAt: new Date(Date.now() - 45 * 60_000).toISOString(),
+      concern: 'Check engine light — customer reports rough idle',
+    },
+    {
+      ...base,
+      id: 'preview-lube-2',
+      roNumber: '883720',
+      techNumber: '8485',
+      tagNumber: '8090',
+      customerLastName: 'Chen',
+      customerName: 'Chen',
+      department: 'lube',
+      currentLaneId: 'lube',
+      status: 'POO',
+      isWaiting: true,
+      promiseTimeAt: new Date(Date.now() + 90 * 60_000).toISOString(),
+    },
+    {
+      ...base,
+      id: 'preview-quick-1',
+      roNumber: '883725',
+      techNumber: '7178',
+      tagNumber: 'B-220',
+      customerLastName: 'Williams',
+      customerName: 'Williams',
+      department: 'quick_service',
+      currentLaneId: 'quick_service',
+    },
+    {
+      ...base,
+      id: 'preview-heavy-1',
+      roNumber: '883801',
+      techNumber: '8510',
+      tagNumber: 'C-441',
+      customerLastName: 'Garcia',
+      customerName: 'Garcia',
+      department: 'heavyline',
+      currentLaneId: 'heavyline',
+    },
+    {
+      ...base,
+      id: 'preview-heavy-2',
+      roNumber: '883812',
+      techNumber: '8512',
+      tagNumber: 'C-455',
+      customerLastName: 'Thompson',
+      customerName: 'Thompson',
+      department: 'heavyline',
+      currentLaneId: 'heavyline',
+    },
+    {
+      ...base,
+      id: 'preview-diesel-1',
+      roNumber: '883830',
+      techNumber: '8520',
+      tagNumber: 'D-118',
+      vinLastEight: 'A1234567',
+      customerLastName: 'Rivera',
+      customerName: 'Rivera',
+      department: 'diesel',
+      currentLaneId: 'diesel',
+    },
+    {
+      ...base,
+      id: 'preview-trans-1',
+      roNumber: '883845',
+      techNumber: '8533',
+      tagNumber: 'E-902',
+      customerLastName: 'Patel',
+      customerName: 'Patel',
+      department: 'trans',
+      currentLaneId: 'trans',
+      concern: 'Transmission slip under load',
+    },
+    {
+      ...base,
+      id: 'preview-down-1',
+      roNumber: '883860',
+      techNumber: '8402',
+      tagNumber: 'F-330',
+      customerLastName: 'Lopez',
+      customerName: 'Lopez',
+      department: 'down_in_shop',
+      currentLaneId: 'down_in_shop',
+      concern: 'Head gasket — waiting on parts',
+    },
+    {
+      ...base,
+      id: 'preview-done-1',
+      roNumber: '883700',
+      techNumber: '8485',
+      tagNumber: 'Z-001',
+      customerLastName: 'Nguyen',
+      customerName: 'Nguyen',
+      department: 'lube',
+      currentLaneId: 'lube',
+      isCompleted: true,
+    },
+  ];
+}
+
+export const PREVIEW_DEALERSHIP_SETTINGS: Partial<DealershipSettings> = {
+  id: 'ford',
+  appointmentTarget: 20,
+};

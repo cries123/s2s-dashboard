@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Trophy, Users, Settings, BarChart3, Target, DollarSign, 
   ChevronRight, TrendingUp, Save, Trash2, Download, Upload,
@@ -8,9 +8,14 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
+import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { PageHeader } from '../../layout/PageHeader';
+import { KpiStrip } from '../../ui/KpiStrip';
+import { PageSkeleton } from '../../ui/Skeleton';
+import { buildOperationsViewPeriodOptions, formatArchiveDisplayLabel } from '../../../lib/operationsViewPeriod';
 
 interface PerformanceRow {
   code: string;
@@ -54,6 +59,7 @@ interface PotOfGoldProps {
 export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
   const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<string>('active');
+  const viewPeriodOptions = useMemo(() => buildOperationsViewPeriodOptions(), []);
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -251,12 +257,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
         await saveToFirestore({ advData: newAdvData });
         setSuccessMessage(`Analysis Complete: ${file.name}`);
+        await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
+          filename: file.name,
+          importKind: 'pot_of_gold',
+          userEmail: user?.email,
+        });
       } else {
         throw new Error("Could not find advisor data in this report.");
       }
     } catch (error: any) {
       console.error("Processing Error:", error);
-      alert(error.message);
+      const message = error.message || 'Import failed.';
+      void recordDmsImportFailure(currentDealershipId || 'hyundai', {
+        filename: file.name,
+        importKind: 'pot_of_gold',
+        error: message,
+        userEmail: user?.email,
+      });
+      alert(message);
     } finally {
       setIsAiProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -283,16 +301,16 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   }));
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <Loader2 className="animate-spin text-brand-primary" size={32} />
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Syncing Pot of Gold Data...</p>
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   return (
     <div className="space-y-8 pb-20 relative">
+      <PageHeader
+        title="Pot of Gold"
+        description="Track advisor upsells, technician contributions, and competition payouts."
+        breadcrumbs={[{ label: 'Competitions' }, { label: 'Pot of Gold' }]}
+      />
       {/* Custom Confirmation Modal */}
       <AnimatePresence>
         {showClearConfirm && (
@@ -385,9 +403,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="h-9 px-3 bg-slate-950 border border-slate-850 text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer hover:border-slate-750 transition-all"
               >
-                <option value="active">June 2026 (Active)</option>
-                <option value="2026-05">May 2026 (Saved)</option>
-                <option value="2026-04">April 2026 (Saved)</option>
+                {viewPeriodOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -434,32 +454,21 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-950 border border-slate-800 rounded-2xl shadow-xl">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
               <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
-                🔒 VIEWING HISTORY ARCHIVE ({selectedMonth === '2026-05' ? 'MAY 2026' : selectedMonth === '2026-04' ? 'APRIL 2026' : selectedMonth.toUpperCase()} - READ ONLY)
+                🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
               </span>
             </div>
           )}
         </div>
 
-        {/* Global Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mt-8 md:mt-10">
-          {[
-            { label: 'Shop Upsells', value: advTotals.grand, icon: Zap, color: 'text-brand-primary' },
-            { label: 'Frank Total', value: advTotals.frank, icon: Users, color: 'text-slate-200' },
-            { label: 'Lemmy Total', value: advTotals.lemmy, icon: Users, color: 'text-slate-200' },
-            { label: 'Pot of Gold', value: `$${advEarnings.grand.toLocaleString()}`, icon: DollarSign, color: 'text-emerald-400', highlight: true },
-          ].map((stat, i) => (
-            <div key={i} className={cn(
-              "p-4 rounded-2xl border transition-all",
-              stat.highlight ? "bg-brand-primary/10 border-brand-primary/30 shadow-lg shadow-brand-primary/10" : "bg-slate-950/50 border-slate-800"
-            )}>
-              <div className="flex items-center gap-2 mb-2">
-                <stat.icon size={12} className={stat.color} />
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">{stat.label}</p>
-              </div>
-              <p className={cn("text-xl font-black leading-none", stat.color)}>{stat.value}</p>
-            </div>
-          ))}
-        </div>
+        <KpiStrip
+          className="mt-8 md:mt-10"
+          tiles={[
+            { label: 'Shop upsells', value: String(advTotals.grand), tone: 'info' },
+            { label: 'Frank total', value: String(advTotals.frank) },
+            { label: 'Lemmy total', value: String(advTotals.lemmy) },
+            { label: 'Pot of gold', value: `$${advEarnings.grand.toLocaleString()}`, tone: 'success' },
+          ]}
+        />
       </div>
 
       {/* Sub-Tabs Navigation */}

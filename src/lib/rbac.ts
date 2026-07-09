@@ -200,7 +200,8 @@ export function canAccessPrimaryAdminSettings(user: User | null | undefined): bo
 }
 
 export function canSwitchDealership(user: User | null | undefined): boolean {
-  return isPrimaryAdmin(user);
+  if (!user) return false;
+  return isPrimaryAdmin(user) || isPlatformAdmin(user) || user.role === 'admin';
 }
 
 export function isPendingManagerEnrollment(user: User): boolean {
@@ -214,9 +215,19 @@ export function isPendingStaffEnrollment(user: User): boolean {
   return isPendingUser(user) && !isPendingManagerEnrollment(user);
 }
 
+export function resolveScopeTenantId(
+  actor: User | null | undefined,
+  currentDealershipId?: string | null
+): TenantId {
+  if (canSwitchDealership(actor) && currentDealershipId) {
+    return tenantIdFromDealershipId(currentDealershipId);
+  }
+  return resolveUserTenantId(actor);
+}
+
 export function canModifyUser(actor: User | null | undefined, target: User): boolean {
   if (!actor || isProtectedUser(target)) return false;
-  if (isPrimaryAdmin(actor)) return true;
+  if (isPrimaryAdmin(actor) || isPlatformAdmin(actor)) return true;
   if (!isManager(actor)) return false;
   if (resolveUserDealershipId(actor) !== resolveUserDealershipId(target)) return false;
   return (
