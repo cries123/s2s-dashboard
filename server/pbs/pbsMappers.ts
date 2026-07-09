@@ -105,37 +105,33 @@ export function repairOrderSoNumber(ro: PbsRepairOrder): string {
   return String(raw).replace(/^SO/i, '').trim();
 }
 
-/** Lot prep / PDI — not retail customer service history. */
-export function isExcludedPbsServiceVisit(requests: string, mileage = 0): boolean {
-  const text = (requests || '').toUpperCase();
-  if (!text) return false;
-
-  if (
-    text.includes('PRE-DELIVERY') ||
-    text.includes('PREDELIVERY') ||
-    text.includes('PRE DELIVERY') ||
-    text.includes('MANUFACTURER PRE-DELIVERY') ||
-    /\bPDI\b/.test(text)
-  ) {
-    return true;
-  }
-
-  // Recon lane safety/battery work at delivery mileage — not owner service visits.
-  if (mileage > 0 && mileage < 75 && text.includes('USED VEHICLE SAFETY INSPECTION')) {
-    return true;
-  }
-
-  return false;
+export function isPbsImportedServiceVisit(visit: { id?: unknown }): boolean {
+  return String(visit.id || '').startsWith('pbs-');
 }
 
-export function filterRetailServiceVisits<T extends { requests?: unknown; mileage?: unknown }>(
-  visits: T[] | undefined
-): T[] {
-  return (visits || []).filter((visit) => {
-    const requests = String(visit.requests || '');
-    const mileage = Number(visit.mileage) || 0;
-    return !isExcludedPbsServiceVisit(requests, mileage);
+/** Keep manual visits and PBS visits for this vehicle only. */
+export function mergeVehiclePbsServiceVisits(
+  existing: Array<Record<string, unknown>> | undefined,
+  incoming: Array<Record<string, unknown>>,
+  vehicleRef: string,
+  maxVisits = 25
+): Array<Record<string, unknown>> {
+  const normalizedVehicleRef = vehicleRef.trim();
+  const refreshingVehicle = incoming.length > 0;
+
+  const retainedExisting = (existing || []).filter((visit) => {
+    if (!isPbsImportedServiceVisit(visit)) return true;
+
+    const visitVehicleRef = String(visit.pbsVehicleRef || '').trim();
+    if (!visitVehicleRef) {
+      // Legacy PBS rows (pre vehicle-only matching) — drop when this vehicle is being refreshed.
+      return !refreshingVehicle;
+    }
+
+    return visitVehicleRef === normalizedVehicleRef;
   });
+
+  return mergeServiceVisits(retainedExisting, incoming, maxVisits);
 }
 
 export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
@@ -160,8 +156,6 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
       .map((r) => r.RequestDescription?.trim())
       .filter(Boolean)
       .join('; ') || 'Service visit';
-
-  if (isExcludedPbsServiceVisit(requests, mileage)) return null;
 
   return {
     soNumber,
@@ -257,11 +251,9 @@ export function mergeServiceVisits(
     }
   }
 
-  return filterRetailServiceVisits(
-    Array.from(bySo.values())
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-      .slice(0, maxVisits)
-  );
+  return Array.from(bySo.values())
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    .slice(0, maxVisits);
 }
 
 export function latestVisitDate(visits: Array<{ date?: string }>): string | undefined {

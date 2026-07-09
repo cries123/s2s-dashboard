@@ -14,8 +14,8 @@ import {
   mapContactVehicleToCustomerFields,
   mapRepairOrderToVisit,
   mergeServiceVisits,
+  mergeVehiclePbsServiceVisits,
   normalizePhone,
-  filterRetailServiceVisits,
 } from './pbsMappers.js';
 import {
   customerBelongsToPbsSyncDealership,
@@ -481,6 +481,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         mileage: visit.mileage,
         advisor: visit.advisor,
         requests: visit.requests,
+        pbsVehicleRef: vehicleRef,
         createdAt: Timestamp.now(),
       });
       visitsByCustomer.set(customerId, list);
@@ -489,18 +490,18 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     const visitWrites: Array<(batch: WriteBatch) => void> = [];
     for (const [customerId, incomingVisits] of visitsByCustomer) {
       const existing = index.dataById.get(customerId) || {};
-      const merged = mergeServiceVisits(
+      const merged = mergeVehiclePbsServiceVisits(
         existing.recentVisits as Array<Record<string, unknown>> | undefined,
         incomingVisits,
+        customerVehicleRef || vehicleRef,
         MAX_RECENT_VISITS
       );
-      const retailVisits = filterRetailServiceVisits(merged);
-      if (retailVisits.length === 0) continue;
+      if (merged.length === 0) continue;
 
-      const latestDate = latestVisitDate(retailVisits as Array<{ date?: string }>);
-      const latestMileage = retailVisits[0]?.mileage;
+      const latestDate = latestVisitDate(merged as Array<{ date?: string }>);
+      const latestMileage = merged[0]?.mileage;
       const patch = stripUndefinedDeep({
-        recentVisits: retailVisits,
+        recentVisits: merged,
         pbsSyncedAt: startedAt,
         ...(latestDate ? { lastServiceDate: latestDate } : {}),
         ...(typeof latestMileage === 'number' && latestMileage > 0

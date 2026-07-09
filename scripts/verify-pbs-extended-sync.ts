@@ -4,9 +4,8 @@
  */
 import { mapPbsOpenRepairOrderToDispatch, mapPbsDispatchStatus, mapPbsDepartment } from '../server/pbs/pbsDispatchMapper.js';
 import {
-  filterRetailServiceVisits,
-  isExcludedPbsServiceVisit,
   mapRepairOrderToVisit,
+  mergeVehiclePbsServiceVisits,
 } from '../server/pbs/pbsMappers.js';
 import {
   isActivePbsWorkplanReminder,
@@ -44,25 +43,13 @@ assert(mapPbsReminderDueDate('2026-08-15T00:00:00.0000000-07:00') === '2026-08-1
 assert(isInventoryPbsVehicle({ Status: 'In Stock', Inventory: 1 }), 'inventory vehicle by status');
 assert(!isInventoryPbsVehicle({ Status: 'Sold', IsInactive: false }), 'sold vehicle excluded');
 
-assert(
-  isExcludedPbsServiceVisit('PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.', 8),
-  'excludes PDI visits'
-);
-assert(
-  !isExcludedPbsServiceVisit(
-    'PERFORM SMOG INSPECTION.; PERFORM OIL/FILTER CHANGE',
-    24464
-  ),
-  'keeps retail service visits'
-);
-
 const pdiVisit = mapRepairOrderToVisit({
   RawRepairOrderNumber: '117828',
   DateCashiered: '2026-06-29T18:00:00.0000000-07:00',
   MileageOut: 8,
   Requests: [{ RequestDescription: 'PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.' }],
 });
-assert(pdiVisit === null, 'mapRepairOrderToVisit drops PDI');
+assert(pdiVisit?.mileage === 8, 'keeps PDI visits for the matched vehicle');
 
 const retailVisit = mapRepairOrderToVisit({
   RawRepairOrderNumber: '117778',
@@ -72,11 +59,35 @@ const retailVisit = mapRepairOrderToVisit({
 });
 assert(retailVisit?.mileage === 24464, 'keeps retail visit mileage');
 
-const cleaned = filterRetailServiceVisits([
-  { date: '2026-06-29', soNumber: '117828', mileage: 8, requests: 'PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.' },
-  { date: '2026-06-29', soNumber: '117778', mileage: 24464, requests: 'PERFORM OIL/FILTER CHANGE' },
-]);
-assert(cleaned.length === 1 && cleaned[0].mileage === 24464, 'filters mixed visit log');
+const merged = mergeVehiclePbsServiceVisits(
+  [
+    { id: 'pbs-999', soNumber: '999', mileage: 34, date: '2026-06-28', requests: 'Wrong vehicle recall' },
+    { id: 'manual-1', soNumber: 'M1', mileage: 12000, date: '2026-05-01', requests: 'Manual entry' },
+  ],
+  [
+    { id: 'pbs-117828', soNumber: '117828', mileage: 8, date: '2026-06-29', requests: 'PERFORM MANUFACTURER PRE-DELIVERY INSPECTION.', pbsVehicleRef: 'veh-1' },
+    { id: 'pbs-117778', soNumber: '117778', mileage: 24464, date: '2026-06-29', requests: 'PERFORM OIL/FILTER CHANGE', pbsVehicleRef: 'veh-1' },
+  ],
+  'veh-1'
+);
+assert(merged.some((visit) => visit.soNumber === 'M1'), 'preserves manual visits');
+assert(!merged.some((visit) => visit.soNumber === '999'), 'drops stale PBS visits from other vehicles');
+assert(merged.some((visit) => visit.soNumber === '117828'), 'keeps PDI PBS visits for this vehicle');
+assert(merged.some((visit) => visit.soNumber === '117778'), 'keeps retail PBS visits');
+
+const legacyMerged = mergeVehiclePbsServiceVisits(
+  [{ id: 'pbs-old', soNumber: 'OLD', mileage: 500, date: '2026-01-01', requests: 'Legacy visit' }],
+  [],
+  'veh-1'
+);
+assert(legacyMerged.some((visit) => visit.soNumber === 'OLD'), 'keeps legacy PBS visits until this vehicle is refreshed');
+
+const wrongVehicle = mergeVehiclePbsServiceVisits(
+  [{ id: 'pbs-bad', soNumber: 'BAD', mileage: 12, date: '2026-06-01', requests: 'Other car', pbsVehicleRef: 'veh-2' }],
+  [{ id: 'pbs-117828', soNumber: '117828', mileage: 8, date: '2026-06-29', requests: 'PDI', pbsVehicleRef: 'veh-1' }],
+  'veh-1'
+);
+assert(!wrongVehicle.some((visit) => visit.soNumber === 'BAD'), 'drops PBS visits tagged to another vehicle');
 
 const index: PbsCustomerIndexMaps = {
   byContactRef: new Map([['contact-1', 'cust-1']]),
