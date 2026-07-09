@@ -29,7 +29,7 @@ import {
   customersCollection,
   dealershipSettingsDoc,
   serverTimestamp,
-  stripUndefined,
+  stripUndefinedDeep,
 } from './pbsFirestore.js';
 import type {
   PbsAppointment,
@@ -242,7 +242,7 @@ async function writePbsSyncState(
   state: PbsSyncState
 ): Promise<void> {
   await dealershipSettingsDoc(db, dealershipId).set(
-    stripUndefined({
+    stripUndefinedDeep({
       id: dealershipId,
       pbsSyncState: state,
       updatedAt: serverTimestamp(),
@@ -373,7 +373,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         const existing = index.dataById.get(existingId) || {};
         if (!customerBelongsToPbsSyncDealership(existing, dealershipId)) continue;
 
-        const patch = stripUndefined({
+        const patch = stripUndefinedDeep({
           ...mapped,
           enableServiceAlert: existing.enableServiceAlert ?? mapped.enableServiceAlert,
           serviceAlertTriggered: existing.serviceAlertTriggered ?? false,
@@ -401,7 +401,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         counts.customersUpdated += 1;
       } else {
         const ref = customersCollection(db).doc();
-        const payload = stripUndefined({
+        const payload = stripUndefinedDeep({
           ...mapped,
           addedBy: 'pbs-sync',
           addedByUsername: 'PBS Sync',
@@ -456,7 +456,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
       const latestDate = latestVisitDate(merged as Array<{ date?: string }>);
       const latestMileage = merged[0]?.mileage;
-      const patch = stripUndefined({
+      const patch = stripUndefinedDeep({
         recentVisits: merged,
         pbsSyncedAt: startedAt,
         ...(latestDate ? { lastServiceDate: latestDate } : {}),

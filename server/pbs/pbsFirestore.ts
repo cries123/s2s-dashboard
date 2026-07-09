@@ -51,3 +51,24 @@ export function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
   }
   return out;
 }
+
+/** Recursively remove undefined values from nested maps (Firestore rejects them at any depth). */
+export function stripUndefinedDeep<T>(value: T): T {
+  if (value === undefined) return value;
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof FieldValue) return value;
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as T;
+  }
+  const ctorName = value.constructor?.name;
+  if (ctorName && ctorName !== 'Object') return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (child !== undefined) {
+      out[key] = stripUndefinedDeep(child);
+    }
+  }
+  return out as T;
+}

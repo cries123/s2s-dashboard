@@ -1,4 +1,5 @@
 import { categorizeAppointmentBlock } from '../dms/parsers/appointments.js';
+import { stripUndefinedDeep } from './pbsFirestore.js';
 import type { PbsAppointment, PbsContactVehicle, PbsRepairOrder } from './pbsTypes.js';
 
 const PACIFIC_TZ = 'America/Los_Angeles';
@@ -52,7 +53,7 @@ export function mapContactVehicleToCustomerFields(
   const lastServiceDate = pbsIsoToDateString(cv.VehicleLastServiceDate) ?? undefined;
   const soldDate = pbsIsoToDateString(cv.VehicleLastSaleDate) ?? '';
 
-  return {
+  return stripUndefinedDeep({
     firstName: (cv.ContactFirstName || 'Unknown').trim(),
     lastName: (cv.ContactLastName || 'Customer').trim(),
     phone: pickContactPhone(cv),
@@ -76,7 +77,7 @@ export function mapContactVehicleToCustomerFields(
     enableServiceAlert: true,
     serviceAlertTriggered: false,
     lastAcknowledgedCycle: 0,
-  };
+  });
 }
 
 export function repairOrderSoNumber(ro: PbsRepairOrder): string {
