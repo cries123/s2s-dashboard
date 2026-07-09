@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc 
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
-import { User, DailyStat, ScheduledAppointmentSlot, PerformanceAdvisorSlot } from '../../../types';
+import { User, DailyStat } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
@@ -15,7 +15,6 @@ import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
-import { DayScheduleBoard } from './DayScheduleBoard';
 import { cn } from '../../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -35,9 +34,6 @@ import {
 import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals';
 import { filterAdvisorsByPerformanceRoster } from '../../../lib/advisorNameUtils';
 import { defaultPerformanceAdvisorRoster } from '../../../constants/dealerDefaults';
-import { dispatchTechRosterFromSettings } from '../../../lib/dispatchTechRoster';
-import { appointmentScheduleDocId } from '../../../lib/appointmentSchedule';
-import { fetchDayAppointmentSchedule } from '../../../lib/appointmentScheduleApi';
 import {
   buildOperationsViewPeriodOptions,
   formatArchiveMonthLabel,
@@ -132,12 +128,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     () => defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
   );
   const [showPerformanceTools, setShowPerformanceTools] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState<string | null>(null);
-  const [scheduleAppointments, setScheduleAppointments] = useState<ScheduledAppointmentSlot[]>([]);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [scheduleHydrating, setScheduleHydrating] = useState(false);
-  const [scheduleLoadError, setScheduleLoadError] = useState<string | null>(null);
-  const [dispatchTechRoster, setDispatchTechRoster] = useState<PerformanceAdvisorSlot[]>([]);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
   const viewPeriodOptions = React.useMemo(() => buildOperationsViewPeriodOptions(), []);
@@ -302,12 +292,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           ? data.performanceAdvisorRoster
           : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
         setPerformanceAdvisorRoster(roster);
-        setDispatchTechRoster(
-          dispatchTechRosterFromSettings(
-            { dispatchTechRoster: data.dispatchTechRoster },
-            currentDealershipId
-          )
-        );
       }
     });
 
@@ -337,119 +321,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       unsubTech();
     };
   }, [currentDealershipId]);
-
-  useEffect(() => {
-    if (!scheduleDate || !currentDealershipId) {
-      setScheduleAppointments([]);
-      setScheduleLoadError(null);
-      return;
-    }
-
-    const docId = appointmentScheduleDocId(currentDealershipId, scheduleDate);
-    const scheduleRef = doc(
-      db,
-      'artifacts',
-      'hyundai-sales-to-service',
-      'public',
-      'data',
-      'appointmentSchedule',
-      docId
-    );
-    const trackerCount = allStats.find((row) => row.date === scheduleDate)?.count ?? 0;
-    const canHydrateFromPbs = currentDealershipId === 'hyundai';
-
-    let cancelled = false;
-
-    const hydrateFromPbs = async (refresh = false) => {
-      if (!canHydrateFromPbs) return;
-      setScheduleHydrating(true);
-      setScheduleLoadError(null);
-      try {
-        const result = await fetchDayAppointmentSchedule(scheduleDate, { refresh });
-        if (cancelled) return;
-        setScheduleAppointments(result.appointments);
-        if (result.appointments.length === 0 && trackerCount > 0) {
-          setScheduleLoadError(
-            `PBS returned 0 schedulable appointments for ${scheduleDate} (${trackerCount} counted in Operations).`
-          );
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setScheduleLoadError(err instanceof Error ? err.message : 'Failed to load schedule from PBS.');
-      } finally {
-        if (!cancelled) {
-          setScheduleHydrating(false);
-          setScheduleLoading(false);
-        }
-      }
-    };
-
-    setScheduleLoading(true);
-    setScheduleLoadError(null);
-
-    // Load from PBS immediately when we know appointments exist — don't wait for an empty Firestore doc.
-    if (trackerCount > 0 && canHydrateFromPbs) {
-      void hydrateFromPbs(false);
-    }
-
-    const unsubscribe = onSnapshot(
-      scheduleRef,
-      (snap) => {
-        if (cancelled) return;
-        const slots = snap.exists
-          ? ((snap.data()?.appointments as ScheduledAppointmentSlot[]) || [])
-          : [];
-        if (slots.length > 0) {
-          setScheduleAppointments(slots);
-          setScheduleLoading(false);
-          setScheduleHydrating(false);
-        } else if (trackerCount === 0) {
-          setScheduleAppointments([]);
-          setScheduleLoading(false);
-        }
-      },
-      (error) => {
-        if (cancelled) return;
-        console.error('[Appointments] schedule snapshot error', error);
-        setScheduleAppointments([]);
-        setScheduleLoading(false);
-        if (trackerCount > 0 && canHydrateFromPbs) {
-          void hydrateFromPbs(false);
-        } else {
-          setScheduleLoadError('Could not read the stored day schedule.');
-        }
-      }
-    );
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [scheduleDate, currentDealershipId, allStats]);
-
-  const scheduleTrackerCount = React.useMemo(
-    () => (scheduleDate ? allStats.find((row) => row.date === scheduleDate)?.count ?? 0 : 0),
-    [scheduleDate, allStats]
-  );
-
-  const refreshScheduleFromPbs = React.useCallback(async () => {
-    if (!scheduleDate || currentDealershipId !== 'hyundai') return;
-    setScheduleHydrating(true);
-    setScheduleLoadError(null);
-    try {
-      const result = await fetchDayAppointmentSchedule(scheduleDate, { refresh: true });
-      setScheduleAppointments(result.appointments);
-      if (result.appointments.length === 0 && scheduleTrackerCount > 0) {
-        setScheduleLoadError(
-          `PBS returned 0 schedulable appointments for ${scheduleDate} (${scheduleTrackerCount} counted in Operations).`
-        );
-      }
-    } catch (err) {
-      setScheduleLoadError(err instanceof Error ? err.message : 'Failed to load schedule from PBS.');
-    } finally {
-      setScheduleHydrating(false);
-    }
-  }, [scheduleDate, currentDealershipId, scheduleTrackerCount]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -999,7 +870,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 <th>Date</th>
                 <th className="text-right">Scheduled</th>
                 <th className="text-right">vs goal ({targetValue})</th>
-                <th className="text-right">Schedule</th>
+                <th className="text-right">Breakdown</th>
               </tr>
             </thead>
             <tbody>
@@ -1013,9 +884,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                     onClick={() => {
                       setSelectedDate(day.date);
                       setDailyCount(day.count > 0 ? day.count.toString() : fullDayData ? '0' : '');
-                      if (day.count > 0) {
-                        setScheduleDate(day.date);
-                      }
                     }}
                     className={cn('cursor-pointer', isSelected && 'bg-brand-primary/5')}
                   >
@@ -1026,19 +894,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                       {vsGoal > 0 ? `+${vsGoal}` : vsGoal}
                     </td>
                     <td className="text-right">
-                      {day.count > 0 ? (
-                        <button
-                          type="button"
-                          className="text-xs text-brand-primary hover:underline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedDate(day.date);
-                            setScheduleDate(day.date);
-                          }}
-                        >
-                          Schedule
-                        </button>
-                      ) : fullDayData?.breakdown ? (
+                      {fullDayData?.breakdown ? (
                         <button
                           type="button"
                           className="text-xs text-brand-primary hover:underline"
@@ -1060,47 +916,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </table>
         </div>
       </div>
-
-      <AnimatePresence>
-        {scheduleDate && (
-          <div className="fixed inset-0 z-[110] flex items-stretch sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 12 }}
-              className="bg-slate-900 border border-slate-800 rounded-none sm:rounded-2xl w-full h-[100dvh] sm:h-auto max-w-6xl sm:max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
-            >
-              <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-800">
-                <div>
-                  <h3 className="crm-section-title">Day schedule</h3>
-                  <p className="crm-label mt-0.5">Appointments by technician from PBS — tap for details</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setScheduleDate(null)}
-                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5"
-                  aria-label="Close schedule"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="p-5 overflow-auto flex-1">
-                <DayScheduleBoard
-                  date={scheduleDate}
-                  appointments={scheduleAppointments}
-                  techRoster={dispatchTechRoster}
-                  expectedCount={scheduleTrackerCount}
-                  loading={scheduleLoading || scheduleHydrating}
-                  error={scheduleLoadError}
-                  onRefresh={
-                    currentDealershipId === 'hyundai' ? refreshScheduleFromPbs : undefined
-                  }
-                />
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Breakdown Modal */}
       <AnimatePresence>

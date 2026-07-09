@@ -3,6 +3,7 @@ export type AppTab =
   | 'search'
   | 'alerts'
   | 'appointments'
+  | 'schedule'
   | 'admin'
   | 'manager'
   | 'vin-search'
@@ -38,6 +39,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/service/bundle-menus': { activeTab: 'search' },
   '/competitions/pot-of-gold': { activeTab: 'pot-of-gold' },
   '/reports/operations': { activeTab: 'appointments' },
+  '/reports/schedule': { activeTab: 'schedule' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
   '/reports/forecast': { activeTab: 'forecast' },
   '/manager/operations': { activeTab: 'manager', managerSubTab: 'operations' },
@@ -123,6 +125,8 @@ export function buildAppPath(state: AppRouteState): string {
       return '/competitions/pot-of-gold';
     case 'appointments':
       return '/reports/operations';
+    case 'schedule':
+      return '/reports/schedule';
     case 'sales-performance':
       return '/reports/sales-performance';
     case 'forecast':
