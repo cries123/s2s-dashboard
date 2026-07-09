@@ -37,6 +37,7 @@ import { filterAdvisorsByPerformanceRoster } from '../../../lib/advisorNameUtils
 import { defaultPerformanceAdvisorRoster } from '../../../constants/dealerDefaults';
 import { dispatchTechRosterFromSettings } from '../../../lib/dispatchTechRoster';
 import { appointmentScheduleDocId } from '../../../lib/appointmentSchedule';
+import { fetchDayAppointmentSchedule } from '../../../lib/appointmentScheduleApi';
 import {
   buildOperationsViewPeriodOptions,
   formatArchiveMonthLabel,
@@ -134,6 +135,8 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [scheduleDate, setScheduleDate] = useState<string | null>(null);
   const [scheduleAppointments, setScheduleAppointments] = useState<ScheduledAppointmentSlot[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleHydrating, setScheduleHydrating] = useState(false);
+  const [scheduleLoadError, setScheduleLoadError] = useState<string | null>(null);
   const [dispatchTechRoster, setDispatchTechRoster] = useState<PerformanceAdvisorSlot[]>([]);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
@@ -338,6 +341,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   useEffect(() => {
     if (!scheduleDate || !currentDealershipId) {
       setScheduleAppointments([]);
+      setScheduleLoadError(null);
       return;
     }
 
@@ -351,27 +355,91 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       'appointmentSchedule',
       docId
     );
+    const trackerCount = allStats.find((row) => row.date === scheduleDate)?.count ?? 0;
+    const canHydrateFromPbs = currentDealershipId === 'hyundai';
+
+    let cancelled = false;
+
+    const hydrateFromPbs = async (refresh = false) => {
+      if (!canHydrateFromPbs) return;
+      setScheduleHydrating(true);
+      setScheduleLoadError(null);
+      try {
+        const result = await fetchDayAppointmentSchedule(scheduleDate, { refresh });
+        if (cancelled) return;
+        setScheduleAppointments(result.appointments);
+        if (result.appointments.length === 0 && trackerCount > 0) {
+          setScheduleLoadError(
+            `PBS returned 0 schedulable appointments for ${scheduleDate} (${trackerCount} counted in Operations).`
+          );
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setScheduleLoadError(err instanceof Error ? err.message : 'Failed to load schedule from PBS.');
+      } finally {
+        if (!cancelled) setScheduleHydrating(false);
+      }
+    };
 
     setScheduleLoading(true);
+    setScheduleLoadError(null);
+
     const unsubscribe = onSnapshot(
       scheduleRef,
       (snap) => {
-        if (snap.exists()) {
-          const data = snap.data();
-          setScheduleAppointments((data.appointments as ScheduledAppointmentSlot[]) || []);
-        } else {
-          setScheduleAppointments([]);
-        }
+        if (cancelled) return;
+        const slots = snap.exists()
+          ? ((snap.data().appointments as ScheduledAppointmentSlot[]) || [])
+          : [];
+        setScheduleAppointments(slots);
         setScheduleLoading(false);
+
+        if (slots.length === 0 && trackerCount > 0 && canHydrateFromPbs) {
+          void hydrateFromPbs(false);
+        }
       },
-      () => {
+      (error) => {
+        if (cancelled) return;
+        console.error('[Appointments] schedule snapshot error', error);
         setScheduleAppointments([]);
         setScheduleLoading(false);
+        if (trackerCount > 0 && canHydrateFromPbs) {
+          void hydrateFromPbs(false);
+        } else {
+          setScheduleLoadError('Could not read the stored day schedule.');
+        }
       }
     );
 
-    return () => unsubscribe();
-  }, [scheduleDate, currentDealershipId]);
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [scheduleDate, currentDealershipId, allStats]);
+
+  const scheduleTrackerCount = React.useMemo(
+    () => (scheduleDate ? allStats.find((row) => row.date === scheduleDate)?.count ?? 0 : 0),
+    [scheduleDate, allStats]
+  );
+
+  const refreshScheduleFromPbs = React.useCallback(async () => {
+    if (!scheduleDate || currentDealershipId !== 'hyundai') return;
+    setScheduleHydrating(true);
+    setScheduleLoadError(null);
+    try {
+      const result = await fetchDayAppointmentSchedule(scheduleDate, { refresh: true });
+      setScheduleAppointments(result.appointments);
+      if (result.appointments.length === 0 && scheduleTrackerCount > 0) {
+        setScheduleLoadError(
+          `PBS returned 0 schedulable appointments for ${scheduleDate} (${scheduleTrackerCount} counted in Operations).`
+        );
+      }
+    } catch (err) {
+      setScheduleLoadError(err instanceof Error ? err.message : 'Failed to load schedule from PBS.');
+    } finally {
+      setScheduleHydrating(false);
+    }
+  }, [scheduleDate, currentDealershipId, scheduleTrackerCount]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -1007,18 +1075,17 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 </button>
               </div>
               <div className="p-5 overflow-auto flex-1">
-                {scheduleLoading ? (
-                  <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
-                    <Loader2 className="animate-spin" size={18} />
-                    Loading schedule…
-                  </div>
-                ) : (
-                  <DayScheduleBoard
-                    date={scheduleDate}
-                    appointments={scheduleAppointments}
-                    techRoster={dispatchTechRoster}
-                  />
-                )}
+                <DayScheduleBoard
+                  date={scheduleDate}
+                  appointments={scheduleAppointments}
+                  techRoster={dispatchTechRoster}
+                  expectedCount={scheduleTrackerCount}
+                  loading={scheduleLoading || scheduleHydrating}
+                  error={scheduleLoadError}
+                  onRefresh={
+                    currentDealershipId === 'hyundai' ? refreshScheduleFromPbs : undefined
+                  }
+                />
               </div>
             </motion.div>
           </div>

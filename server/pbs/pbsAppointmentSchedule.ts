@@ -2,6 +2,7 @@ import type { DocumentData, Firestore, WriteBatch } from 'firebase-admin/firesto
 import {
   appointmentConcernText,
   categorizeAppointmentText,
+  defaultScheduleStartMinutes,
   formatPacificTimeLabel,
   isActivePbsAppointment,
   pbsIsoToDateString,
@@ -92,7 +93,11 @@ export function mapPbsAppointmentToSlot(
   if (!isActivePbsAppointment(appt)) return null;
 
   const timeIso = appt.AppointmentTime || appt.AppointmentTimeUTC;
-  const startMinutes = pbsIsoToPacificMinutes(timeIso);
+  let startMinutes = pbsIsoToPacificMinutes(timeIso);
+  if (startMinutes === null && timeIso) {
+    // Midnight or unparsed time — still place on the board.
+    startMinutes = defaultScheduleStartMinutes();
+  }
   if (startMinutes === null) return null;
 
   const concern = appointmentConcernText(appt);
@@ -107,8 +112,13 @@ export function mapPbsAppointmentToSlot(
   const pickupIso = appt.PickupTime || appt.PickupTimeUTC;
   const pickupTimeLabel = formatPacificTimeLabel(pickupIso) || undefined;
 
-  const id =
-    (appt.AppointmentId || appt.Id || appt.RawAppointmentNumber || String(appt.AppointmentNumber || '')).trim();
+  const id = String(
+    appt.AppointmentId ||
+      appt.Id ||
+      appt.RawAppointmentNumber ||
+      appt.AppointmentNumber ||
+      `${appt.ContactRef || 'appt'}-${timeIso || 'unknown'}`
+  ).trim();
   if (!id) return null;
 
   return {

@@ -15,6 +15,10 @@ interface DayScheduleBoardProps {
   date: string;
   appointments: ScheduledAppointmentSlot[];
   techRoster?: PerformanceAdvisorSlot[];
+  expectedCount?: number;
+  loading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
   className?: string;
 }
 
@@ -31,6 +35,10 @@ export function DayScheduleBoard({
   date,
   appointments,
   techRoster = [],
+  expectedCount = 0,
+  loading = false,
+  error = null,
+  onRefresh,
   className,
 }: DayScheduleBoardProps) {
   const columns = React.useMemo(
@@ -44,11 +52,34 @@ export function DayScheduleBoard({
   const appointmentsForColumn = (columnId: string) =>
     appointments.filter((appt) => (appt.techNumber || '').trim() === columnId);
 
-  if (appointments.length === 0) {
+  if (loading) {
     return (
       <div className={cn('rounded-lg border p-8 text-center', className)} style={{ borderColor: 'var(--color-surface-border)' }}>
+        <p className="crm-label">Loading day schedule…</p>
+      </div>
+    );
+  }
+
+  if (appointments.length === 0) {
+    return (
+      <div className={cn('rounded-lg border p-8 text-center space-y-3', className)} style={{ borderColor: 'var(--color-surface-border)' }}>
         <p className="crm-label">No scheduled appointments stored for this day.</p>
-        <p className="text-xs text-slate-500 mt-2">Run Pull changes in Admin → PBS Sync to load the day schedule.</p>
+        {expectedCount > 0 ? (
+          <p className="text-xs text-amber-400/90">
+            Operations shows <strong>{expectedCount}</strong> appointments for this date — loading detail from PBS…
+          </p>
+        ) : null}
+        {error ? <p className="text-xs text-rose-400/90">{error}</p> : null}
+        <p className="text-xs text-slate-500">
+          {onRefresh
+            ? 'If this persists, try refreshing from PBS below or run Pull changes in Admin → PBS Sync.'
+            : 'Run Pull changes in Admin → PBS Sync to load the day schedule.'}
+        </p>
+        {onRefresh ? (
+          <button type="button" onClick={onRefresh} className="btn-secondary text-xs px-4 py-2">
+            Refresh from PBS
+          </button>
+        ) : null}
       </div>
     );
   }

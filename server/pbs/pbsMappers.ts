@@ -3,6 +3,15 @@ import { stripUndefinedDeep } from './pbsFirestore.js';
 import type { PbsAppointment, PbsContactVehicle, PbsRepairOrder } from './pbsTypes.js';
 
 const PACIFIC_TZ = 'America/Los_Angeles';
+const DEFAULT_SCHEDULE_START_MINUTES = 9 * 60;
+
+/** PBS timestamps use 7-digit fractional seconds — normalize for Date parsing. */
+export function parsePbsIso(iso: string | undefined | null): Date | null {
+  if (!iso || iso.startsWith('0001-01-01')) return null;
+  const normalized = iso.replace(/(\.\d{3})\d+/, '$1');
+  const d = new Date(normalized);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 export function normalizePhone(raw: string | undefined | null): string {
   if (!raw) return '';
@@ -19,17 +28,15 @@ export function vinLast8FromVin(vin: string | undefined | null): string {
 
 /** PBS ISO timestamps → YYYY-MM-DD in dealership local time. */
 export function pbsIsoToDateString(iso: string | undefined | null): string | null {
-  if (!iso || iso.startsWith('0001-01-01')) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parsePbsIso(iso);
+  if (!d) return null;
   return d.toLocaleDateString('en-CA', { timeZone: PACIFIC_TZ });
 }
 
 /** Minutes from midnight Pacific for scheduler positioning. */
 export function pbsIsoToPacificMinutes(iso: string | undefined | null): number | null {
-  if (!iso || iso.startsWith('0001-01-01')) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parsePbsIso(iso);
+  if (!d) return null;
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: PACIFIC_TZ,
     hour: 'numeric',
@@ -41,10 +48,13 @@ export function pbsIsoToPacificMinutes(iso: string | undefined | null): number |
   return hour * 60 + minute;
 }
 
+export function defaultScheduleStartMinutes(): number {
+  return DEFAULT_SCHEDULE_START_MINUTES;
+}
+
 export function formatPacificTimeLabel(iso: string | undefined | null): string | null {
-  if (!iso || iso.startsWith('0001-01-01')) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = parsePbsIso(iso);
+  if (!d) return null;
   return d.toLocaleTimeString('en-US', {
     timeZone: PACIFIC_TZ,
     hour: 'numeric',

@@ -6,6 +6,7 @@ import {
   buildAppointmentCustomerLookup,
   mapPbsAppointmentToSlot,
 } from '../server/pbs/pbsAppointmentSchedule.js';
+import { parsePbsIso, pbsIsoToPacificMinutes } from '../server/pbs/pbsMappers.js';
 import type { PbsAppointment } from '../server/pbs/pbsTypes.js';
 
 function assert(condition: boolean, message: string) {
@@ -59,6 +60,10 @@ assert(slot!.vehicleLabel.includes('TUCSON'), 'includes vehicle label');
 assert(slot!.startMinutes === 14 * 60, 'uses Pacific appointment time');
 assert(slot!.durationMinutes === 90, 'uses allowed hours for block height');
 assert(slot!.isWaiter === true, 'preserves waiter flag');
+
+const parsed = parsePbsIso('2026-07-09T14:00:00.0000000-07:00');
+assert(Boolean(parsed), 'parses PBS 7-digit fractional ISO');
+assert(pbsIsoToPacificMinutes('2026-07-09T14:00:00.0000000-07:00') === 14 * 60, 'Pacific minutes from PBS ISO');
 
 console.log('Verification PASSED — appointment schedule mapping');
 console.log(JSON.stringify(slot, null, 2));

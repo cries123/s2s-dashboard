@@ -19,7 +19,9 @@ import {
   PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
+import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
 import { isPacificMorningSyncHour, startPbsSyncBackground } from '../pbs/pbsSync.js';
+import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -226,6 +228,48 @@ export function registerPbsRoutes(app: Express) {
         accepted: true,
         startedAt: start.startedAt,
         summary: start.message,
+      });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /** Load day schedule — reads Firestore or hydrates from PBS when empty. */
+  app.get('/api/pbs/appointment-schedule/:date', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized appointment schedule request.' });
+    }
+
+    const date = String(req.params.date || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Invalid date — use YYYY-MM-DD.' });
+    }
+
+    if (!isPbsPartnerHubConfigured()) {
+      return res.status(503).json({
+        error: 'PBS PartnerHUB credentials are not configured on the server.',
+      });
+    }
+
+    const db = getAdminFirestore();
+    if (!db) {
+      return res.status(503).json({
+        error: 'FIREBASE_SERVICE_ACCOUNT_JSON is not configured — cannot load schedule.',
+      });
+    }
+
+    try {
+      const forceRefresh = req.query.refresh === '1';
+      const result = await getOrHydrateDaySchedule(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID, date, {
+        forceRefresh,
+      });
+      return res.json({
+        date,
+        dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        appointments: result.appointments,
+        source: result.source,
+        hydrated: result.hydrated,
       });
     } catch (err) {
       return handlePbsError(res, err);
