@@ -29,6 +29,7 @@ import {
   customersCollection,
   dealershipSettingsDoc,
   serverTimestamp,
+  stripUndefined,
 } from './pbsFirestore.js';
 import type {
   PbsAppointment,
@@ -241,11 +242,11 @@ async function writePbsSyncState(
   state: PbsSyncState
 ): Promise<void> {
   await dealershipSettingsDoc(db, dealershipId).set(
-    {
+    stripUndefined({
       id: dealershipId,
       pbsSyncState: state,
       updatedAt: serverTimestamp(),
-    },
+    }),
     { merge: true }
   );
 }
@@ -372,7 +373,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         const existing = index.dataById.get(existingId) || {};
         if (!customerBelongsToPbsSyncDealership(existing, dealershipId)) continue;
 
-        const patch: Record<string, unknown> = {
+        const patch = stripUndefined({
           ...mapped,
           enableServiceAlert: existing.enableServiceAlert ?? mapped.enableServiceAlert,
           serviceAlertTriggered: existing.serviceAlertTriggered ?? false,
@@ -392,7 +393,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
           addedByUsername: existing.addedByUsername,
           createdAt: existing.createdAt,
           pbsSyncedAt: startedAt,
-        };
+        });
 
         const ref = customersCollection(db).doc(existingId);
         customerWrites.push((batch) => batch.set(ref, patch, { merge: true }));
@@ -400,13 +401,13 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         counts.customersUpdated += 1;
       } else {
         const ref = customersCollection(db).doc();
-        const payload = {
+        const payload = stripUndefined({
           ...mapped,
           addedBy: 'pbs-sync',
           addedByUsername: 'PBS Sync',
           createdAt: Timestamp.now(),
           pbsSyncedAt: startedAt,
-        };
+        });
         customerWrites.push((batch) => batch.set(ref, payload));
         registerCustomerInIndex(index, ref.id, payload);
         counts.customersCreated += 1;
@@ -455,14 +456,14 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
       const latestDate = latestVisitDate(merged as Array<{ date?: string }>);
       const latestMileage = merged[0]?.mileage;
-      const patch: Record<string, unknown> = {
+      const patch = stripUndefined({
         recentVisits: merged,
         pbsSyncedAt: startedAt,
-      };
-      if (latestDate) patch.lastServiceDate = latestDate;
-      if (typeof latestMileage === 'number' && latestMileage > 0) {
-        patch.mileage = String(latestMileage);
-      }
+        ...(latestDate ? { lastServiceDate: latestDate } : {}),
+        ...(typeof latestMileage === 'number' && latestMileage > 0
+          ? { mileage: String(latestMileage) }
+          : {}),
+      });
 
       const ref = customersCollection(db).doc(customerId);
       visitWrites.push((batch) => batch.set(ref, patch, { merge: true }));

@@ -40,3 +40,14 @@ export async function commitBatches(
 export function serverTimestamp() {
   return FieldValue.serverTimestamp();
 }
+
+/** Firestore rejects undefined field values — strip them before writes. */
+export function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const out = {} as T;
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      (out as Record<string, unknown>)[key] = value;
+    }
+  }
+  return out;
+}

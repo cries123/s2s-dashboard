@@ -46,11 +46,18 @@ export function getAdminAuth() {
   return app ? getAuth(app) : null;
 }
 
+let firestoreSettingsApplied = false;
+
 export function getAdminFirestore() {
   const app = getFirebaseAdminApp();
   if (!app) return null;
   const databaseId = process.env.VITE_FIREBASE_DATABASE_ID?.trim();
-  return databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+  const db = databaseId ? getFirestore(app, databaseId) : getFirestore(app);
+  if (!firestoreSettingsApplied) {
+    db.settings({ ignoreUndefinedProperties: true });
+    firestoreSettingsApplied = true;
+  }
+  return db;
 }
 
 export function isMasterUserAdminConfigured(): boolean {
