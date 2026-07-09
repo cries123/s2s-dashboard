@@ -14,17 +14,19 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     cached = serverless(app, {
       request(
         req: { url?: string; headers?: Record<string, string | string[] | undefined> },
-        _event: HandlerEvent
+        incomingEvent: HandlerEvent
       ) {
-        // Preserve the public URL path (/api/...) when Netlify invokes the function.
-        if (event.rawUrl) {
+        // Use the current invocation's event — not the cold-start event — or every warm
+        // request would keep hitting the first URL (e.g. GET /api/pbs/sync/status).
+        if (incomingEvent.rawUrl) {
           try {
-            req.url = new URL(event.rawUrl).pathname + (new URL(event.rawUrl).search || '');
+            const url = new URL(incomingEvent.rawUrl);
+            req.url = url.pathname + (url.search || '');
           } catch {
-            req.url = event.path;
+            req.url = incomingEvent.path;
           }
         } else {
-          req.url = event.path;
+          req.url = incomingEvent.path;
         }
       },
     });
