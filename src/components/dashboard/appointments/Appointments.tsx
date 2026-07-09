@@ -9,7 +9,7 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, Calendar as CalendarIcon, 
-  Target, Clock, FileUp, X, Printer, Archive, Lock, Unlock
+  Target, Clock, X, Printer, Archive, Lock, Unlock
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
@@ -660,12 +660,23 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   return (
     <div className="space-y-6 animate-fade-in">
       <style>{`
+        .custom-centered-date-input {
+          text-align: center;
+        }
         .custom-centered-date-input::-webkit-calendar-picker-indicator {
           display: none !important;
           -webkit-appearance: none;
         }
         .custom-centered-date-input::-moz-calendar-picker-indicator {
           display: none !important;
+        }
+        .custom-centered-date-input::-webkit-datetime-edit {
+          text-align: center;
+          margin: 0 auto;
+        }
+        .custom-centered-date-input::-webkit-datetime-edit-fields-wrapper {
+          display: inline-flex;
+          justify-content: center;
         }
       `}</style>
 
@@ -786,11 +797,14 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </h4>
 
           <div className="space-y-3 flex-1">
-            <div className="flex items-center gap-1 rounded-lg border px-1 py-0.5" style={{ borderColor: 'var(--color-surface-border)' }}>
+            <div
+              className="grid grid-cols-[1.75rem_1fr_1.75rem] items-center rounded-lg border px-1 py-1"
+              style={{ borderColor: 'var(--color-surface-border)' }}
+            >
               <button
                 type="button"
                 onClick={handlePrevDay}
-                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors justify-self-start"
                 aria-label="Previous day"
               >
                 <ChevronLeft size={14} />
@@ -800,12 +814,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 onClick={(e) => { try { e.currentTarget.showPicker(); } catch {} }}
-                className="flex-1 min-w-0 bg-transparent border-none text-white text-xs font-semibold text-center focus:ring-0 cursor-pointer outline-none custom-centered-date-input"
+                className="w-full min-w-0 bg-transparent border-none text-white text-xs font-semibold text-center focus:ring-0 cursor-pointer outline-none custom-centered-date-input justify-self-center"
               />
               <button
                 type="button"
                 onClick={handleNextDay}
-                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
+                className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors justify-self-end"
                 aria-label="Next day"
               >
                 <ChevronRight size={14} />
@@ -830,17 +844,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
               </button>
             </div>
-
-            <input type="file" ref={pdfInputRef} onChange={handlePdfUpload} accept=".pdf" className="hidden" />
-            <button
-              type="button"
-              onClick={() => pdfInputRef.current?.click()}
-              disabled={isUploadingPdf}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1.5"
-            >
-              {isUploadingPdf ? <Loader2 className="animate-spin" size={12} /> : <FileUp size={12} />}
-              Import schedule PDF
-            </button>
           </div>
         </div>
       </div>
