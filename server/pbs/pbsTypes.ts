@@ -28,7 +28,27 @@ export interface PbsContactVehicle {
 }
 
 export interface PbsRepairOrderRequest {
+  RequestCode?: string;
   RequestDescription?: string;
+  Cause?: string;
+  Correction?: string;
+  Tech?: string;
+  Status?: string;
+  LabourLines?: Array<{
+    OpCode?: string;
+    OpDescription?: string;
+    SoldHours?: number;
+    ActualHours?: number;
+    Tech?: string;
+    Price?: number;
+  }>;
+  PartLines?: Array<{
+    PartNumber?: string;
+    PartDescription?: string;
+    Shipped?: number;
+    Requested?: number;
+    ExtendedPrice?: number;
+  }>;
 }
 
 export interface PbsRepairOrder {
@@ -75,6 +95,23 @@ export interface PbsAppointment {
   IsWaiter?: boolean;
   Notes?: string;
   RequestLines?: PbsAppointmentRequestLine[];
+}
+
+export interface PbsAppointmentContactVehicleInfo {
+  AppointmentId?: string;
+  AppointmentNumber?: number;
+  AppointmentIsWaiter?: boolean;
+  AppointmentTime?: string;
+  AppointmentPickupTime?: string;
+  AppointmentStatus?: string;
+  ContactId?: string;
+  ContactFirstName?: string;
+  ContactLastName?: string;
+  VehicleId?: string;
+  VehicleYear?: string;
+  VehicleMake?: string;
+  VehicleModel?: string;
+  VehicleTrim?: string;
 }
 
 export interface PbsSyncCounts {

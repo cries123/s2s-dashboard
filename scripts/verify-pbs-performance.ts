@@ -2,7 +2,7 @@
  * Verifies PBS advisor performance aggregation from repair orders + parts invoices.
  * Run: npx tsx scripts/verify-pbs-performance.ts
  */
-import { aggregatePbsAdvisorPerformance } from '../server/pbs/pbsPerformanceAggregator.js';
+import { aggregatePbsAdvisorPerformance, sumRepairOrderShopLabor } from '../server/pbs/pbsPerformanceAggregator.js';
 import type { PbsPartsInvoiceFull, PbsRepairOrderFull } from '../server/pbs/pbsPerformanceTypes.js';
 
 function assert(condition: boolean, message: string) {
@@ -76,7 +76,13 @@ const jaryn = result.advisors.find((row) => row.name === 'Jaryn');
 assert(Boolean(jaryn), 'includes Jaryn');
 assert((jaryn?.laborSold || 0) >= 600, 'Jaryn includes request labor plus warranty summary delta');
 assert((jaryn?.partsSold || 0) >= 125, 'Jaryn includes request parts plus warranty summary delta');
+
+const shopLabor = sumRepairOrderShopLabor(repairOrders[2]);
+assert(shopLabor.laborSold >= 600, 'shop labor sold includes warranty summary on attributed ROs');
+assert(shopLabor.laborGross >= 450, 'shop labor gross includes warranty summary on attributed ROs');
+
 assert(result.totals.totalGross > 0, 'totals include labor gross');
+assert(result.totals.totalGross >= shopLabor.laborGross, 'shop totals use all cashiered RO labor');
 assert(result.totals.totalGrossParts > 0, 'totals include parts gross');
 
 console.log('Verification PASSED — PBS advisor performance aggregation');

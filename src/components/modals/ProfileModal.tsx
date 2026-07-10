@@ -16,7 +16,9 @@ import {
   CustomerTimeline,
   type TimelineEvent,
 } from '../dashboard/customers/CustomerTimeline';
+import { ServiceVisitDetailModal } from '../dashboard/customers/ServiceVisitDetailModal';
 import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
+import type { ServiceVisit } from '../../types';
 
 interface ProfileModalProps {
   customer: Customer;
@@ -38,6 +40,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+  const [selectedServiceVisit, setSelectedServiceVisit] = useState<ServiceVisit | null>(null);
 
   useEffect(() => {
     setFormData({ ...customer });
@@ -55,6 +58,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
       body: visit.requests,
       meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,
+      serviceVisit: visit,
     }));
 
     setTimelineEvents(serviceEvents);
@@ -904,7 +908,11 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     </span>
                   </div>
 
-                  <CustomerTimeline events={timelineEvents} loading={timelineLoading} />
+                  <CustomerTimeline
+                    events={timelineEvents}
+                    loading={timelineLoading}
+                    onServiceVisitClick={setSelectedServiceVisit}
+                  />
                 </div>
               )}
 
@@ -1267,6 +1275,16 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
 
       </div>
+
+      <AnimatePresence>
+        {selectedServiceVisit && (
+          <ServiceVisitDetailModal
+            visit={selectedServiceVisit}
+            customerName={formatCustomerDisplayName(customer)}
+            onClose={() => setSelectedServiceVisit(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

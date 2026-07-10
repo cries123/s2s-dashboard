@@ -111,6 +111,51 @@ function sumRepairOrder(ro: PbsRepairOrderFull): {
   return { laborSold, laborCost, partsSold, partsCost, hrsSold };
 }
 
+/** Shop-wide labor for an RO — includes warranty/internal summary labor missed by request lines alone. */
+export function sumRepairOrderShopLabor(ro: PbsRepairOrderFull): {
+  laborSold: number;
+  laborGross: number;
+  hrsSold: number;
+} {
+  const base = sumRepairOrder(ro);
+  let { laborSold, laborCost, hrsSold } = base;
+
+  const requests = ro.Requests || [];
+  let hasRequestAmounts = false;
+  for (const req of requests) {
+    const amounts = sumRequestLines(req);
+    if (amounts.laborSold > 0 || amounts.partsSold > 0 || amounts.hrsSold > 0) {
+      hasRequestAmounts = true;
+      break;
+    }
+  }
+
+  if (!hasRequestAmounts) {
+    return {
+      laborSold,
+      laborGross: Math.max(0, laborSold - laborCost),
+      hrsSold,
+    };
+  }
+
+  const lineGross = Math.max(0, laborSold - laborCost);
+  const gpRate = laborSold > 0 ? lineGross / laborSold : 0;
+
+  for (const summary of [ro.WarrantySummary, ro.InternalSummary]) {
+    if (!summary) continue;
+    const summaryLabor = num(summary.Labour);
+    if (summaryLabor <= 0) continue;
+    laborSold += summaryLabor;
+    laborCost += summaryLabor * (1 - gpRate);
+  }
+
+  return {
+    laborSold,
+    laborGross: Math.max(0, laborSold - laborCost),
+    hrsSold,
+  };
+}
+
 function getBucket(buckets: Map<string, AdvisorBucket>, advisor: string): AdvisorBucket {
   let bucket = buckets.get(advisor);
   if (!bucket) {
@@ -284,11 +329,20 @@ export function aggregatePbsAdvisorPerformance(
   const buckets = new Map<string, AdvisorBucket>();
   let repairOrdersProcessed = 0;
   let partsInvoicesProcessed = 0;
+  let shopLaborSold = 0;
+  let shopLaborGross = 0;
+  let shopHrsSold = 0;
 
   for (const ro of repairOrders) {
     if (!isCashieredRepairOrder(ro)) continue;
     const cashDate = pbsIsoToDateString(ro.DateCashiered);
     if (!cashDate || cashDate < monthStart || cashDate > monthEnd) continue;
+
+    const shopLabor = sumRepairOrderShopLabor(ro);
+    shopLaborSold += shopLabor.laborSold;
+    shopLaborGross += shopLabor.laborGross;
+    shopHrsSold += shopLabor.hrsSold;
+
     attributeRepairOrder(buckets, ro);
     repairOrdersProcessed += 1;
   }
@@ -324,7 +378,14 @@ export function aggregatePbsAdvisorPerformance(
   }
 
   const advisors = finalizeAdvisors(buckets);
-  const totals = finalizeTotals(advisors);
+  const advisorTotals = finalizeTotals(advisors);
+  const totals: PbsPerformanceAggregate['totals'] = {
+    ...advisorTotals,
+    totalLabor: Math.round(shopLaborSold * 100) / 100,
+    totalGross: Math.round(shopLaborGross * 100) / 100,
+    totalHrs: Math.round(shopHrsSold * 100) / 100,
+    totalSales: Math.round((shopLaborSold + advisorTotals.totalParts) * 100) / 100,
+  };
 
   return {
     advisors,

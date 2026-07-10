@@ -13,6 +13,13 @@ function num(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Normalize PBS tech numbers / employee refs for map keys (e.g. "070" → "70"). */
+export function normalizeTechKey(key: string): string {
+  const trimmed = key.trim().toLowerCase();
+  const digits = trimmed.replace(/\D/g, '');
+  return digits || trimmed;
+}
+
 export function pbsDateTimeOffsetToMs(value?: PbsDateTimeOffset | string): number | null {
   if (!value) return null;
   if (typeof value === 'string') {
@@ -45,8 +52,9 @@ export function employeeDisplayName(emp: PbsEmployee): string {
 
 export function employeeTechKey(emp: PbsEmployee): string {
   const tech = (emp.TechnicianNumber || emp.FixedOpsEmployeeNumber || '').trim();
-  if (tech) return tech;
-  return (emp.EmployeeId || '').trim();
+  if (tech) return normalizeTechKey(tech);
+  const id = (emp.EmployeeId || '').trim();
+  return id ? normalizeTechKey(id) : '';
 }
 
 function sumRequestFlaggedHours(req: PbsRepairOrderRequestFull): Map<string, number> {
@@ -58,12 +66,13 @@ function sumRequestFlaggedHours(req: PbsRepairOrderRequestFull): Map<string, num
     if (!tech) continue;
     const hours = num(line.SoldHours);
     if (hours <= 0) continue;
-    byTech.set(tech, (byTech.get(tech) || 0) + hours);
+    const key = normalizeTechKey(tech);
+    byTech.set(key, (byTech.get(key) || 0) + hours);
   }
 
   if (byTech.size === 0 && requestTech) {
     const sold = (req.LabourLines || []).reduce((sum, line) => sum + num(line.SoldHours), 0);
-    if (sold > 0) byTech.set(requestTech, sold);
+    if (sold > 0) byTech.set(normalizeTechKey(requestTech), sold);
   }
 
   return byTech;
@@ -81,7 +90,9 @@ export function aggregateFlaggedHoursByTech(repairOrders: PbsRepairOrderFull[]):
       if (reqStatus.includes('void') || reqStatus.includes('cancel')) continue;
 
       for (const [tech, hours] of sumRequestFlaggedHours(req)) {
-        totals.set(tech, (totals.get(tech) || 0) + hours);
+        const key = normalizeTechKey(tech);
+        if (!key) continue;
+        totals.set(key, (totals.get(key) || 0) + hours);
       }
     }
   }
@@ -94,18 +105,19 @@ export function aggregateTechnicianPerformance(
   employees: PbsEmployee[],
   flaggedByTech: Map<string, number>,
   monthStart: string,
-  monthEnd: string
+  monthEnd: string,
+  techLabelByKey: Map<string, string> = new Map()
 ): { technicians: PbsTechnicianRow[]; reportStartDate: string; reportEndDate: string } {
   const employeeById = new Map<string, PbsEmployee>();
   const employeeByTechNumber = new Map<string, PbsEmployee>();
 
   for (const emp of employees) {
     if (emp.IsInactive) continue;
-    const id = (emp.EmployeeId || '').trim();
-    if (id) employeeById.set(id.toLowerCase(), emp);
+    const id = normalizeTechKey((emp.EmployeeId || '').trim());
+    if (id) employeeById.set(id, emp);
 
     const techNum = employeeTechKey(emp);
-    if (techNum) employeeByTechNumber.set(techNum.toLowerCase(), emp);
+    if (techNum) employeeByTechNumber.set(techNum, emp);
   }
 
   const clockedByTech = new Map<string, number>();
@@ -115,24 +127,31 @@ export function aggregateTechnicianPerformance(
     const hours = pbsClockActivityHours(activity);
     if (hours <= 0) continue;
 
-    const userRef = (activity.UserRef || '').trim().toLowerCase();
+    const userRef = normalizeTechKey((activity.UserRef || '').trim());
     const emp = userRef ? employeeById.get(userRef) : undefined;
     const techKey = emp ? employeeTechKey(emp) : userRef;
     if (!techKey) continue;
 
-    const normalized = techKey.toLowerCase();
-    clockedByTech.set(normalized, (clockedByTech.get(normalized) || 0) + hours);
+    clockedByTech.set(techKey, (clockedByTech.get(techKey) || 0) + hours);
   }
 
-  const techKeys = new Set<string>([...clockedByTech.keys(), ...flaggedByTech.keys()]);
+  const normalizedFlagged = new Map<string, number>();
+  for (const [tech, hours] of flaggedByTech) {
+    const key = normalizeTechKey(tech);
+    if (!key) continue;
+    normalizedFlagged.set(key, (normalizedFlagged.get(key) || 0) + hours);
+  }
+
+  const techKeys = new Set<string>([...clockedByTech.keys(), ...normalizedFlagged.keys()]);
 
   const technicians: PbsTechnicianRow[] = [];
 
   for (const key of techKeys) {
     const emp = employeeByTechNumber.get(key) || employeeById.get(key);
-    const techName = emp ? employeeDisplayName(emp) : key;
+    const rosterLabel = techLabelByKey.get(key);
+    const techName = emp ? employeeDisplayName(emp) : rosterLabel || key;
     const clockedHours = Math.round((clockedByTech.get(key) || 0) * 100) / 100;
-    const flaggedHours = Math.round((flaggedByTech.get(key) || 0) * 100) / 100;
+    const flaggedHours = Math.round((normalizedFlagged.get(key) || 0) * 100) / 100;
     const efficiency =
       clockedHours > 0 ? Math.round((flaggedHours / clockedHours) * 100) : flaggedHours > 0 ? 100 : 0;
 
@@ -141,7 +160,7 @@ export function aggregateTechnicianPerformance(
     technicians.push({ techName, clockedHours, flaggedHours, efficiency });
   }
 
-  technicians.sort((a, b) => a.techName.localeCompare(b.techName));
+  technicians.sort((a, b) => b.flaggedHours - a.flaggedHours || a.techName.localeCompare(b.techName));
 
   return {
     technicians,

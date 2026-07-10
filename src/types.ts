@@ -349,6 +349,33 @@ export interface ImportLog {
   type: 'pdf' | 'csv';
 }
 
+export interface ServiceVisitLabourLine {
+  opCode?: string;
+  description?: string;
+  soldHours?: number;
+  tech?: string;
+  price?: number;
+}
+
+export interface ServiceVisitPartLine {
+  partNumber?: string;
+  description?: string;
+  qty?: number;
+  price?: number;
+}
+
+export interface ServiceVisitLine {
+  lineNumber: number;
+  requestCode?: string;
+  concern?: string;
+  cause?: string;
+  correction?: string;
+  tech?: string;
+  status?: string;
+  labourLines?: ServiceVisitLabourLine[];
+  partLines?: ServiceVisitPartLine[];
+}
+
 export interface ServiceVisit {
   id: string;
   soNumber: string;
@@ -356,7 +383,10 @@ export interface ServiceVisit {
   mileage: number;
   advisor: string;
   requests: string;
+  status?: string;
+  lines?: ServiceVisitLine[];
   createdAt: Timestamp;
+  pbsVehicleRef?: string;
 }
 
 export interface Customer {

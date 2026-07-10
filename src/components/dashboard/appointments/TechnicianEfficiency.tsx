@@ -40,6 +40,8 @@ interface TechnicianEfficiencyProps {
   onError?: (msg: string) => void;
   selectedMonth?: string;
   allowArchiveEditing?: boolean;
+  /** Compact layout for the Operations page footer */
+  embedded?: boolean;
 }
 
 export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
@@ -48,7 +50,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   onSuccess,
   onError,
   selectedMonth = 'active',
-  allowArchiveEditing = false
+  allowArchiveEditing = false,
+  embedded = false,
 }) => {
   const [technicians, setTechnicians] = useState<TechnicianData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -205,7 +208,13 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   }, [currentDealershipId, onError, selectedMonth]);
 
   // Save changes back to Firestore helper
-  const saveToFirestore = async (updatedTechs: TechnicianData[], CustomStart?: string, CustomEnd?: string, targetMonthOverride?: string) => {
+  const saveToFirestore = async (
+    updatedTechs: TechnicianData[],
+    CustomStart?: string,
+    CustomEnd?: string,
+    targetMonthOverride?: string,
+    options?: { source?: string }
+  ) => {
     try {
       const targetMonth = targetMonthOverride || selectedMonth;
       const baseId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
@@ -220,7 +229,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username || currentUser.email,
         reportStartDate: newStart,
-        reportEndDate: newEnd
+        reportEndDate: newEnd,
+        ...(options?.source ? { source: options.source } : {}),
       }, { merge: true });
 
     } catch (err: any) {
@@ -304,7 +314,9 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         }
       }
 
-      await saveToFirestore(mergedTechs, loadedStart, loadedEnd, targetMonth);
+      await saveToFirestore(mergedTechs, loadedStart, loadedEnd, targetMonth, {
+        source: isPbsDealership ? 'tech-pdf' : 'dms-pdf',
+      });
       if (targetMonth !== 'active' && selectedMonth === 'active') {
         onSuccess?.(`Detected ${formatArchiveMonthLabel(targetMonth)} dates! Saved ${parsedTechs.length} technicians to that saved archive.`);
       } else {
@@ -451,22 +463,42 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     : 0;
 
   return (
-    <div className="bg-slate-950/40 border border-white/5 backdrop-blur-xl p-8 rounded-3xl relative shadow-2xl overflow-hidden group/box">
-      {/* Dynamic Ambient Background Spark */}
+    <div
+      className={cn(
+        embedded
+          ? 'space-y-4'
+          : 'bg-slate-950/40 border border-white/5 backdrop-blur-xl p-8 rounded-3xl relative shadow-2xl overflow-hidden group/box'
+      )}
+    >
+      {!embedded && (
       <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/5 rounded-full blur-[80px] pointer-events-none group-hover/box:bg-brand-primary/10 transition-all duration-500" />
+      )}
       
       {/* Section Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 relative z-10 border-b border-white/5 pb-6">
-        <div className="flex items-center gap-4">
+      <div
+        className={cn(
+          'flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10',
+          embedded ? '' : 'mb-8 border-b border-white/5 pb-6 gap-6'
+        )}
+      >
+        <div className={cn('flex items-center gap-4', embedded && 'gap-3')}>
+          {!embedded && (
           <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary shrink-0">
             <Gauge size={22} className="text-brand-primary animate-pulse" />
           </div>
+          )}
           <div>
-            <span className="crm-label block mb-0.5">Shop floor metrics</span>
-            <h2 className="crm-section-title">Technician efficiency</h2>
+            {!embedded && <span className="crm-label block mb-0.5">Shop floor metrics</span>}
+            <h2 className={embedded ? 'crm-section-title flex items-center gap-2' : 'crm-section-title'}>
+              {embedded && <Gauge size={16} className="text-brand-primary" />}
+              Technician efficiency
+            </h2>
             {reportStartDate && reportEndDate && (
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                Active report period: {formatDateRangeShort(reportStartDate, reportEndDate)}
+              <p className={cn('text-[10px] font-bold uppercase tracking-wider mt-0.5', embedded ? 'crm-label' : 'text-slate-400')}>
+                {embedded ? `${reportStartDate} – ${reportEndDate}` : `Active report period: ${formatDateRangeShort(reportStartDate, reportEndDate)}`}
+                {selectedMonth === 'active' && pbsSyncedAt && isPbsDealership
+                  ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}`
+                  : ''}
               </p>
             )}
             {selectedMonth !== 'active' && (
@@ -474,22 +506,34 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                 PBS sync writes to the active month only — switch View Period to July (Active).
               </p>
             )}
-            {selectedMonth === 'active' && pbsSyncedAt && (
+            {!embedded && selectedMonth === 'active' && pbsSyncedAt && (
               <p className="text-[10px] text-slate-500 font-medium mt-1">
                 PBS synced {new Date(pbsSyncedAt).toLocaleString()}
+              </p>
+            )}
+            {embedded && isPbsDealership && selectedMonth === 'active' && technicians.length === 0 && (
+              <p className="text-[10px] text-amber-400/90 mt-1">
+                Run Pull changes in Admin → PBS Sync to load clock and flagged hours from PBS.
               </p>
             )}
           </div>
         </div>
 
-        {selectedMonth !== 'active' && !allowArchiveEditing ? (
+        {embedded && technicians.length > 0 && (
+          <div className="text-right shrink-0">
+            <p className="crm-label">Shop average</p>
+            <p className="text-lg font-bold tabular-nums">{averageEfficiency}%</p>
+          </div>
+        )}
+
+        {!embedded && selectedMonth !== 'active' && !allowArchiveEditing ? (
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
               🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
             </span>
           </div>
-        ) : (
+        ) : !embedded ? (
           <div className="flex flex-wrap items-center gap-3">
             {selectedMonth !== 'active' && (
               <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse">
@@ -534,12 +578,12 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Manual Add Form Trigger */}
       <AnimatePresence>
-        {showAddForm && (
+        {showAddForm && !embedded && (
           <motion.form
             initial={{ opacity: 0, height: 0, y: -10 }}
             animate={{ opacity: 1, height: 'auto', y: 0 }}
@@ -617,9 +661,9 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start relative z-10">
+      <div className={cn(embedded ? '' : 'grid grid-cols-1 xl:grid-cols-3 gap-8 items-start relative z-10')}>
         {/* DRAG-AND-DROP FILE UPLOADER */}
-        {(selectedMonth === 'active' || allowArchiveEditing) && !isPbsDealership && (
+        {(selectedMonth === 'active' || allowArchiveEditing) && !isPbsDealership && !embedded && (
           <div className="col-span-1 xl:col-span-1">
           <div
             onDragOver={onDragOver}
@@ -690,8 +734,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
 
         {/* PERFORMANCE LIST SECTION */}
         <div className={cn(
-          "col-span-1 space-y-4",
-          isPbsDealership || (selectedMonth !== 'active' && !allowArchiveEditing) ? "xl:col-span-3" : "xl:col-span-2"
+          embedded ? '' : 'col-span-1 space-y-4',
+          !embedded && (isPbsDealership || (selectedMonth !== 'active' && !allowArchiveEditing) ? 'xl:col-span-3' : 'xl:col-span-2')
         )}>
           {loading ? (
             <TableSkeleton rows={5} cols={4} />
@@ -709,19 +753,19 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               }
             />
           ) : (
-            <div className="bg-slate-900/40 border border-white/5 rounded-3xl overflow-hidden shadow-inner">
+            <div className={embedded ? 'overflow-x-auto' : 'bg-slate-900/40 border border-white/5 rounded-3xl overflow-hidden shadow-inner'}>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse" id="technicians-efficiency-table">
+                <table className={embedded ? 'crm-table' : 'w-full text-left border-collapse'} id="technicians-efficiency-table">
                   <thead>
-                    <tr className="border-b border-white/5 bg-slate-950/20 text-[9px] font-black uppercase tracking-widest text-slate-400">
-                      <th className="px-6 py-4">Technician</th>
-                      <th className="px-6 py-4 text-center">Clocked Hrs</th>
-                      <th className="px-6 py-4 text-center">Flagged Hrs</th>
-                      <th className="px-6 py-4">Efficiency</th>
-                      {(selectedMonth === 'active' || allowArchiveEditing) && <th className="px-6 py-4 text-right">Actions</th>}
+                    <tr className={embedded ? undefined : 'border-b border-white/5 bg-slate-950/20 text-[9px] font-black uppercase tracking-widest text-slate-400'}>
+                      <th className={embedded ? undefined : 'px-6 py-4'}>Technician</th>
+                      <th className={embedded ? 'text-right' : 'px-6 py-4 text-center'}>Clocked Hrs</th>
+                      <th className={embedded ? 'text-right' : 'px-6 py-4 text-center'}>Flagged Hrs</th>
+                      <th className={embedded ? 'text-right' : 'px-6 py-4'}>Efficiency</th>
+                      {!embedded && (selectedMonth === 'active' || allowArchiveEditing) && <th className="px-6 py-4 text-right">Actions</th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/5">
+                  <tbody className={embedded ? undefined : 'divide-y divide-white/5'}>
                     {technicians.map((tech, index) => {
                       const isEditing = editingTechIndex === index;
                       const avatarLetters = tech.techName.replace(/[^a-zA-Z\s]/g, '').trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase() || "T";
@@ -735,25 +779,27 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                         : "bg-gradient-to-r from-rose-600 to-rose-550";
 
                       return (
-                        <tr key={index} className="hover:bg-white/[0.02] transition-colors group/row text-xs font-semibold text-slate-300">
-                          {/* TECH NAME */}
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className={cn(
-                                "w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black uppercase shadow-sm shrink-0 border",
-                                tech.efficiency >= 80 
-                                  ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10" 
-                                  : "bg-rose-500/5 text-rose-550 border-rose-500/20"
-                              )}>
-                                {avatarLetters}
+                        <tr key={index} className={embedded ? undefined : 'hover:bg-white/[0.02] transition-colors group/row text-xs font-semibold text-slate-300'}>
+                          <td className={embedded ? 'font-medium' : 'px-6 py-4'}>
+                            {embedded ? (
+                              <span>{tech.techName}</span>
+                            ) : (
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black uppercase shadow-sm shrink-0 border",
+                                  tech.efficiency >= 80 
+                                    ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10" 
+                                    : "bg-rose-500/5 text-rose-550 border-rose-500/20"
+                                )}>
+                                  {avatarLetters}
+                                </div>
+                                <span className="text-white font-bold max-w-[130px] truncate">{tech.techName}</span>
                               </div>
-                              <span className="text-white font-bold max-w-[130px] truncate">{tech.techName}</span>
-                            </div>
+                            )}
                           </td>
 
-                          {/* CLOCKED HOURS */}
-                          <td className="px-6 py-4 text-center">
-                            {isEditing ? (
+                          <td className={embedded ? 'text-right tabular-nums' : 'px-6 py-4 text-center'}>
+                            {isEditing && !embedded ? (
                               <input
                                 type="number"
                                 step="0.1"
@@ -762,13 +808,12 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                                 className="w-20 text-center h-8 bg-slate-950 border border-white/10 rounded-lg text-xs font-semibold text-white outline-none"
                               />
                             ) : (
-                              <span className="font-mono text-slate-450">{tech.clockedHours.toFixed(1)}</span>
+                              <span className={embedded ? undefined : 'font-mono text-slate-450'}>{tech.clockedHours.toFixed(1)}</span>
                             )}
                           </td>
 
-                          {/* FLAGGED HOURS */}
-                          <td className="px-6 py-4 text-center">
-                            {isEditing ? (
+                          <td className={embedded ? 'text-right tabular-nums' : 'px-6 py-4 text-center'}>
+                            {isEditing && !embedded ? (
                               <input
                                 type="number"
                                 step="0.1"
@@ -777,76 +822,83 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                                 className="w-20 text-center h-8 bg-slate-950 border border-white/10 rounded-lg text-xs font-semibold text-white outline-none"
                               />
                             ) : (
-                              <span className="font-mono text-emerald-500 font-bold">{tech.flaggedHours.toFixed(1)}</span>
+                              <span className={embedded ? 'font-medium' : 'font-mono text-emerald-500 font-bold'}>{tech.flaggedHours.toFixed(1)}</span>
                             )}
                           </td>
 
-                          {/* EFFICIENCY BAR & PERCENTAGE */}
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-4 min-w-[220px]">
-                              <span className={cn("px-2 py-1 rounded-lg text-[10px] font-mono font-black border text-center min-w-[54px] shadow-sm", performanceColor)}>
+                          <td className={embedded ? 'text-right' : 'px-6 py-4'}>
+                            {embedded ? (
+                              <span className={cn(
+                                'tabular-nums font-semibold',
+                                tech.efficiency >= 80 ? 'text-emerald-500' : 'text-rose-500'
+                              )}>
                                 {tech.efficiency}%
                               </span>
-                              <span className={cn(
-                                "inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border whitespace-nowrap",
-                                tech.efficiency >= 80
-                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                  : "bg-rose-500/10 text-rose-500 border-rose-500/20 text-rose-500 font-bold animate-pulse"
-                              )}>
-                                {tech.efficiency >= 80 ? 'Above Standard' : 'Below Standard'}
-                              </span>
-                              <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden hidden sm:block">
-                                <div 
-                                  className={cn("h-full rounded-full transition-all duration-500", progressBarColor)} 
-                                  style={{ width: `${Math.min(100, tech.efficiency)}%` }} 
-                                />
+                            ) : (
+                              <div className="flex items-center gap-4 min-w-[220px]">
+                                <span className={cn("px-2 py-1 rounded-lg text-[10px] font-mono font-black border text-center min-w-[54px] shadow-sm", performanceColor)}>
+                                  {tech.efficiency}%
+                                </span>
+                                <span className={cn(
+                                  "inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border whitespace-nowrap",
+                                  tech.efficiency >= 80
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                    : "bg-rose-500/10 text-rose-500 border-rose-500/20 text-rose-500 font-bold animate-pulse"
+                                )}>
+                                  {tech.efficiency >= 80 ? 'Above Standard' : 'Below Standard'}
+                                </span>
+                                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden hidden sm:block">
+                                  <div 
+                                    className={cn("h-full rounded-full transition-all duration-500", progressBarColor)} 
+                                    style={{ width: `${Math.min(100, tech.efficiency)}%` }} 
+                                  />
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </td>
 
-                          {/* INLINE ACTIONS */}
-                          {(selectedMonth === 'active' || allowArchiveEditing) ? (
+                          {!embedded && (selectedMonth === 'active' || allowArchiveEditing) ? (
                             <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-2.5">
-                              {isEditing ? (
-                                <>
-                                  <button
-                                    onClick={saveInlineEdit}
-                                    className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded border border-emerald-500/20 transition-all cursor-pointer"
-                                    title="Save changes"
-                                  >
-                                    <CheckCircle2 size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingTechIndex(null);
-                                      setEditForm(null);
-                                    }}
-                                    className="p-1 text-rose-400 hover:bg-rose-500/10 rounded border border-rose-500/20 transition-all cursor-pointer"
-                                    title="Cancel"
-                                  >
-                                    <RotateCcw size={14} />
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => startEditing(index)}
-                                    className="p-1.5 text-slate-450 hover:text-white rounded hover:bg-white/5 transition-all cursor-pointer"
-                                    title="Edit measurements"
-                                  >
-                                    <Edit2 size={13} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteTech(index)}
-                                    className="p-1.5 text-slate-455 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-all cursor-pointer"
-                                    title="Remove technician"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                              <div className="flex items-center justify-end gap-2.5">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      onClick={saveInlineEdit}
+                                      className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded border border-emerald-500/20 transition-all cursor-pointer"
+                                      title="Save changes"
+                                    >
+                                      <CheckCircle2 size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingTechIndex(null);
+                                        setEditForm(null);
+                                      }}
+                                      className="p-1 text-rose-400 hover:bg-rose-500/10 rounded border border-rose-500/20 transition-all cursor-pointer"
+                                      title="Cancel"
+                                    >
+                                      <RotateCcw size={14} />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => startEditing(index)}
+                                      className="p-1.5 text-slate-450 hover:text-white rounded hover:bg-white/5 transition-all cursor-pointer"
+                                      title="Edit measurements"
+                                    >
+                                      <Edit2 size={13} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteTech(index)}
+                                      className="p-1.5 text-slate-455 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-all cursor-pointer"
+                                      title="Remove technician"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </td>
                           ) : null}
                         </tr>

@@ -4,9 +4,14 @@
  */
 import {
   buildAppointmentCustomerLookup,
+  buildAppointmentDisplayInfoMap,
   mapPbsAppointmentToSlot,
 } from '../server/pbs/pbsAppointmentSchedule.js';
-import { parsePbsIso, pbsIsoToPacificMinutes } from '../server/pbs/pbsMappers.js';
+import {
+  parsePbsIso,
+  pbsAppointmentToPacificMinutes,
+  pbsIsoToPacificMinutes,
+} from '../server/pbs/pbsMappers.js';
 import type { PbsAppointment } from '../server/pbs/pbsTypes.js';
 
 import { categorizeAppointmentBlock } from '../server/dms/parsers/appointments.ts';
@@ -66,6 +71,54 @@ assert(slot!.isWaiter === true, 'preserves waiter flag');
 const parsed = parsePbsIso('2026-07-09T14:00:00.0000000-07:00');
 assert(Boolean(parsed), 'parses PBS 7-digit fractional ISO');
 assert(pbsIsoToPacificMinutes('2026-07-09T14:00:00.0000000-07:00') === 14 * 60, 'Pacific minutes from PBS ISO');
+
+const wallClock: PbsAppointment = {
+  AppointmentId: 'appt-wall',
+  AppointmentTime: '2026-07-09T09:45:00.0000000Z',
+  AppointmentTimeUTC: '2026-07-09T16:45:00.0000000Z',
+  Status: 'Open',
+  RequestLines: [{ RequestDescription: 'OIL CHANGE' }],
+};
+
+assert(
+  pbsAppointmentToPacificMinutes(wallClock.AppointmentTime, wallClock.AppointmentTimeUTC) ===
+    9 * 60 + 45,
+  'prefers true UTC when available'
+);
+
+const localZ: PbsAppointment = {
+  AppointmentId: 'appt-local-z',
+  AppointmentTime: '2026-07-09T11:00:00.0000000Z',
+  Status: 'Open',
+  RequestLines: [{ RequestDescription: 'OIL CHANGE' }],
+};
+
+assert(
+  pbsAppointmentToPacificMinutes(localZ.AppointmentTime, localZ.AppointmentTimeUTC) === 11 * 60,
+  'treats AppointmentTime Z suffix as Pacific wall clock when UTC missing'
+);
+
+const displayInfo = buildAppointmentDisplayInfoMap([
+  {
+    AppointmentId: 'appt-inline',
+    ContactFirstName: 'Ricardo',
+    ContactLastName: 'Jimenez',
+    VehicleYear: '2023',
+    VehicleMake: 'HYUNDAI',
+    VehicleModel: 'SANTA FE PHEV',
+  },
+]);
+
+const inlineAppt: PbsAppointment = {
+  AppointmentId: 'appt-inline',
+  AppointmentTime: '2026-07-09T06:00:00.0000000Z',
+  Status: 'Open',
+  RequestLines: [{ RequestDescription: 'OIL CHANGE' }],
+};
+
+const inlineSlot = mapPbsAppointmentToSlot(inlineAppt, lookup, displayInfo);
+assert(inlineSlot!.customerName === 'JIMENEZ, RICARDO', 'uses PBS contact/vehicle info for names');
+assert(inlineSlot!.vehicleLabel.includes('SANTA FE'), 'uses PBS vehicle info');
 
 const oilAndRecall =
   'PERFORM FULL SYNTHETIC OIL & FILTER CHANGE PERFORMED RECALL 302 FRONT VIEW CAMERA';

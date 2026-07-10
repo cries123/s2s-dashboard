@@ -5,8 +5,8 @@ import {
   defaultScheduleStartMinutes,
   formatPacificTimeLabel,
   isActivePbsAppointment,
-  pbsIsoToDateString,
-  pbsIsoToPacificMinutes,
+  pbsAppointmentPacificDate,
+  pbsAppointmentToPacificMinutes,
 } from './pbsMappers.js';
 import {
   appointmentScheduleCollection,
@@ -15,7 +15,7 @@ import {
   serverTimestamp,
   stripUndefinedDeep,
 } from './pbsFirestore.js';
-import type { PbsAppointment } from './pbsTypes.js';
+import type { PbsAppointment, PbsAppointmentContactVehicleInfo } from './pbsTypes.js';
 
 export interface ScheduledAppointmentSlot {
   id: string;
@@ -33,11 +33,60 @@ export interface ScheduledAppointmentSlot {
   pickupTimeLabel?: string;
 }
 
+export interface PbsAppointmentDisplayInfo {
+  contactFirstName?: string;
+  contactLastName?: string;
+  vehicleYear?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+}
+
 export interface AppointmentCustomerLookup {
   resolveCustomer: (
     contactRef?: string,
     vehicleRef?: string
   ) => { customerName: string; vehicleLabel: string };
+}
+
+function normalizePbsRef(ref?: string): string {
+  return (ref || '').trim().toLowerCase();
+}
+
+function appointmentLookupKey(appt: PbsAppointment): string {
+  return String(appt.AppointmentId || appt.Id || '').trim().toLowerCase();
+}
+
+export function formatPbsScheduleCustomerName(first?: string, last?: string): string {
+  const firstName = (first || '').trim();
+  const lastName = (last || '').trim();
+  if (lastName && firstName) return `${lastName}, ${firstName}`.toUpperCase();
+  return (lastName || firstName || '').toUpperCase();
+}
+
+export function formatPbsScheduleVehicleLabel(
+  year?: string,
+  make?: string,
+  model?: string
+): string {
+  return [year, make, model].filter(Boolean).join(' ').toUpperCase();
+}
+
+export function buildAppointmentDisplayInfoMap(
+  items: PbsAppointmentContactVehicleInfo[]
+): Map<string, PbsAppointmentDisplayInfo> {
+  const map = new Map<string, PbsAppointmentDisplayInfo>();
+  for (const item of items) {
+    const id = String(item.AppointmentId || '').trim().toLowerCase();
+    if (!id) continue;
+    map.set(id, {
+      contactFirstName: item.ContactFirstName,
+      contactLastName: item.ContactLastName,
+      vehicleYear: item.VehicleYear,
+      vehicleMake: item.VehicleMake,
+      vehicleModel: item.VehicleModel,
+    });
+  }
+  return map;
 }
 
 export function buildAppointmentCustomerLookup(index: {
@@ -48,8 +97,12 @@ export function buildAppointmentCustomerLookup(index: {
   return {
     resolveCustomer(contactRef?: string, vehicleRef?: string) {
       let customerId: string | undefined;
-      if (vehicleRef) customerId = index.byVehicleRef.get(vehicleRef);
-      if (!customerId && contactRef) customerId = index.byContactRef.get(contactRef);
+      const normalizedVehicleRef = normalizePbsRef(vehicleRef);
+      const normalizedContactRef = normalizePbsRef(contactRef);
+      if (normalizedVehicleRef) customerId = index.byVehicleRef.get(normalizedVehicleRef);
+      if (!customerId && normalizedContactRef) {
+        customerId = index.byContactRef.get(normalizedContactRef);
+      }
 
       const data = customerId ? index.dataById.get(customerId) : undefined;
       const first = String(data?.firstName || '').trim();
@@ -57,11 +110,11 @@ export function buildAppointmentCustomerLookup(index: {
       const customerName =
         last && first
           ? `${last}, ${first}`.toUpperCase()
-          : (last || first || 'CUSTOMER').toUpperCase();
+          : (last || first || '').toUpperCase();
       const vehicleLabel = [data?.year, data?.make, data?.model]
         .filter(Boolean)
         .join(' ')
-        .toUpperCase() || 'VEHICLE';
+        .toUpperCase();
 
       return { customerName, vehicleLabel };
     },
@@ -86,16 +139,48 @@ function pickDurationMinutes(appt: PbsAppointment): number {
   return 60;
 }
 
+function resolveDisplayFields(
+  appt: PbsAppointment,
+  lookup: AppointmentCustomerLookup,
+  displayInfoByAppointmentId?: Map<string, PbsAppointmentDisplayInfo>
+): { customerName: string; vehicleLabel: string } {
+  const inline = displayInfoByAppointmentId?.get(appointmentLookupKey(appt));
+  const inlineName = formatPbsScheduleCustomerName(
+    inline?.contactFirstName,
+    inline?.contactLastName
+  );
+  const inlineVehicle = formatPbsScheduleVehicleLabel(
+    inline?.vehicleYear,
+    inline?.vehicleMake,
+    inline?.vehicleModel
+  );
+
+  if (inlineName) {
+    return {
+      customerName: inlineName,
+      vehicleLabel: inlineVehicle || 'VEHICLE',
+    };
+  }
+
+  const fromIndex = lookup.resolveCustomer(appt.ContactRef, appt.VehicleRef);
+  return {
+    customerName: fromIndex.customerName || 'CUSTOMER',
+    vehicleLabel: fromIndex.vehicleLabel || 'VEHICLE',
+  };
+}
+
 export function mapPbsAppointmentToSlot(
   appt: PbsAppointment,
-  lookup: AppointmentCustomerLookup
+  lookup: AppointmentCustomerLookup,
+  displayInfoByAppointmentId?: Map<string, PbsAppointmentDisplayInfo>
 ): ScheduledAppointmentSlot | null {
   if (!isActivePbsAppointment(appt)) return null;
 
-  const timeIso = appt.AppointmentTime || appt.AppointmentTimeUTC;
-  let startMinutes = pbsIsoToPacificMinutes(timeIso);
-  if (startMinutes === null && timeIso) {
-    // Midnight or unparsed time — still place on the board.
+  let startMinutes = pbsAppointmentToPacificMinutes(
+    appt.AppointmentTime,
+    appt.AppointmentTimeUTC
+  );
+  if (startMinutes === null && (appt.AppointmentTime || appt.AppointmentTimeUTC)) {
     startMinutes = defaultScheduleStartMinutes();
   }
   if (startMinutes === null) return null;
@@ -104,9 +189,10 @@ export function mapPbsAppointmentToSlot(
   const category = categorizeAppointmentText(concern || 'misc');
   const firstLine = appt.RequestLines?.[0];
   const advisor = (appt.Advisor || firstLine?.CSR || '').trim();
-  const { customerName, vehicleLabel } = lookup.resolveCustomer(
-    appt.ContactRef,
-    appt.VehicleRef
+  const { customerName, vehicleLabel } = resolveDisplayFields(
+    appt,
+    lookup,
+    displayInfoByAppointmentId
   );
 
   const pickupIso = appt.PickupTime || appt.PickupTimeUTC;
@@ -117,7 +203,7 @@ export function mapPbsAppointmentToSlot(
       appt.Id ||
       appt.RawAppointmentNumber ||
       appt.AppointmentNumber ||
-      `${appt.ContactRef || 'appt'}-${timeIso || 'unknown'}`
+      `${appt.ContactRef || 'appt'}-${appt.AppointmentTime || appt.AppointmentTimeUTC || 'unknown'}`
   ).trim();
   if (!id) return null;
 
@@ -145,18 +231,16 @@ export async function syncAppointmentSchedule(
   monthStart: string,
   monthEnd: string,
   lookup: AppointmentCustomerLookup,
-  syncedAt: string
+  syncedAt: string,
+  displayInfoByAppointmentId?: Map<string, PbsAppointmentDisplayInfo>
 ): Promise<{ daysWritten: number; slotsWritten: number }> {
   const byDate = new Map<string, ScheduledAppointmentSlot[]>();
 
   for (const appt of appointments) {
-    const timeIso = appt.AppointmentTime || appt.AppointmentTimeUTC;
-    const date =
-      pbsIsoToDateString(timeIso) ||
-      pbsIsoToDateString(appt.AppointmentTimeUTC);
+    const date = pbsAppointmentPacificDate(appt.AppointmentTime, appt.AppointmentTimeUTC);
     if (!date || date < monthStart || date > monthEnd) continue;
 
-    const slot = mapPbsAppointmentToSlot(appt, lookup);
+    const slot = mapPbsAppointmentToSlot(appt, lookup, displayInfoByAppointmentId);
     if (!slot) continue;
 
     const list = byDate.get(date) || [];
