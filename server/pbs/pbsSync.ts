@@ -494,6 +494,8 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         mileage: visit.mileage,
         advisor: visit.advisor,
         requests: visit.requests,
+        status: visit.status,
+        lines: visit.lines,
         pbsVehicleRef: vehicleRef,
         createdAt: Timestamp.now(),
       });

@@ -5,6 +5,7 @@
 import { mapPbsOpenRepairOrderToDispatch, mapPbsDispatchStatus, mapPbsDepartment } from '../server/pbs/pbsDispatchMapper.js';
 import {
   mapRepairOrderToVisit,
+  mapRepairOrderRequestLines,
   mergeVehiclePbsServiceVisits,
 } from '../server/pbs/pbsMappers.js';
 import {
@@ -58,6 +59,27 @@ const retailVisit = mapRepairOrderToVisit({
   Requests: [{ RequestDescription: 'PERFORM OIL/FILTER CHANGE' }],
 });
 assert(retailVisit?.mileage === 24464, 'keeps retail visit mileage');
+
+const detailedLines = mapRepairOrderRequestLines({
+  RawRepairOrderNumber: '117892',
+  Requests: [
+    {
+      RequestCode: 'OIL',
+      RequestDescription: 'Customer requests oil change',
+      Cause: 'Maintenance due',
+      Correction: 'Replaced engine oil and filter',
+      Tech: '070',
+      LabourLines: [{ OpCode: 'LOF', OpDescription: 'Lube oil filter', SoldHours: 0.5, Price: 89.95 }],
+      PartLines: [{ PartNumber: '263502', PartDescription: 'Oil filter', Shipped: 1, ExtendedPrice: 12.5 }],
+    },
+  ],
+});
+assert(detailedLines.length === 1, 'maps request lines');
+assert(detailedLines[0].concern === 'Customer requests oil change', 'maps concern');
+assert(detailedLines[0].cause === 'Maintenance due', 'maps cause');
+assert(detailedLines[0].correction === 'Replaced engine oil and filter', 'maps correction');
+assert(detailedLines[0].labourLines.length === 1, 'maps labour lines');
+assert(detailedLines[0].partLines.length === 1, 'maps part lines');
 
 const merged = mergeVehiclePbsServiceVisits(
   [

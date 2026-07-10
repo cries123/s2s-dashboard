@@ -230,12 +230,95 @@ export function mergeVehiclePbsServiceVisits(
   return mergeServiceVisits(retainedExisting, incoming, maxVisits);
 }
 
+export function mapRepairOrderRequestLines(
+  ro: PbsRepairOrder
+): Array<{
+  lineNumber: number;
+  requestCode?: string;
+  concern?: string;
+  cause?: string;
+  correction?: string;
+  tech?: string;
+  status?: string;
+  labourLines: Array<{
+    opCode?: string;
+    description?: string;
+    soldHours?: number;
+    tech?: string;
+    price?: number;
+  }>;
+  partLines: Array<{
+    partNumber?: string;
+    description?: string;
+    qty?: number;
+    price?: number;
+  }>;
+}> {
+  return (ro.Requests || [])
+    .map((req, idx) => {
+      const concern = req.RequestDescription?.trim() || undefined;
+      const cause = req.Cause?.trim() || undefined;
+      const correction = req.Correction?.trim() || undefined;
+      const labourLines = (req.LabourLines || [])
+        .map((line) => ({
+          opCode: line.OpCode?.trim() || undefined,
+          description: line.OpDescription?.trim() || undefined,
+          soldHours:
+            typeof line.SoldHours === 'number' && Number.isFinite(line.SoldHours)
+              ? line.SoldHours
+              : undefined,
+          tech: line.Tech?.trim() || undefined,
+          price:
+            typeof line.Price === 'number' && Number.isFinite(line.Price) ? line.Price : undefined,
+        }))
+        .filter((line) => line.opCode || line.description);
+      const partLines = (req.PartLines || [])
+        .map((part) => ({
+          partNumber: part.PartNumber?.trim() || undefined,
+          description: part.PartDescription?.trim() || undefined,
+          qty:
+            typeof part.Shipped === 'number' && part.Shipped > 0
+              ? part.Shipped
+              : typeof part.Requested === 'number' && part.Requested > 0
+                ? part.Requested
+                : undefined,
+          price:
+            typeof part.ExtendedPrice === 'number' && Number.isFinite(part.ExtendedPrice)
+              ? part.ExtendedPrice
+              : undefined,
+        }))
+        .filter((part) => part.partNumber || part.description);
+
+      return {
+        lineNumber: idx + 1,
+        requestCode: req.RequestCode?.trim() || undefined,
+        concern,
+        cause,
+        correction,
+        tech: req.Tech?.trim() || undefined,
+        status: req.Status?.trim() || undefined,
+        labourLines,
+        partLines,
+      };
+    })
+    .filter(
+      (line) =>
+        line.concern ||
+        line.cause ||
+        line.correction ||
+        line.labourLines.length > 0 ||
+        line.partLines.length > 0
+    );
+}
+
 export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   soNumber: string;
   date: string;
   mileage: number;
   advisor: string;
   requests: string;
+  status?: string;
+  lines: ReturnType<typeof mapRepairOrderRequestLines>;
 } | null {
   const soNumber = repairOrderSoNumber(ro);
   if (!soNumber) return null;
@@ -247,9 +330,10 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   if (!date) return null;
 
   const mileage = ro.MileageOut || ro.MileageIn || 0;
+  const lines = mapRepairOrderRequestLines(ro);
   const requests =
-    (ro.Requests || [])
-      .map((r) => r.RequestDescription?.trim())
+    lines
+      .map((line) => line.concern)
       .filter(Boolean)
       .join('; ') || 'Service visit';
 
@@ -259,6 +343,8 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
     mileage,
     advisor: (ro.CSR || '').trim(),
     requests,
+    status: (ro.Status || '').trim() || undefined,
+    lines,
   };
 }
 

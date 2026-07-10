@@ -28,7 +28,27 @@ export interface PbsContactVehicle {
 }
 
 export interface PbsRepairOrderRequest {
+  RequestCode?: string;
   RequestDescription?: string;
+  Cause?: string;
+  Correction?: string;
+  Tech?: string;
+  Status?: string;
+  LabourLines?: Array<{
+    OpCode?: string;
+    OpDescription?: string;
+    SoldHours?: number;
+    ActualHours?: number;
+    Tech?: string;
+    Price?: number;
+  }>;
+  PartLines?: Array<{
+    PartNumber?: string;
+    PartDescription?: string;
+    Shipped?: number;
+    Requested?: number;
+    ExtendedPrice?: number;
+  }>;
 }
 
 export interface PbsRepairOrder {
