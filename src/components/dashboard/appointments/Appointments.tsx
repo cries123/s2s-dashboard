@@ -1150,26 +1150,30 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           onClick={() => setShowPerformanceTools((v) => !v)}
           className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
         >
-          <span className="crm-section-title">Advisor & technician performance</span>
+          <span className="crm-section-title">Advisor performance</span>
           <span className="crm-label">{showPerformanceTools ? 'Hide' : 'Expand'}</span>
         </button>
         {showPerformanceTools && (
-          <div className="px-5 pb-5 space-y-8 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
+          <div className="px-5 pb-5 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
             <AdvisorPerformance
               currentDealershipId={currentDealershipId}
               selectedMonth={selectedMonth}
               allowArchiveEditing={allowArchiveEditing}
             />
-            <TechnicianEfficiency
-              currentUser={currentUser}
-              currentDealershipId={currentDealershipId}
-              onSuccess={onSuccess}
-              onError={onError}
-              selectedMonth={selectedMonth}
-              allowArchiveEditing={allowArchiveEditing}
-            />
           </div>
         )}
+      </div>
+
+      <div className="card-base p-5">
+        <TechnicianEfficiency
+          currentUser={currentUser}
+          currentDealershipId={currentDealershipId}
+          onSuccess={onSuccess}
+          onError={onError}
+          selectedMonth={selectedMonth}
+          allowArchiveEditing={allowArchiveEditing}
+          embedded
+        />
       </div>
 
 
