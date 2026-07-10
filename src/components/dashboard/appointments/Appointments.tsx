@@ -8,7 +8,7 @@ import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
-  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp, Calendar as CalendarIcon, 
+  ChevronLeft, ChevronRight, Save, Loader2, TrendingUp,
   Target, Clock, X, Printer, Archive, Lock, Unlock
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
@@ -95,7 +95,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
   const [targetValue, setTargetValue] = useState(20);
   const [laborTarget, setLaborTarget] = useState(500000);
   const [partsTarget, setPartsTarget] = useState(300000);
@@ -622,31 +621,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     prevTargetRef.current = targetValue;
   }, [targetValue, loading, onSuccess]);
 
-  const getWeekDays = () => {
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    // Align to Monday of current week, then add weekOffset
-    startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1) + (weekOffset * 7));
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      const dateStr = toLocalDateString(d);
-      const stat = effectiveStats.find(s => s.date === dateStr);
-      return {
-        date: dateStr,
-        label: d.toLocaleDateString('en-US', { weekday: 'short' }),
-        monthLabel: d.toLocaleDateString('en-US', { month: 'short' }),
-        dayNum: d.getDate(),
-        count: stat ? stat.count : 0,
-        hasData: !!stat
-      };
-    });
-  };
-
-  const weekDays = getWeekDays();
-
   const projectionRows = [
     { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
     { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
@@ -831,73 +805,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
               </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="card-base overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
-          <h3 className="crm-section-title flex items-center gap-2">
-            <CalendarIcon size={16} className="text-brand-primary" />
-            Weekly schedule volume
-          </h3>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setWeekOffset((p) => p - 1)} className="btn-secondary p-2"><ChevronLeft size={14} /></button>
-            <button type="button" onClick={() => setWeekOffset(0)} className="btn-secondary px-3 py-2 text-xs">This week</button>
-            <button type="button" onClick={() => setWeekOffset((p) => p + 1)} className="btn-secondary p-2"><ChevronRight size={14} /></button>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="crm-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Date</th>
-                <th className="text-right">Scheduled</th>
-                <th className="text-right">vs goal ({targetValue})</th>
-                <th className="text-right">Breakdown</th>
-              </tr>
-            </thead>
-            <tbody>
-              {weekDays.map((day) => {
-                const fullDayData = allStats.find((s) => s.date === day.date);
-                const isSelected = selectedDate === day.date;
-                const vsGoal = day.count - targetValue;
-                return (
-                  <tr
-                    key={day.date}
-                    onClick={() => {
-                      setSelectedDate(day.date);
-                      setDailyCount(day.count > 0 ? day.count.toString() : fullDayData ? '0' : '');
-                    }}
-                    className={cn('cursor-pointer', isSelected && 'bg-brand-primary/5')}
-                  >
-                    <td className="font-medium">{day.label}</td>
-                    <td className="crm-label">{day.monthLabel} {day.dayNum}</td>
-                    <td className="text-right font-semibold tabular-nums">{day.count}</td>
-                    <td className={cn('text-right tabular-nums', vsGoal < 0 ? 'text-rose-600' : vsGoal === 0 ? 'text-amber-600' : 'text-emerald-600')}>
-                      {vsGoal > 0 ? `+${vsGoal}` : vsGoal}
-                    </td>
-                    <td className="text-right">
-                      {fullDayData?.breakdown ? (
-                        <button
-                          type="button"
-                          className="text-xs text-brand-primary hover:underline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowBreakdown(fullDayData);
-                          }}
-                        >
-                          View
-                        </button>
-                      ) : (
-                        <span className="crm-label">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         </div>
       </div>
 
