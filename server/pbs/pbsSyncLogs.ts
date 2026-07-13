@@ -34,10 +34,14 @@ export function buildPbsSyncSummary(
     return error ? `Sync failed: ${error}` : 'Sync failed.';
   }
 
+  const mode = fetched.incrementalSince
+    ? `since ${fetched.incrementalSince}`
+    : 'full refresh';
+
   return [
-    `Pulled ${fetched.contactVehicles} customer/vehicle records, ${fetched.repairOrders} repair orders, and ${fetched.appointments} appointments (${fetched.appointmentMonthStart} through ${fetched.appointmentMonthEnd}).`,
+    `Pulled ${fetched.contactVehicles} customer/vehicle changes, ${fetched.repairOrders} repair orders, and ${fetched.appointments} appointments (${mode}; schedule month ${fetched.appointmentMonthStart} through ${fetched.appointmentMonthEnd}).`,
     `Directory: ${counts.customersCreated} new, ${counts.customersUpdated} updated${counts.ownerChanges ? `, ${counts.ownerChanges} owner changes` : ''}.`,
-    `Service history: ${counts.visitsMerged} visits merged.`,
+    `Service history: ${counts.visitsLogged} visits logged, ${counts.visitsMerged} customer visit lists updated.`,
     `Operations: ${counts.appointmentDaysUpdated} days refreshed (${counts.appointmentsProcessed} appointments in month), ${counts.appointmentScheduleSlots} schedule slots.`,
     `Advisor performance: ${counts.performanceAdvisors} advisors from ${counts.performanceRepairOrders} cashiered ROs and ${counts.performancePartsInvoices} parts invoices (${fetched.performanceMonthStart || ''} through ${fetched.performanceMonthEnd || ''}).`,
     `Technician efficiency: ${counts.technicianReports} techs from ${counts.timeClockActivities} clock punches.`,

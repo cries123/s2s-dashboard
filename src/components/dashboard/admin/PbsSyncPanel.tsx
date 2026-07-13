@@ -69,7 +69,8 @@ function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
           { label: 'New profiles', value: entry.counts.customersCreated },
           { label: 'Updated profiles', value: entry.counts.customersUpdated },
           { label: 'Owner changes', value: entry.counts.ownerChanges ?? 0 },
-          { label: 'Visits merged', value: entry.counts.visitsMerged },
+          { label: 'Visits logged', value: entry.counts.visitsLogged ?? 0 },
+          { label: 'Visit lists updated', value: entry.counts.visitsMerged },
           { label: 'Ops days', value: entry.counts.appointmentDaysUpdated },
           { label: 'Perf advisors', value: entry.counts.performanceAdvisors ?? 0 },
           { label: 'Cashiered ROs', value: entry.counts.performanceRepairOrders ?? 0 },
@@ -409,6 +410,11 @@ function PbsSyncPanelInner({
             <p className="text-xs font-bold text-slate-200 mt-1">
               {lastState?.lastSyncAt ? formatWhen(lastState.lastSyncAt) : 'Never'}
             </p>
+            {lastState?.lastSuccessfulSyncAt ? (
+              <p className="text-[10px] text-slate-600 mt-1">
+                Pull changes since {formatWhen(lastState.lastSuccessfulSyncAt)}
+              </p>
+            ) : null}
             {lastState?.syncInProgress ? (
               <p className="text-[10px] text-brand-primary mt-1 flex items-center gap-1">
                 <Loader2 size={10} className="animate-spin" />

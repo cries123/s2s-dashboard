@@ -63,8 +63,17 @@ import { syncPbsVehicleInventory } from './pbsInventorySync.js';
 import { syncPbsTechnicianPerformance } from './pbsTechnicianSync.js';
 import { syncPbsWorkplanReminders } from './pbsWorkplanReminderSync.js';
 import type { PbsCustomerIndexMaps } from './pbsExtendedTypes.js';
+import {
+  dedupeAppointments,
+  dedupeRepairOrders,
+  repairOrderChangedSince,
+  resolveIncrementalWatermark,
+  shouldLogRepairOrderVisit,
+  toPbsPacificCriteriaIso,
+  yearsAgoPacificCriteria,
+} from './pbsIncrementalCriteria.js';
 
-const MAX_RECENT_VISITS = 25;
+const MAX_RECENT_VISITS = 100;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
 
 export interface RunPbsSyncOptions {
@@ -111,7 +120,8 @@ function emptyCounts(): PbsSyncCounts {
     customersUpdated: 0,
     ownerChanges: 0,
     visitsMerged: 0,
-  appointmentDaysUpdated: 0,
+    visitsLogged: 0,
+    appointmentDaysUpdated: 0,
   appointmentsProcessed: 0,
   appointmentScheduleDays: 0,
   appointmentScheduleSlots: 0,
@@ -139,17 +149,19 @@ function toCustomerIndexMaps(index: CustomerIndex): PbsCustomerIndexMaps {
   };
 }
 
-function yearsAgoIso(years: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - years);
-  return d.toISOString();
-}
-
-function monthAppointmentCriteria(start: string, end: string): Record<string, unknown> {
-  return {
+function monthAppointmentCriteria(
+  start: string,
+  end: string,
+  modifiedSince?: string
+): Record<string, unknown> {
+  const criteria: Record<string, unknown> = {
     AppointmentSince: `${start}T00:00:00.0000000-07:00`,
     AppointmentUntil: `${end}T23:59:59.9999999-07:00`,
   };
+  if (modifiedSince) {
+    criteria.ModifiedSince = toPbsPacificCriteriaIso(modifiedSince);
+  }
+  return criteria;
 }
 
 async function loadCustomerIndex(
@@ -266,38 +278,78 @@ function registerCustomerInIndex(
 }
 
 async function fetchAllContactVehicles(
-  modifiedSince?: string
+  watermark?: string
 ): Promise<PbsContactVehicle[]> {
   const criteria: Record<string, unknown> = {};
-  if (modifiedSince) {
-    criteria.ContactModifiedSince = modifiedSince;
-    criteria.VehicleModifiedSince = modifiedSince;
+  if (watermark) {
+    const since = toPbsPacificCriteriaIso(watermark);
+    criteria.ContactModifiedSince = since;
+    criteria.VehicleModifiedSince = since;
   }
   const response = await pbsContactVehicleGet(criteria);
   return pbsContactVehicleItems(response) as PbsContactVehicle[];
 }
 
-async function fetchRepairOrders(modifiedSince?: string): Promise<PbsRepairOrder[]> {
-  const criteria: Record<string, unknown> = {
-    CashieredSince: yearsAgoIso(REPAIR_ORDER_LOOKBACK_YEARS),
-  };
-  if (modifiedSince) {
-    criteria.ModifiedSince = modifiedSince;
+async function fetchRepairOrdersForSync(watermark?: string): Promise<PbsRepairOrder[]> {
+  if (!watermark) {
+    const response = await pbsRepairOrderGet({
+      CashieredSince: yearsAgoPacificCriteria(REPAIR_ORDER_LOOKBACK_YEARS),
+    });
+    return (response.RepairOrders || []) as PbsRepairOrder[];
   }
-  const response = await pbsRepairOrderGet(criteria);
-  return (response.RepairOrders || []) as PbsRepairOrder[];
+
+  const since = toPbsPacificCriteriaIso(watermark);
+  const [modifiedResponse, cashieredResponse, openedResponse] = await Promise.all([
+    pbsRepairOrderGet({ ModifiedSince: since }),
+    pbsRepairOrderGet({ CashieredSince: since }),
+    pbsRepairOrderGet({ OpenDateSince: since }),
+  ]);
+
+  const merged = dedupeRepairOrders([
+    ...((modifiedResponse.RepairOrders || []) as PbsRepairOrder[]),
+    ...((cashieredResponse.RepairOrders || []) as PbsRepairOrder[]),
+    ...((openedResponse.RepairOrders || []) as PbsRepairOrder[]),
+  ]);
+
+  return merged.filter((ro) => repairOrderChangedSince(ro, watermark));
 }
 
-async function fetchMonthAppointments(start: string, end: string): Promise<PbsAppointment[]> {
-  const response = await pbsAppointmentGet(monthAppointmentCriteria(start, end));
-  return (response.Appointments || []) as PbsAppointment[];
+async function fetchAppointmentsForSync(
+  start: string,
+  end: string,
+  watermark?: string
+): Promise<PbsAppointment[]> {
+  const monthResponse = await pbsAppointmentGet(monthAppointmentCriteria(start, end));
+  const monthAppointments = (monthResponse.Appointments || []) as PbsAppointment[];
+
+  if (!watermark) {
+    return monthAppointments;
+  }
+
+  const since = toPbsPacificCriteriaIso(watermark);
+  const [modifiedResponse, sinceResponse] = await Promise.all([
+    pbsAppointmentGet({ ModifiedSince: since }),
+    pbsAppointmentGet({
+      AppointmentSince: since,
+      AppointmentUntil: `${end}T23:59:59.9999999-07:00`,
+    }),
+  ]);
+
+  return dedupeAppointments([
+    ...monthAppointments,
+    ...((modifiedResponse.Appointments || []) as PbsAppointment[]),
+    ...((sinceResponse.Appointments || []) as PbsAppointment[]),
+  ]);
 }
 
 async function fetchMonthAppointmentDisplayInfo(
   start: string,
-  end: string
+  end: string,
+  watermark?: string
 ): Promise<Map<string, PbsAppointmentDisplayInfo>> {
-  const response = await pbsAppointmentContactVehicleInfoGet(monthAppointmentCriteria(start, end));
+  const response = await pbsAppointmentContactVehicleInfoGet(
+    monthAppointmentCriteria(start, end, watermark)
+  );
   const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
   return buildAppointmentDisplayInfoMap(items);
 }
@@ -379,6 +431,10 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     if (db) {
       const state: PbsSyncState = {
         lastSyncAt: finishedAt,
+        lastSuccessfulSyncAt: ok
+          ? finishedAt
+          : priorState?.lastSuccessfulSyncAt ??
+            (priorState?.lastSyncOk ? priorState.lastSyncAt : undefined),
         lastSyncOk: ok,
         lastError: error,
         counts: partialCounts,
@@ -446,6 +502,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
   await writePbsSyncState(db, dealershipId, {
     lastSyncAt: priorState?.lastSyncAt ?? startedAt,
+    lastSuccessfulSyncAt: priorState?.lastSuccessfulSyncAt,
     lastSyncOk: priorState?.lastSyncOk ?? false,
     lastError: priorState?.lastError,
     counts: priorState?.counts,
@@ -458,18 +515,20 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     syncStartedAt: startedAt,
   });
 
-  const modifiedSince =
-    options.fullRefresh || !priorState?.lastSyncOk ? undefined : priorState.lastSyncAt;
+  const watermark = resolveIncrementalWatermark(priorState, Boolean(options.fullRefresh));
+  if (watermark) {
+    fetched.incrementalSince = watermark;
+  }
 
   try {
     const index = await loadCustomerIndex(db, dealershipId);
     const customerWrites: Array<(batch: WriteBatch) => void> = [];
 
-    const contactVehiclesRaw = await fetchAllContactVehicles(modifiedSince);
+    const contactVehiclesRaw = await fetchAllContactVehicles(watermark);
     const contactVehicles = dedupeContactVehiclesByVin(contactVehiclesRaw);
     fetched.contactVehicles = contactVehicles.length;
     console.log(
-      `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN (${modifiedSince ? 'incremental since ' + modifiedSince : 'full fleet'})`
+      `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN (${watermark ? 'incremental since ' + watermark : 'full fleet'})`
     );
 
     for (const cv of contactVehicles) {
@@ -511,14 +570,16 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
     await commitBatches(db, customerWrites);
 
-    const repairOrders = await fetchRepairOrders(modifiedSince);
+    const repairOrders = await fetchRepairOrdersForSync(watermark);
     fetched.repairOrders = repairOrders.length;
     console.log(
-      `[PBS Sync] Repair orders fetched: ${repairOrders.length} (${modifiedSince ? 'incremental since ' + modifiedSince : 'full 3-year window'})`
+      `[PBS Sync] Repair orders fetched: ${repairOrders.length} (${watermark ? 'incremental since ' + watermark : 'full 3-year window'})`
     );
 
     const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
     for (const ro of repairOrders) {
+      if (!shouldLogRepairOrderVisit(ro, watermark)) continue;
+
       const vehicleRef = (ro.VehicleRef || '').trim();
       if (!vehicleRef) continue;
 
@@ -543,8 +604,10 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         status: visit.status,
         lines: visit.lines,
         pbsVehicleRef: vehicleRef,
+        pbsSyncedAt: startedAt,
         createdAt: Timestamp.now(),
       });
+      counts.visitsLogged += 1;
       visitsByCustomer.set(customerId, list);
     }
 
@@ -584,8 +647,8 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
     const { start, end } = monthRange;
     const [appointments, appointmentDisplayInfo] = await Promise.all([
-      fetchMonthAppointments(start, end),
-      fetchMonthAppointmentDisplayInfo(start, end),
+      fetchAppointmentsForSync(start, end, watermark),
+      fetchMonthAppointmentDisplayInfo(start, end, watermark),
     ]);
     fetched.appointments = appointments.length;
     counts.appointmentsProcessed = appointments.length;

@@ -57,6 +57,7 @@ export interface PbsRepairOrder {
   RawRepairOrderNumber?: string;
   DateCashiered?: string;
   DateOpened?: string;
+  LastUpdate?: string;
   CSR?: string;
   ContactRef?: string;
   VehicleRef?: string;
@@ -119,6 +120,7 @@ export interface PbsSyncCounts {
   customersUpdated: number;
   ownerChanges: number;
   visitsMerged: number;
+  visitsLogged: number;
   appointmentDaysUpdated: number;
   appointmentsProcessed: number;
   appointmentScheduleDays: number;
@@ -149,6 +151,7 @@ export interface PbsSyncFetched {
   appointments: number;
   appointmentMonthStart: string;
   appointmentMonthEnd: string;
+  incrementalSince?: string;
   performanceMonthStart?: string;
   performanceMonthEnd?: string;
   performanceRepairOrders?: number;
@@ -176,6 +179,8 @@ export interface PbsSyncLogEntry {
 
 export interface PbsSyncState {
   lastSyncAt: string;
+  /** Watermark for incremental Pull changes — only advances on successful sync. */
+  lastSuccessfulSyncAt?: string;
   lastSyncOk: boolean;
   lastError?: string;
   counts?: PbsSyncCounts;
