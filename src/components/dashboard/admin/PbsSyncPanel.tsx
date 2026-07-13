@@ -199,7 +199,7 @@ function PbsSyncPanelInner({
     setPanelMessage(
       fullRefresh
         ? 'Full fleet refresh started — pulling all customers and repair orders. This usually takes 2–5 minutes.'
-        : 'Pulling PBS changes — this usually takes 2–5 minutes. You can leave this page open.'
+        : 'Pulling PBS changes — this usually takes 2–5 minutes. Please keep this page open until it finishes.'
     );
     if (fullRefresh) setFullRefreshing(true);
     else setSyncing(true);
@@ -241,6 +241,19 @@ function PbsSyncPanelInner({
   useEffect(() => {
     if (resumeChecked.current || statusLoading || syncing || fullRefreshing) return;
     if (!serverState?.syncInProgress) return;
+
+    const startedMs = serverState.syncStartedAt
+      ? new Date(serverState.syncStartedAt).getTime()
+      : 0;
+    const ageMs = startedMs ? Date.now() - startedMs : Number.POSITIVE_INFINITY;
+    const STALE_MS = 5 * 60 * 1000;
+
+    if (ageMs >= STALE_MS) {
+      resumeChecked.current = true;
+      void refreshStatus();
+      return;
+    }
+
     resumeChecked.current = true;
     setPanelMessage('A PBS sync is already running — waiting for it to finish…');
     setSyncing(true);

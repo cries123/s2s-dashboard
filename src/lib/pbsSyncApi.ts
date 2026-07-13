@@ -147,13 +147,16 @@ export async function fetchPbsSyncStatus(): Promise<PbsSyncStatusResponse> {
   return { ...data, logs: data.logs ?? [] };
 }
 
-export async function runPbsSyncNow(options: { fullRefresh?: boolean } = {}): Promise<PbsSyncRunResponse> {
+export async function runPbsSyncNow(
+  options: { fullRefresh?: boolean; force?: boolean } = {}
+): Promise<PbsSyncRunResponse> {
   const headers = await bearerHeaders();
   const res = await fetch('/api/pbs/sync/run', {
     method: 'POST',
     headers,
     body: JSON.stringify({
       fullRefresh: options.fullRefresh === true,
+      force: options.force === true,
       dealershipId: 'hyundai',
     }),
   });
@@ -163,16 +166,12 @@ export async function runPbsSyncNow(options: { fullRefresh?: boolean } = {}): Pr
     return pollPbsSyncUntilComplete(data.syncStartedAt || data.startedAt);
   }
 
-  if (!res.ok && !data.skipped && !data.accepted) {
+  if (!res.ok && !data.skipped) {
     throw new Error(data.error || data.summary || 'PBS sync failed');
   }
 
   if (data.skipped) {
     return data;
-  }
-
-  if (res.status === 202 || data.accepted) {
-    return pollPbsSyncUntilComplete(data.startedAt);
   }
 
   return data;

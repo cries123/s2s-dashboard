@@ -20,7 +20,7 @@ import {
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
-import { isPacificMorningSyncHour, startPbsSyncBackground } from '../pbs/pbsSync.js';
+import { isPacificMorningSyncHour, runPbsSync, clearStalePbsSyncInProgress } from '../pbs/pbsSync.js';
 import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
@@ -148,7 +148,14 @@ export function registerPbsRoutes(app: Express) {
       try {
         const snap = await dealershipSettingsDoc(db, dealershipId).get();
         const data = snap.data();
-        const state = (data?.pbsSyncState as PbsSyncState | undefined) ?? null;
+        let state = (data?.pbsSyncState as PbsSyncState | undefined) ?? null;
+        if (state?.syncInProgress) {
+          const cleared = await clearStalePbsSyncInProgress(db, dealershipId);
+          if (cleared) {
+            const refreshed = await dealershipSettingsDoc(db, dealershipId).get();
+            state = (refreshed.data()?.pbsSyncState as PbsSyncState | undefined) ?? null;
+          }
+        }
         const logs = (data?.pbsSyncLogs as PbsSyncLogEntry[] | undefined) ?? [];
         return res.json({
           configured: diagnostics.pbsConfigured,
@@ -204,31 +211,14 @@ export function registerPbsRoutes(app: Express) {
     }
 
     try {
-      const start = await startPbsSyncBackground({
+      const result = await runPbsSync({
         triggeredBy: cron ? 'cron' : 'manual',
         triggeredByEmail: caller.email,
         triggeredByUsername: caller.username,
         fullRefresh,
+        force,
       });
-
-      if (!start.accepted) {
-        const status = start.inProgress ? 409 : 503;
-        return res.status(status).json({
-          ok: false,
-          accepted: false,
-          inProgress: start.inProgress,
-          syncStartedAt: start.startedAt,
-          summary: start.message,
-          error: start.message,
-        });
-      }
-
-      return res.status(202).json({
-        ok: true,
-        accepted: true,
-        startedAt: start.startedAt,
-        summary: start.message,
-      });
+      return res.status(result.ok ? 200 : 500).json(result);
     } catch (err) {
       return handlePbsError(res, err);
     }

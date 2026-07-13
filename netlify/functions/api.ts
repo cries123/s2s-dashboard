@@ -11,7 +11,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   const isPbsSyncRun =
     event.httpMethod === 'POST' &&
     (requestUrl.includes('/api/pbs/sync/run') || requestUrl.includes('pbs/sync/run'));
-  // Keep the function alive until background PBS sync finishes.
+  // Keep the function alive until PBS sync finishes (Netlify timeout is 300s).
   context.callbackWaitsForEmptyEventLoop = isPbsSyncRun;
 
   if (!cached) {
