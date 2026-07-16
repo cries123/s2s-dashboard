@@ -46,16 +46,16 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
   '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
   '/manager/logs': { activeTab: 'manager', managerSubTab: 'logs' },
-  '/admin/operations': { activeTab: 'admin', adminSubTab: 'users' },
-  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'users' },
-  '/admin/user-settings': { activeTab: 'admin', adminSubTab: 'users' },
-  '/admin/users': { activeTab: 'admin', adminSubTab: 'users' },
+  '/admin/operations': { activeTab: 'admin', adminSubTab: 'logs' },
+  '/admin/operation-settings': { activeTab: 'admin', adminSubTab: 'logs' },
+  '/admin/user-settings': { activeTab: 'manager', managerSubTab: 'team' },
+  '/admin/users': { activeTab: 'manager', managerSubTab: 'team' },
   '/admin/master-users': { activeTab: 'admin', adminSubTab: 'master-users' },
   '/admin/ai-usage': { activeTab: 'admin', adminSubTab: 'ai-usage' },
   '/admin/import-history': { activeTab: 'admin', adminSubTab: 'import-health' },
   '/admin/import-health': { activeTab: 'admin', adminSubTab: 'import-health' },
   '/admin/pbs-sync': { activeTab: 'admin', adminSubTab: 'pbs-sync' },
-  '/admin/enrollments': { activeTab: 'admin', adminSubTab: 'enrollments' },
+  '/admin/enrollments': { activeTab: 'manager', managerSubTab: 'team' },
   '/admin/logs': { activeTab: 'admin', adminSubTab: 'logs' },
   '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
 };
@@ -106,7 +106,7 @@ export function buildAppPath(state: AppRouteState): string {
         return '/admin/pbs-sync';
       case 'users':
       default:
-        return '/admin/users';
+        return '/admin/master-users';
     }
   }
 

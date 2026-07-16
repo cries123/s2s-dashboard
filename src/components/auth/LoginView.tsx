@@ -128,7 +128,7 @@ export default function LoginView() {
       
       showMessage(
         isManagerEnrollment
-          ? 'Manager enrollment submitted. The primary system administrator must approve your account.'
+          ? 'Manager enrollment submitted. A dealership manager must approve your account before you can access the dashboard.'
           : 'Enrollment submitted. A manager must approve your account before you can access the dashboard.',
         false
       );

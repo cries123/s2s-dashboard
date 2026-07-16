@@ -39,7 +39,6 @@ import { AiUsageLogsPanel } from './AiUsageLogsPanel';
 import { SuggestionsPanel } from './SuggestionsPanel';
 import { SettingsPage } from '../../settings/SettingsPage';
 import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings';
-import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
 import { DmsImportHealthPanel } from './DmsImportHealthPanel';
 import { PbsSyncPanel } from './PbsSyncPanel';
 import { PbsSyncLogsPanel } from './PbsSyncLogsPanel';
@@ -111,11 +110,11 @@ function getPanelSectionMeta(
     case 'users':
       return {
         eyebrow: scope,
-        title: 'User Settings',
+        title: 'User Administration',
         description:
           panelMode === 'manager'
             ? 'Approve enrollments and manage sales and service staff permissions for this store.'
-            : 'All program users for this dealership — password reset, email, and permissions.',
+            : 'Dealership user administration has moved to Manager → User administration.',
       };
     case 'ai-usage':
       return {
@@ -133,13 +132,13 @@ function getPanelSectionMeta(
       return {
         eyebrow: scope,
         title: 'Master User Settings',
-        description: 'Edit every account across all dealerships — email, password, permissions.',
+        description: 'Cross-dealership accounts, platform announcements, and system admin access.',
       };
     case 'enrollments':
       return {
         eyebrow: scope,
         title: 'Enrollment Queues',
-        description: 'Pending manager enrollments (admin approval) and staff enrollment visibility.',
+        description: 'Manager enrollments are approved under Manager → User administration.',
       };
     case 'import-health':
       return {
@@ -695,9 +694,11 @@ export default function AdminPanel({
     return true;
   });
 
-  const resolvedSubTab = activeSubTab || (panelMode === 'admin' ? 'users' : 'operations');
-  const subTab =
-    panelMode === 'admin' && resolvedSubTab === 'operations' ? 'users' : resolvedSubTab;
+  const resolvedSubTab = activeSubTab || (panelMode === 'admin' ? 'logs' : 'operations');
+  let subTab =
+    panelMode === 'admin' && resolvedSubTab === 'operations' ? 'logs' : resolvedSubTab;
+  if (panelMode === 'admin' && subTab === 'users') subTab = 'master-users';
+  if (panelMode === 'admin' && subTab === 'enrollments') subTab = 'logs';
   const sectionMeta = getPanelSectionMeta(subTab, panelMode);
 
   return (
@@ -753,7 +754,7 @@ export default function AdminPanel({
 
       {/* Sub-tab Content Panels */}
 
-      {panelMode === 'admin' && subTab === 'users' && (
+      {panelMode === 'admin' && subTab === 'master-users' && (
         <div className="space-y-4 mb-8 animate-in fade-in duration-300">
           <PageHeader
             title="Dealership announcements"
@@ -1099,18 +1100,6 @@ export default function AdminPanel({
         <MasterUserSettings onSuccess={onSuccess} onError={onError} />
       )}
 
-      {/* USER SETTINGS / ROLES PANEL */}
-      {subTab === 'users' && (
-        <MasterUserSettings
-          managerMode={panelMode === 'manager'}
-          scopeTenantId={tenantIdFromDealershipId(
-            currentDealershipId || resolveUserTenantId(currentUser)
-          )}
-          onSuccess={onSuccess}
-          onError={onError}
-        />
-      )}
-
       {/* SYSTEM TRAILS / LOGS */}
       {subTab === 'preferences' && (
         <SettingsPage
@@ -1128,10 +1117,6 @@ export default function AdminPanel({
 
       {subTab === 'suggestions' && panelMode === 'admin' && (
         <SuggestionsPanel />
-      )}
-
-      {subTab === 'enrollments' && panelMode === 'admin' && (
-        <AdminEnrollmentQueue onSuccess={onSuccess} onError={onError} />
       )}
 
       {subTab === 'import-health' && panelMode === 'admin' && (

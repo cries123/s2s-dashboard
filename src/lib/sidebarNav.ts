@@ -169,7 +169,7 @@ export function buildSidebarNav({
         },
         {
           id: 'mgr-team',
-          label: 'Team approvals',
+          label: 'User administration',
           href: '/manager/team',
           icon: Users,
           tab: 'manager',
@@ -193,12 +193,12 @@ export function buildSidebarNav({
       label: 'Admin',
       items: [
         {
-          id: 'admin-users',
-          label: 'User settings',
-          href: '/admin/users',
+          id: 'admin-master-users',
+          label: 'Master users',
+          href: '/admin/master-users',
           icon: Users,
           tab: 'admin',
-          adminSubTab: 'users',
+          adminSubTab: 'master-users',
         },
         {
           id: 'admin-logs',
@@ -215,14 +215,6 @@ export function buildSidebarNav({
           icon: Lightbulb,
           tab: 'admin',
           adminSubTab: 'suggestions',
-        },
-        {
-          id: 'admin-enrollments',
-          label: 'Enrollments',
-          href: '/admin/enrollments',
-          icon: Users,
-          tab: 'admin',
-          adminSubTab: 'enrollments',
         },
         {
           id: 'admin-import-health',

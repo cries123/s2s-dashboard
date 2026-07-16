@@ -30,6 +30,7 @@ import {
   resolveScopeTenantId,
 } from '../../../lib/rbac';
 import { MasterUserSettings } from './MasterUserSettings';
+import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
 import { logAuditAction } from '../../../services/loggingService';
 import { DMS_PROVIDERS, normalizeDmsProvider, type DmsProviderId } from '../../../constants/dmsProviders';
 import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
@@ -179,7 +180,7 @@ export default function ManagerDashboard({
         <div>
           <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest block mb-1">Manager Control Panel</span>
           <h1 className="text-2xl font-black text-white uppercase tracking-wider">{tenantProfile?.name || tenantId}</h1>
-          <p className="text-slate-500 text-sm mt-1">Tenant-scoped user management, DMS config, and audit trail</p>
+          <p className="text-slate-500 text-sm mt-1">Dealership user administration, enrollments, and audit trail</p>
         </div>
         <div className="flex gap-2 p-1 bg-slate-900/80 border border-white/5 rounded-xl">
           {([
@@ -204,12 +205,19 @@ export default function ManagerDashboard({
       </div>
 
       {subTab === 'users' && (
-        <MasterUserSettings
-          managerMode
-          scopeTenantId={tenantId}
-          onSuccess={onSuccess}
-          onError={onError}
-        />
+        <>
+          <AdminEnrollmentQueue
+            scopeTenantId={tenantId}
+            onSuccess={onSuccess}
+            onError={onError}
+          />
+          <MasterUserSettings
+            managerMode
+            scopeTenantId={tenantId}
+            onSuccess={onSuccess}
+            onError={onError}
+          />
+        </>
       )}
 
       {subTab === 'settings' && (

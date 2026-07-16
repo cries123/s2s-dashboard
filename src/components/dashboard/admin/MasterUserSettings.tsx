@@ -22,7 +22,9 @@ import { TENANT_PROFILES, dealershipIdFromTenantId, getTenantProfile } from '../
 import {
   buildMasterPermissionPatch,
   buildUserApprovalPatch,
+  canManagerViewDealershipUser,
   canModifyUser,
+  isPendingManagerEnrollment,
   isPendingStaffEnrollment,
   isPendingUser,
   isProtectedUser,
@@ -61,7 +63,7 @@ const PERMISSION_OPTIONS: { value: MasterPermissionRole; label: string }[] = [
 ];
 
 const MANAGER_PERMISSION_OPTIONS = PERMISSION_OPTIONS.filter((opt) =>
-  ['advisor-service', 'advisor-sales', 'pending'].includes(opt.value)
+  ['manager', 'advisor-service', 'advisor-sales', 'pending'].includes(opt.value)
 );
 
 export function MasterUserSettings({
@@ -171,7 +173,7 @@ export function MasterUserSettings({
       u.uid.toLowerCase().includes(q);
     const effectiveTenant = scopeTenantId || tenantFilter;
     const matchesTenant = effectiveTenant === 'all' || u.tenantId === effectiveTenant;
-    if (managerMode && !canModifyUser(currentUser, u) && !isPendingStaffEnrollment(u)) {
+    if (managerMode && !canManagerViewDealershipUser(currentUser, u)) {
       return false;
     }
     return matchesSearch && matchesTenant;
@@ -235,9 +237,13 @@ export function MasterUserSettings({
   };
 
   const sendPasswordReset = async (target: User) => {
-    if (!currentUser || managerMode) return;
+    if (!currentUser) return;
     if (isProtectedUser(target)) {
       notify('This account is protected.', true);
+      return;
+    }
+    if (managerMode && !canModifyUser(currentUser, target)) {
+      notify('You do not have permission to reset this account password.', true);
       return;
     }
     if (!target.email) {
@@ -247,7 +253,9 @@ export function MasterUserSettings({
 
     setSaving(true);
     try {
-      const email = await masterUserAuthorizePasswordReset(target.uid);
+      const email = managerMode
+        ? target.email
+        : await masterUserAuthorizePasswordReset(target.uid);
       await sendPasswordResetEmail(auth, email);
       await logSystemAction(
         'Password Reset Sent',
@@ -306,16 +314,36 @@ export function MasterUserSettings({
     }
     setSaving(true);
     try {
-      const template = getStaffRoleTemplate(approvalTemplate);
       const dealershipId =
         target.dealershipId ||
         dealershipIdFromTenantId(scopeTenantId || target.tenantId) ||
         'hyundai';
+      const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid);
+
+      if (isPendingManagerEnrollment(target)) {
+        await updateDoc(userRef, {
+          ...buildUserApprovalPatch(target, 'approved'),
+          ...buildMasterPermissionPatch('manager'),
+          jobTitle: 'Manager',
+          department: 'service',
+        });
+        await logSystemAction(
+          'Manager Enrollment Approved',
+          `Approved manager enrollment for ${target.username}`,
+          'settings',
+          currentUser.email,
+          currentUser.username,
+          dealershipId
+        );
+        notify(`${target.username} approved as Manager.`);
+        return;
+      }
+
+      const template = getStaffRoleTemplate(approvalTemplate);
       const prefs = preferencesFromTemplate(
         approvalTemplate,
         storeDefaultsByDealership[dealershipId]
       );
-      const userRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'users', target.uid);
       await updateDoc(userRef, {
         ...buildUserApprovalPatch(target, 'approved'),
         ...buildMasterPermissionPatch(template.permission),
@@ -394,14 +422,16 @@ export function MasterUserSettings({
         </div>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">
           {managerMode
-            ? 'Team approvals & staff'
+            ? scopedTenantName
+              ? `${scopedTenantName} users`
+              : 'Dealership users'
             : scopeTenantId
               ? `${scopedTenantName} users`
               : 'Master User Settings'}
         </h2>
         <p className="text-xs text-slate-500 mt-2 max-w-2xl">
           {managerMode
-            ? 'Approve enrollments and update permissions for sales and service staff at this store.'
+            ? 'Approve manager and staff enrollments, update permissions, and send password resets for this store.'
             : scopeTenantId
               ? 'All program users for this dealership — reset passwords, change email, and set permissions.'
               : 'View and edit every account across all dealerships. Email changes and password resets require the server admin SDK (FIREBASE_SERVICE_ACCOUNT_JSON).'}
@@ -576,7 +606,9 @@ export function MasterUserSettings({
                 </div>
               </div>
 
-              {isPendingUser(selectedUser) && canEditTarget(selectedUser) && (
+              {isPendingUser(selectedUser) &&
+                canEditTarget(selectedUser) &&
+                !isPendingManagerEnrollment(selectedUser) && (
                 <StaffRoleTemplatePicker
                   value={approvalTemplate}
                   onChange={setApprovalTemplate}
@@ -604,7 +636,7 @@ export function MasterUserSettings({
                     Approve enrollment
                   </button>
                 )}
-                {!managerMode ? (
+                {!managerMode || canModifyUser(currentUser, selectedUser) ? (
                   <button
                     type="button"
                     disabled={saving || !canEditTarget(selectedUser)}
