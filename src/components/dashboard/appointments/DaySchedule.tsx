@@ -11,6 +11,8 @@ import { addDaysToDateString, dedupeDailyStatsByDate, toLocalDateString } from '
 import { appointmentScheduleDocId } from '../../../lib/appointmentSchedule';
 import { fetchDayAppointmentSchedule } from '../../../lib/appointmentScheduleApi';
 import { dispatchTechRosterFromSettings } from '../../../lib/dispatchTechRoster';
+import { isPreviewMode } from '../../../lib/previewMode';
+import { buildPreviewDaySchedule } from '../../../lib/previewFixtures';
 
 interface DayScheduleProps {
   currentDealershipId: string;
@@ -59,6 +61,21 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
   useEffect(() => {
     if (!currentDealershipId) return;
 
+    if (isPreviewMode) {
+      const previewSlots = buildPreviewDaySchedule();
+      setTrackerStats([
+        {
+          id: 'preview-today',
+          date: toLocalDateString(new Date()),
+          count: previewSlots.length,
+          updatedAt: undefined as never,
+          breakdown: { diagnosis: 3, oilChange: 4, recall: 2, misc: 1 },
+        },
+      ]);
+      setLoadingTracker(false);
+      return;
+    }
+
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
     const q = collection(db, path);
 
@@ -93,6 +110,13 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
   useEffect(() => {
     if (!selectedDate || !currentDealershipId) {
       setAppointments([]);
+      setScheduleLoadError(null);
+      return;
+    }
+
+    if (isPreviewMode) {
+      setAppointments(selectedDate === toLocalDateString(new Date()) ? buildPreviewDaySchedule() : []);
+      setScheduleLoading(false);
       setScheduleLoadError(null);
       return;
     }

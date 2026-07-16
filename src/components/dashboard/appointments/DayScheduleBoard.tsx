@@ -6,6 +6,10 @@ import {
   buildScheduleTechColumns,
   categoryScheduleColor,
   formatScheduleTime,
+  layoutColumnAppointments,
+  resolveScheduleGridBounds,
+  scheduleHourLabelsForRange,
+  SCHEDULE_PIXELS_PER_HOUR,
 } from '../../../lib/appointmentSchedule';
 
 interface DayScheduleBoardProps {
@@ -46,12 +50,6 @@ function categoryLabel(category: ScheduledAppointmentSlot['category']): string {
     default:
       return 'General';
   }
-}
-
-function appointmentsForColumn(appointments: ScheduledAppointmentSlot[], columnId: string) {
-  return appointments
-    .filter((appt) => (appt.techNumber || '').trim() === columnId)
-    .sort((a, b) => a.startMinutes - b.startMinutes || a.customerName.localeCompare(b.customerName));
 }
 
 /** Legacy synced slots stored placeholder text — swap for something useful. */
@@ -123,43 +121,6 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
   );
 }
 
-function AppointmentListRow({
-  appt,
-  onSelect,
-}: {
-  appt: ScheduledAppointmentSlot;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'w-full text-left rounded-lg border px-3 py-2.5 transition-colors hover:brightness-110',
-        categoryScheduleColor(appt.category)
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate">{displayCustomerName(appt)}</p>
-          {displayVehicleLabel(appt) ? (
-            <p className="text-xs opacity-80 truncate mt-0.5">{displayVehicleLabel(appt)}</p>
-          ) : null}
-          {appt.concern ? (
-            <p className="text-[11px] opacity-65 truncate mt-1">{appt.concern}</p>
-          ) : null}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-xs font-bold tabular-nums">{formatScheduleTime(appt.startMinutes)}</p>
-          {appt.isWaiter ? (
-            <p className="text-[10px] uppercase tracking-wider opacity-70 mt-0.5">Waiter</p>
-          ) : null}
-        </div>
-      </div>
-    </button>
-  );
-}
-
 export function DayScheduleBoard({
   date,
   appointments,
@@ -222,48 +183,136 @@ export function DayScheduleBoard({
     );
   }
 
+  const bounds = resolveScheduleGridBounds(appointments);
+  const hourLabels = scheduleHourLabelsForRange(bounds.startMinutes, bounds.endMinutes);
+
   return (
     <div className={cn('space-y-4', className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-slate-200">{formatDisplayDate(date)}</p>
-        <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-          {appointments.length} appointments
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/60" /> Oil
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500/60" /> Diag
+          </span>
+          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500/60" /> Recall
+          </span>
+          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+            {appointments.length} appointments
+          </span>
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {columns.map((column) => {
-          const columnAppointments = appointmentsForColumn(appointments, column.id);
-          if (columnAppointments.length === 0) return null;
-
-          return (
-            <section
-              key={column.id || 'open'}
-              className="rounded-xl border overflow-hidden"
-              style={{ borderColor: 'var(--color-surface-border)' }}
-            >
+      <div
+        className="rounded-xl border overflow-x-auto"
+        style={{ borderColor: 'var(--color-surface-border)' }}
+      >
+        <div className="min-w-fit">
+          {/* Column headers */}
+          <div className="flex sticky top-0 z-20 bg-slate-950/95 backdrop-blur border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
+            <div className="w-16 shrink-0 sticky left-0 z-10 bg-slate-950/95 border-r" style={{ borderColor: 'var(--color-surface-border)' }} />
+            {columns.map((column) => (
               <div
-                className="px-4 py-2.5 border-b bg-slate-950/50 flex items-center justify-between gap-2"
+                key={column.id || 'open'}
+                className="flex-1 min-w-[160px] px-3 py-2.5 border-r last:border-r-0 text-center"
                 style={{ borderColor: 'var(--color-surface-border)' }}
               >
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-200">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-200 truncate">
                   {column.id ? `Tech ${column.label}` : column.label}
-                </h4>
-                <span className="text-[10px] text-slate-500 font-semibold tabular-nums">
-                  {columnAppointments.length} appt{columnAppointments.length === 1 ? '' : 's'}
-                </span>
+                </p>
+                <p className="text-[10px] text-slate-500 tabular-nums">
+                  {column.count} appt{column.count === 1 ? '' : 's'}
+                </p>
               </div>
+            ))}
+          </div>
 
-              <ul className="p-3 space-y-2">
-                {columnAppointments.map((appt) => (
-                  <li key={`${appt.id}-${appt.startMinutes}`}>
-                    <AppointmentListRow appt={appt} onSelect={() => setSelectedAppt(appt)} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
+          {/* Time grid */}
+          <div className="flex">
+            {/* Time axis */}
+            <div
+              className="w-16 shrink-0 sticky left-0 z-10 bg-slate-950/95 border-r relative"
+              style={{ borderColor: 'var(--color-surface-border)', height: bounds.heightPx }}
+            >
+              {hourLabels.map((hour) => (
+                <span
+                  key={hour.minutes}
+                  className="absolute right-2 -translate-y-1/2 text-[10px] font-semibold text-slate-500 tabular-nums"
+                  style={{
+                    top: ((hour.minutes - bounds.startMinutes) / 60) * SCHEDULE_PIXELS_PER_HOUR,
+                  }}
+                >
+                  {hour.label}
+                </span>
+              ))}
+            </div>
+
+            {columns.map((column) => {
+              const positioned = layoutColumnAppointments(
+                appointments,
+                column.id,
+                bounds.startMinutes
+              );
+
+              return (
+                <div
+                  key={column.id || 'open'}
+                  className="flex-1 min-w-[160px] relative border-r last:border-r-0"
+                  style={{ borderColor: 'var(--color-surface-border)', height: bounds.heightPx }}
+                >
+                  {/* Hour gridlines show open availability */}
+                  {hourLabels.map((hour) => (
+                    <div
+                      key={hour.minutes}
+                      className="absolute left-0 right-0 border-t border-white/[0.04] pointer-events-none"
+                      style={{
+                        top: ((hour.minutes - bounds.startMinutes) / 60) * SCHEDULE_PIXELS_PER_HOUR,
+                      }}
+                    />
+                  ))}
+
+                  {positioned.map((appt) => {
+                    const laneWidth = 100 / appt.laneCount;
+                    return (
+                      <button
+                        key={`${appt.id}-${appt.startMinutes}`}
+                        type="button"
+                        onClick={() => setSelectedAppt(appt)}
+                        className={cn(
+                          'absolute rounded-md border px-1.5 py-1 text-left overflow-hidden transition-all hover:brightness-125 hover:z-10',
+                          categoryScheduleColor(appt.category)
+                        )}
+                        style={{
+                          top: appt.top,
+                          height: appt.height,
+                          left: `calc(${appt.lane * laneWidth}% + 3px)`,
+                          width: `calc(${laneWidth}% - 6px)`,
+                        }}
+                        title={`${formatScheduleTime(appt.startMinutes)} · ${displayCustomerName(appt)}`}
+                      >
+                        <p className="text-[10px] font-bold leading-tight truncate">
+                          {formatScheduleTime(appt.startMinutes)}
+                          {appt.isWaiter ? ' · W' : ''}
+                        </p>
+                        <p className="text-[11px] font-semibold leading-tight truncate">
+                          {displayCustomerName(appt)}
+                        </p>
+                        {appt.height >= 52 && (
+                          <p className="text-[10px] opacity-75 leading-tight truncate">
+                            {displayVehicleLabel(appt) || appt.concern}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

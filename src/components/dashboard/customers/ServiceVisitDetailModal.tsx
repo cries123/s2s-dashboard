@@ -1,218 +1,284 @@
 import React from 'react';
-import { X, Wrench, Gauge, User as UserIcon } from 'lucide-react';
-import { motion } from 'motion/react';
+import { createPortal } from 'react-dom';
+import { X, Wrench, Printer } from 'lucide-react';
+import { cn } from '../../../lib/utils';
 import type { ServiceVisit, ServiceVisitLine } from '../../../types';
 
 interface ServiceVisitDetailModalProps {
   visit: ServiceVisit;
   customerName?: string;
+  vehicleLabel?: string;
   onClose: () => void;
 }
 
 function resolveVisitLines(visit: ServiceVisit): ServiceVisitLine[] {
-  if (visit.lines && visit.lines.length > 0) return visit.lines;
-  if (visit.requests?.trim()) {
-    return [{ lineNumber: 1, concern: visit.requests.trim() }];
+  if (Array.isArray(visit.lines) && visit.lines.length > 0) return visit.lines;
+  const requests = typeof visit.requests === 'string' ? visit.requests.trim() : '';
+  if (requests) {
+    // Legacy visits only stored a combined request string — show each as a line.
+    return requests
+      .split(/;\s*/)
+      .filter(Boolean)
+      .map((concern, idx) => ({ lineNumber: idx + 1, concern }));
   }
   return [];
 }
 
 function formatVisitDate(date: string) {
-  return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
+  const d = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
     day: 'numeric',
     year: 'numeric',
   });
 }
 
 function formatCurrency(value?: number) {
-  if (value === undefined || !Number.isFinite(value)) return '—';
+  if (value === undefined || value === null || !Number.isFinite(value)) return '—';
   return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function CccField({ label, value }: { label: string; value?: string }) {
-  if (!value?.trim()) return null;
+function statusBadgeClass(status?: string): string {
+  const s = (status || '').toLowerCase();
+  if (s.includes('cashier') || s.includes('closed') || s.includes('complete')) return 'badge-success';
+  if (s.includes('open') || s.includes('progress')) return 'badge-info';
+  return 'badge-warning';
+}
+
+function InfoCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="space-y-1">
-      <p className="crm-label">{label}</p>
-      <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--color-text-secondary)' }}>
-        {value}
-      </p>
+    <div className="min-w-0">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+      <p className="text-sm font-semibold text-slate-100 mt-0.5 truncate">{value || '—'}</p>
     </div>
   );
 }
 
-export function ServiceVisitDetailModal({ visit, customerName, onClose }: ServiceVisitDetailModalProps) {
-  const lines = resolveVisitLines(visit);
-
+function CccBlock({ label, value, accent }: { label: string; value?: string; accent: string }) {
+  if (!value?.trim()) return null;
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+    <div className="flex gap-3">
+      <div className={cn('w-1 rounded-full shrink-0', accent)} />
+      <div className="min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+        <p className="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap mt-0.5">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+export function ServiceVisitDetailModal({
+  visit,
+  customerName,
+  vehicleLabel,
+  onClose,
+}: ServiceVisitDetailModalProps) {
+  const lines = resolveVisitLines(visit);
+  const totalLaborHours = lines.reduce(
+    (sum, line) =>
+      sum + (line.labourLines || []).reduce((s, l) => s + (Number(l.soldHours) || 0), 0),
+    0
+  );
+  const totalParts = lines.reduce(
+    (sum, line) => sum + (line.partLines || []).length,
+    0
+  );
+
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const modal = (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-6">
+      <div
+        className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden
       />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 12 }}
-        className="relative w-full max-w-3xl max-h-[90vh] overflow-hidden bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+      <div
+        role="dialog"
+        aria-label={`Repair order ${visit.soNumber}`}
+        className="relative w-full max-w-4xl max-h-[94vh] flex flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900 shadow-2xl animate-zoom-in"
       >
-        <div className="p-6 border-b border-slate-800 flex items-start justify-between gap-4 shrink-0">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="badge badge-info text-[10px]">service</span>
-              {visit.status && <span className="crm-label uppercase">{visit.status}</span>}
+        {/* Document header */}
+        <div className="shrink-0 border-b border-slate-700/60 bg-slate-950/60 px-5 sm:px-8 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-brand-primary/15 border border-brand-primary/30 flex items-center justify-center text-brand-primary shrink-0">
+                <Wrench size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                    REPAIR ORDER <span className="text-brand-primary">#{visit.soNumber}</span>
+                  </h2>
+                  <span className={cn('badge text-[10px] uppercase', statusBadgeClass(visit.status))}>
+                    {visit.status || 'Completed'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">{formatVisitDate(visit.date)}</p>
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-white">Repair order #{visit.soNumber}</h3>
-            <p className="crm-label mt-1">
-              {formatVisitDate(visit.date)}
-              {visit.advisor ? ` · Advisor ${visit.advisor}` : ''}
-              {customerName ? ` · ${customerName}` : ''}
-            </p>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                title="Print"
+              >
+                <Printer size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                aria-label="Close repair order"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            aria-label="Close repair order details"
-          >
-            <X size={20} />
-          </button>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
+            <InfoCell label="Customer" value={customerName || '—'} />
+            <InfoCell label="Vehicle" value={vehicleLabel || '—'} />
+            <InfoCell
+              label="Mileage"
+              value={visit.mileage > 0 ? `${visit.mileage.toLocaleString()} mi` : '—'}
+            />
+            <InfoCell label="Service advisor" value={visit.advisor || '—'} />
+          </div>
         </div>
 
-        <div className="overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border border-white/5 bg-slate-950/40 p-4">
-              <p className="crm-label flex items-center gap-1.5">
-                <Gauge size={12} />
-                Mileage
-              </p>
-              <p className="text-lg font-semibold tabular-nums mt-1">
-                {visit.mileage > 0 ? `${visit.mileage.toLocaleString()} mi` : '—'}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-slate-950/40 p-4">
-              <p className="crm-label flex items-center gap-1.5">
-                <UserIcon size={12} />
-                Advisor
-              </p>
-              <p className="text-lg font-semibold mt-1">{visit.advisor || '—'}</p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-slate-950/40 p-4">
-              <p className="crm-label flex items-center gap-1.5">
-                <Wrench size={12} />
-                Request lines
-              </p>
-              <p className="text-lg font-semibold tabular-nums mt-1">{lines.length}</p>
-            </div>
-          </div>
-
+        {/* Job lines */}
+        <div className="overflow-y-auto px-5 sm:px-8 py-6 space-y-5">
           {lines.length === 0 ? (
-            <p className="crm-label text-center py-8">No line detail available for this repair order.</p>
+            <p className="crm-label text-center py-10">
+              No line detail stored for this repair order. Run Pull changes in Admin → PBS Sync to
+              load full concern / cause / correction detail.
+            </p>
           ) : (
             lines.map((line) => (
-              <div
+              <section
                 key={line.lineNumber}
-                className="rounded-2xl border border-white/5 bg-slate-950/30 overflow-hidden"
+                className="rounded-xl border border-slate-700/50 bg-slate-950/40 overflow-hidden"
               >
-                <div className="px-5 py-4 border-b border-white/5 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="crm-label">Line {line.lineNumber}</p>
-                    {line.requestCode && (
-                      <p className="text-xs font-mono text-slate-400 mt-0.5">{line.requestCode}</p>
-                    )}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-white/[0.03] border-b border-slate-700/50">
+                  <div className="flex items-center gap-3">
+                    <span className="w-7 h-7 rounded-lg bg-brand-primary/15 border border-brand-primary/30 text-brand-primary text-xs font-black flex items-center justify-center">
+                      {line.lineNumber}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                      Job line {line.lineNumber}
+                      {line.requestCode ? (
+                        <span className="ml-2 font-mono text-slate-500">{line.requestCode}</span>
+                      ) : null}
+                    </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {line.tech && <span className="badge text-[10px]">Tech {line.tech}</span>}
-                    {line.status && <span className="crm-label uppercase">{line.status}</span>}
+                  <div className="flex items-center gap-2">
+                    {line.tech && (
+                      <span className="badge badge-info text-[10px]">Tech {line.tech}</span>
+                    )}
+                    {line.status && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        {line.status}
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="p-5 space-y-4">
-                  <CccField label="Concern" value={line.concern} />
-                  <CccField label="Cause" value={line.cause} />
-                  <CccField label="Correction" value={line.correction} />
+                <div className="px-4 sm:px-5 py-4 space-y-4">
+                  <CccBlock label="Concern" value={line.concern} accent="bg-rose-500/70" />
+                  <CccBlock label="Cause" value={line.cause} accent="bg-amber-500/70" />
+                  <CccBlock label="Correction" value={line.correction} accent="bg-emerald-500/70" />
 
                   {!line.concern && !line.cause && !line.correction && (
-                    <p className="crm-label">No concern / cause / correction recorded for this line.</p>
+                    <p className="crm-label">No concern / cause / correction recorded.</p>
                   )}
 
                   {line.labourLines && line.labourLines.length > 0 && (
-                    <div>
-                      <p className="crm-label mb-2">Labor operations</p>
-                      <div className="overflow-x-auto rounded-xl border border-white/5">
-                        <table className="crm-table text-xs">
-                          <thead>
-                            <tr>
-                              <th>Op code</th>
-                              <th>Description</th>
-                              <th className="text-right">Hours</th>
-                              <th>Tech</th>
-                              <th className="text-right">Price</th>
+                    <div className="rounded-lg border border-slate-700/50 overflow-hidden">
+                      <p className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white/[0.03] border-b border-slate-700/50">
+                        Labor operations
+                      </p>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-[9px] uppercase tracking-widest text-slate-500">
+                            <th className="text-left px-3 py-2 font-bold">Op code</th>
+                            <th className="text-left px-3 py-2 font-bold">Description</th>
+                            <th className="text-right px-3 py-2 font-bold">Hours</th>
+                            <th className="text-right px-3 py-2 font-bold">Tech</th>
+                            <th className="text-right px-3 py-2 font-bold">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {line.labourLines.map((labour, idx) => (
+                            <tr key={idx} className="text-slate-200">
+                              <td className="px-3 py-2 font-mono text-brand-primary">{labour.opCode || '—'}</td>
+                              <td className="px-3 py-2">{labour.description || '—'}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">
+                                {labour.soldHours !== undefined ? Number(labour.soldHours).toFixed(1) : '—'}
+                              </td>
+                              <td className="px-3 py-2 text-right">{labour.tech || '—'}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(labour.price)}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {line.labourLines.map((labour, idx) => (
-                              <tr key={idx}>
-                                <td className="font-mono">{labour.opCode || '—'}</td>
-                                <td>{labour.description || '—'}</td>
-                                <td className="text-right tabular-nums">
-                                  {labour.soldHours !== undefined ? labour.soldHours.toFixed(1) : '—'}
-                                </td>
-                                <td>{labour.tech || '—'}</td>
-                                <td className="text-right tabular-nums">{formatCurrency(labour.price)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
                   {line.partLines && line.partLines.length > 0 && (
-                    <div>
-                      <p className="crm-label mb-2">Parts</p>
-                      <div className="overflow-x-auto rounded-xl border border-white/5">
-                        <table className="crm-table text-xs">
-                          <thead>
-                            <tr>
-                              <th>Part #</th>
-                              <th>Description</th>
-                              <th className="text-right">Qty</th>
-                              <th className="text-right">Price</th>
+                    <div className="rounded-lg border border-slate-700/50 overflow-hidden">
+                      <p className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white/[0.03] border-b border-slate-700/50">
+                        Parts
+                      </p>
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-[9px] uppercase tracking-widest text-slate-500">
+                            <th className="text-left px-3 py-2 font-bold">Part #</th>
+                            <th className="text-left px-3 py-2 font-bold">Description</th>
+                            <th className="text-right px-3 py-2 font-bold">Qty</th>
+                            <th className="text-right px-3 py-2 font-bold">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {line.partLines.map((part, idx) => (
+                            <tr key={idx} className="text-slate-200">
+                              <td className="px-3 py-2 font-mono text-brand-primary">{part.partNumber || '—'}</td>
+                              <td className="px-3 py-2">{part.description || '—'}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{part.qty ?? '—'}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(part.price)}</td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {line.partLines.map((part, idx) => (
-                              <tr key={idx}>
-                                <td className="font-mono">{part.partNumber || '—'}</td>
-                                <td>{part.description || '—'}</td>
-                                <td className="text-right tabular-nums">{part.qty ?? '—'}</td>
-                                <td className="text-right tabular-nums">{formatCurrency(part.price)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
-              </div>
+              </section>
             ))
           )}
-
-          {(!visit.lines || visit.lines.length === 0) && visit.requests && (
-            <p className="text-[10px] text-slate-500 text-center">
-              Run PBS sync to refresh full line detail, concern, cause, and correction fields.
-            </p>
-          )}
         </div>
-      </motion.div>
+
+        {/* Footer summary */}
+        <div className="shrink-0 border-t border-slate-700/60 bg-slate-950/60 px-5 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
+            {lines.length} job line{lines.length === 1 ? '' : 's'}
+            {totalLaborHours > 0 ? ` · ${totalLaborHours.toFixed(1)} hrs sold` : ''}
+            {totalParts > 0 ? ` · ${totalParts} part${totalParts === 1 ? '' : 's'}` : ''}
+          </p>
+          <p className="text-[10px] text-slate-600">Data from PBS PartnerHUB</p>
+        </div>
+      </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

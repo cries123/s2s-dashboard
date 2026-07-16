@@ -1276,15 +1276,14 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
       </div>
 
-      <AnimatePresence>
-        {selectedServiceVisit && (
-          <ServiceVisitDetailModal
-            visit={selectedServiceVisit}
-            customerName={formatCustomerDisplayName(customer)}
-            onClose={() => setSelectedServiceVisit(null)}
-          />
-        )}
-      </AnimatePresence>
+      {selectedServiceVisit && (
+        <ServiceVisitDetailModal
+          visit={selectedServiceVisit}
+          customerName={formatCustomerDisplayName(customer)}
+          vehicleLabel={[customer.year, customer.make, customer.model].filter(Boolean).join(' ')}
+          onClose={() => setSelectedServiceVisit(null)}
+        />
+      )}
     </div>
   );
 }

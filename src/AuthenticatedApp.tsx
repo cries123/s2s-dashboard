@@ -49,7 +49,6 @@ import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { AppTopBar } from './components/layout/AppTopBar';
 import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
-import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
 import { buildMobileNavSections } from './lib/mobileNavSections';
 import { isPreviewMode } from './lib/previewMode';
 import type { SidebarNavItem } from './lib/sidebarNav';
