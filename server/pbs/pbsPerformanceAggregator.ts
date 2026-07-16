@@ -182,9 +182,10 @@ function addToBucket(
     partsCost: number;
     hrsSold: number;
   },
-  soNumber?: string
+  soNumber?: string,
+  aliases?: Map<string, string>
 ): void {
-  const advisor = cleanPbsCsrName(advisorRaw);
+  const advisor = cleanPbsCsrName(advisorRaw, aliases);
   if (!advisor || !isRealPbsAdvisorName(advisor)) return;
 
   const bucket = getBucket(buckets, advisor);
@@ -196,13 +197,17 @@ function addToBucket(
   bucket.partsCost += amounts.partsCost;
 }
 
-function attributeRepairOrder(buckets: Map<string, AdvisorBucket>, ro: PbsRepairOrderFull): void {
+function attributeRepairOrder(
+  buckets: Map<string, AdvisorBucket>,
+  ro: PbsRepairOrderFull,
+  aliases?: Map<string, string>
+): void {
   const soNumber = repairOrderSoNumber(ro);
   const defaultAdvisor = ro.CSR || '';
   const requests = ro.Requests || [];
 
   if (requests.length === 0) {
-    addToBucket(buckets, defaultAdvisor, sumRepairOrder(ro), soNumber || undefined);
+    addToBucket(buckets, defaultAdvisor, sumRepairOrder(ro), soNumber || undefined, aliases);
     return;
   }
 
@@ -218,7 +223,7 @@ function attributeRepairOrder(buckets: Map<string, AdvisorBucket>, ro: PbsRepair
     ) {
       continue;
     }
-    addToBucket(buckets, advisor, amounts, soNumber || undefined);
+    addToBucket(buckets, advisor, amounts, soNumber || undefined, aliases);
     attributed = true;
   }
 
@@ -239,20 +244,22 @@ function attributeRepairOrder(buckets: Map<string, AdvisorBucket>, ro: PbsRepair
           partsCost: 0,
           hrsSold: 0,
         },
-        soNumber || undefined
+        soNumber || undefined,
+        aliases
       );
     }
     return;
   }
 
-  addToBucket(buckets, defaultAdvisor, sumRepairOrder(ro), soNumber || undefined);
+  addToBucket(buckets, defaultAdvisor, sumRepairOrder(ro), soNumber || undefined, aliases);
 }
 
 function attributePartLines(
   buckets: Map<string, AdvisorBucket>,
   lines: PbsPartLine[] | undefined,
   fallbackAdvisor: string,
-  invoiceRef?: string
+  invoiceRef?: string,
+  aliases?: Map<string, string>
 ): void {
   for (const line of lines || []) {
     const qty = num(line.Shipped) || num(line.Requested) || 1;
@@ -270,7 +277,8 @@ function attributePartLines(
         partsCost,
         hrsSold: 0,
       },
-      invoiceRef
+      invoiceRef,
+      aliases
     );
   }
 }
@@ -320,11 +328,30 @@ function finalizeTotals(advisors: PbsAdvisorPerformanceRow[]): PbsPerformanceAgg
   };
 }
 
+/** Collect every raw CSR string on RO headers, requests, and lines (alias source). */
+export function collectRepairOrderCsrStrings(repairOrders: PbsRepairOrderFull[]): string[] {
+  const strings: string[] = [];
+  for (const ro of repairOrders) {
+    if (ro.CSR) strings.push(ro.CSR);
+    for (const req of ro.Requests || []) {
+      if (req.CSR) strings.push(req.CSR);
+      for (const line of req.LabourLines || []) {
+        if (line.CSR) strings.push(line.CSR);
+      }
+      for (const line of req.PartLines || []) {
+        if (line.CSR) strings.push(line.CSR);
+      }
+    }
+  }
+  return strings;
+}
+
 export function aggregatePbsAdvisorPerformance(
   repairOrders: PbsRepairOrderFull[],
   partsInvoices: PbsPartsInvoiceFull[],
   monthStart: string,
-  monthEnd: string
+  monthEnd: string,
+  aliases?: Map<string, string>
 ): PbsPerformanceAggregate {
   const buckets = new Map<string, AdvisorBucket>();
   let repairOrdersProcessed = 0;
@@ -343,7 +370,7 @@ export function aggregatePbsAdvisorPerformance(
     shopLaborGross += shopLabor.laborGross;
     shopHrsSold += shopLabor.hrsSold;
 
-    attributeRepairOrder(buckets, ro);
+    attributeRepairOrder(buckets, ro, aliases);
     repairOrdersProcessed += 1;
   }
 
@@ -354,7 +381,7 @@ export function aggregatePbsAdvisorPerformance(
     if (!cashDate || cashDate < monthStart || cashDate > monthEnd) continue;
 
     const invoiceRef = invoice.RawPartsInvoiceNumber || String(invoice.InvoiceNumber || '');
-    attributePartLines(buckets, invoice.PartLines, '', invoiceRef || undefined);
+    attributePartLines(buckets, invoice.PartLines, '', invoiceRef || undefined, aliases);
 
     if ((invoice.PartLines || []).length === 0 && invoice.Summary) {
       const partsSold = num(invoice.Summary.Sales) || num(invoice.Summary.TotalInvoice);

@@ -213,6 +213,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
         monthLabel: d.toLocaleDateString('en-US', { month: 'short' }),
         dayNum: d.getDate(),
         count: stat?.count ?? 0,
+        breakdown: stat?.breakdown ?? { diagnosis: 0, oilChange: 0, recall: 0, misc: 0 },
       };
     });
   }, [weekOffset, trackerStats]);
@@ -272,6 +273,10 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
               <tr>
                 <th>Day</th>
                 <th>Date</th>
+                <th className="text-right">Oil changes</th>
+                <th className="text-right">Diags</th>
+                <th className="text-right">Recall / warranty</th>
+                <th className="text-right">Misc</th>
                 <th className="text-right">Scheduled</th>
               </tr>
             </thead>
@@ -288,6 +293,18 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
                     <td className="crm-label">
                       {day.monthLabel} {day.dayNum}
                     </td>
+                    <td className="text-right tabular-nums text-emerald-500 font-medium">
+                      {day.breakdown.oilChange || '—'}
+                    </td>
+                    <td className="text-right tabular-nums text-sky-500 font-medium">
+                      {day.breakdown.diagnosis || '—'}
+                    </td>
+                    <td className="text-right tabular-nums text-amber-500 font-medium">
+                      {day.breakdown.recall || '—'}
+                    </td>
+                    <td className="text-right tabular-nums text-slate-400">
+                      {day.breakdown.misc || '—'}
+                    </td>
                     <td className="text-right font-semibold tabular-nums">{day.count}</td>
                   </tr>
                 );
@@ -295,6 +312,9 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
             </tbody>
           </table>
         </div>
+        <p className="px-4 py-2.5 text-[10px] text-slate-500 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
+          Visits combining an oil change with other work (recall, diag) count as oil changes.
+        </p>
       </div>
 
       <div className="card-base p-4 sm:p-5">

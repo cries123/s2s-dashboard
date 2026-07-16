@@ -94,6 +94,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [performanceSource, setPerformanceSource] = useState<string | null>(null);
   const [partsInvoicesSkipped, setPartsInvoicesSkipped] = useState(false);
   const [partsInvoicesSkipReason, setPartsInvoicesSkipReason] = useState<string | null>(null);
+  const [unmatchedAdvisorNames, setUnmatchedAdvisorNames] = useState<string[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Fetch Dealership Settings (for target)
@@ -155,6 +156,11 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         setPartsInvoicesSkipped(data.partsInvoicesSkipped === true);
         setPartsInvoicesSkipReason(
           typeof data.partsInvoicesSkipReason === 'string' ? data.partsInvoicesSkipReason : null
+        );
+        setUnmatchedAdvisorNames(
+          Array.isArray(data.unmatchedAdvisorNames)
+            ? data.unmatchedAdvisorNames.filter((n: unknown) => typeof n === 'string')
+            : []
         );
         if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
         else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
@@ -746,6 +752,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               {partsInvoicesSkipReason ? ` (${partsInvoicesSkipReason})` : ''}. Counter/walk-in parts
               are not included. Ask PBS/PartnerHUB to enable <strong className="text-amber-200">PartsInvoiceGet</strong> if
               you need parts accuracy.
+            </p>
+          )}
+          {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && unmatchedAdvisorNames.length > 0 && (
+            <p className="text-[10px] text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
+              PBS attributed labor to advisor names not on your performance roster:{' '}
+              <strong className="text-amber-200">{unmatchedAdvisorNames.join(', ')}</strong>. Their
+              cards are hidden. Add them to the roster (Admin → Advanced settings) or, if these are
+              PBS login codes, map them in dealership settings under{' '}
+              <strong className="text-amber-200">pbsAdvisorCodeMap</strong>.
             </p>
           )}
           {isPbsDealership && performanceSource === 'csr-pdf' && selectedMonth === 'active' && (

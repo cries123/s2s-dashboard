@@ -1,8 +1,14 @@
 /**
- * Verifies PBS advisor performance aggregation from repair orders + parts invoices.
+ * Verifies PBS advisor performance aggregation from repair orders + parts invoices,
+ * including advisor login-code alias resolution.
  * Run: npx tsx scripts/verify-pbs-performance.ts
  */
-import { aggregatePbsAdvisorPerformance, sumRepairOrderShopLabor } from '../server/pbs/pbsPerformanceAggregator.js';
+import {
+  aggregatePbsAdvisorPerformance,
+  collectRepairOrderCsrStrings,
+  sumRepairOrderShopLabor,
+} from '../server/pbs/pbsPerformanceAggregator.js';
+import { buildPbsAdvisorAliases, cleanPbsCsrName } from '../server/pbs/pbsAdvisorName.js';
 import type { PbsPartsInvoiceFull, PbsRepairOrderFull } from '../server/pbs/pbsPerformanceTypes.js';
 
 function assert(condition: boolean, message: string) {
@@ -84,6 +90,43 @@ assert(shopLabor.laborGross >= 450, 'shop labor gross includes warranty summary 
 assert(result.totals.totalGross > 0, 'totals include labor gross');
 assert(result.totals.totalGross >= shopLabor.laborGross, 'shop totals use all cashiered RO labor');
 assert(result.totals.totalGrossParts > 0, 'totals include parts gross');
+
+// --- Advisor login-code alias resolution ---
+const aliases = buildPbsAdvisorAliases(['LEMMY LV4278', 'SARAH SB123']);
+assert(aliases.get('lv4278') === 'Lemmy', 'maps LV4278 to Lemmy from combined string');
+assert(aliases.get('sb123') === 'Sarah', 'maps generic code to title-cased name');
+assert(cleanPbsCsrName('LV4278', aliases) === 'Lemmy', 'pure code resolves via alias');
+assert(cleanPbsCsrName('SARAH SB123') === 'Sarah', 'mixed name+code keeps the name');
+assert(cleanPbsCsrName('XY999') === 'XY999', 'unknown code stays as consistent bucket key');
+
+const codeRepairOrders: PbsRepairOrderFull[] = [
+  {
+    RawRepairOrderNumber: '2001',
+    DateCashiered: '2026-07-09T18:00:00.0000000-07:00',
+    Status: 'Cashiered',
+    CSR: 'LV4278',
+    Requests: [
+      {
+        CSR: 'LV4278',
+        LabourLines: [{ Price: 250, Cost: 100, SoldHours: 1 }],
+      },
+    ],
+  },
+];
+
+const csrStrings = collectRepairOrderCsrStrings(codeRepairOrders);
+assert(csrStrings.includes('LV4278'), 'collects CSR strings from RO requests');
+
+const codeResult = aggregatePbsAdvisorPerformance(
+  codeRepairOrders,
+  [],
+  '2026-07-01',
+  '2026-07-31',
+  aliases
+);
+const lemmyFromCode = codeResult.advisors.find((row) => row.name === 'Lemmy');
+assert(Boolean(lemmyFromCode), 'labor from a code-only CSR buckets under the resolved advisor');
+assert((lemmyFromCode?.grossLabor || 0) === 150, 'code-attributed labor gross is correct');
 
 console.log('Verification PASSED — PBS advisor performance aggregation');
 console.log(
