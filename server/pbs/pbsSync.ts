@@ -744,6 +744,9 @@ async function stagePerformance(ctx: PbsSyncStageContext): Promise<PbsSyncStageO
     counts.technicianReports = technician.technicians;
     counts.timeClockActivities = technician.clockActivities;
     fetched.timeClockActivities = technician.clockActivities;
+    if (technician.warning) {
+      counts.technicianSyncWarning = technician.warning;
+    }
   } catch (techErr) {
     const message = techErr instanceof Error ? techErr.message : String(techErr);
     console.error('[PBS Sync] Technician performance failed:', techErr);

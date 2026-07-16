@@ -75,6 +75,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   const [reportEndDate, setReportEndDate] = useState(activeRange.end);
   const [pbsSyncedAt, setPbsSyncedAt] = useState<string | null>(null);
   const [performanceSource, setPerformanceSource] = useState<string | null>(null);
+  const [clockDataUnavailable, setClockDataUnavailable] = useState(false);
 
   const isPbsDealership = defaultDmsProviderForDealership(currentDealershipId) === 'pbs';
 
@@ -192,10 +193,12 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         }
         setPbsSyncedAt(typeof data.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
         setPerformanceSource(typeof data.source === 'string' ? data.source : null);
+        setClockDataUnavailable(data.clockDataUnavailable === true);
       } else {
         setTechnicians([]);
         setPbsSyncedAt(null);
         setPerformanceSource(null);
+        setClockDataUnavailable(false);
       }
       setLoading(false);
     }, (err) => {
@@ -462,6 +465,10 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     ? Math.round((technicians.reduce((sum, t) => sum + t.flaggedHours, 0) / Math.max(1, technicians.reduce((sum, t) => sum + t.clockedHours, 0))) * 100)
     : 0;
 
+  // PBS account lacks TimeClockActivityGet access — clock/efficiency values are meaningless.
+  const flaggedOnlyMode =
+    clockDataUnavailable && performanceSource === 'pbs-sync' && selectedMonth === 'active';
+
   return (
     <div
       className={cn(
@@ -516,10 +523,17 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                 Run Pull changes in Admin → PBS Sync to load clock and flagged hours from PBS.
               </p>
             )}
+            {isPbsDealership && selectedMonth === 'active' && clockDataUnavailable && performanceSource === 'pbs-sync' && (
+              <p className="text-[10px] text-amber-400/90 mt-1">
+                PBS time clock access is not enabled for these PartnerHUB credentials — showing
+                flagged hours from repair orders only. Ask PBS support to enable
+                TimeClockActivityGet for clocked hours and efficiency.
+              </p>
+            )}
           </div>
         </div>
 
-        {embedded && technicians.length > 0 && (
+        {embedded && technicians.length > 0 && !clockDataUnavailable && (
           <div className="text-right shrink-0">
             <p className="crm-label">Shop average</p>
             <p className="text-lg font-bold tabular-nums">{averageEfficiency}%</p>
@@ -808,7 +822,9 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                                 className="w-20 text-center h-8 bg-slate-950 border border-white/10 rounded-lg text-xs font-semibold text-white outline-none"
                               />
                             ) : (
-                              <span className={embedded ? undefined : 'font-mono text-slate-450'}>{tech.clockedHours.toFixed(1)}</span>
+                              <span className={embedded ? undefined : 'font-mono text-slate-450'}>
+                                {flaggedOnlyMode ? '—' : tech.clockedHours.toFixed(1)}
+                              </span>
                             )}
                           </td>
 
@@ -827,7 +843,9 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                           </td>
 
                           <td className={embedded ? 'text-right' : 'px-6 py-4'}>
-                            {embedded ? (
+                            {flaggedOnlyMode ? (
+                              <span className={embedded ? 'crm-label' : 'text-xs text-slate-500'}>—</span>
+                            ) : embedded ? (
                               <span className={cn(
                                 'tabular-nums font-semibold',
                                 tech.efficiency >= 80 ? 'text-emerald-500' : 'text-rose-500'

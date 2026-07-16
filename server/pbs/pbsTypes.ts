@@ -134,6 +134,7 @@ export interface PbsSyncCounts {
   technicianReports: number;
   timeClockActivities: number;
   technicianSyncError?: string;
+  technicianSyncWarning?: string;
   workplanRemindersFetched: number;
   serviceRemindersUpdated: number;
   inventoryLots: number;

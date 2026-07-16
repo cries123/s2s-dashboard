@@ -1,5 +1,10 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { pbsEmployeeGet, pbsRepairOrderGet, pbsTimeClockActivityGet } from './partnerHubClient.js';
+import {
+  PbsPartnerHubError,
+  pbsEmployeeGet,
+  pbsRepairOrderGet,
+  pbsTimeClockActivityGet,
+} from './partnerHubClient.js';
 import {
   aggregateFlaggedHoursByTech,
   aggregateTechnicianPerformance,
@@ -59,6 +64,45 @@ function performanceReportEndDate(monthEnd: string, reference = new Date()): str
   return today < monthEnd ? today : monthEnd;
 }
 
+function pbs401Message(operation: string, err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const is401 =
+    (err instanceof PbsPartnerHubError && err.status === 401) || message.includes('401');
+  return is401
+    ? `${operation} is not enabled for these PBS PartnerHUB credentials (401) — ask PBS support to grant it.`
+    : message;
+}
+
+/** Time clock is optional — many PBS accounts return 401 for TimeClockActivityGet. */
+async function fetchTimeClockActivitiesOptional(
+  monthStart: string,
+  monthEnd: string
+): Promise<{ activities: PbsTimeClockActivity[]; skippedReason?: string }> {
+  try {
+    const response = await pbsTimeClockActivityGet(monthDateCriteria(monthStart, monthEnd));
+    return { activities: (response.TimeClockActivities || []) as PbsTimeClockActivity[] };
+  } catch (err) {
+    const reason = pbs401Message('TimeClockActivityGet', err);
+    console.warn(`[PBS Sync] Time clock unavailable — flagged hours only: ${reason}`);
+    return { activities: [], skippedReason: reason };
+  }
+}
+
+/** Employee list is optional — names fall back to the dispatch tech roster. */
+async function fetchEmployeesOptional(): Promise<{
+  employees: PbsEmployee[];
+  skippedReason?: string;
+}> {
+  try {
+    const response = await pbsEmployeeGet({ IncludeInactive: false });
+    return { employees: (response.Employees || []) as PbsEmployee[] };
+  } catch (err) {
+    const reason = pbs401Message('EmployeeGet', err);
+    console.warn(`[PBS Sync] Employee list unavailable — using tech roster labels: ${reason}`);
+    return { employees: [], skippedReason: reason };
+  }
+}
+
 async function loadTechLabelMap(
   db: Firestore,
   dealershipId: string
@@ -83,18 +127,24 @@ export async function syncPbsTechnicianPerformance(
   monthStart: string,
   monthEnd: string,
   syncedAt: string
-): Promise<{ technicians: number; clockActivities: number; flaggedTechs: number }> {
-  const [clockResponse, employeeResponse, cashieredResponse, openResponse, techLabelByKey] =
+): Promise<{
+  technicians: number;
+  clockActivities: number;
+  flaggedTechs: number;
+  warning?: string;
+}> {
+  const [clockResult, employeeResult, cashieredResponse, openResponse, techLabelByKey] =
     await Promise.all([
-      pbsTimeClockActivityGet(monthDateCriteria(monthStart, monthEnd)),
-      pbsEmployeeGet({ IncludeInactive: false }),
+      fetchTimeClockActivitiesOptional(monthStart, monthEnd),
+      fetchEmployeesOptional(),
       pbsRepairOrderGet(monthCashieredCriteria(monthStart, monthEnd)),
       pbsRepairOrderGet(openRoCriteria(monthStart)),
       loadTechLabelMap(db, dealershipId),
     ]);
 
-  const activities = (clockResponse.TimeClockActivities || []) as PbsTimeClockActivity[];
-  const employees = (employeeResponse.Employees || []) as PbsEmployee[];
+  const activities = clockResult.activities;
+  const employees = employeeResult.employees;
+  const clockDataUnavailable = Boolean(clockResult.skippedReason);
   const cashieredOrders = (cashieredResponse.RepairOrders || []) as PbsRepairOrderFull[];
   const openOrders = (openResponse.RepairOrders || []) as PbsRepairOrderFull[];
   const repairOrders = mergeRepairOrdersForFlagged(cashieredOrders, openOrders);
@@ -108,6 +158,12 @@ export async function syncPbsTechnicianPerformance(
     techLabelByKey
   );
 
+  // Without clock punches, an efficiency percentage would be meaningless —
+  // zero it out and let the UI show flagged hours only.
+  const technicians = clockDataUnavailable
+    ? aggregate.technicians.map((tech) => ({ ...tech, clockedHours: 0, efficiency: 0 }))
+    : aggregate.technicians;
+
   const reportEndDate = performanceReportEndDate(monthEnd);
 
   const existingSnap = await technicianPerformanceDoc(db, dealershipId).get();
@@ -118,27 +174,36 @@ export async function syncPbsTechnicianPerformance(
     Array.isArray(existing.technicians) &&
     existing.technicians.length > 0;
 
+  const warning = clockResult.skippedReason
+    ? `Time clock unavailable: ${clockResult.skippedReason}`
+    : employeeResult.skippedReason
+      ? `Employee names unavailable: ${employeeResult.skippedReason}`
+      : undefined;
+
   await technicianPerformanceDoc(db, dealershipId).set(
     stripUndefinedDeep({
-      technicians: preserveImported ? existing.technicians : aggregate.technicians,
+      technicians: preserveImported ? existing.technicians : technicians,
       reportStartDate: aggregate.reportStartDate,
       reportEndDate,
       source: preserveImported ? existing.source : 'pbs-sync',
       pbsSyncedAt: syncedAt,
       pbsRepairOrdersForFlagged: repairOrders.length,
       pbsClockActivities: activities.length,
+      clockDataUnavailable,
+      clockDataUnavailableReason: clockResult.skippedReason,
       updatedAt: serverTimestamp(),
     }),
     { merge: false }
   );
 
   console.log(
-    `[PBS Sync] Technician performance written: ${preserveImported ? existing!.technicians!.length : aggregate.technicians.length} techs from ${activities.length} clock punches, ${repairOrders.length} ROs (${cashieredOrders.length} cashiered + ${openOrders.length} open), ${flaggedByTech.size} flagged-tech buckets`
+    `[PBS Sync] Technician performance written: ${preserveImported ? existing!.technicians!.length : technicians.length} techs from ${activities.length} clock punches, ${repairOrders.length} ROs (${cashieredOrders.length} cashiered + ${openOrders.length} open), ${flaggedByTech.size} flagged-tech buckets${clockDataUnavailable ? ' [clock data unavailable]' : ''}`
   );
 
   return {
-    technicians: preserveImported ? existing!.technicians!.length : aggregate.technicians.length,
+    technicians: preserveImported ? existing!.technicians!.length : technicians.length,
     clockActivities: activities.length,
     flaggedTechs: flaggedByTech.size,
+    warning,
   };
 }
