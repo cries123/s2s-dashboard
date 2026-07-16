@@ -1,7 +1,7 @@
 import { Customer } from '../types';
 import { WorkQueueItem, ServiceDriveReason, ServiceDrivePriority, QueuePriorityProfile } from '../types';
-import { isServiceAlertActive } from './alerts';
-import { getCustomerServiceReminderDueDate, parseReminderDate } from './serviceReminder';
+import { getCustomerAlertDueDate, isServiceAlertActive, resolveServiceAlertConfig, type ServiceAlertConfig } from './alerts';
+import { parseReminderDate } from './serviceReminder';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const DEFAULT_STALE_CONTACT_DAYS = 3;
@@ -9,6 +9,7 @@ const DEFAULT_STALE_CONTACT_DAYS = 3;
 export interface BuildQueueOptions {
   followUpDays?: number;
   queuePriority?: QueuePriorityProfile;
+  serviceAlertConfig?: ServiceAlertConfig;
 }
 
 export function timestampToDate(value: unknown): Date | null {
@@ -30,9 +31,12 @@ export function daysSince(date: Date | null): number | null {
   return Math.floor((Date.now() - date.getTime()) / MS_PER_DAY);
 }
 
-export function getServiceDaysOverdue(customer: Customer): number {
-  if (!isServiceAlertActive(customer)) return 0;
-  const dueStr = getCustomerServiceReminderDueDate(customer);
+export function getServiceDaysOverdue(
+  customer: Customer,
+  config = resolveServiceAlertConfig()
+): number {
+  if (!isServiceAlertActive(customer, config)) return 0;
+  const dueStr = getCustomerAlertDueDate(customer, config);
   if (!dueStr) return 0;
   const dueDate = parseReminderDate(dueStr);
   if (!dueDate) return 0;
@@ -49,13 +53,14 @@ function scoreToPriority(score: number): ServiceDrivePriority {
 
 export function buildWorkQueueItem(
   customer: Customer,
-  followUpDays: number = DEFAULT_STALE_CONTACT_DAYS
+  followUpDays: number = DEFAULT_STALE_CONTACT_DAYS,
+  serviceAlertConfig: ServiceAlertConfig = resolveServiceAlertConfig()
 ): WorkQueueItem | null {
   const reasons: ServiceDriveReason[] = [];
   let score = 0;
 
-  const serviceDue = isServiceAlertActive(customer);
-  const daysOverdue = getServiceDaysOverdue(customer);
+  const serviceDue = isServiceAlertActive(customer, serviceAlertConfig);
+  const daysOverdue = getServiceDaysOverdue(customer, serviceAlertConfig);
   const lastContact = timestampToDate(customer.lastServiceContact);
   const daysSinceContact = daysSince(lastContact);
 
@@ -112,10 +117,11 @@ function sortQueue(items: WorkQueueItem[], profile: QueuePriorityProfile): WorkQ
 export function buildWorkQueue(customers: Customer[], options?: BuildQueueOptions): WorkQueueItem[] {
   const followUpDays = options?.followUpDays ?? DEFAULT_STALE_CONTACT_DAYS;
   const queuePriority = options?.queuePriority ?? 'balanced';
+  const serviceAlertConfig = options?.serviceAlertConfig ?? resolveServiceAlertConfig();
   const items: WorkQueueItem[] = [];
 
   for (const customer of customers) {
-    const item = buildWorkQueueItem(customer, followUpDays);
+    const item = buildWorkQueueItem(customer, followUpDays, serviceAlertConfig);
     if (item) items.push(item);
   }
 

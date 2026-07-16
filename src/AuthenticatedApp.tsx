@@ -269,7 +269,10 @@ function DashboardShell({ user }: { user: User }) {
       if (item.managerSubTab === 'team') setManagerDashboardSubTab('users');
     }
   }, []);
-  const serviceAlerts = useServiceAlertInterval();
+  const serviceAlerts = useServiceAlertInterval(
+    currentDealershipId || 'hyundai',
+    mergedDealershipSettings
+  );
   const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
   
@@ -381,7 +384,10 @@ function DashboardShell({ user }: { user: User }) {
   const currentUser = user;
 
   return (
-    <ServiceAlertProvider>
+    <ServiceAlertProvider
+      dealershipId={currentDealershipId || 'hyundai'}
+      settings={mergedDealershipSettings}
+    >
     <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
       <AppSidebar
         dealershipName={currentDealership.name}

@@ -3,6 +3,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Customer, DailyStat, WorkQueueItem, ServiceDriveReason, QueuePriorityProfile } from '../types';
 import { buildWorkQueue } from '../lib/serviceDrivePriority';
+import type { ServiceAlertConfig } from '../lib/alerts';
 
 function todayISO(): string {
   const d = new Date();
@@ -22,6 +23,7 @@ export interface ServiceDriveStats {
 export interface ServiceDriveQueueOptions {
   followUpDays?: number;
   queuePriority?: QueuePriorityProfile;
+  serviceAlertConfig?: ServiceAlertConfig;
 }
 
 export function useServiceDriveQueue(
@@ -64,8 +66,9 @@ export function useServiceDriveQueue(
       buildWorkQueue(customers, {
         followUpDays: options?.followUpDays,
         queuePriority: options?.queuePriority,
+        serviceAlertConfig: options?.serviceAlertConfig,
       }),
-    [customers, options?.followUpDays, options?.queuePriority]
+    [customers, options?.followUpDays, options?.queuePriority, options?.serviceAlertConfig]
   );
 
   const stats: ServiceDriveStats = useMemo(() => {

@@ -1,9 +1,10 @@
 import { DEALERSHIPS } from '../constants';
-import type { DealershipSettings, DispatchProductionLaneId } from '../types';
+import type { DealershipSettings, DispatchProductionLaneId, ServiceAlertMode } from '../types';
 import { POT_OF_GOLD_OP_CODES } from './potOfGoldData';
 
 export const DEFAULT_SERVICE_ALERT_INTERVAL_DAYS = 180;
 export const DEFAULT_SERVICE_ALERT_BUFFER_DAYS = 0;
+export const DEFAULT_SERVICE_ALERT_MODE = 'standard' as const;
 
 export const DEFAULT_WEATHER = {
   lat: 34.953,
@@ -26,6 +27,7 @@ export function mergeDealershipSettings(
     enableForecastTab: raw?.enableForecastTab !== false,
     enableSalesPerformanceTab: raw?.enableSalesPerformanceTab !== false,
     enableVinSearchTab: raw?.enableVinSearchTab !== false,
+    serviceAlertMode: raw?.serviceAlertMode === 'optimized' ? 'optimized' : DEFAULT_SERVICE_ALERT_MODE,
     serviceAlertIntervalDays: raw?.serviceAlertIntervalDays ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
     serviceAlertBufferDays: raw?.serviceAlertBufferDays ?? DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
     enrollmentJoinCode: raw?.enrollmentJoinCode ?? staticRow?.code ?? '',
@@ -93,4 +95,10 @@ export function clampServiceAlertBufferDays(days: number): number {
 
 export function serviceAlertIntervalMonths(days: number): string {
   return (days / 30.4375).toFixed(1);
+}
+
+export function resolveServiceAlertMode(
+  settings?: Partial<DealershipSettings> | null
+): ServiceAlertMode {
+  return settings?.serviceAlertMode === 'optimized' ? 'optimized' : DEFAULT_SERVICE_ALERT_MODE;
 }

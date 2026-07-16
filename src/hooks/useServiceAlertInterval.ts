@@ -1,16 +1,22 @@
 import { useMemo } from 'react';
-import type { Customer } from '../types';
+import type { Customer, DealershipSettings } from '../types';
 import {
   calculateServiceCycle,
+  computeContactClearDueDate,
   getAverageServiceIntervalDays,
   getAverageServiceIntervalMonths,
   getNextServiceMilestone,
+  getServiceAlertModeLabel,
   isServiceAlertActive,
+  isStandardServiceAlertMode,
+  resolveServiceAlertConfig,
+  type ServiceAlertConfig,
 } from '../lib/alerts';
-import { DEFAULT_SERVICE_ALERT_INTERVAL_DAYS } from '../lib/dealershipSettingsUtils';
-import { SERVICE_REMINDER_MONTHS } from '../lib/serviceReminder';
+import { mergeDealershipSettings } from '../lib/dealershipSettingsUtils';
 
 export interface ServiceAlertHelpers {
+  config: ServiceAlertConfig;
+  modeLabel: string;
   intervalDays: number;
   bufferDays: number;
   isServiceAlertActive: (customer: Customer) => boolean;
@@ -18,21 +24,43 @@ export interface ServiceAlertHelpers {
   getAverageServiceIntervalDays: (customer: Customer) => number;
   getAverageServiceIntervalMonths: (customer: Customer) => number;
   getNextServiceMilestone: (customerOrSoldDate: Customer | string) => string;
+  computeContactClearDueDate: (customer: Customer, from?: Date) => string;
+  isStandardMode: boolean;
 }
 
-export function useServiceAlertInterval(): ServiceAlertHelpers {
+export function useServiceAlertInterval(
+  dealershipId: string = 'hyundai',
+  rawSettings?: Partial<DealershipSettings> | null
+): ServiceAlertHelpers {
+  const config = useMemo(
+    () => resolveServiceAlertConfig(mergeDealershipSettings(dealershipId, rawSettings)),
+    [
+      dealershipId,
+      rawSettings?.serviceAlertMode,
+      rawSettings?.serviceAlertIntervalDays,
+      rawSettings?.serviceAlertBufferDays,
+    ]
+  );
+
   return useMemo(
     () => ({
-      intervalDays: DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-      bufferDays: 0,
-      isServiceAlertActive: (customer: Customer) => isServiceAlertActive(customer),
-      calculateServiceCycle: (soldDate: string) => calculateServiceCycle(soldDate),
+      config,
+      modeLabel: getServiceAlertModeLabel(config.mode),
+      intervalDays: config.intervalDays,
+      bufferDays: config.bufferDays,
+      isServiceAlertActive: (customer: Customer) => isServiceAlertActive(customer, config),
+      calculateServiceCycle: (soldDate: string) =>
+        calculateServiceCycle(soldDate, config.intervalDays),
       getAverageServiceIntervalDays: (customer: Customer) =>
-        getAverageServiceIntervalDays(customer),
-      getAverageServiceIntervalMonths: () => SERVICE_REMINDER_MONTHS,
+        getAverageServiceIntervalDays(customer, config),
+      getAverageServiceIntervalMonths: (customer: Customer) =>
+        getAverageServiceIntervalMonths(customer, config),
       getNextServiceMilestone: (customerOrSoldDate: Customer | string) =>
-        getNextServiceMilestone(customerOrSoldDate),
+        getNextServiceMilestone(customerOrSoldDate, config),
+      computeContactClearDueDate: (customer: Customer, from?: Date) =>
+        computeContactClearDueDate(customer, config, from),
+      isStandardMode: isStandardServiceAlertMode(config),
     }),
-    []
+    [config.mode, config.intervalDays, config.bufferDays]
   );
 }

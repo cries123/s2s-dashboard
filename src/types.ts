@@ -105,6 +105,8 @@ export interface DealershipAnnouncement {
   updatedBy?: string;
 }
 
+export type ServiceAlertMode = 'standard' | 'optimized';
+
 export interface DealershipSettings {
   id: string;
   appointmentTarget: number;
@@ -125,6 +127,8 @@ export interface DealershipSettings {
   enableForecastTab?: boolean;
   enableSalesPerformanceTab?: boolean;
   enableVinSearchTab?: boolean;
+  /** Standard = fixed 6-month reminders from delivery; optimized = oil-change interval from service history. */
+  serviceAlertMode?: ServiceAlertMode;
   serviceAlertIntervalDays?: number;
   /** Extra days after due date before a customer appears in Service Alerts (0–60). */
   serviceAlertBufferDays?: number;

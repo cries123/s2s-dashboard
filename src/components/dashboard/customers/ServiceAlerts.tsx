@@ -6,7 +6,6 @@ import { writeBatch, doc, collection, serverTimestamp } from 'firebase/firestore
 import { db } from '../../../firebase';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
-import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
 
 interface ServiceAlertsProps {
   customers: Customer[];
@@ -32,17 +31,16 @@ export default function ServiceAlerts({
     const alertsToProcess = [...activeAlerts];
     if (alertsToProcess.length === 0) return;
 
-    if (
-      !confirm(
-        `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new 6-month reminder from today.`
-      )
-    ) {
+    const confirmMessage = serviceAlerts.isStandardMode
+      ? `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new 6-month reminder from today.`
+      : `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new reminder based on their service interval from today.`;
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
     setIsResetting(true);
     let totalProcessed = 0;
-    const nextDue = computeServiceReminderDueDate(new Date());
 
     try {
       const chunkSize = 200;
@@ -52,6 +50,7 @@ export default function ServiceAlerts({
         const currentChunk = alertsToProcess.slice(i, i + chunkSize);
 
         currentChunk.forEach((c) => {
+          const nextDue = serviceAlerts.computeContactClearDueDate(c);
           const customerRef = doc(
             db,
             'artifacts',
@@ -79,7 +78,7 @@ export default function ServiceAlerts({
             userId: currentUser.uid,
             username: currentUser.username,
             outcome: 'Bulk Cycle Reset',
-            notes: `Service reminder reset. Next due ${nextDue} (6 months from today).`,
+            notes: `Service reminder reset. Next due ${nextDue}.`,
             appointmentSet: false,
           });
 
@@ -124,8 +123,9 @@ export default function ServiceAlerts({
               )}
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Tap a customer to log contact or open their profile. Reminders are set for 6 months
-              after enrollment or last outreach.
+              {serviceAlerts.isStandardMode
+                ? 'Tap a customer to log contact or open their profile. Reminders are set for 6 months after delivery or last outreach.'
+                : 'Tap a customer to log contact or open their profile. Reminders follow each customer\'s oil-change interval when service history is available.'}
             </p>
           </div>
 

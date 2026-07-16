@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { useServiceAlertHelpers } from '../../context/ServiceAlertContext';
 import { getLastServiceDate } from '../../lib/alerts';
+import { analyzeOilChangeInterval } from '../../lib/serviceIntervalAnalytics';
 import {
   CustomerTimeline,
   type TimelineEvent,
@@ -201,115 +202,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
     }
   };
 
-  const calculateOilChangeInterval = () => {
-    const visits = customer.recentVisits || [];
-    if (visits.length === 0) return null;
-
-    const isOilChangeText = (text: string) => {
-      if (!text) return false;
-      const lower = text.toLowerCase();
-      return (
-        lower.includes("oil change") ||
-        lower.includes("oil & filter") ||
-        lower.includes("oil/filter") ||
-        lower.includes(" lof") ||
-        lower.startsWith("lof ") ||
-        lower === "lof" ||
-        lower.includes("lube, oil") ||
-        lower.includes("lube oil") ||
-        lower.includes("synthetic oil") ||
-        lower.includes("engine oil") ||
-        lower.includes("0w-20") ||
-        lower.includes("5w-20") ||
-        lower.includes("5w-30")
-      );
-    };
-
-    const oilVisits = [...visits]
-      .filter(v => isOilChangeText(v.requests))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    if (oilVisits.length === 0) {
-      return {
-        hasData: false,
-        message: "No recorded oil changes found in service history."
-      };
-    }
-
-    if (oilVisits.length === 1) {
-      return {
-        hasData: false,
-        count: 1,
-        lastDate: oilVisits[0].date,
-        lastMileage: oilVisits[0].mileage,
-        message: "Only 1 oil change recorded. (Need at least 2 visits to compute average interval)"
-      };
-    }
-
-    let totalDays = 0;
-    let totalMiles = 0;
-    let calculationCount = 0;
-
-    for (let i = 1; i < oilVisits.length; i++) {
-      const prev = oilVisits[i - 1];
-      const curr = oilVisits[i];
-
-      const prevTime = new Date(prev.date).getTime();
-      const currTime = new Date(curr.date).getTime();
-
-      if (!isNaN(prevTime) && !isNaN(currTime)) {
-        const daysDiff = (currTime - prevTime) / (1000 * 60 * 60 * 24);
-        if (daysDiff > 0) {
-          totalDays += daysDiff;
-          totalMiles += Math.abs(curr.mileage - prev.mileage);
-          calculationCount++;
-        }
-      }
-    }
-
-    if (calculationCount === 0) {
-      return {
-        hasData: false,
-        count: oilVisits.length,
-        lastDate: oilVisits[oilVisits.length - 1].date,
-        lastMileage: oilVisits[oilVisits.length - 1].mileage,
-        message: "Duplicate or invalid dates in oil change records."
-      };
-    }
-
-    const avgDays = totalDays / calculationCount;
-    const avgMiles = Math.round(totalMiles / calculationCount);
-    const avgMonths = Number((avgDays / 30.4375).toFixed(1));
-
-    const lastOilVisit = oilVisits[oilVisits.length - 1];
-    const lastDateObj = new Date(lastOilVisit.date);
-    
-    let nextDateStr = "N/A";
-    if (!isNaN(lastDateObj.getTime())) {
-      const nextDateObj = new Date(lastDateObj.getTime() + avgDays * 24 * 60 * 60 * 1000);
-      nextDateStr = nextDateObj.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      });
-    }
-
-    const nextMileage = lastOilVisit.mileage + avgMiles;
-
-    return {
-      hasData: true,
-      count: oilVisits.length,
-      avgDays: Math.round(avgDays),
-      avgMonths,
-      avgMiles,
-      lastDate: lastOilVisit.date,
-      lastMileage: lastOilVisit.mileage,
-      nextDate: nextDateStr,
-      nextMileage
-    };
-  };
-
-  const oilAnalysis = calculateOilChangeInterval();
+  const oilAnalysis = analyzeOilChangeInterval(customer);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -368,7 +261,11 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   "badge text-[8px] sm:text-[9px] font-black tracking-widest uppercase py-0.5 sm:py-1 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg",
                   customer.serviceAlertTriggered ? "badge-success" : "badge-info"
                 )}>
-                  {customer.serviceAlertTriggered ? "Alert Sourced" : "S2S Optimized"}
+                  {customer.serviceAlertTriggered
+                    ? "Alert Sourced"
+                    : serviceAlerts.isStandardMode
+                      ? "Standard (6 mo)"
+                      : "S2S Optimized"}
                 </span>
               </div>
               
@@ -664,7 +561,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div className="space-y-1">
                                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Estimated Due Date</span>
-                                  <span className="font-black text-base sm:text-lg text-white">{oilAnalysis.nextDate}</span>
+                                  <span className="font-black text-base sm:text-lg text-white">{oilAnalysis.nextDueDateLabel ?? 'N/A'}</span>
                                 </div>
                                 <div className="space-y-1">
                                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Estimated Due Mileage</span>

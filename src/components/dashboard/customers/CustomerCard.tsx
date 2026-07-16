@@ -9,7 +9,7 @@ import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils'
 import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
-import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
+import { computeContactClearDueDate } from '../../../lib/alerts';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
 
 interface CustomerCardProps {
@@ -48,7 +48,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         appointmentSet
       });
 
-      const nextDue = computeServiceReminderDueDate(new Date());
+      const nextDue = serviceAlerts.computeContactClearDueDate(customer);
 
       await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id), {
         lastServiceContact: serverTimestamp(),
