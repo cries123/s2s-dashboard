@@ -28,6 +28,19 @@ function formatWhen(iso?: string): string {
   return d.toLocaleString();
 }
 
+/** Old failed runs may have stored raw HTML gateway pages — never render markup. */
+function cleanErrorText(raw?: string | null): string {
+  const text = (raw || '').trim();
+  if (!text) return '';
+  if (text.startsWith('<')) {
+    if (/inactivity timeout/i.test(text)) {
+      return 'The server took too long to respond (gateway timeout). Please try again.';
+    }
+    return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+  }
+  return text;
+}
+
 function triggerLabel(entry: PbsSyncLogEntry): string {
   if (entry.triggeredBy === 'cron') return 'Scheduled (6 AM)';
   if (entry.triggeredByUsername) return entry.triggeredByUsername;
@@ -96,7 +109,7 @@ function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
       ) : null}
 
       {entry.error ? (
-        <p className="text-[11px] text-rose-400/90 mt-2 line-clamp-3">{entry.error}</p>
+        <p className="text-[11px] text-rose-400/90 mt-2 line-clamp-3">{cleanErrorText(entry.error)}</p>
       ) : null}
     </li>
   );
@@ -199,14 +212,18 @@ function PbsSyncPanelInner({
     setPanelError(null);
     setPanelMessage(
       fullRefresh
-        ? 'Full fleet refresh started — pulling all customers and repair orders. This usually takes 2–5 minutes.'
-        : 'Pulling PBS changes — this usually takes 2–5 minutes. Please keep this page open until it finishes.'
+        ? 'Full fleet refresh started — pulling all customers and repair orders. Keep this page open.'
+        : 'Pulling PBS changes — keep this page open until it finishes.'
     );
     if (fullRefresh) setFullRefreshing(true);
     else setSyncing(true);
 
     try {
-      const result = await runPbsSyncNow({ fullRefresh });
+      const result = await runPbsSyncNow({ fullRefresh }, (progress) => {
+        setPanelMessage(
+          `Step ${progress.stageIndex} of ${progress.totalStages}: ${progress.stageLabel}…`
+        );
+      });
       await refreshStatus();
       if (result.skipped) {
         const message = result.reason || 'Sync was skipped.';
@@ -365,7 +382,7 @@ function PbsSyncPanelInner({
 
         {panelError ? (
           <div className="rounded-xl border border-rose-500/20 bg-rose-950/20 p-3 text-xs text-rose-200/90">
-            {panelError}
+            {cleanErrorText(panelError)}
           </div>
         ) : null}
 
@@ -421,7 +438,7 @@ function PbsSyncPanelInner({
                 Sync in progress…
               </p>
             ) : lastState?.lastSyncOk === false ? (
-              <p className="text-[10px] text-rose-400 mt-1 line-clamp-2">{lastState.lastError}</p>
+              <p className="text-[10px] text-rose-400 mt-1 line-clamp-2">{cleanErrorText(lastState.lastError)}</p>
             ) : lastState?.summary ? (
               <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{lastState.summary}</p>
             ) : null}

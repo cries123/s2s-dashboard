@@ -177,12 +177,25 @@ export interface PbsSyncLogEntry {
   summary: string;
 }
 
+/** Progress of a staged (multi-request) sync run. */
+export interface PbsSyncStagedRun {
+  runId: string;
+  watermark?: string;
+  fullRefresh: boolean;
+  triggeredBy?: 'cron' | 'manual';
+  triggeredByEmail?: string;
+  triggeredByUsername?: string;
+  completedStages: string[];
+  counts: PbsSyncCounts;
+  fetched: PbsSyncFetched;
+}
+
 export interface PbsSyncState {
   lastSyncAt: string;
   /** Watermark for incremental Pull changes — only advances on successful sync. */
   lastSuccessfulSyncAt?: string;
   lastSyncOk: boolean;
-  lastError?: string;
+  lastError?: string | null;
   counts?: PbsSyncCounts;
   fetched?: PbsSyncFetched;
   triggeredBy?: 'cron' | 'manual';
@@ -191,6 +204,7 @@ export interface PbsSyncState {
   summary?: string;
   syncInProgress?: boolean;
   syncStartedAt?: string;
+  stagedRun?: PbsSyncStagedRun | null;
 }
 
 export interface PbsSyncStartResult {

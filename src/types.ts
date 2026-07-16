@@ -162,8 +162,9 @@ export interface DealershipSettings {
   /** Automated PBS PartnerHUB sync status. */
   pbsSyncState?: {
     lastSyncAt: string;
+    lastSuccessfulSyncAt?: string;
     lastSyncOk: boolean;
-    lastError?: string;
+    lastError?: string | null;
     triggeredBy?: 'cron' | 'manual';
     triggeredByEmail?: string;
     triggeredByUsername?: string;

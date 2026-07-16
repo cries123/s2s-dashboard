@@ -392,100 +392,464 @@ async function writePbsSyncState(
   );
 }
 
-export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSyncResult> {
-  const startedAt = new Date().toISOString();
-  if (options.dealershipId && !resolvePbsAutomatedSyncDealershipId(options.dealershipId)) {
-    const counts = emptyCounts();
-    const monthRange = monthRangePacific();
-    const fetched = emptyFetched(monthRange.start, monthRange.end);
-    const finishedAt = new Date().toISOString();
-    const error = pbsAutomatedSyncScopeError(options.dealershipId);
-    return {
-      ok: false,
-      startedAt,
-      finishedAt,
-      counts,
-      fetched,
-      summary: error,
-      error,
-    };
+export const PBS_SYNC_STAGES = [
+  'customers',
+  'repair-orders',
+  'appointments',
+  'performance',
+  'extended',
+] as const;
+export type PbsSyncStageName = (typeof PBS_SYNC_STAGES)[number];
+
+export const PBS_SYNC_STAGE_LABELS: Record<PbsSyncStageName, string> = {
+  customers: 'Customers & vehicles',
+  'repair-orders': 'Repair orders & service visits',
+  appointments: 'Appointments & day schedule',
+  performance: 'Advisor & technician performance',
+  extended: 'Reminders, inventory & dispatch',
+};
+
+interface PbsSyncStageContext {
+  db: Firestore;
+  dealershipId: string;
+  startedAt: string;
+  watermark?: string;
+  counts: PbsSyncCounts;
+  fetched: PbsSyncFetched;
+  monthRange: { start: string; end: string };
+}
+
+async function stageCustomers(ctx: PbsSyncStageContext): Promise<void> {
+  const { db, dealershipId, startedAt, watermark, counts, fetched } = ctx;
+  const index = await loadCustomerIndex(db, dealershipId);
+  const customerWrites: Array<(batch: WriteBatch) => void> = [];
+
+  const contactVehiclesRaw = await fetchAllContactVehicles(watermark);
+  const contactVehicles = dedupeContactVehiclesByVin(contactVehiclesRaw);
+  fetched.contactVehicles = contactVehicles.length;
+  console.log(
+    `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN (${watermark ? 'incremental since ' + watermark : 'full fleet'})`
+  );
+
+  for (const cv of contactVehicles) {
+    const mapped = mapContactVehicleToCustomerFields(cv, dealershipId);
+    const vinLast8 = String(mapped.vinLast8 || '');
+    if (!vinLast8) continue;
+
+    const existingId = resolveCustomerIdByVehicle(index, {
+      vinLast8,
+      vin: String(mapped.vin || ''),
+      vehicleRef: cv.VehicleId,
+    });
+
+    if (existingId) {
+      const existing = index.dataById.get(existingId) || {};
+      if (!customerBelongsToPbsSyncDealership(existing, dealershipId)) continue;
+
+      const { patch, ownerChanged } = buildPbsCustomerUpdatePatch(existing, mapped, startedAt);
+      if (ownerChanged) counts.ownerChanges += 1;
+
+      const ref = customersCollection(db).doc(existingId);
+      customerWrites.push((batch) => batch.set(ref, patch, { merge: true }));
+      registerCustomerInIndex(index, existingId, { ...existing, ...patch });
+      counts.customersUpdated += 1;
+    } else {
+      const ref = customersCollection(db).doc();
+      const payload = stripUndefinedDeep({
+        ...mapped,
+        addedBy: 'pbs-sync',
+        addedByUsername: 'PBS Sync',
+        createdAt: Timestamp.now(),
+        pbsSyncedAt: startedAt,
+      });
+      customerWrites.push((batch) => batch.set(ref, payload));
+      registerCustomerInIndex(index, ref.id, payload);
+      counts.customersCreated += 1;
+    }
   }
 
-  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+  await commitBatches(db, customerWrites);
+}
+
+async function stageRepairOrders(ctx: PbsSyncStageContext): Promise<void> {
+  const { db, dealershipId, startedAt, watermark, counts, fetched } = ctx;
+  const index = await loadCustomerIndex(db, dealershipId);
+
+  const repairOrders = await fetchRepairOrdersForSync(watermark);
+  fetched.repairOrders = repairOrders.length;
+  console.log(
+    `[PBS Sync] Repair orders fetched: ${repairOrders.length} (${watermark ? 'incremental since ' + watermark : 'full 3-year window'})`
+  );
+
+  const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
+  for (const ro of repairOrders) {
+    if (!shouldLogRepairOrderVisit(ro, watermark)) continue;
+
+    const vehicleRef = (ro.VehicleRef || '').trim();
+    if (!vehicleRef) continue;
+
+    const visit = mapRepairOrderToVisit(ro);
+    if (!visit) continue;
+
+    const customerId = resolveCustomerIdByVehicle(index, { vehicleRef });
+    if (!customerId) continue;
+
+    const existing = index.dataById.get(customerId) || {};
+    const customerVehicleRef = String(existing.pbsVehicleId || '').trim();
+    if (customerVehicleRef && customerVehicleRef !== vehicleRef) continue;
+
+    const list = visitsByCustomer.get(customerId) || [];
+    list.push({
+      id: `pbs-${visit.soNumber}`,
+      soNumber: visit.soNumber,
+      date: visit.date,
+      mileage: visit.mileage,
+      advisor: visit.advisor,
+      requests: visit.requests,
+      status: visit.status,
+      lines: visit.lines,
+      pbsVehicleRef: vehicleRef,
+      pbsSyncedAt: startedAt,
+      createdAt: Timestamp.now(),
+    });
+    counts.visitsLogged += 1;
+    visitsByCustomer.set(customerId, list);
+  }
+
+  const visitWrites: Array<(batch: WriteBatch) => void> = [];
+  for (const [customerId, incomingVisits] of visitsByCustomer) {
+    const existing = index.dataById.get(customerId) || {};
+    const vehicleRef = String(
+      existing.pbsVehicleId || incomingVisits[0]?.pbsVehicleRef || ''
+    ).trim();
+    if (!vehicleRef) continue;
+
+    const merged = mergeVehiclePbsServiceVisits(
+      existing.recentVisits as Array<Record<string, unknown>> | undefined,
+      incomingVisits,
+      vehicleRef,
+      MAX_RECENT_VISITS
+    );
+    if (merged.length === 0) continue;
+
+    const latestDate = latestVisitDate(merged as Array<{ date?: string }>);
+    const latestMileage = merged[0]?.mileage;
+    const patch = stripUndefinedDeep({
+      recentVisits: merged,
+      pbsSyncedAt: startedAt,
+      ...(latestDate ? { lastServiceDate: latestDate } : {}),
+      ...(typeof latestMileage === 'number' && latestMileage > 0
+        ? { mileage: String(latestMileage) }
+        : {}),
+    });
+
+    const ref = customersCollection(db).doc(customerId);
+    visitWrites.push((batch) => batch.set(ref, patch, { merge: true }));
+    counts.visitsMerged += incomingVisits.length;
+  }
+
+  await commitBatches(db, visitWrites);
+}
+
+async function stageAppointments(ctx: PbsSyncStageContext): Promise<void> {
+  const { db, dealershipId, startedAt, watermark, counts, fetched, monthRange } = ctx;
+  const index = await loadCustomerIndex(db, dealershipId);
+
+  const { start, end } = monthRange;
+  const [appointments, appointmentDisplayInfo] = await Promise.all([
+    fetchAppointmentsForSync(start, end, watermark),
+    fetchMonthAppointmentDisplayInfo(start, end, watermark),
+  ]);
+  fetched.appointments = appointments.length;
+  counts.appointmentsProcessed = appointments.length;
+  console.log(`[PBS Sync] Appointments for ${start}..${end}: ${appointments.length}`);
+
+  const dailyRows = aggregateAppointmentsByDay(appointments, start, end);
+  const dailyByDate = new Map(dailyRows.map((row) => [row.date, row]));
+  const trackerWrites: Array<(batch: WriteBatch) => void> = [];
+
+  // Rewrite every calendar day in the active month so cancelled appointments zero out stale counts.
+  const [startYear, startMonth] = start.split('-').map(Number);
+  const [endYear, endMonth, endDay] = end.split('-').map(Number);
+  const cursor = new Date(startYear, startMonth - 1, 1);
+  const monthEnd = new Date(endYear, endMonth - 1, endDay);
+
+  while (cursor <= monthEnd) {
+    const date = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+    const row = dailyByDate.get(date);
+    const breakdown = row?.breakdown ?? { diagnosis: 0, oilChange: 0, recall: 0, misc: 0 };
+    const count = row?.count ?? 0;
+
+    const docId = appointmentTrackerDocId(dealershipId, date);
+    const ref = appointmentTrackerCollection(db).doc(docId);
+    trackerWrites.push((batch) =>
+      batch.set(
+        ref,
+        {
+          date,
+          count,
+          dealershipId,
+          breakdown,
+          source: 'pbs',
+          updatedAt: serverTimestamp(),
+          updatedBy: 'pbs-sync',
+          pbsSyncedAt: startedAt,
+        },
+        { merge: true }
+      )
+    );
+    counts.appointmentDaysUpdated += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  await commitBatches(db, trackerWrites);
+
+  const scheduleLookup = buildAppointmentCustomerLookup(index);
+  try {
+    const unresolvedRefs = collectUnresolvedContactRefs(
+      appointments,
+      scheduleLookup,
+      appointmentDisplayInfo
+    );
+    const fallbackNames = await fetchContactNamesByRefs(unresolvedRefs);
+    const displayInfoWithFallback = mergeContactNameFallback(
+      appointments,
+      fallbackNames,
+      appointmentDisplayInfo
+    );
+
+    const scheduleResult = await syncAppointmentSchedule(
+      db,
+      dealershipId,
+      appointments,
+      start,
+      end,
+      scheduleLookup,
+      startedAt,
+      displayInfoWithFallback
+    );
+    counts.appointmentScheduleDays = scheduleResult.daysWritten;
+    counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
+  } catch (scheduleErr) {
+    const message = scheduleErr instanceof Error ? scheduleErr.message : String(scheduleErr);
+    console.error('[PBS Sync] Appointment schedule failed:', scheduleErr);
+    counts.appointmentScheduleError = message;
+  }
+}
+
+async function stagePerformance(ctx: PbsSyncStageContext): Promise<void> {
+  const { db, dealershipId, startedAt, counts, fetched, monthRange } = ctx;
+  const { start: perfStart, end: perfEnd } = monthRange;
+  fetched.performanceMonthStart = perfStart;
+  fetched.performanceMonthEnd = perfEnd;
+
+  try {
+    const performance = await syncPbsAdvisorPerformance(db, dealershipId, perfStart, perfEnd, startedAt);
+    counts.performanceAdvisors = performance.advisors;
+    counts.performanceRepairOrders = performance.repairOrdersProcessed;
+    counts.performancePartsInvoices = performance.partsInvoicesProcessed;
+    fetched.performanceRepairOrders = performance.repairOrdersProcessed;
+    fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
+    if (performance.partsInvoicesSkipped) {
+      counts.performanceSyncWarning = `Parts invoices skipped (${performance.partsInvoicesSkipReason}). Labor/parts gross from RO lines only.`;
+    }
+  } catch (perfErr) {
+    const message = perfErr instanceof Error ? perfErr.message : String(perfErr);
+    console.error('[PBS Sync] Advisor performance failed:', perfErr);
+    counts.performanceSyncError = message;
+  }
+
+  try {
+    const technician = await syncPbsTechnicianPerformance(
+      db,
+      dealershipId,
+      perfStart,
+      perfEnd,
+      startedAt
+    );
+    counts.technicianReports = technician.technicians;
+    counts.timeClockActivities = technician.clockActivities;
+    fetched.timeClockActivities = technician.clockActivities;
+  } catch (techErr) {
+    const message = techErr instanceof Error ? techErr.message : String(techErr);
+    console.error('[PBS Sync] Technician performance failed:', techErr);
+    counts.technicianSyncError = message;
+  }
+}
+
+async function stageExtended(ctx: PbsSyncStageContext): Promise<void> {
+  const { db, dealershipId, startedAt, counts, fetched } = ctx;
+  const index = await loadCustomerIndex(db, dealershipId);
+
+  try {
+    const reminders = await syncPbsWorkplanReminders(
+      db,
+      dealershipId,
+      toCustomerIndexMaps(index),
+      startedAt
+    );
+    counts.workplanRemindersFetched = reminders.remindersFetched;
+    counts.serviceRemindersUpdated = reminders.customersUpdated;
+    fetched.workplanReminders = reminders.remindersFetched;
+
+    const inventory = await syncPbsVehicleInventory(db, dealershipId, startedAt);
+    counts.inventoryLots = inventory.lots;
+    counts.inventoryVehiclesFetched = inventory.vehiclesFetched;
+    counts.inventoryVehiclesWritten = inventory.vehiclesWritten;
+    fetched.inventoryVehicles = inventory.vehiclesFetched;
+
+    const dispatch = await syncPbsDispatchBoard(
+      db,
+      dealershipId,
+      toCustomerIndexMaps(index),
+      startedAt
+    );
+    counts.openRepairOrdersFetched = dispatch.openRepairOrdersFetched;
+    counts.dispatchOrdersUpserted = dispatch.dispatchOrdersUpserted;
+    counts.dispatchOrdersCompleted = dispatch.dispatchOrdersCompleted;
+    fetched.openRepairOrders = dispatch.openRepairOrdersFetched;
+  } catch (extendedErr) {
+    const message = extendedErr instanceof Error ? extendedErr.message : String(extendedErr);
+    console.error('[PBS Sync] Extended sync (reminders/inventory/dispatch) failed:', extendedErr);
+    counts.extendedSyncError = message;
+  }
+}
+
+const PBS_SYNC_STAGE_RUNNERS: Record<
+  PbsSyncStageName,
+  (ctx: PbsSyncStageContext) => Promise<void>
+> = {
+  customers: stageCustomers,
+  'repair-orders': stageRepairOrders,
+  appointments: stageAppointments,
+  performance: stagePerformance,
+  extended: stageExtended,
+};
+
+interface PbsSyncRunMeta {
+  triggeredBy?: 'cron' | 'manual';
+  triggeredByEmail?: string;
+  triggeredByUsername?: string;
+  fullRefresh?: boolean;
+}
+
+async function finalizePbsSyncRun(
+  db: Firestore,
+  dealershipId: string,
+  startedAt: string,
+  meta: PbsSyncRunMeta,
+  counts: PbsSyncCounts,
+  fetched: PbsSyncFetched,
+  ok: boolean,
+  error?: string
+): Promise<PbsSyncResult> {
+  const finishedAt = new Date().toISOString();
+  const summary = buildPbsSyncSummary(ok, fetched, counts, error);
+  const logEntry: PbsSyncLogEntry = {
+    id: `pbs-${startedAt}`,
+    startedAt,
+    finishedAt,
+    ok,
+    triggeredBy: meta.triggeredBy || 'manual',
+    triggeredByEmail: meta.triggeredByEmail,
+    triggeredByUsername: meta.triggeredByUsername,
+    fullRefresh: meta.fullRefresh,
+    fetched,
+    counts,
+    error,
+    summary,
+  };
+
+  const prior = await readPbsSyncState(db, dealershipId).catch(() => null);
+  const state: PbsSyncState = {
+    lastSyncAt: finishedAt,
+    lastSuccessfulSyncAt: ok
+      ? finishedAt
+      : prior?.lastSuccessfulSyncAt ?? (prior?.lastSyncOk ? prior.lastSyncAt : undefined),
+    lastSyncOk: ok,
+    // Explicit null clears prior errors on success (merge would keep old values).
+    lastError: error ?? null,
+    counts,
+    fetched,
+    triggeredBy: meta.triggeredBy,
+    triggeredByEmail: meta.triggeredByEmail,
+    triggeredByUsername: meta.triggeredByUsername,
+    summary,
+    syncInProgress: false,
+    stagedRun: null,
+  };
+  await writePbsSyncState(db, dealershipId, state).catch((writeErr) =>
+    console.error('[PBS Sync] Failed to persist sync state', writeErr)
+  );
+  await appendPbsSyncLog(db, dealershipId, logEntry).catch((writeErr) =>
+    console.error('[PBS Sync] Failed to persist sync log', writeErr)
+  );
+
+  return { ok, startedAt, finishedAt, counts, fetched, summary, error, logId: logEntry.id };
+}
+
+function plainFailure(
+  startedAt: string,
+  counts: PbsSyncCounts,
+  fetched: PbsSyncFetched,
+  error: string
+): PbsSyncResult {
+  return {
+    ok: false,
+    startedAt,
+    finishedAt: new Date().toISOString(),
+    counts,
+    fetched,
+    summary: error,
+    error,
+  };
+}
+
+/** Refresh the lock heartbeat so long multi-stage runs are not treated as stale. */
+async function touchPbsSyncLock(db: Firestore, dealershipId: string): Promise<void> {
+  await dealershipSettingsDoc(db, dealershipId)
+    .set(
+      {
+        pbsSyncState: { syncInProgress: true, syncStartedAt: new Date().toISOString() },
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    )
+    .catch((err) => console.error('[PBS Sync] Failed to refresh lock heartbeat', err));
+}
+
+export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSyncResult> {
+  const startedAt = new Date().toISOString();
   const counts = emptyCounts();
   const monthRange = monthRangePacific();
   const fetched = emptyFetched(monthRange.start, monthRange.end);
-  const logId = `pbs-${startedAt}`;
-
-  const finish = async (
-    ok: boolean,
-    error?: string,
-    partialCounts = counts,
-    partialFetched = fetched
-  ): Promise<PbsSyncResult> => {
-    const finishedAt = new Date().toISOString();
-    const summary = buildPbsSyncSummary(ok, partialFetched, partialCounts, error);
-    const logEntry: PbsSyncLogEntry = {
-      id: logId,
-      startedAt,
-      finishedAt,
-      ok,
-      triggeredBy: options.triggeredBy || 'manual',
-      triggeredByEmail: options.triggeredByEmail,
-      triggeredByUsername: options.triggeredByUsername,
-      fullRefresh: options.fullRefresh,
-      fetched: partialFetched,
-      counts: partialCounts,
-      error,
-      summary,
-    };
-
-    const db = getAdminFirestore();
-    if (db) {
-      const state: PbsSyncState = {
-        lastSyncAt: finishedAt,
-        lastSuccessfulSyncAt: ok
-          ? finishedAt
-          : priorState?.lastSuccessfulSyncAt ??
-            (priorState?.lastSyncOk ? priorState.lastSyncAt : undefined),
-        lastSyncOk: ok,
-        lastError: error,
-        counts: partialCounts,
-        fetched: partialFetched,
-        triggeredBy: options.triggeredBy,
-        triggeredByEmail: options.triggeredByEmail,
-        triggeredByUsername: options.triggeredByUsername,
-        summary,
-        syncInProgress: false,
-      };
-      await writePbsSyncState(db, dealershipId, state).catch((writeErr) =>
-        console.error('[PBS Sync] Failed to persist sync state', writeErr)
-      );
-      await appendPbsSyncLog(db, dealershipId, logEntry).catch((writeErr) =>
-        console.error('[PBS Sync] Failed to persist sync log', writeErr)
-      );
-    }
-
-    return {
-      ok,
-      startedAt,
-      finishedAt,
-      counts: partialCounts,
-      fetched: partialFetched,
-      summary,
-      error,
-      logId,
-    };
+  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+  const meta: PbsSyncRunMeta = {
+    triggeredBy: options.triggeredBy,
+    triggeredByEmail: options.triggeredByEmail,
+    triggeredByUsername: options.triggeredByUsername,
+    fullRefresh: options.fullRefresh,
   };
 
+  if (options.dealershipId && !resolvePbsAutomatedSyncDealershipId(options.dealershipId)) {
+    return plainFailure(startedAt, counts, fetched, pbsAutomatedSyncScopeError(options.dealershipId));
+  }
+
   if (!isPbsPartnerHubConfigured()) {
-    return finish(false, 'PBS PartnerHUB credentials are not configured on the server.');
+    return plainFailure(
+      startedAt,
+      counts,
+      fetched,
+      'PBS PartnerHUB credentials are not configured on the server.'
+    );
   }
 
   const db = getAdminFirestore();
   if (!db) {
-    return finish(
-      false,
+    return plainFailure(
+      startedAt,
+      counts,
+      fetched,
       'FIREBASE_SERVICE_ACCOUNT_JSON is not configured — server-side PBS sync cannot write to Firestore.'
     );
   }
@@ -498,19 +862,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     !options.force &&
     !isPbsSyncStateStale(priorState)
   ) {
-    return {
-      ok: false,
-      startedAt: priorState.syncStartedAt,
-      finishedAt: new Date().toISOString(),
-      counts,
-      fetched,
-      summary: 'A PBS sync is already running. Wait for it to finish or try again in a few minutes.',
-      error: 'A PBS sync is already running.',
-    };
-  }
-
-  if (priorState?.syncInProgress && isPbsSyncStateStale(priorState)) {
-    console.warn('[PBS Sync] Clearing stale syncInProgress flag before starting a new sync.');
+    return plainFailure(startedAt, counts, fetched, 'A PBS sync is already running.');
   }
 
   await writePbsSyncState(db, dealershipId, {
@@ -533,283 +885,22 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
     fetched.incrementalSince = watermark;
   }
 
+  const ctx: PbsSyncStageContext = {
+    db,
+    dealershipId,
+    startedAt,
+    watermark,
+    counts,
+    fetched,
+    monthRange,
+  };
+
   try {
-    const index = await loadCustomerIndex(db, dealershipId);
-    const customerWrites: Array<(batch: WriteBatch) => void> = [];
-
-    const contactVehiclesRaw = await fetchAllContactVehicles(watermark);
-    const contactVehicles = dedupeContactVehiclesByVin(contactVehiclesRaw);
-    fetched.contactVehicles = contactVehicles.length;
-    console.log(
-      `[PBS Sync] Contact vehicles fetched: ${contactVehiclesRaw.length} raw, ${contactVehicles.length} unique by VIN (${watermark ? 'incremental since ' + watermark : 'full fleet'})`
-    );
-
-    for (const cv of contactVehicles) {
-      const mapped = mapContactVehicleToCustomerFields(cv, dealershipId);
-      const vinLast8 = String(mapped.vinLast8 || '');
-      if (!vinLast8) continue;
-
-      const existingId = resolveCustomerIdByVehicle(index, {
-        vinLast8,
-        vin: String(mapped.vin || ''),
-        vehicleRef: cv.VehicleId,
-      });
-
-      if (existingId) {
-        const existing = index.dataById.get(existingId) || {};
-        if (!customerBelongsToPbsSyncDealership(existing, dealershipId)) continue;
-
-        const { patch, ownerChanged } = buildPbsCustomerUpdatePatch(existing, mapped, startedAt);
-        if (ownerChanged) counts.ownerChanges += 1;
-
-        const ref = customersCollection(db).doc(existingId);
-        customerWrites.push((batch) => batch.set(ref, patch, { merge: true }));
-        registerCustomerInIndex(index, existingId, { ...existing, ...patch });
-        counts.customersUpdated += 1;
-      } else {
-        const ref = customersCollection(db).doc();
-        const payload = stripUndefinedDeep({
-          ...mapped,
-          addedBy: 'pbs-sync',
-          addedByUsername: 'PBS Sync',
-          createdAt: Timestamp.now(),
-          pbsSyncedAt: startedAt,
-        });
-        customerWrites.push((batch) => batch.set(ref, payload));
-        registerCustomerInIndex(index, ref.id, payload);
-        counts.customersCreated += 1;
-      }
+    for (const stage of PBS_SYNC_STAGES) {
+      await PBS_SYNC_STAGE_RUNNERS[stage](ctx);
+      await touchPbsSyncLock(db, dealershipId);
     }
-
-    await commitBatches(db, customerWrites);
-
-    const repairOrders = await fetchRepairOrdersForSync(watermark);
-    fetched.repairOrders = repairOrders.length;
-    console.log(
-      `[PBS Sync] Repair orders fetched: ${repairOrders.length} (${watermark ? 'incremental since ' + watermark : 'full 3-year window'})`
-    );
-
-    const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
-    for (const ro of repairOrders) {
-      if (!shouldLogRepairOrderVisit(ro, watermark)) continue;
-
-      const vehicleRef = (ro.VehicleRef || '').trim();
-      if (!vehicleRef) continue;
-
-      const visit = mapRepairOrderToVisit(ro);
-      if (!visit) continue;
-
-      const customerId = resolveCustomerIdByVehicle(index, { vehicleRef });
-      if (!customerId) continue;
-
-      const existing = index.dataById.get(customerId) || {};
-      const customerVehicleRef = String(existing.pbsVehicleId || '').trim();
-      if (customerVehicleRef && customerVehicleRef !== vehicleRef) continue;
-
-      const list = visitsByCustomer.get(customerId) || [];
-      list.push({
-        id: `pbs-${visit.soNumber}`,
-        soNumber: visit.soNumber,
-        date: visit.date,
-        mileage: visit.mileage,
-        advisor: visit.advisor,
-        requests: visit.requests,
-        status: visit.status,
-        lines: visit.lines,
-        pbsVehicleRef: vehicleRef,
-        pbsSyncedAt: startedAt,
-        createdAt: Timestamp.now(),
-      });
-      counts.visitsLogged += 1;
-      visitsByCustomer.set(customerId, list);
-    }
-
-    const visitWrites: Array<(batch: WriteBatch) => void> = [];
-    for (const [customerId, incomingVisits] of visitsByCustomer) {
-      const existing = index.dataById.get(customerId) || {};
-      const vehicleRef = String(
-        existing.pbsVehicleId || incomingVisits[0]?.pbsVehicleRef || ''
-      ).trim();
-      if (!vehicleRef) continue;
-
-      const merged = mergeVehiclePbsServiceVisits(
-        existing.recentVisits as Array<Record<string, unknown>> | undefined,
-        incomingVisits,
-        vehicleRef,
-        MAX_RECENT_VISITS
-      );
-      if (merged.length === 0) continue;
-
-      const latestDate = latestVisitDate(merged as Array<{ date?: string }>);
-      const latestMileage = merged[0]?.mileage;
-      const patch = stripUndefinedDeep({
-        recentVisits: merged,
-        pbsSyncedAt: startedAt,
-        ...(latestDate ? { lastServiceDate: latestDate } : {}),
-        ...(typeof latestMileage === 'number' && latestMileage > 0
-          ? { mileage: String(latestMileage) }
-          : {}),
-      });
-
-      const ref = customersCollection(db).doc(customerId);
-      visitWrites.push((batch) => batch.set(ref, patch, { merge: true }));
-      counts.visitsMerged += incomingVisits.length;
-    }
-
-    await commitBatches(db, visitWrites);
-
-    const { start, end } = monthRange;
-    const [appointments, appointmentDisplayInfo] = await Promise.all([
-      fetchAppointmentsForSync(start, end, watermark),
-      fetchMonthAppointmentDisplayInfo(start, end, watermark),
-    ]);
-    fetched.appointments = appointments.length;
-    counts.appointmentsProcessed = appointments.length;
-    console.log(`[PBS Sync] Appointments for ${start}..${end}: ${appointments.length}`);
-
-    const dailyRows = aggregateAppointmentsByDay(appointments, start, end);
-    const dailyByDate = new Map(dailyRows.map((row) => [row.date, row]));
-    const trackerWrites: Array<(batch: WriteBatch) => void> = [];
-
-    // Rewrite every calendar day in the active month so cancelled appointments zero out stale counts.
-    const [startYear, startMonth] = start.split('-').map(Number);
-    const [endYear, endMonth, endDay] = end.split('-').map(Number);
-    const cursor = new Date(startYear, startMonth - 1, 1);
-    const monthEnd = new Date(endYear, endMonth - 1, endDay);
-
-    while (cursor <= monthEnd) {
-      const date = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-      const row = dailyByDate.get(date);
-      const breakdown = row?.breakdown ?? { diagnosis: 0, oilChange: 0, recall: 0, misc: 0 };
-      const count = row?.count ?? 0;
-
-      const docId = appointmentTrackerDocId(dealershipId, date);
-      const ref = appointmentTrackerCollection(db).doc(docId);
-      trackerWrites.push((batch) =>
-        batch.set(
-          ref,
-          {
-            date,
-            count,
-            dealershipId,
-            breakdown,
-            source: 'pbs',
-            updatedAt: serverTimestamp(),
-            updatedBy: 'pbs-sync',
-            pbsSyncedAt: startedAt,
-          },
-          { merge: true }
-        )
-      );
-      counts.appointmentDaysUpdated += 1;
-      cursor.setDate(cursor.getDate() + 1);
-    }
-
-    await commitBatches(db, trackerWrites);
-
-    const scheduleLookup = buildAppointmentCustomerLookup(index);
-    try {
-      const unresolvedRefs = collectUnresolvedContactRefs(
-        appointments,
-        scheduleLookup,
-        appointmentDisplayInfo
-      );
-      const fallbackNames = await fetchContactNamesByRefs(unresolvedRefs);
-      const displayInfoWithFallback = mergeContactNameFallback(
-        appointments,
-        fallbackNames,
-        appointmentDisplayInfo
-      );
-
-      const scheduleResult = await syncAppointmentSchedule(
-        db,
-        dealershipId,
-        appointments,
-        start,
-        end,
-        scheduleLookup,
-        startedAt,
-        displayInfoWithFallback
-      );
-      counts.appointmentScheduleDays = scheduleResult.daysWritten;
-      counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
-    } catch (scheduleErr) {
-      const message = scheduleErr instanceof Error ? scheduleErr.message : String(scheduleErr);
-      console.error('[PBS Sync] Appointment schedule failed:', scheduleErr);
-      counts.appointmentScheduleError = message;
-    }
-
-    const { start: perfStart, end: perfEnd } = monthRange;
-    fetched.performanceMonthStart = perfStart;
-    fetched.performanceMonthEnd = perfEnd;
-
-    try {
-      const performance = await syncPbsAdvisorPerformance(db, dealershipId, perfStart, perfEnd, startedAt);
-      counts.performanceAdvisors = performance.advisors;
-      counts.performanceRepairOrders = performance.repairOrdersProcessed;
-      counts.performancePartsInvoices = performance.partsInvoicesProcessed;
-      fetched.performanceRepairOrders = performance.repairOrdersProcessed;
-      fetched.performancePartsInvoices = performance.partsInvoicesProcessed;
-      if (performance.partsInvoicesSkipped) {
-        counts.performanceSyncWarning = `Parts invoices skipped (${performance.partsInvoicesSkipReason}). Labor/parts gross from RO lines only.`;
-      }
-    } catch (perfErr) {
-      const message = perfErr instanceof Error ? perfErr.message : String(perfErr);
-      console.error('[PBS Sync] Advisor performance failed:', perfErr);
-      counts.performanceSyncError = message;
-    }
-
-    try {
-      const technician = await syncPbsTechnicianPerformance(
-        db,
-        dealershipId,
-        perfStart,
-        perfEnd,
-        startedAt
-      );
-      counts.technicianReports = technician.technicians;
-      counts.timeClockActivities = technician.clockActivities;
-      fetched.timeClockActivities = technician.clockActivities;
-    } catch (techErr) {
-      const message = techErr instanceof Error ? techErr.message : String(techErr);
-      console.error('[PBS Sync] Technician performance failed:', techErr);
-      counts.technicianSyncError = message;
-    }
-
-    try {
-      const reminders = await syncPbsWorkplanReminders(
-        db,
-        dealershipId,
-        toCustomerIndexMaps(index),
-        startedAt
-      );
-      counts.workplanRemindersFetched = reminders.remindersFetched;
-      counts.serviceRemindersUpdated = reminders.customersUpdated;
-      fetched.workplanReminders = reminders.remindersFetched;
-
-      const inventory = await syncPbsVehicleInventory(db, dealershipId, startedAt);
-      counts.inventoryLots = inventory.lots;
-      counts.inventoryVehiclesFetched = inventory.vehiclesFetched;
-      counts.inventoryVehiclesWritten = inventory.vehiclesWritten;
-      fetched.inventoryVehicles = inventory.vehiclesFetched;
-
-      const dispatch = await syncPbsDispatchBoard(
-        db,
-        dealershipId,
-        toCustomerIndexMaps(index),
-        startedAt
-      );
-      counts.openRepairOrdersFetched = dispatch.openRepairOrdersFetched;
-      counts.dispatchOrdersUpserted = dispatch.dispatchOrdersUpserted;
-      counts.dispatchOrdersCompleted = dispatch.dispatchOrdersCompleted;
-      fetched.openRepairOrders = dispatch.openRepairOrdersFetched;
-    } catch (extendedErr) {
-      const message = extendedErr instanceof Error ? extendedErr.message : String(extendedErr);
-      console.error('[PBS Sync] Extended sync (reminders/inventory/dispatch) failed:', extendedErr);
-      counts.extendedSyncError = message;
-    }
-
-    return finish(true);
+    return finalizePbsSyncRun(db, dealershipId, startedAt, meta, counts, fetched, true);
   } catch (err) {
     const message =
       err instanceof PbsPartnerHubError
@@ -819,8 +910,214 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
           : 'PBS sync failed';
 
     console.error('[PBS Sync]', err);
-    return finish(false, message);
+    return finalizePbsSyncRun(db, dealershipId, startedAt, meta, counts, fetched, false, message);
   }
+}
+
+export interface StartStagedPbsSyncResult {
+  ok: boolean;
+  startedAt?: string;
+  nextStage?: PbsSyncStageName;
+  totalStages?: number;
+  inProgress?: boolean;
+  busyStartedAt?: string;
+  error?: string;
+}
+
+/** Begin a staged sync — each stage runs in its own short HTTP request. */
+export async function startStagedPbsSync(
+  options: RunPbsSyncOptions = {}
+): Promise<StartStagedPbsSyncResult> {
+  const startedAt = new Date().toISOString();
+
+  if (options.dealershipId && !resolvePbsAutomatedSyncDealershipId(options.dealershipId)) {
+    return { ok: false, error: pbsAutomatedSyncScopeError(options.dealershipId) };
+  }
+
+  if (!isPbsPartnerHubConfigured()) {
+    return { ok: false, error: 'PBS PartnerHUB credentials are not configured on the server.' };
+  }
+
+  const db = getAdminFirestore();
+  if (!db) {
+    return {
+      ok: false,
+      error:
+        'FIREBASE_SERVICE_ACCOUNT_JSON is not configured — server-side PBS sync cannot write to Firestore.',
+    };
+  }
+
+  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+  const priorState = await readPbsSyncState(db, dealershipId);
+
+  if (
+    priorState?.syncInProgress &&
+    priorState.syncStartedAt &&
+    !options.force &&
+    !isPbsSyncStateStale(priorState)
+  ) {
+    return {
+      ok: false,
+      inProgress: true,
+      busyStartedAt: priorState.syncStartedAt,
+      error: 'A PBS sync is already running.',
+    };
+  }
+
+  const monthRange = monthRangePacific();
+  const fetched = emptyFetched(monthRange.start, monthRange.end);
+  const watermark = resolveIncrementalWatermark(priorState, Boolean(options.fullRefresh));
+  if (watermark) {
+    fetched.incrementalSince = watermark;
+  }
+
+  await writePbsSyncState(db, dealershipId, {
+    lastSyncAt: priorState?.lastSyncAt ?? startedAt,
+    lastSuccessfulSyncAt: priorState?.lastSuccessfulSyncAt,
+    lastSyncOk: priorState?.lastSyncOk ?? false,
+    lastError: priorState?.lastError,
+    counts: priorState?.counts,
+    fetched: priorState?.fetched,
+    summary: priorState?.summary,
+    triggeredBy: options.triggeredBy || 'manual',
+    triggeredByEmail: options.triggeredByEmail,
+    triggeredByUsername: options.triggeredByUsername,
+    syncInProgress: true,
+    syncStartedAt: startedAt,
+    stagedRun: {
+      runId: startedAt,
+      watermark,
+      fullRefresh: options.fullRefresh === true,
+      triggeredBy: options.triggeredBy || 'manual',
+      triggeredByEmail: options.triggeredByEmail,
+      triggeredByUsername: options.triggeredByUsername,
+      completedStages: [],
+      counts: emptyCounts(),
+      fetched,
+    },
+  });
+
+  return {
+    ok: true,
+    startedAt,
+    nextStage: PBS_SYNC_STAGES[0],
+    totalStages: PBS_SYNC_STAGES.length,
+  };
+}
+
+export interface ExecutePbsSyncStageResult {
+  ok: boolean;
+  done?: boolean;
+  nextStage?: PbsSyncStageName;
+  stageIndex?: number;
+  totalStages?: number;
+  result?: PbsSyncResult;
+  error?: string;
+}
+
+/** Execute one stage of a staged sync run and persist progress. */
+export async function executePbsSyncStage(
+  runId: string,
+  stage: PbsSyncStageName
+): Promise<ExecutePbsSyncStageResult> {
+  const db = getAdminFirestore();
+  if (!db) {
+    return { ok: false, error: 'Firestore admin is not configured.' };
+  }
+
+  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+  const state = await readPbsSyncState(db, dealershipId);
+  const run = state?.stagedRun;
+
+  if (!run || run.runId !== runId) {
+    return {
+      ok: false,
+      error: 'This sync run is no longer active — it may have been superseded. Start a new pull.',
+    };
+  }
+
+  if (!PBS_SYNC_STAGES.includes(stage)) {
+    return { ok: false, error: `Unknown sync stage: ${stage}` };
+  }
+
+  if (run.completedStages.includes(stage)) {
+    // Idempotent retry — report the next pending stage.
+    const pending = PBS_SYNC_STAGES.find((s) => !run.completedStages.includes(s));
+    return pending
+      ? { ok: true, nextStage: pending, totalStages: PBS_SYNC_STAGES.length }
+      : { ok: true, done: true };
+  }
+
+  const counts = { ...emptyCounts(), ...run.counts };
+  const monthStart = run.fetched.appointmentMonthStart || monthRangePacific().start;
+  const monthEnd = run.fetched.appointmentMonthEnd || monthRangePacific().end;
+  const fetched: PbsSyncFetched = { ...emptyFetched(monthStart, monthEnd), ...run.fetched };
+  const meta: PbsSyncRunMeta = {
+    triggeredBy: run.triggeredBy,
+    triggeredByEmail: run.triggeredByEmail,
+    triggeredByUsername: run.triggeredByUsername,
+    fullRefresh: run.fullRefresh,
+  };
+
+  const ctx: PbsSyncStageContext = {
+    db,
+    dealershipId,
+    startedAt: runId,
+    watermark: run.watermark,
+    counts,
+    fetched,
+    monthRange: { start: monthStart, end: monthEnd },
+  };
+
+  try {
+    await PBS_SYNC_STAGE_RUNNERS[stage](ctx);
+  } catch (err) {
+    const message =
+      err instanceof PbsPartnerHubError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : `PBS sync failed during ${stage}`;
+    console.error(`[PBS Sync] Stage ${stage} failed:`, err);
+    const result = await finalizePbsSyncRun(
+      db,
+      dealershipId,
+      runId,
+      meta,
+      counts,
+      fetched,
+      false,
+      message
+    );
+    return { ok: false, error: message, result };
+  }
+
+  const completedStages = [...run.completedStages, stage];
+  const nextStage = PBS_SYNC_STAGES.find((s) => !completedStages.includes(s));
+
+  if (!nextStage) {
+    const result = await finalizePbsSyncRun(db, dealershipId, runId, meta, counts, fetched, true);
+    return { ok: true, done: true, result };
+  }
+
+  await writePbsSyncState(db, dealershipId, {
+    ...(state as PbsSyncState),
+    syncInProgress: true,
+    syncStartedAt: new Date().toISOString(),
+    stagedRun: {
+      ...run,
+      completedStages,
+      counts,
+      fetched,
+    },
+  });
+
+  return {
+    ok: true,
+    nextStage,
+    stageIndex: PBS_SYNC_STAGES.indexOf(nextStage) + 1,
+    totalStages: PBS_SYNC_STAGES.length,
+  };
 }
 
 export function isPacificMorningSyncHour(reference = new Date()): boolean {

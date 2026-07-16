@@ -21,10 +21,14 @@ import {
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
 import {
+  executePbsSyncStage,
   isPacificMorningSyncHour,
-  isPbsSyncStateStale,
+  PBS_SYNC_STAGE_LABELS,
+  PBS_SYNC_STAGES,
   runPbsSync,
+  startStagedPbsSync,
   clearStalePbsSyncInProgress,
+  type PbsSyncStageName,
 } from '../pbs/pbsSync.js';
 import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
@@ -194,10 +198,9 @@ export function registerPbsRoutes(app: Express) {
   });
 
   /**
-   * Run PBS → Directory / Operations sync.
+   * Run PBS → Directory / Operations sync in one request (cron / local dev only —
+   * Netlify's HTTP gateway cuts off browser-facing requests after ~30 seconds).
    * Auth: Firebase ID token (admin/manager) or PBS_SYNC_SECRET bearer.
-   * On Netlify the sync runs in the pbs-sync-background function (up to 15 min);
-   * this route returns 202 immediately and the client polls sync status.
    */
   app.post('/api/pbs/sync/run', async (req: Request, res: Response) => {
     const caller = await resolvePbsSyncCaller(req);
@@ -217,67 +220,91 @@ export function registerPbsRoutes(app: Express) {
       });
     }
 
-    // Refuse duplicate runs up-front so we do not double-trigger the background job.
-    const db = getAdminFirestore();
-    if (db && !force) {
-      const snap = await dealershipSettingsDoc(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID).get();
-      const state = snap.data()?.pbsSyncState as PbsSyncState | undefined;
-      if (state?.syncInProgress && state.syncStartedAt && !isPbsSyncStateStale(state)) {
-        return res.status(409).json({
-          ok: false,
-          inProgress: true,
-          syncStartedAt: state.syncStartedAt,
-          error: 'A PBS sync is already running.',
-          summary: 'A PBS sync is already running.',
-        });
-      }
+    try {
+      const result = await runPbsSync({
+        triggeredBy: cron ? 'cron' : 'manual',
+        triggeredByEmail: caller.email,
+        triggeredByUsername: caller.username,
+        fullRefresh,
+        force,
+      });
+      return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err) {
+      return handlePbsError(res, err);
     }
+  });
 
-    const siteUrl = (process.env.URL || process.env.DEPLOY_PRIME_URL || '').trim();
-    const onNetlify = Boolean(process.env.NETLIFY) && Boolean(siteUrl);
-
-    if (!onNetlify) {
-      // Local/express dev — run inline (no gateway timeout).
-      try {
-        const result = await runPbsSync({
-          triggeredBy: cron ? 'cron' : 'manual',
-          triggeredByEmail: caller.email,
-          triggeredByUsername: caller.username,
-          fullRefresh,
-          force,
-        });
-        return res.status(result.ok ? 200 : 500).json(result);
-      } catch (err) {
-        return handlePbsError(res, err);
-      }
+  /**
+   * Staged sync — the browser drives one short request per stage so no single
+   * request can hit Netlify's ~30s gateway timeout.
+   */
+  app.post('/api/pbs/sync/start', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized PBS sync request.' });
     }
 
     try {
-      const startedAt = new Date().toISOString();
-      const trigger = await fetch(`${siteUrl}/.netlify/functions/pbs-sync-background`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
-          ...(typeof req.headers['x-pbs-sync-secret'] === 'string'
-            ? { 'x-pbs-sync-secret': req.headers['x-pbs-sync-secret'] }
-            : {}),
-        },
-        body: JSON.stringify({ fullRefresh, force, cron, secret: req.body?.secret }),
+      const start = await startStagedPbsSync({
+        triggeredBy: 'manual',
+        triggeredByEmail: caller.email,
+        triggeredByUsername: caller.username,
+        fullRefresh: req.body?.fullRefresh === true,
+        force: Boolean(req.body?.force),
       });
 
-      if (trigger.status !== 202 && !trigger.ok) {
-        const text = await trigger.text();
-        throw new Error(
-          `Failed to start background PBS sync (${trigger.status}): ${text.slice(0, 200)}`
-        );
+      if (!start.ok) {
+        const status = start.inProgress ? 409 : 503;
+        return res.status(status).json({
+          ok: false,
+          inProgress: start.inProgress,
+          syncStartedAt: start.busyStartedAt,
+          error: start.error,
+        });
       }
 
-      return res.status(202).json({
+      return res.json({
         ok: true,
-        accepted: true,
-        startedAt,
-        summary: 'PBS sync started — this usually takes 2–5 minutes.',
+        runId: start.startedAt,
+        nextStage: start.nextStage,
+        totalStages: start.totalStages,
+        stageLabels: PBS_SYNC_STAGE_LABELS,
+        stages: PBS_SYNC_STAGES,
+      });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  app.post('/api/pbs/sync/stage', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized PBS sync request.' });
+    }
+
+    const runId = String(req.body?.runId || '').trim();
+    const stage = String(req.body?.stage || '').trim() as PbsSyncStageName;
+    if (!runId || !stage) {
+      return res.status(400).json({ error: 'runId and stage are required.' });
+    }
+
+    try {
+      const outcome = await executePbsSyncStage(runId, stage);
+      if (!outcome.ok) {
+        return res.status(500).json({
+          ok: false,
+          error: outcome.error,
+          result: outcome.result,
+        });
+      }
+      return res.json({
+        ok: true,
+        done: outcome.done === true,
+        nextStage: outcome.nextStage,
+        stageIndex: outcome.stageIndex,
+        totalStages: outcome.totalStages,
+        stageLabels: PBS_SYNC_STAGE_LABELS,
+        result: outcome.result,
       });
     } catch (err) {
       return handlePbsError(res, err);

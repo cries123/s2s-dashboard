@@ -21,8 +21,9 @@ export interface PbsSyncStatusResponse {
   dealershipId?: string;
   state: {
     lastSyncAt: string;
+    lastSuccessfulSyncAt?: string;
     lastSyncOk: boolean;
-    lastError?: string;
+    lastError?: string | null;
     summary?: string;
     syncInProgress?: boolean;
     syncStartedAt?: string;
@@ -68,13 +69,27 @@ async function bearerHeaders(): Promise<HeadersInit> {
   };
 }
 
+/** Gateway/proxy errors come back as HTML pages — never surface raw markup to the UI. */
+function sanitizeErrorText(text: string, status: number): string {
+  const trimmed = text.trim();
+  if (!trimmed) return `Request failed (${status})`;
+  if (trimmed.startsWith('<')) {
+    if (/inactivity timeout/i.test(trimmed)) {
+      return 'The server took too long to respond (gateway timeout). Please try again.';
+    }
+    const stripped = trimmed.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    return stripped ? `${stripped.slice(0, 160)} (${status})` : `Request failed (${status})`;
+  }
+  return trimmed.slice(0, 300);
+}
+
 async function parseJson<T>(res: Response): Promise<T> {
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('application/json')) {
     return (await res.json()) as T;
   }
   const text = await res.text();
-  throw new Error(text || `Request failed (${res.status})`);
+  throw new Error(sanitizeErrorText(text, res.status));
 }
 
 function logEntryToRunResponse(entry: PbsSyncLogEntry): PbsSyncRunResponse {
@@ -147,11 +162,45 @@ export async function fetchPbsSyncStatus(): Promise<PbsSyncStatusResponse> {
   return { ...data, logs: data.logs ?? [] };
 }
 
+interface StagedStartResponse {
+  ok: boolean;
+  runId?: string;
+  nextStage?: string;
+  totalStages?: number;
+  stageLabels?: Record<string, string>;
+  inProgress?: boolean;
+  syncStartedAt?: string;
+  error?: string;
+}
+
+interface StagedStageResponse {
+  ok: boolean;
+  done?: boolean;
+  nextStage?: string;
+  stageIndex?: number;
+  totalStages?: number;
+  stageLabels?: Record<string, string>;
+  result?: PbsSyncRunResponse;
+  error?: string;
+}
+
+export interface PbsSyncProgress {
+  stage: string;
+  stageLabel: string;
+  stageIndex: number;
+  totalStages: number;
+}
+
+/**
+ * Run PBS sync as a series of short staged requests — each stage completes well
+ * under Netlify's ~30s gateway limit, so no single request can time out.
+ */
 export async function runPbsSyncNow(
-  options: { fullRefresh?: boolean; force?: boolean } = {}
+  options: { fullRefresh?: boolean; force?: boolean } = {},
+  onProgress?: (progress: PbsSyncProgress) => void
 ): Promise<PbsSyncRunResponse> {
   const headers = await bearerHeaders();
-  const res = await fetch('/api/pbs/sync/run', {
+  const startRes = await fetch('/api/pbs/sync/start', {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -160,26 +209,59 @@ export async function runPbsSyncNow(
       dealershipId: 'hyundai',
     }),
   });
-  const data = await parseJson<PbsSyncRunResponse & { error?: string; syncStartedAt?: string }>(res);
+  const start = await parseJson<StagedStartResponse>(startRes);
 
-  if (res.status === 409 && data.inProgress) {
-    return pollPbsSyncUntilComplete(data.syncStartedAt || data.startedAt);
+  if (startRes.status === 409 && start.inProgress) {
+    return pollPbsSyncUntilComplete(start.syncStartedAt);
   }
 
-  if (!res.ok && !data.skipped && !data.accepted) {
-    throw new Error(data.error || data.summary || 'PBS sync failed');
+  if (!startRes.ok || !start.ok || !start.runId || !start.nextStage) {
+    throw new Error(start.error || 'Failed to start PBS sync.');
   }
 
-  if (data.skipped) {
-    return data;
+  const stageLabels = start.stageLabels || {};
+  let stage: string | undefined = start.nextStage;
+  let stageIndex = 1;
+  const totalStages = start.totalStages || 5;
+
+  while (stage) {
+    onProgress?.({
+      stage,
+      stageLabel: stageLabels[stage] || stage,
+      stageIndex,
+      totalStages,
+    });
+
+    const stageRes = await fetch('/api/pbs/sync/stage', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ runId: start.runId, stage }),
+    });
+    const outcome = await parseJson<StagedStageResponse>(stageRes);
+
+    if (!stageRes.ok || !outcome.ok) {
+      if (outcome.result) return outcome.result;
+      throw new Error(outcome.error || `PBS sync failed during ${stageLabels[stage] || stage}.`);
+    }
+
+    if (outcome.done) {
+      return (
+        outcome.result || {
+          ok: true,
+          startedAt: start.runId,
+          finishedAt: new Date().toISOString(),
+          summary: 'PBS sync completed.',
+          counts: {} as PbsSyncLogEntry['counts'],
+          fetched: {} as PbsSyncLogEntry['fetched'],
+        }
+      );
+    }
+
+    stage = outcome.nextStage;
+    stageIndex = outcome.stageIndex || stageIndex + 1;
   }
 
-  // 202 — sync runs in a Netlify background function; poll Firestore for the result.
-  if (res.status === 202 || data.accepted) {
-    return pollPbsSyncUntilComplete(data.startedAt);
-  }
-
-  return data;
+  throw new Error('PBS sync ended unexpectedly without a result.');
 }
 
 /** Poll Firestore until an in-flight sync finishes (does not start a new sync). */
