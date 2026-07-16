@@ -31,20 +31,112 @@ function isCashieredRepairOrder(ro: PbsRepairOrderFull): boolean {
   return true;
 }
 
+interface PayTypeBreakdown {
+  customer: { labor: number; parts: number };
+  warranty: { labor: number; parts: number };
+  internal: { labor: number; parts: number };
+}
+
+const AMOUNT_EPS_RATIO = 0.02;
+
+function approxGte(actual: number, target: number): boolean {
+  if (target <= 0) return false;
+  return actual >= target * (1 - AMOUNT_EPS_RATIO);
+}
+
+function readPayTypeBreakdown(ro: PbsRepairOrderFull): PayTypeBreakdown {
+  return {
+    customer: {
+      labor: num(ro.CustomerSummary?.Labour),
+      parts: num(ro.CustomerSummary?.Parts),
+    },
+    warranty: {
+      labor: num(ro.WarrantySummary?.Labour),
+      parts: num(ro.WarrantySummary?.Parts),
+    },
+    internal: {
+      labor: num(ro.InternalSummary?.Labour),
+      parts: num(ro.InternalSummary?.Parts),
+    },
+  };
+}
+
+function allSummaryTotals(breakdown: PayTypeBreakdown): { labor: number; parts: number } {
+  return {
+    labor: breakdown.customer.labor + breakdown.warranty.labor + breakdown.internal.labor,
+    parts: breakdown.customer.parts + breakdown.warranty.parts + breakdown.internal.parts,
+  };
+}
+
 function sumPayTypeSummaries(ro: PbsRepairOrderFull): {
   laborSold: number;
   partsSold: number;
 } {
-  let laborSold = 0;
-  let partsSold = 0;
+  const all = allSummaryTotals(readPayTypeBreakdown(ro));
+  return { laborSold: all.labor, partsSold: all.parts };
+}
 
-  for (const summary of [ro.CustomerSummary, ro.WarrantySummary, ro.InternalSummary]) {
-    if (!summary) continue;
-    laborSold += num(summary.Labour);
-    partsSold += num(summary.Parts);
+/**
+ * Warranty/internal dollars to add on top of request lines.
+ * PBS often echoes the same parts/labor in both PartLines and pay-type summaries — skip those duplicates.
+ */
+export function supplementalPayTypeAmounts(
+  ro: PbsRepairOrderFull,
+  lineTotals: { laborSold: number; partsSold: number }
+): {
+  laborSold: number;
+  laborCost: number;
+  partsSold: number;
+  partsCost: number;
+  hrsSold: number;
+} {
+  const payTypes = readPayTypeBreakdown(ro);
+  const all = allSummaryTotals(payTypes);
+  const { laborSold: lineLabor, partsSold: lineParts } = lineTotals;
+
+  const addLabor = payTypes.warranty.labor + payTypes.internal.labor;
+  const addParts = payTypes.warranty.parts + payTypes.internal.parts;
+
+  if (addLabor <= 0 && addParts <= 0) {
+    return { laborSold: 0, laborCost: 0, partsSold: 0, partsCost: 0, hrsSold: 0 };
   }
 
-  return { laborSold, partsSold };
+  let laborSupplement = addLabor;
+  let partsSupplement = addParts;
+
+  if (partsSupplement > 0 && approxGte(lineParts, all.parts)) {
+    partsSupplement = 0;
+  } else if (
+    partsSupplement > 0 &&
+    payTypes.customer.parts > 0 &&
+    approxGte(lineParts, payTypes.customer.parts) &&
+    approxGte(payTypes.warranty.parts + payTypes.internal.parts, lineParts)
+  ) {
+    // PBS echoed the same parts total on a warranty/internal summary row.
+    partsSupplement = 0;
+  }
+
+  const customerLabor = payTypes.customer.labor;
+  if (laborSupplement > 0) {
+    if (customerLabor > 0 && approxGte(lineLabor, customerLabor + laborSupplement)) {
+      laborSupplement = 0;
+    } else if (
+      customerLabor <= 0 &&
+      all.labor > 0 &&
+      approxGte(lineLabor, all.labor) &&
+      lineLabor <= all.labor * (1 + AMOUNT_EPS_RATIO)
+    ) {
+      laborSupplement = 0;
+    }
+  }
+
+  return {
+    laborSold: laborSupplement,
+    laborCost: 0,
+    partsSold: partsSupplement,
+    partsCost: 0,
+    hrsSold: 0,
+  };
 }
 
 function sumRequestLines(req: PbsRepairOrderRequestFull): {
@@ -80,7 +172,7 @@ function sumRequestLines(req: PbsRepairOrderRequestFull): {
   return { laborSold, laborCost, partsSold, partsCost, hrsSold };
 }
 
-function sumRepairOrder(ro: PbsRepairOrderFull): {
+function sumRepairOrderLinesOnly(ro: PbsRepairOrderFull): {
   laborSold: number;
   laborCost: number;
   partsSold: number;
@@ -102,13 +194,27 @@ function sumRepairOrder(ro: PbsRepairOrderFull): {
     hrsSold += part.hrsSold;
   }
 
-  if (laborSold === 0 && partsSold === 0) {
-    const summary = sumPayTypeSummaries(ro);
-    laborSold += summary.laborSold;
-    partsSold += summary.partsSold;
+  return { laborSold, laborCost, partsSold, partsCost, hrsSold };
+}
+
+function sumRepairOrder(ro: PbsRepairOrderFull): {
+  laborSold: number;
+  laborCost: number;
+  partsSold: number;
+  partsCost: number;
+  hrsSold: number;
+} {
+  const fromLines = sumRepairOrderLinesOnly(ro);
+  if (fromLines.laborSold > 0 || fromLines.partsSold > 0 || fromLines.hrsSold > 0) {
+    return fromLines;
   }
 
-  return { laborSold, laborCost, partsSold, partsCost, hrsSold };
+  const summary = sumPayTypeSummaries(ro);
+  return {
+    ...fromLines,
+    laborSold: summary.laborSold,
+    partsSold: summary.partsSold,
+  };
 }
 
 /** Shop-wide labor for an RO — includes warranty/internal summary labor missed by request lines alone. */
@@ -141,12 +247,13 @@ export function sumRepairOrderShopLabor(ro: PbsRepairOrderFull): {
   const lineGross = Math.max(0, laborSold - laborCost);
   const gpRate = laborSold > 0 ? lineGross / laborSold : 0;
 
-  for (const summary of [ro.WarrantySummary, ro.InternalSummary]) {
-    if (!summary) continue;
-    const summaryLabor = num(summary.Labour);
-    if (summaryLabor <= 0) continue;
-    laborSold += summaryLabor;
-    laborCost += summaryLabor * (1 - gpRate);
+  const supplement = supplementalPayTypeAmounts(ro, {
+    laborSold: base.laborSold,
+    partsSold: base.partsSold,
+  });
+  if (supplement.laborSold > 0) {
+    laborSold += supplement.laborSold;
+    laborCost += supplement.laborSold * (1 - gpRate);
   }
 
   return {
@@ -228,25 +335,10 @@ function attributeRepairOrder(
   }
 
   if (attributed) {
-    // Warranty and internal amounts often appear only on RO pay-type summaries, not in request lines.
-    for (const summary of [ro.WarrantySummary, ro.InternalSummary]) {
-      if (!summary) continue;
-      const laborSold = num(summary.Labour);
-      const partsSold = num(summary.Parts);
-      if (laborSold === 0 && partsSold === 0) continue;
-      addToBucket(
-        buckets,
-        defaultAdvisor,
-        {
-          laborSold,
-          laborCost: 0,
-          partsSold,
-          partsCost: 0,
-          hrsSold: 0,
-        },
-        soNumber || undefined,
-        aliases
-      );
+    const lineTotals = sumRepairOrderLinesOnly(ro);
+    const supplement = supplementalPayTypeAmounts(ro, lineTotals);
+    if (supplement.laborSold > 0 || supplement.partsSold > 0) {
+      addToBucket(buckets, defaultAdvisor, supplement, soNumber || undefined, aliases);
     }
     return;
   }
