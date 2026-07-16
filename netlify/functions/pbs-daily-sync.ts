@@ -3,7 +3,7 @@ import { getPbsSyncSecret } from '../../server/pbs/pbsSyncAuth.js';
 import { isPacificMorningSyncHour, runPbsSync } from '../../server/pbs/pbsSync.js';
 
 /**
- * Netlify scheduled function — runs hourly and executes PBS sync at 8:00 AM Pacific.
+ * Netlify scheduled function — runs hourly and executes PBS sync at 6:00 AM Pacific.
  * Configure PBS_SYNC_SECRET (or SYSTEM_WORKERS_PASSWORD) and FIREBASE_SERVICE_ACCOUNT_JSON in Netlify env.
  */
 export const handler: Handler = async (_event: HandlerEvent, context: HandlerContext) => {
@@ -17,7 +17,7 @@ export const handler: Handler = async (_event: HandlerEvent, context: HandlerCon
   if (!isPacificMorningSyncHour()) {
     return {
       statusCode: 200,
-      body: JSON.stringify({ ok: true, skipped: true, reason: 'Not 8 AM Pacific' }),
+      body: JSON.stringify({ ok: true, skipped: true, reason: 'Not 6 AM Pacific' }),
     };
   }
 

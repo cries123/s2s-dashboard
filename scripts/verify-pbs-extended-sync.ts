@@ -15,6 +15,7 @@ import {
   mapPbsReminderDueDate,
 } from '../server/pbs/pbsTechnicianAggregator.js';
 import type { PbsCustomerIndexMaps, PbsOpenRepairOrder } from '../server/pbs/pbsExtendedTypes.js';
+import { normalizePbsRef } from '../server/pbs/pbsAppointmentSchedule.js';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -112,7 +113,7 @@ const wrongVehicle = mergeVehiclePbsServiceVisits(
 assert(!wrongVehicle.some((visit) => visit.soNumber === 'BAD'), 'drops PBS visits tagged to another vehicle');
 
 const index: PbsCustomerIndexMaps = {
-  byContactRef: new Map([['contact-1', 'cust-1']]),
+  byContactRef: new Map([[normalizePbsRef('contact-1'), 'cust-1']]),
   byVehicleRef: new Map(),
   dataById: new Map([
     [

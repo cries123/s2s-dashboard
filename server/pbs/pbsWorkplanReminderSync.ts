@@ -8,6 +8,7 @@ import {
 } from './pbsFirestore.js';
 import type { PbsCustomerIndexMaps, PbsWorkplanReminder } from './pbsExtendedTypes.js';
 import { isActivePbsWorkplanReminder, mapPbsReminderDueDate } from './pbsTechnicianAggregator.js';
+import { normalizePbsRef } from './pbsAppointmentSchedule.js';
 
 function reminderFetchCriteria(): Record<string, unknown> {
   return { FilterByActive: true };
@@ -26,7 +27,7 @@ export async function syncPbsWorkplanReminders(
 
   for (const reminder of reminders) {
     if (!isActivePbsWorkplanReminder(reminder)) continue;
-    const contactRef = (reminder.ContactRef || '').trim();
+    const contactRef = normalizePbsRef(reminder.ContactRef);
     if (!contactRef) continue;
 
     const dueDate = mapPbsReminderDueDate(reminder.DueDate);

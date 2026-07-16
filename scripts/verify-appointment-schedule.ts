@@ -6,6 +6,7 @@ import {
   buildAppointmentCustomerLookup,
   buildAppointmentDisplayInfoMap,
   mapPbsAppointmentToSlot,
+  normalizePbsRef,
 } from '../server/pbs/pbsAppointmentSchedule.js';
 import {
   parsePbsIso,
@@ -24,7 +25,7 @@ function assert(condition: boolean, message: string) {
 }
 
 const lookup = buildAppointmentCustomerLookup({
-  byVehicleRef: new Map([['veh-1', 'cust-1']]),
+  byVehicleRef: new Map([[normalizePbsRef('veh-1'), 'cust-1']]),
   byContactRef: new Map(),
   dataById: new Map([
     [
@@ -96,6 +97,35 @@ const localZ: PbsAppointment = {
 assert(
   pbsAppointmentToPacificMinutes(localZ.AppointmentTime, localZ.AppointmentTimeUTC) === 11 * 60,
   'treats AppointmentTime Z suffix as Pacific wall clock when UTC missing'
+);
+
+// PBS sometimes echoes wall-clock time into AppointmentTimeUTC with a Z suffix.
+const echoedUtc: PbsAppointment = {
+  AppointmentId: 'appt-echo',
+  AppointmentTime: '2026-07-16T09:00:00.0000000Z',
+  AppointmentTimeUTC: '2026-07-16T09:00:00.0000000Z',
+  Status: 'Open',
+  RequestLines: [{ RequestDescription: 'TIRE ROTATION' }],
+};
+
+assert(
+  pbsAppointmentToPacificMinutes(echoedUtc.AppointmentTime, echoedUtc.AppointmentTimeUTC) === 9 * 60,
+  'does not shift wall-clock time echoed into AppointmentTimeUTC (9 AM stays 9 AM, not 2 AM)'
+);
+
+const unresolvedAppt: PbsAppointment = {
+  AppointmentId: 'appt-unknown',
+  RawAppointmentNumber: '95999',
+  AppointmentTime: '2026-07-09T10:00:00.0000000Z',
+  Status: 'Open',
+  ContactRef: 'contact-nowhere',
+  RequestLines: [{ RequestDescription: 'DIAG' }],
+};
+
+const unresolvedSlot = mapPbsAppointmentToSlot(unresolvedAppt, lookup);
+assert(
+  unresolvedSlot!.customerName === 'APPT #95999',
+  'unresolved appointments show appointment number instead of CUSTOMER'
 );
 
 const displayInfo = buildAppointmentDisplayInfoMap([

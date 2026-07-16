@@ -54,12 +54,26 @@ function appointmentsForColumn(appointments: ScheduledAppointmentSlot[], columnI
     .sort((a, b) => a.startMinutes - b.startMinutes || a.customerName.localeCompare(b.customerName));
 }
 
+/** Legacy synced slots stored placeholder text — swap for something useful. */
+function displayCustomerName(appt: ScheduledAppointmentSlot): string {
+  const name = (appt.customerName || '').trim();
+  if (!name || name.toUpperCase() === 'CUSTOMER') {
+    return appt.appointmentNumber ? `Appt #${appt.appointmentNumber}` : 'Unmatched customer';
+  }
+  return name;
+}
+
+function displayVehicleLabel(appt: ScheduledAppointmentSlot): string {
+  const label = (appt.vehicleLabel || '').trim();
+  return label.toUpperCase() === 'VEHICLE' ? '' : label;
+}
+
 function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; onBack: () => void }) {
   const rows: { label: string; value: string }[] = [
     { label: 'Time', value: formatScheduleTime(appt.startMinutes) },
     { label: 'Duration', value: formatDuration(appt.durationMinutes) },
-    { label: 'Customer', value: appt.customerName },
-    { label: 'Vehicle', value: appt.vehicleLabel },
+    { label: 'Customer', value: displayCustomerName(appt) },
+    { label: 'Vehicle', value: displayVehicleLabel(appt) || '—' },
     { label: 'Advisor', value: appt.advisor || '—' },
     { label: 'Technician', value: appt.techNumber || 'Open / unassigned' },
     { label: 'Appt #', value: appt.appointmentNumber || '—' },
@@ -89,7 +103,7 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
       >
         <div>
           <p className="text-[10px] uppercase tracking-wider font-bold opacity-70">Appointment</p>
-          <p className="text-lg font-bold mt-1">{appt.customerName}</p>
+          <p className="text-lg font-bold mt-1">{displayCustomerName(appt)}</p>
           <p className="text-sm opacity-90 mt-0.5">
             {formatScheduleTime(appt.startMinutes)}
             {appt.isWaiter ? ' · Waiter' : ''}
@@ -127,8 +141,10 @@ function AppointmentListRow({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate">{appt.customerName}</p>
-          <p className="text-xs opacity-80 truncate mt-0.5">{appt.vehicleLabel}</p>
+          <p className="text-sm font-semibold truncate">{displayCustomerName(appt)}</p>
+          {displayVehicleLabel(appt) ? (
+            <p className="text-xs opacity-80 truncate mt-0.5">{displayVehicleLabel(appt)}</p>
+          ) : null}
           {appt.concern ? (
             <p className="text-[11px] opacity-65 truncate mt-1">{appt.concern}</p>
           ) : null}

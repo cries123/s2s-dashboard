@@ -10,10 +10,14 @@ import {
 import {
   buildAppointmentCustomerLookup,
   buildAppointmentDisplayInfoMap,
+  collectUnresolvedContactRefs,
   mapPbsAppointmentToSlot,
+  mergeContactNameFallback,
+  normalizePbsRef,
   type PbsAppointmentDisplayInfo,
   type ScheduledAppointmentSlot,
 } from './pbsAppointmentSchedule.js';
+import { fetchContactNamesByRefs } from './pbsContactNameFallback.js';
 import { pbsAppointmentPacificDate } from './pbsMappers.js';
 import {
   pbsAppointmentContactVehicleInfoGet,
@@ -50,23 +54,32 @@ async function loadCustomerIndex(db: Firestore, dealershipId: string) {
 
     dataById.set(docSnap.id, data);
 
-    const vehicleRef = String(data.pbsVehicleId || '').trim().toLowerCase();
+    const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
     if (vehicleRef) byVehicleRef.set(vehicleRef, docSnap.id);
 
-    const contactRef = String(data.pbsContactId || '').trim().toLowerCase();
+    const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
     if (contactRef) byContactRef.set(contactRef, docSnap.id);
   }
 
   return { byVehicleRef, byContactRef, dataById };
 }
 
+/** Optional — some PBS accounts return 401 for AppointmentContactVehicleInfoGet. */
 async function fetchAppointmentDisplayInfo(
   start: string,
   end: string
 ): Promise<Map<string, PbsAppointmentDisplayInfo>> {
-  const response = await pbsAppointmentContactVehicleInfoGet(appointmentCriteria(start, end));
-  const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
-  return buildAppointmentDisplayInfoMap(items);
+  try {
+    const response = await pbsAppointmentContactVehicleInfoGet(appointmentCriteria(start, end));
+    const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
+    return buildAppointmentDisplayInfoMap(items);
+  } catch (err) {
+    console.warn(
+      '[PBS Schedule] AppointmentContactVehicleInfoGet unavailable — using customer directory for names:',
+      err instanceof Error ? err.message : err
+    );
+    return new Map();
+  }
 }
 
 function slotsForDate(
@@ -120,7 +133,20 @@ export async function getOrHydrateDaySchedule(
   const appointments = (appointmentResponse.Appointments || []) as PbsAppointment[];
   const index = await loadCustomerIndex(db, dealershipId);
   const lookup = buildAppointmentCustomerLookup(index);
-  const slots = slotsForDate(appointments, date, lookup, displayInfoByAppointmentId);
+
+  const unresolvedRefs = collectUnresolvedContactRefs(
+    appointments,
+    lookup,
+    displayInfoByAppointmentId
+  );
+  const fallbackNames = await fetchContactNamesByRefs(unresolvedRefs);
+  const displayInfoWithFallback = mergeContactNameFallback(
+    appointments,
+    fallbackNames,
+    displayInfoByAppointmentId
+  );
+
+  const slots = slotsForDate(appointments, date, lookup, displayInfoWithFallback);
   const syncedAt = new Date().toISOString();
 
   await ref.set(

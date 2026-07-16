@@ -66,6 +66,23 @@ export function pbsWallClockPacificDate(iso: string | undefined | null): string 
 }
 
 /**
+ * PBS sometimes echoes the local wall-clock time into AppointmentTimeUTC with a
+ * Z suffix. When both fields parse to the same instant and the local field has
+ * no explicit offset, the UTC field is not real UTC and must not be shifted.
+ */
+export function pbsUtcFieldIsWallClock(
+  appointmentTime?: string | null,
+  appointmentTimeUtc?: string | null
+): boolean {
+  if (!appointmentTime || !appointmentTimeUtc) return false;
+  if (hasExplicitTimezoneOffset(appointmentTime)) return false;
+  const local = parsePbsIso(appointmentTime);
+  const utc = parsePbsIso(appointmentTimeUtc);
+  if (!local || !utc) return false;
+  return local.getTime() === utc.getTime();
+}
+
+/**
  * Resolve appointment start time for the schedule board.
  * Prefer true UTC (AppointmentTimeUTC), then offset-aware local, then wall-clock Z.
  */
@@ -73,12 +90,17 @@ export function pbsAppointmentToPacificMinutes(
   appointmentTime?: string | null,
   appointmentTimeUtc?: string | null
 ): number | null {
-  if (appointmentTimeUtc && !appointmentTimeUtc.startsWith('0001-01-01')) {
+  const utcIsWallClock = pbsUtcFieldIsWallClock(appointmentTime, appointmentTimeUtc);
+
+  if (!utcIsWallClock && appointmentTimeUtc && !appointmentTimeUtc.startsWith('0001-01-01')) {
     const fromUtc = pbsIsoToPacificMinutes(appointmentTimeUtc);
     if (fromUtc !== null) return fromUtc;
   }
 
-  if (!appointmentTime || appointmentTime.startsWith('0001-01-01')) return null;
+  if (!appointmentTime || appointmentTime.startsWith('0001-01-01')) {
+    if (utcIsWallClock) return pbsWallClockPacificMinutes(appointmentTimeUtc);
+    return null;
+  }
 
   if (hasExplicitTimezoneOffset(appointmentTime)) {
     return pbsIsoToPacificMinutes(appointmentTime);
@@ -92,12 +114,17 @@ export function pbsAppointmentPacificDate(
   appointmentTime?: string | null,
   appointmentTimeUtc?: string | null
 ): string | null {
-  if (appointmentTimeUtc && !appointmentTimeUtc.startsWith('0001-01-01')) {
+  const utcIsWallClock = pbsUtcFieldIsWallClock(appointmentTime, appointmentTimeUtc);
+
+  if (!utcIsWallClock && appointmentTimeUtc && !appointmentTimeUtc.startsWith('0001-01-01')) {
     const fromUtc = pbsIsoToDateString(appointmentTimeUtc);
     if (fromUtc) return fromUtc;
   }
 
-  if (!appointmentTime || appointmentTime.startsWith('0001-01-01')) return null;
+  if (!appointmentTime || appointmentTime.startsWith('0001-01-01')) {
+    if (utcIsWallClock) return pbsWallClockPacificDate(appointmentTimeUtc);
+    return null;
+  }
 
   if (hasExplicitTimezoneOffset(appointmentTime)) {
     return pbsIsoToDateString(appointmentTime);

@@ -167,7 +167,7 @@ export function registerPbsRoutes(app: Express) {
           scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],
           state,
           logs,
-          nextScheduledWindow: 'Daily at 8:00 AM America/Los_Angeles (Hyundai only)',
+          nextScheduledWindow: 'Daily at 6:00 AM America/Los_Angeles (Hyundai only)',
         });
       } catch (firestoreErr) {
         console.error('[PBS] sync/status Firestore read failed:', firestoreErr);
@@ -206,7 +206,7 @@ export function registerPbsRoutes(app: Express) {
       return res.json({
         ok: true,
         skipped: true,
-        reason: 'Outside 8:00 AM America/Los_Angeles sync window.',
+        reason: 'Outside 6:00 AM America/Los_Angeles sync window.',
       });
     }
 

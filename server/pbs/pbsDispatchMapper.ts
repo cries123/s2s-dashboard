@@ -2,6 +2,7 @@ import { pbsIsoToDateString, repairOrderSoNumber, vinLast8FromVin } from './pbsM
 import type { DepartmentColumnId, DispatchStatus } from '../../src/types.js';
 import type { PbsCustomerIndexMaps, PbsOpenRepairOrder } from './pbsExtendedTypes.js';
 import { isOpenPbsRepairOrder } from './pbsTechnicianAggregator.js';
+import { normalizePbsRef } from './pbsAppointmentSchedule.js';
 
 export function mapPbsDispatchStatus(status?: string, customStatus?: string): DispatchStatus {
   const combined = `${status || ''} ${customStatus || ''}`.toLowerCase();
@@ -61,12 +62,12 @@ function resolveCustomerFromIndex(
   index: PbsCustomerIndexMaps,
   ro: PbsOpenRepairOrder
 ): { customerId?: string; customer?: Record<string, unknown> } {
-  const contactRef = (ro.ContactRef || '').trim();
+  const contactRef = normalizePbsRef(ro.ContactRef);
   if (contactRef) {
     const id = index.byContactRef.get(contactRef);
     if (id) return { customerId: id, customer: index.dataById.get(id) };
   }
-  const vehicleRef = (ro.VehicleRef || '').trim();
+  const vehicleRef = normalizePbsRef(ro.VehicleRef);
   if (vehicleRef) {
     const id = index.byVehicleRef.get(vehicleRef);
     if (id) return { customerId: id, customer: index.dataById.get(id) };

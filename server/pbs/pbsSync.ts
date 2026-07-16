@@ -36,9 +36,13 @@ import {
 import {
   buildAppointmentCustomerLookup,
   buildAppointmentDisplayInfoMap,
+  collectUnresolvedContactRefs,
+  mergeContactNameFallback,
+  normalizePbsRef,
   type PbsAppointmentDisplayInfo,
   syncAppointmentSchedule,
 } from './pbsAppointmentSchedule.js';
+import { fetchContactNamesByRefs } from './pbsContactNameFallback.js';
 import type {
   PbsAppointment,
   PbsAppointmentContactVehicleInfo,
@@ -193,10 +197,10 @@ async function loadCustomerIndex(
     const phone = normalizePhone(String(data.phone || ''));
     if (phone) index.byPhone.set(phone, docSnap.id);
 
-    const vehicleRef = String(data.pbsVehicleId || '').trim().toLowerCase();
+    const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
     if (vehicleRef) index.byVehicleRef.set(vehicleRef, docSnap.id);
 
-    const contactRef = String(data.pbsContactId || '').trim().toLowerCase();
+    const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
     if (contactRef) index.byContactRef.set(contactRef, docSnap.id);
   }
 
@@ -220,7 +224,7 @@ function resolveCustomerIdByVehicle(
     if (hit) return hit;
   }
   if (keys.vehicleRef) {
-    const hit = index.byVehicleRef.get(keys.vehicleRef.trim().toLowerCase());
+    const hit = index.byVehicleRef.get(normalizePbsRef(keys.vehicleRef));
     if (hit) return hit;
   }
   return undefined;
@@ -245,11 +249,11 @@ function resolveCustomerId(
     if (hit) return hit;
   }
   if (keys.vehicleRef) {
-    const hit = index.byVehicleRef.get(keys.vehicleRef.trim().toLowerCase());
+    const hit = index.byVehicleRef.get(normalizePbsRef(keys.vehicleRef));
     if (hit) return hit;
   }
   if (keys.contactRef) {
-    const hit = index.byContactRef.get(keys.contactRef.trim().toLowerCase());
+    const hit = index.byContactRef.get(normalizePbsRef(keys.contactRef));
     if (hit) return hit;
   }
   if (keys.phone) {
@@ -271,9 +275,9 @@ function registerCustomerInIndex(
   if (vin) index.byVin.set(vin, docId);
   const phone = normalizePhone(String(data.phone || ''));
   if (phone) index.byPhone.set(phone, docId);
-  const vehicleRef = String(data.pbsVehicleId || '').trim().toLowerCase();
+  const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
   if (vehicleRef) index.byVehicleRef.set(vehicleRef, docId);
-  const contactRef = String(data.pbsContactId || '').trim().toLowerCase();
+  const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
   if (contactRef) index.byContactRef.set(contactRef, docId);
 }
 
@@ -342,16 +346,25 @@ async function fetchAppointmentsForSync(
   ]);
 }
 
+/** Optional — some PBS accounts return 401 for AppointmentContactVehicleInfoGet. */
 async function fetchMonthAppointmentDisplayInfo(
   start: string,
   end: string,
   watermark?: string
 ): Promise<Map<string, PbsAppointmentDisplayInfo>> {
-  const response = await pbsAppointmentContactVehicleInfoGet(
-    monthAppointmentCriteria(start, end, watermark)
-  );
-  const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
-  return buildAppointmentDisplayInfoMap(items);
+  try {
+    const response = await pbsAppointmentContactVehicleInfoGet(
+      monthAppointmentCriteria(start, end, watermark)
+    );
+    const items = (response.Items || []) as PbsAppointmentContactVehicleInfo[];
+    return buildAppointmentDisplayInfoMap(items);
+  } catch (err) {
+    console.warn(
+      '[PBS Sync] AppointmentContactVehicleInfoGet unavailable — schedule names will use the customer directory:',
+      err instanceof Error ? err.message : err
+    );
+    return new Map();
+  }
 }
 
 async function readPbsSyncState(
@@ -696,6 +709,18 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
     const scheduleLookup = buildAppointmentCustomerLookup(index);
     try {
+      const unresolvedRefs = collectUnresolvedContactRefs(
+        appointments,
+        scheduleLookup,
+        appointmentDisplayInfo
+      );
+      const fallbackNames = await fetchContactNamesByRefs(unresolvedRefs);
+      const displayInfoWithFallback = mergeContactNameFallback(
+        appointments,
+        fallbackNames,
+        appointmentDisplayInfo
+      );
+
       const scheduleResult = await syncAppointmentSchedule(
         db,
         dealershipId,
@@ -704,7 +729,7 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
         end,
         scheduleLookup,
         startedAt,
-        appointmentDisplayInfo
+        displayInfoWithFallback
       );
       counts.appointmentScheduleDays = scheduleResult.daysWritten;
       counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
@@ -806,7 +831,7 @@ export function isPacificMorningSyncHour(reference = new Date()): boolean {
       hour12: false,
     })
   );
-  return hour === 8;
+  return hour === 6;
 }
 
 /**

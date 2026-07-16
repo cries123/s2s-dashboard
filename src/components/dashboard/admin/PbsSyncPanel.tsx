@@ -29,7 +29,7 @@ function formatWhen(iso?: string): string {
 }
 
 function triggerLabel(entry: PbsSyncLogEntry): string {
-  if (entry.triggeredBy === 'cron') return 'Scheduled (8 AM)';
+  if (entry.triggeredBy === 'cron') return 'Scheduled (6 AM)';
   if (entry.triggeredByUsername) return entry.triggeredByUsername;
   if (entry.triggeredByEmail) return entry.triggeredByEmail;
   return 'Manual';
@@ -309,7 +309,7 @@ function PbsSyncPanelInner({
         appointment counts, advisor performance, technician efficiency, service reminders, vehicle
         inventory, and the dispatch board. Only{' '}
         <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> is modified. A scheduled
-        job also runs every morning at 8:00 AM Pacific.
+        job also runs every morning at 6:00 AM Pacific.
       </p>
 
       <div className="card-base rounded-2xl border border-white/5 p-5 space-y-4">

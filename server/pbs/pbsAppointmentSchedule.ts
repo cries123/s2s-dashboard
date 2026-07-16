@@ -48,12 +48,13 @@ export interface AppointmentCustomerLookup {
   ) => { customerName: string; vehicleLabel: string };
 }
 
-function normalizePbsRef(ref?: string): string {
-  return (ref || '').trim().toLowerCase();
+/** PBS returns GUIDs with dashes in some APIs and without in others — compare canonical form. */
+export function normalizePbsRef(ref?: string): string {
+  return (ref || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function appointmentLookupKey(appt: PbsAppointment): string {
-  return String(appt.AppointmentId || appt.Id || '').trim().toLowerCase();
+  return normalizePbsRef(String(appt.AppointmentId || appt.Id || ''));
 }
 
 export function formatPbsScheduleCustomerName(first?: string, last?: string): string {
@@ -76,7 +77,7 @@ export function buildAppointmentDisplayInfoMap(
 ): Map<string, PbsAppointmentDisplayInfo> {
   const map = new Map<string, PbsAppointmentDisplayInfo>();
   for (const item of items) {
-    const id = String(item.AppointmentId || '').trim().toLowerCase();
+    const id = normalizePbsRef(String(item.AppointmentId || ''));
     if (!id) continue;
     map.set(id, {
       contactFirstName: item.ContactFirstName,
@@ -139,6 +140,11 @@ function pickDurationMinutes(appt: PbsAppointment): number {
   return 60;
 }
 
+function fallbackAppointmentName(appt: PbsAppointment): string {
+  const number = String(appt.RawAppointmentNumber || appt.AppointmentNumber || '').trim();
+  return number ? `APPT #${number}` : 'UNMATCHED CUSTOMER';
+}
+
 function resolveDisplayFields(
   appt: PbsAppointment,
   lookup: AppointmentCustomerLookup,
@@ -155,18 +161,60 @@ function resolveDisplayFields(
     inline?.vehicleModel
   );
 
-  if (inlineName) {
-    return {
-      customerName: inlineName,
-      vehicleLabel: inlineVehicle || 'VEHICLE',
-    };
-  }
-
   const fromIndex = lookup.resolveCustomer(appt.ContactRef, appt.VehicleRef);
+
   return {
-    customerName: fromIndex.customerName || 'CUSTOMER',
-    vehicleLabel: fromIndex.vehicleLabel || 'VEHICLE',
+    customerName: inlineName || fromIndex.customerName || fallbackAppointmentName(appt),
+    vehicleLabel: inlineVehicle || fromIndex.vehicleLabel || '',
   };
+}
+
+/** Active appointments whose customer name cannot be resolved from directory or inline info. */
+export function collectUnresolvedContactRefs(
+  appointments: PbsAppointment[],
+  lookup: AppointmentCustomerLookup,
+  displayInfoByAppointmentId?: Map<string, PbsAppointmentDisplayInfo>
+): string[] {
+  const refs = new Set<string>();
+  for (const appt of appointments) {
+    if (!isActivePbsAppointment(appt)) continue;
+    const contactRef = (appt.ContactRef || '').trim();
+    if (!contactRef) continue;
+
+    const inline = displayInfoByAppointmentId?.get(appointmentLookupKey(appt));
+    if (formatPbsScheduleCustomerName(inline?.contactFirstName, inline?.contactLastName)) continue;
+
+    const fromIndex = lookup.resolveCustomer(appt.ContactRef, appt.VehicleRef);
+    if (fromIndex.customerName) continue;
+
+    refs.add(contactRef);
+  }
+  return [...refs];
+}
+
+/** Merge ContactGet fallback names into the display-info map (keyed by appointment). */
+export function mergeContactNameFallback(
+  appointments: PbsAppointment[],
+  contactNamesByRef: Map<string, { firstName?: string; lastName?: string }>,
+  displayInfoByAppointmentId: Map<string, PbsAppointmentDisplayInfo>
+): Map<string, PbsAppointmentDisplayInfo> {
+  if (contactNamesByRef.size === 0) return displayInfoByAppointmentId;
+
+  const merged = new Map(displayInfoByAppointmentId);
+  for (const appt of appointments) {
+    const key = appointmentLookupKey(appt);
+    if (!key || merged.has(key)) continue;
+
+    const contactKey = normalizePbsRef(appt.ContactRef);
+    const name = contactKey ? contactNamesByRef.get(contactKey) : undefined;
+    if (!name) continue;
+
+    merged.set(key, {
+      contactFirstName: name.firstName,
+      contactLastName: name.lastName,
+    });
+  }
+  return merged;
 }
 
 export function mapPbsAppointmentToSlot(
