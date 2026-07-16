@@ -114,6 +114,8 @@ export interface DealershipSettings {
   dmsProvider?: 'pbs' | 'dealerbuilt';
   /** Allowed service advisors for productivity imports (DealerBuilt) */
   performanceAdvisorRoster?: PerformanceAdvisorSlot[];
+  /** PBS CSR login codes → advisor display names (e.g. LV4278 → Lemmy) */
+  pbsAdvisorCodeMap?: Record<string, string>;
   /** Tech number → display name for dispatch board cards */
   dispatchTechRoster?: PerformanceAdvisorSlot[];
   enableDispatchTab?: boolean;

@@ -758,9 +758,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             <p className="text-[10px] text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
               PBS attributed labor to advisor names not on your performance roster:{' '}
               <strong className="text-amber-200">{unmatchedAdvisorNames.join(', ')}</strong>. Their
-              cards are hidden. Add them to the roster (Admin → Advanced settings) or, if these are
-              PBS login codes, map them in dealership settings under{' '}
-              <strong className="text-amber-200">pbsAdvisorCodeMap</strong>.
+              cards are hidden. Map PBS login codes under{' '}
+              <strong className="text-amber-200">Manager → Operations settings → PBS login code map</strong>,
+              or add the advisor to your roster there, then run{' '}
+              <strong className="text-amber-200">Admin → PBS Sync → Pull changes</strong>.
             </p>
           )}
           {isPbsDealership && performanceSource === 'csr-pdf' && selectedMonth === 'active' && (

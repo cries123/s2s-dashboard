@@ -83,6 +83,11 @@ export function isRealAdvisorName(name: string, dmsProvider: DmsProviderId): boo
     if (n.length < 3) return false;
   }
 
+  if (dmsProvider === 'pbs') {
+    if (/^\d+$/.test(n)) return false;
+    if (n === '01') return false;
+  }
+
   return true;
 }
 

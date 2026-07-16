@@ -42,6 +42,7 @@ import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings
 import { AdminEnrollmentQueue } from './AdminEnrollmentQueue';
 import { DmsImportHealthPanel } from './DmsImportHealthPanel';
 import { PbsSyncPanel } from './PbsSyncPanel';
+import { PbsSyncLogsPanel } from './PbsSyncLogsPanel';
 import { ManagerOperationsConfig } from './ManagerOperationsConfig';
 import { StoreWorkspaceDefaultsSettings } from './StoreWorkspaceDefaultsSettings';
 import { ManagerPermissionsMatrix } from './ManagerPermissionsMatrix';
@@ -159,7 +160,7 @@ function getPanelSectionMeta(
         description:
           panelMode === 'manager'
             ? 'Tenant-specific audit trail for this dealership only.'
-            : 'Real-time forensic audit logs of user actions on the app.',
+            : 'User action audit trail and PBS PartnerHUB sync history.',
       };
     default:
       return {
@@ -803,17 +804,6 @@ export default function AdminPanel({
                           onUpdate={(patch) => updateSetting(d.id, patch)}
                         />
 
-                        {(dealershipSettings[d.id]?.dmsProvider ??
-                          defaultDmsProviderForDealership(d.id)) === 'pbs' && d.id === 'hyundai' ? (
-                          <PbsSyncPanel
-                            dealershipId={d.id}
-                            dealershipName={d.name}
-                            settings={dealershipSettings[d.id]}
-                            onSuccess={onSuccess}
-                            onError={onError}
-                          />
-                        ) : null}
-
                         <StoreWorkspaceDefaultsSettings
                           defaults={dealershipSettings[d.id]?.storeWorkspaceDefaults ?? {}}
                           onChange={(patch) => updateSetting(d.id, patch)}
@@ -1161,11 +1151,17 @@ export default function AdminPanel({
       )}
 
       {subTab === 'logs' && (
-        <div className="animate-in fade-in duration-300">
+        <div className="animate-in fade-in duration-300 space-y-2">
           <SystemLogs
             dealershipId={currentDealershipId}
             tenantScope={panelMode === 'manager'}
           />
+          {panelMode === 'admin' ? (
+            <PbsSyncLogsPanel
+              dealershipId={currentDealershipId || 'hyundai'}
+              settings={dealershipSettings.hyundai}
+            />
+          ) : null}
         </div>
       )}
 

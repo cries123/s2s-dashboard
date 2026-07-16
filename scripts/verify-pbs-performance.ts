@@ -8,7 +8,7 @@ import {
   collectRepairOrderCsrStrings,
   sumRepairOrderShopLabor,
 } from '../server/pbs/pbsPerformanceAggregator.js';
-import { buildPbsAdvisorAliases, cleanPbsCsrName } from '../server/pbs/pbsAdvisorName.js';
+import { buildPbsAdvisorAliases, cleanPbsCsrName, resolvePbsAdvisorCsr } from '../server/pbs/pbsAdvisorName.js';
 import type { PbsPartsInvoiceFull, PbsRepairOrderFull } from '../server/pbs/pbsPerformanceTypes.js';
 
 function assert(condition: boolean, message: string) {
@@ -117,6 +117,10 @@ assert(aliases.get('sb123') === 'Sarah', 'maps generic code to title-cased name'
 assert(cleanPbsCsrName('LV4278', aliases) === 'Lemmy', 'pure code resolves via alias');
 assert(cleanPbsCsrName('SARAH SB123') === 'Sarah', 'mixed name+code keeps the name');
 assert(cleanPbsCsrName('XY999') === 'XY999', 'unknown code stays as consistent bucket key');
+assert(
+  resolvePbsAdvisorCsr('01', 'LV4278', aliases) === 'Lemmy',
+  'junk line CSR falls back to header PBS code alias'
+);
 
 const codeRepairOrders: PbsRepairOrderFull[] = [
   {
