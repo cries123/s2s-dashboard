@@ -53,6 +53,21 @@ const repairOrders: PbsRepairOrderFull[] = [
     ],
     WarrantySummary: { Labour: 200, Parts: 75 },
   },
+  {
+    RawRepairOrderNumber: '1004',
+    DateCashiered: '2026-07-10T18:00:00.0000000-07:00',
+    Status: 'Cashiered',
+    CSR: 'Frank',
+    Requests: [
+      {
+        CSR: 'Frank',
+        LabourLines: [{ Price: 1000, Cost: 200, SoldHours: 4 }],
+        PartLines: [{ ExtendedPrice: 500, Cost: 200, Shipped: 1 }],
+      },
+    ],
+    CustomerSummary: { Labour: 1000, Parts: 500 },
+    WarrantySummary: { Parts: 500 },
+  },
 ];
 
 const partsInvoices: PbsPartsInvoiceFull[] = [
@@ -90,6 +105,10 @@ assert(shopLabor.laborGross >= 450, 'shop labor gross includes warranty summary 
 assert(result.totals.totalGross > 0, 'totals include labor gross');
 assert(result.totals.totalGross >= shopLabor.laborGross, 'shop totals use all cashiered RO labor');
 assert(result.totals.totalGrossParts > 0, 'totals include parts gross');
+
+const frankAfterDup = result.advisors.find((row) => row.name === 'Frank');
+assert((frankAfterDup?.partsSold || 0) < 900, 'does not double-count echoed warranty parts on RO 1004');
+assert((frankAfterDup?.grossParts || 0) < 700, 'parts gross stays single-counted when PBS echoes summaries');
 
 // --- Advisor login-code alias resolution ---
 const aliases = buildPbsAdvisorAliases(['LEMMY LV4278', 'SARAH SB123']);
