@@ -52,17 +52,19 @@ export function formatReminderDate(dateStr: string): string {
 }
 
 export function getCustomerServiceReminderDueDate(customer: Customer): string | null {
+  return getStandardServiceReminderDueDate(customer);
+}
+
+/** Standard mode: fixed 6-month cadence anchored on delivery / enrollment date. */
+export function getStandardServiceReminderDueDate(customer: Customer): string | null {
   if (customer.serviceReminderDueDate?.trim()) {
     return customer.serviceReminderDueDate.trim();
   }
 
-  // Legacy manual override field
   if (customer.serviceAlertOverrideDate?.trim()) {
     return customer.serviceAlertOverrideDate.trim();
   }
 
-  const lastService = getLastServiceDate(customer);
-  if (lastService) return computeServiceReminderDueDate(lastService);
   if (customer.soldDate?.trim()) return computeServiceReminderDueDate(customer.soldDate);
   if (customer.createdAt?.toDate) return computeServiceReminderDueDate(customer.createdAt.toDate());
   return null;

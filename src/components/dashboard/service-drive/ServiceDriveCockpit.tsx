@@ -4,6 +4,7 @@ import { useServiceDriveQueue } from '../../../hooks/useServiceDriveQueue';
 import { ServiceDriveQueueItem } from './ServiceDriveQueueItem';
 import { cn } from '../../../lib/utils';
 import { usePreferences } from '../../../context/PreferencesContext';
+import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { ServiceDriveFilter } from '../../../types';
 import {
   LayoutDashboard,
@@ -39,6 +40,7 @@ export function ServiceDriveCockpit({
   onRefresh,
 }: ServiceDriveCockpitProps) {
   const { preferences } = usePreferences();
+  const serviceAlerts = useServiceAlertHelpers();
   const [filter, setFilter] = useState<FilterId>(preferences.serviceDrive.defaultFilter);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export function ServiceDriveCockpit({
   const { queue, stats, filterQueue } = useServiceDriveQueue(customers, currentDealershipId, {
     followUpDays: preferences.contactWorkflow.followUpDays,
     queuePriority: preferences.serviceDrive.queuePriority,
+    serviceAlertConfig: serviceAlerts.config,
   });
 
   const visibleQueue = filterQueue(filter);

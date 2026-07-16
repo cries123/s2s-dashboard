@@ -3,6 +3,7 @@ import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import {
   Activity,
+  Bell,
   BarChart3,
   Clock,
   Gauge,
@@ -34,6 +35,7 @@ import { getDealershipStaffConfig } from '../../../lib/dealershipStaff';
 import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
 import { normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { PbsAdvisorPerformanceSettings } from './PbsAdvisorPerformanceSettings';
+import { resolveServiceAlertMode } from '../../../lib/dealershipSettingsUtils';
 import type {
   DealershipSettings,
   DispatchMidnightSweepMode,
@@ -42,6 +44,7 @@ import type {
   DispatchRepairOrder,
   DispatchStatus,
   ForecastReportPeriod,
+  ServiceAlertMode,
 } from '../../../types';
 
 interface ManagerOperationsConfigProps {
@@ -130,6 +133,7 @@ export function ManagerOperationsConfig({
   const [unmatchedAdvisorNames, setUnmatchedAdvisorNames] = useState<string[]>([]);
 
   const dmsProvider = normalizeDmsProvider(settings.dmsProvider) || defaultDmsProviderForDealership(dealershipId);
+  const serviceAlertMode = resolveServiceAlertMode(settings);
 
   const [apptTarget, setApptTarget] = useState(settings.appointmentTarget ?? 20);
   const [laborTarget, setLaborTarget] = useState(settings.laborGrossTarget ?? 500_000);
@@ -404,6 +408,56 @@ export function ManagerOperationsConfig({
               : settings.operationsGoalsPriorMonth.month}
           </p>
         ) : null}
+      </Section>
+
+      <Section
+        title="Service alert timing"
+        description="Choose how the Service Alerts tab decides when to call customers back for maintenance."
+        icon={Bell}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
+          {(
+            [
+              {
+                id: 'standard' as ServiceAlertMode,
+                title: 'Standard',
+                description:
+                  'Fixed 6-month reminders from the delivery date. Best when service history is limited or unreliable.',
+              },
+              {
+                id: 'optimized' as ServiceAlertMode,
+                title: 'Optimized',
+                description:
+                  'Tracks oil-change intervals from service history (e.g. every 2.2 months). Falls back to standard when history is insufficient.',
+              },
+            ] as const
+          ).map((option) => {
+            const selected = serviceAlertMode === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onUpdate({ serviceAlertMode: option.id })}
+                className={cn(
+                  'text-left p-4 rounded-xl border transition-all',
+                  selected
+                    ? 'border-brand-primary/40 bg-brand-primary/10'
+                    : 'border-white/5 bg-slate-950/80 hover:border-slate-700'
+                )}
+              >
+                <span className="text-xs font-black text-white uppercase tracking-wide block">
+                  {option.title}
+                </span>
+                <span className="text-[10px] text-slate-500 mt-1 block">{option.description}</span>
+                {selected ? (
+                  <span className="text-[9px] font-black uppercase text-brand-primary mt-2 inline-block">
+                    Active
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
       </Section>
 
       {dmsProvider === 'pbs' ? (

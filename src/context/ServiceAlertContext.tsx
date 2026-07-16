@@ -5,28 +5,48 @@ import {
 } from '../hooks/useServiceAlertInterval';
 import {
   calculateServiceCycle,
+  computeContactClearDueDate,
   getAverageServiceIntervalDays,
   getAverageServiceIntervalMonths,
   getNextServiceMilestone,
+  getServiceAlertModeLabel,
   isServiceAlertActive,
+  isStandardServiceAlertMode,
+  resolveServiceAlertConfig,
 } from '../lib/alerts';
-import { DEFAULT_SERVICE_ALERT_INTERVAL_DAYS } from '../lib/dealershipSettingsUtils';
-import { SERVICE_REMINDER_MONTHS } from '../lib/serviceReminder';
+import { DEFAULT_SERVICE_ALERT_MODE, mergeDealershipSettings } from '../lib/dealershipSettingsUtils';
+import type { DealershipSettings } from '../types';
+
+const defaultConfig = resolveServiceAlertConfig(
+  mergeDealershipSettings('hyundai', { serviceAlertMode: DEFAULT_SERVICE_ALERT_MODE })
+);
 
 const defaultServiceAlertHelpers: ServiceAlertHelpers = {
-  intervalDays: DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
-  bufferDays: 0,
-  isServiceAlertActive: (customer) => isServiceAlertActive(customer),
-  calculateServiceCycle: (soldDate) => calculateServiceCycle(soldDate),
-  getAverageServiceIntervalDays: (customer) => getAverageServiceIntervalDays(customer),
-  getAverageServiceIntervalMonths: () => SERVICE_REMINDER_MONTHS,
-  getNextServiceMilestone: (customerOrSoldDate) => getNextServiceMilestone(customerOrSoldDate),
+  config: defaultConfig,
+  modeLabel: getServiceAlertModeLabel(defaultConfig.mode),
+  intervalDays: defaultConfig.intervalDays,
+  bufferDays: defaultConfig.bufferDays,
+  isServiceAlertActive: (customer) => isServiceAlertActive(customer, defaultConfig),
+  calculateServiceCycle: (soldDate) => calculateServiceCycle(soldDate, defaultConfig.intervalDays),
+  getAverageServiceIntervalDays: (customer) => getAverageServiceIntervalDays(customer, defaultConfig),
+  getAverageServiceIntervalMonths: (customer) => getAverageServiceIntervalMonths(customer, defaultConfig),
+  getNextServiceMilestone: (customerOrSoldDate) => getNextServiceMilestone(customerOrSoldDate, defaultConfig),
+  computeContactClearDueDate: (customer, from) => computeContactClearDueDate(customer, defaultConfig, from),
+  isStandardMode: isStandardServiceAlertMode(defaultConfig),
 };
 
 const ServiceAlertContext = createContext<ServiceAlertHelpers>(defaultServiceAlertHelpers);
 
-export function ServiceAlertProvider({ children }: { children: React.ReactNode }) {
-  const helpers = useServiceAlertInterval();
+export function ServiceAlertProvider({
+  children,
+  dealershipId = 'hyundai',
+  settings,
+}: {
+  children: React.ReactNode;
+  dealershipId?: string;
+  settings?: Partial<DealershipSettings> | null;
+}) {
+  const helpers = useServiceAlertInterval(dealershipId, settings);
   return (
     <ServiceAlertContext.Provider value={helpers}>{children}</ServiceAlertContext.Provider>
   );
