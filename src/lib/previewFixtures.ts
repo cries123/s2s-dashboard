@@ -1,8 +1,76 @@
 import { Timestamp } from 'firebase/firestore';
-import type { Customer, DealershipSettings, DispatchRepairOrder, User } from '../types';
+import type {
+  Customer,
+  DealershipSettings,
+  DispatchRepairOrder,
+  ScheduledAppointmentSlot,
+  ServiceVisit,
+  User,
+} from '../types';
 import { getDispatchDatePst } from './dispatchPst';
 
 const previewNow = Timestamp.now();
+
+const PREVIEW_SERVICE_VISITS: ServiceVisit[] = [
+  {
+    id: 'pbs-117892',
+    soNumber: '117892',
+    date: '2026-07-07',
+    mileage: 10393,
+    advisor: 'LV4278',
+    status: 'Cashiered',
+    requests:
+      'HYUNDAI COMPLIMENTARY MAINTENANCE; CAMPAIGN 304 INSTRUMENT CLUSTER S/W UPD; CAR WASH REQUESTED',
+    createdAt: previewNow,
+    lines: [
+      {
+        lineNumber: 1,
+        requestCode: 'LOF',
+        concern: 'HYUNDAI COMPLIMENTARY MAINTENANCE — PERFORM FULL SYNTHETIC OIL & FILTER CHANGE',
+        cause: 'Scheduled maintenance due at 10,000 miles.',
+        correction: 'Replaced engine oil and filter, performed multi-point inspection, set tire pressures.',
+        tech: '70',
+        status: 'Completed',
+        labourLines: [
+          { opCode: 'LOF', description: 'Lube oil & filter', soldHours: 0.4, tech: '70', price: 0 },
+          { opCode: 'MPI', description: 'Multi-point inspection', soldHours: 0.2, tech: '70', price: 0 },
+        ],
+        partLines: [
+          { partNumber: '26350-2M000', description: 'Oil filter cartridge', qty: 1, price: 12.5 },
+          { partNumber: '00232-19010', description: '0W-20 synthetic oil (qt)', qty: 6, price: 54 },
+        ],
+      },
+      {
+        lineNumber: 2,
+        requestCode: 'C304',
+        concern: 'CAMPAIGN 304 INSTRUMENT CLUSTER S/W UPDATE (26-01-054H)',
+        cause: 'Open factory campaign on VIN.',
+        correction: 'Performed instrument cluster software update per campaign 304 procedure.',
+        tech: '70',
+        status: 'Completed',
+        labourLines: [
+          { opCode: '304A', description: 'Campaign 304 cluster update', soldHours: 0.3, tech: '70', price: 42 },
+        ],
+      },
+      {
+        lineNumber: 3,
+        concern: 'CAR WASH REQUESTED',
+        correction: 'Complimentary wash completed.',
+        status: 'Completed',
+      },
+    ],
+  },
+  {
+    id: 'pbs-115204',
+    soNumber: '115204',
+    date: '2026-02-18',
+    mileage: 6120,
+    advisor: 'FRANK',
+    status: 'Cashiered',
+    requests: 'CUSTOMER STATES A/C NOT BLOWING COLD; ROTATE TIRES',
+    createdAt: previewNow,
+  },
+];
 
 export const PREVIEW_CUSTOMERS: Customer[] = [
   {
@@ -22,8 +90,51 @@ export const PREVIEW_CUSTOMERS: Customer[] = [
     createdAt: previewNow,
     addedBy: 'preview-user',
     dealershipId: 'ford',
+    lastServiceDate: '2026-07-07',
+    recentVisits: PREVIEW_SERVICE_VISITS,
   },
 ];
+
+/** Day-schedule fixtures for the preview scheduler grid. */
+export function buildPreviewDaySchedule(): ScheduledAppointmentSlot[] {
+  const slot = (
+    id: string,
+    startMinutes: number,
+    durationMinutes: number,
+    techNumber: string,
+    customerName: string,
+    vehicleLabel: string,
+    concern: string,
+    category: ScheduledAppointmentSlot['category'],
+    isWaiter = false
+  ): ScheduledAppointmentSlot => ({
+    id,
+    appointmentNumber: id.replace(/\D/g, ''),
+    startMinutes,
+    durationMinutes,
+    techNumber,
+    advisor: 'LEMMY LV4278',
+    customerName,
+    vehicleLabel,
+    status: 'Open',
+    concern,
+    category,
+    isWaiter,
+  });
+
+  return [
+    slot('appt-95710', 8 * 60, 60, '64', 'RAMOS, CRYSTAL', '2024 HYUNDAI TUCSON', 'PERFORM FULL SYNTHETIC OIL & FILTER CHANGE', 'oilChange', true),
+    slot('appt-95711', 9 * 60 + 30, 90, '64', 'CHEN, MARCUS', '2023 HYUNDAI SONATA', 'CUSTOMER STATES GRINDING NOISE WHEN BRAKING', 'diagnosis'),
+    slot('appt-95712', 13 * 60, 60, '64', 'WILLIAMS, DANA', '2022 HYUNDAI KONA', 'TIRE ROTATION AND BALANCE', 'oilChange'),
+    slot('appt-95713', 8 * 60 + 15, 45, '66', 'ZEPEDA, MAT', '2015 HYUNDAI SONATA', 'A/C NOT BLOWING COLD — CHECK AND ADVISE', 'diagnosis'),
+    slot('appt-95714', 10 * 60 + 30, 120, '66', 'GARCIA, LUIS', '2021 HYUNDAI PALISADE', 'CAMPAIGN 304 INSTRUMENT CLUSTER S/W UPDATE', 'recall'),
+    slot('appt-95715', 15 * 60, 60, '66', 'PATEL, RAVI', '2025 HYUNDAI SANTA FE', 'FIRST SERVICE — COMPLIMENTARY MAINTENANCE', 'oilChange'),
+    slot('appt-95716', 9 * 60, 60, '70', 'THOMPSON, KIM', '2020 HYUNDAI ELANTRA', 'RECALL 302 FRONT VIEW CAMERA FCA UPDATE', 'recall'),
+    slot('appt-95717', 11 * 60 + 30, 60, '70', 'NGUYEN, LINH', '2024 HYUNDAI IONIQ 5', 'CHECK ENGINE LIGHT ON — DIAGNOSE', 'diagnosis', true),
+    slot('appt-95718', 14 * 60, 30, '70', 'LOPEZ, ANA', '2023 HYUNDAI VENUE', 'OIL CHANGE + RECALL 302 COMBINED VISIT', 'oilChange'),
+    slot('appt-95719', 10 * 60, 60, '', 'RIVERA, SOFIA', '2022 HYUNDAI SANTA CRUZ', 'SECOND OPINION ON SUSPENSION NOISE', 'misc'),
+  ];
+}
 
 export const PREVIEW_USER: User = {
   uid: 'preview-user',

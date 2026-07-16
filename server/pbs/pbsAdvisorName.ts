@@ -5,7 +5,48 @@ function titleCaseWord(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-export function cleanPbsCsrName(raw: string | undefined | null): string {
+/** PBS advisor login codes sometimes used as CSR (e.g. "LV4278", "FB123"). */
+export function looksLikePbsAdvisorCode(token: string): boolean {
+  return /^[A-Za-z]{1,4}\d{2,}$/.test(token.trim());
+}
+
+export function normalizePbsAdvisorCode(token: string): string {
+  return token.trim().toLowerCase();
+}
+
+/**
+ * Build code → advisor-name aliases from combined strings like "LEMMY LV4278"
+ * (appointment Advisor fields and some RO CSR fields include both).
+ */
+export function buildPbsAdvisorAliases(
+  rawNames: Array<string | undefined | null>
+): Map<string, string> {
+  const aliases = new Map<string, string>();
+
+  for (const raw of rawNames) {
+    const trimmed = (raw || '').trim();
+    if (!trimmed) continue;
+
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    const codeTokens = tokens.filter(looksLikePbsAdvisorCode);
+    const nameTokens = tokens.filter((t) => !looksLikePbsAdvisorCode(t) && /[A-Za-z]/.test(t));
+    if (codeTokens.length === 0 || nameTokens.length === 0) continue;
+
+    const name = cleanPbsCsrName(nameTokens.join(' '));
+    if (!name || !isRealPbsAdvisorName(name)) continue;
+
+    for (const code of codeTokens) {
+      aliases.set(normalizePbsAdvisorCode(code), name);
+    }
+  }
+
+  return aliases;
+}
+
+export function cleanPbsCsrName(
+  raw: string | undefined | null,
+  aliases?: Map<string, string>
+): string {
   const trimmed = (raw || '').trim();
   if (!trimmed) return '';
 
@@ -20,6 +61,22 @@ export function cleanPbsCsrName(raw: string | undefined | null): string {
   }
 
   const parts = trimmed.split(/\s+/).filter(Boolean);
+  const nameParts = parts.filter((p) => !looksLikePbsAdvisorCode(p));
+
+  // Pure advisor code(s) — resolve to a real name via aliases when possible.
+  if (nameParts.length === 0) {
+    for (const part of parts) {
+      const hit = aliases?.get(normalizePbsAdvisorCode(part));
+      if (hit) return hit;
+    }
+    return parts.map((p) => p.toUpperCase()).join(' ');
+  }
+
+  // Mixed "NAME CODE" — keep the name, drop the code so buckets merge.
+  if (nameParts.length < parts.length) {
+    return nameParts.map(titleCaseWord).join(' ');
+  }
+
   if (parts.length === 1) return titleCaseWord(parts[0]);
   return parts.map(titleCaseWord).join(' ');
 }
