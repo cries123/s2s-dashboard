@@ -1279,7 +1279,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       {selectedServiceVisit && (
         <ServiceVisitDetailModal
           visit={selectedServiceVisit}
-          customerName={formatCustomerDisplayName(customer)}
+          customerName={formatCustomerDisplayName(customer.firstName, customer.lastName)}
           vehicleLabel={[customer.year, customer.make, customer.model].filter(Boolean).join(' ')}
           onClose={() => setSelectedServiceVisit(null)}
         />
