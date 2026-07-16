@@ -39,6 +39,7 @@ export const DISPATCH_STATUS_COLORS = {
   WIP: { label: 'In Progress', hex: '#F97316', text: '#FFFFFF' },
   POO: { label: 'In Parts', hex: '#3B82F6', text: '#FFFFFF' },
   WFA: { label: 'Waiting Advisor', hex: '#9333EA', text: '#FFFFFF' },
+  SBL: { label: 'Sublet', hex: '#14B8A6', text: '#FFFFFF' },
 } as const;
 
 export const DISPATCH_INTAKE_FLAG_STYLES = {

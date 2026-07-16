@@ -26,6 +26,7 @@ function assert(condition: boolean, message: string) {
 
 assert(mapPbsDispatchStatus('Waiting for Authorization') === 'WFA', 'maps WFA status');
 assert(mapPbsDispatchStatus('Parts on Order') === 'POO', 'maps POO status');
+assert(mapPbsDispatchStatus('Sublet Out') === 'SBL', 'maps sublet status');
 assert(mapPbsDepartment('Quick Service', 'Main') === 'quick_service', 'maps quick service lane');
 
 assert(isOpenPbsRepairOrder({ RawRepairOrderNumber: '500', Status: 'Open' }), 'open RO without cashier date');

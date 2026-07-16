@@ -21,7 +21,7 @@ export const DEFAULT_OVERDUE_GRACE_MINUTES = 0;
 export const DEFAULT_OVERDUE_ALERT_DISPLAY: DispatchOverdueAlertDisplay = 'both';
 export const DEFAULT_PROMISE_HOURS_FROM_NOW = 0;
 export const DEFAULT_TECH_DISPLAY_REFRESH_SECONDS = 30;
-export const DEFAULT_VISIBLE_DISPATCH_STATUSES: DispatchStatus[] = ['WIP', 'POO', 'WFA'];
+export const DEFAULT_VISIBLE_DISPATCH_STATUSES: DispatchStatus[] = ['WIP', 'POO', 'WFA', 'SBL'];
 export const DEFAULT_MIDNIGHT_SWEEP_MODE = 'auto' as const;
 export const DEFAULT_FORECAST_REPORT_PERIOD: ForecastReportPeriod = 'next_month';
 
@@ -52,7 +52,9 @@ export function resolveTechDisplayConfig(
 ): Required<DispatchTechDisplayConfig> {
   const raw = settings?.dispatchTechDisplayConfig;
   const statuses = raw?.visibleStatuses?.length
-    ? raw.visibleStatuses.filter((s): s is DispatchStatus => s === 'WIP' || s === 'POO' || s === 'WFA')
+    ? raw.visibleStatuses.filter(
+        (s): s is DispatchStatus => s === 'WIP' || s === 'POO' || s === 'WFA' || s === 'SBL'
+      )
     : DEFAULT_VISIBLE_DISPATCH_STATUSES;
   return {
     autoOpenOnTv: raw?.autoOpenOnTv === true,

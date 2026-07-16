@@ -11,9 +11,12 @@ export function mapPbsDispatchStatus(status?: string, customStatus?: string): Di
     combined.includes('wfa') ||
     combined.includes('auth') ||
     combined.includes('approval') ||
-    combined.includes('waiting')
+    (combined.includes('waiting') && !combined.includes('sublet'))
   ) {
     return 'WFA';
+  }
+  if (combined.includes('sublet') || combined.includes('vendor out') || combined.includes('sent out')) {
+    return 'SBL';
   }
   return 'WIP';
 }
