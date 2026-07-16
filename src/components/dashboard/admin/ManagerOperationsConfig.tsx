@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import {
   Activity,
@@ -31,6 +31,9 @@ import {
 import { getDispatchDatePst } from '../../../lib/dispatchPst';
 import { filterDispatchOrdersForDealership } from '../../../lib/dispatchDealershipScope';
 import { getDealershipStaffConfig } from '../../../lib/dealershipStaff';
+import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
+import { normalizeDmsProvider } from '../../../constants/dmsProviders';
+import { PbsAdvisorPerformanceSettings } from './PbsAdvisorPerformanceSettings';
 import type {
   DealershipSettings,
   DispatchMidnightSweepMode,
@@ -113,6 +116,7 @@ const STATUS_OPTIONS: { id: DispatchStatus; label: string }[] = [
   { id: 'WIP', label: 'WIP' },
   { id: 'POO', label: 'Parts on order' },
   { id: 'WFA', label: 'Waiting advisor' },
+  { id: 'SBL', label: 'Sublet' },
 ];
 
 export function ManagerOperationsConfig({
@@ -123,6 +127,9 @@ export function ManagerOperationsConfig({
 }: ManagerOperationsConfigProps) {
   const businessDatePst = getDispatchDatePst();
   const [dispatchOrders, setDispatchOrders] = useState<DispatchRepairOrder[]>([]);
+  const [unmatchedAdvisorNames, setUnmatchedAdvisorNames] = useState<string[]>([]);
+
+  const dmsProvider = normalizeDmsProvider(settings.dmsProvider) || defaultDmsProviderForDealership(dealershipId);
 
   const [apptTarget, setApptTarget] = useState(settings.appointmentTarget ?? 20);
   const [laborTarget, setLaborTarget] = useState(settings.laborGrossTarget ?? 500_000);
@@ -146,6 +153,35 @@ export function ManagerOperationsConfig({
     });
     return () => unsub();
   }, [dealershipId]);
+
+  useEffect(() => {
+    if (dmsProvider !== 'pbs') {
+      setUnmatchedAdvisorNames([]);
+      return;
+    }
+    const docId =
+      dealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${dealershipId}`;
+    const perfRef = doc(
+      db,
+      'artifacts',
+      'hyundai-sales-to-service',
+      'public',
+      'data',
+      'performance',
+      docId
+    );
+    const unsub = onSnapshot(perfRef, (snap) => {
+      if (!snap.exists()) {
+        setUnmatchedAdvisorNames([]);
+        return;
+      }
+      const raw = snap.data()?.unmatchedAdvisorNames;
+      setUnmatchedAdvisorNames(
+        Array.isArray(raw) ? raw.filter((name: unknown) => typeof name === 'string') : []
+      );
+    });
+    return () => unsub();
+  }, [dealershipId, dmsProvider]);
 
   const activity = useMemo(
     () =>
@@ -369,6 +405,15 @@ export function ManagerOperationsConfig({
           </p>
         ) : null}
       </Section>
+
+      {dmsProvider === 'pbs' ? (
+        <PbsAdvisorPerformanceSettings
+          dealershipId={dealershipId}
+          settings={settings}
+          unmatchedAdvisorNames={unmatchedAdvisorNames}
+          onUpdate={onUpdate}
+        />
+      ) : null}
 
       <Section
         title="Fixed ops forecast defaults"

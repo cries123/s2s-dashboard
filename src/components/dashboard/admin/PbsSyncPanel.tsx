@@ -1,14 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
-  CheckCircle2,
-  Clock,
   Database,
   Loader2,
   RefreshCw,
-  Users,
 } from 'lucide-react';
-import type { DealershipSettings, PbsSyncLogEntry } from '../../../types';
+import type { DealershipSettings } from '../../../types';
 import { fetchPbsSyncStatus, runPbsSyncNow, waitForPbsSyncCompletion, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
@@ -39,80 +36,6 @@ function cleanErrorText(raw?: string | null): string {
     return text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
   }
   return text;
-}
-
-function triggerLabel(entry: PbsSyncLogEntry): string {
-  if (entry.triggeredBy === 'cron') return 'Scheduled (6 AM)';
-  if (entry.triggeredByUsername) return entry.triggeredByUsername;
-  if (entry.triggeredByEmail) return entry.triggeredByEmail;
-  return 'Manual';
-}
-
-function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
-  return (
-    <li className="py-3 border-b border-white/5 last:border-0">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {entry.ok ? (
-            <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-          ) : (
-            <AlertTriangle size={14} className="text-rose-400 shrink-0" />
-          )}
-          <span
-            className={cn(
-              'text-[10px] font-black uppercase tracking-wider',
-              entry.ok ? 'text-emerald-300' : 'text-rose-300'
-            )}
-          >
-            {entry.ok ? 'Success' : 'Failed'}
-          </span>
-          <span className="text-[10px] text-slate-600">·</span>
-          <span className="text-[10px] text-slate-500 font-medium">{triggerLabel(entry)}</span>
-        </div>
-        <span className="text-[10px] text-slate-600 font-mono shrink-0">{formatWhen(entry.finishedAt)}</span>
-      </div>
-
-      <p className="text-xs text-slate-300 mt-2 leading-relaxed">{entry.summary}</p>
-
-      <div className="mt-2 flex flex-wrap gap-2">
-        {[
-          { label: 'Customers pulled', value: entry.fetched.contactVehicles },
-          { label: 'ROs pulled', value: entry.fetched.repairOrders },
-          { label: 'Appts pulled', value: entry.fetched.appointments },
-          { label: 'New profiles', value: entry.counts.customersCreated },
-          { label: 'Updated profiles', value: entry.counts.customersUpdated },
-          { label: 'Owner changes', value: entry.counts.ownerChanges ?? 0 },
-          { label: 'Visits logged', value: entry.counts.visitsLogged ?? 0 },
-          { label: 'Visit lists updated', value: entry.counts.visitsMerged },
-          { label: 'Ops days', value: entry.counts.appointmentDaysUpdated },
-          { label: 'Perf advisors', value: entry.counts.performanceAdvisors ?? 0 },
-          { label: 'Cashiered ROs', value: entry.counts.performanceRepairOrders ?? 0 },
-          { label: 'Tech reports', value: entry.counts.technicianReports ?? 0 },
-          { label: 'Reminders', value: entry.counts.serviceRemindersUpdated ?? 0 },
-          { label: 'Inventory', value: entry.counts.inventoryVehiclesWritten ?? 0 },
-          { label: 'Dispatch ROs', value: entry.counts.dispatchOrdersUpserted ?? 0 },
-        ].map((chip) => (
-          <span
-            key={chip.label}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/5 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-400"
-          >
-            <span className="font-black uppercase tracking-wider text-slate-500">{chip.label}</span>
-            <span className="font-mono text-slate-200">{chip.value}</span>
-          </span>
-        ))}
-      </div>
-
-      {entry.counts.performanceSyncWarning ? (
-        <p className="text-[11px] text-amber-400/90 mt-2 line-clamp-3">
-          {entry.counts.performanceSyncWarning}
-        </p>
-      ) : null}
-
-      {entry.error ? (
-        <p className="text-[11px] text-rose-400/90 mt-2 line-clamp-3">{cleanErrorText(entry.error)}</p>
-      ) : null}
-    </li>
-  );
 }
 
 export function PbsSyncPanel(props: PbsSyncPanelProps) {
@@ -148,7 +71,6 @@ function PbsSyncPanelInner({
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
   const [serverState, setServerState] = useState<PbsSyncStatusResponse['state']>(null);
-  const [logs, setLogs] = useState<PbsSyncLogEntry[]>(settings?.pbsSyncLogs ?? []);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const resumeChecked = useRef(false);
@@ -164,9 +86,6 @@ function PbsSyncPanelInner({
       setFirestoreQuotaExceeded(Boolean(status.firestoreQuotaExceeded));
       setDiagnostics(status.diagnostics);
       setServerState(status.state);
-      if (status.logs.length > 0) {
-        setLogs(status.logs);
-      }
       return status;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load PBS sync status';
@@ -182,14 +101,7 @@ function PbsSyncPanelInner({
     refreshStatus();
   }, [refreshStatus]);
 
-  useEffect(() => {
-    if (settings?.pbsSyncLogs?.length) {
-      setLogs(settings.pbsSyncLogs);
-    }
-  }, [settings?.pbsSyncLogs]);
-
   const lastState = serverState ?? settings?.pbsSyncState;
-  const displayLogs = logs.length > 0 ? logs : settings?.pbsSyncLogs ?? [];
   const credentialsReady = configured && firestoreAdmin;
   const canPullFromPbs = credentialsReady;
   const statusHealthy = credentialsReady && firestoreReachable;
@@ -505,41 +417,9 @@ function PbsSyncPanelInner({
         ) : null}
       </div>
 
-      <div className="card-base rounded-2xl border border-white/5 p-5">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <Clock size={15} className="text-brand-primary" />
-            <h4 className="text-sm font-black text-white uppercase tracking-wider">Sync activity log</h4>
-          </div>
-          <button
-            type="button"
-            onClick={refreshStatus}
-            disabled={statusLoading}
-            className="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-white transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
-
-        {statusLoading && displayLogs.length === 0 ? (
-          <div className="flex items-center gap-2 text-xs text-slate-500 py-6 justify-center">
-            <Loader2 size={14} className="animate-spin" />
-            Loading sync history…
-          </div>
-        ) : displayLogs.length === 0 ? (
-          <div className="text-center py-8">
-            <Users size={24} className="mx-auto text-slate-600 mb-2" />
-            <p className="text-xs text-slate-500">No PBS syncs recorded yet.</p>
-            <p className="text-[10px] text-slate-600 mt-1">Click &quot;Pull from PBS now&quot; to import data.</p>
-          </div>
-        ) : (
-          <ul className="max-h-[32rem] overflow-y-auto pr-1">
-            {displayLogs.map((entry) => (
-              <LogRow key={entry.id} entry={entry} />
-            ))}
-          </ul>
-        )}
-      </div>
+      <p className="text-[10px] text-slate-600 leading-relaxed">
+        Sync history is under <strong className="text-slate-400">Admin → Logs → PBS sync log</strong>.
+      </p>
     </div>
   );
 }

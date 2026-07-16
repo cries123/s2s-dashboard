@@ -84,7 +84,8 @@ export function cleanPbsCsrName(
 export function isRealPbsAdvisorName(name: string): boolean {
   const n = name.toLowerCase().trim();
   if (!n || n.length < 2) return false;
-  if (n === 'jay') return false;
+  if (/^\d+$/.test(n)) return false;
+  if (n === 'jay' || n === '01') return false;
 
   const badStarts = [
     'total',
@@ -128,4 +129,22 @@ export function filterAdvisorsByPerformanceRoster<T extends { name: string }>(
 ): T[] {
   if (!roster?.length) return advisors;
   return advisors.filter((row) => matchesPerformanceAdvisorRoster(row.name, roster));
+}
+
+/** Prefer a real advisor name; fall back from junk line CSR (e.g. "01") to RO header CSR / aliases. */
+export function resolvePbsAdvisorCsr(
+  lineCsr: string | undefined | null,
+  headerCsr: string | undefined | null,
+  aliases?: Map<string, string>
+): string {
+  const candidates = [lineCsr, headerCsr].filter((v) => (v || '').trim()) as string[];
+  for (const raw of candidates) {
+    const cleaned = cleanPbsCsrName(raw, aliases);
+    if (cleaned && isRealPbsAdvisorName(cleaned)) return cleaned;
+  }
+  for (const raw of [headerCsr, lineCsr]) {
+    const cleaned = cleanPbsCsrName(raw, aliases);
+    if (cleaned) return cleaned;
+  }
+  return '';
 }

@@ -1,5 +1,5 @@
 import { pbsIsoToDateString, repairOrderSoNumber } from './pbsMappers.js';
-import { cleanPbsCsrName, isRealPbsAdvisorName } from './pbsAdvisorName.js';
+import { cleanPbsCsrName, isRealPbsAdvisorName, resolvePbsAdvisorCsr } from './pbsAdvisorName.js';
 import type {
   PbsAdvisorPerformanceRow,
   PbsPartLine,
@@ -321,7 +321,7 @@ function attributeRepairOrder(
   let attributed = false;
 
   for (const req of requests) {
-    const advisor = req.CSR || defaultAdvisor;
+    const advisor = resolvePbsAdvisorCsr(req.CSR, defaultAdvisor, aliases);
     const amounts = sumRequestLines(req);
     if (
       amounts.laborSold === 0 &&
@@ -338,7 +338,8 @@ function attributeRepairOrder(
     const lineTotals = sumRepairOrderLinesOnly(ro);
     const supplement = supplementalPayTypeAmounts(ro, lineTotals);
     if (supplement.laborSold > 0 || supplement.partsSold > 0) {
-      addToBucket(buckets, defaultAdvisor, supplement, soNumber || undefined, aliases);
+      const advisor = resolvePbsAdvisorCsr(defaultAdvisor, defaultAdvisor, aliases);
+      addToBucket(buckets, advisor, supplement, soNumber || undefined, aliases);
     }
     return;
   }
@@ -361,7 +362,7 @@ function attributePartLines(
 
     addToBucket(
       buckets,
-      line.CSR || fallbackAdvisor,
+      resolvePbsAdvisorCsr(line.CSR, fallbackAdvisor, aliases) || fallbackAdvisor,
       {
         laborSold: 0,
         laborCost: 0,

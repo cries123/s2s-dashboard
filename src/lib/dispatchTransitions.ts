@@ -37,7 +37,7 @@ export function normalizeDispatchDateKey(value: string | undefined): string | nu
 }
 
 export function normalizeDispatchStatus(status: string | undefined): DispatchStatus {
-  if (status === 'POO' || status === 'WFA') return status;
+  if (status === 'POO' || status === 'WFA' || status === 'SBL') return status;
   return 'WIP';
 }
 

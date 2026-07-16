@@ -14,6 +14,7 @@ import {
   matchesPerformanceAdvisorRoster,
   normalizePbsAdvisorCode,
 } from './pbsAdvisorName.js';
+import { defaultPbsAdvisorCodeMap } from './pbsAdvisorDefaults.js';
 import type { PbsAppointment } from './pbsTypes.js';
 import type { PbsPartsInvoiceFull, PbsRepairOrderFull } from './pbsPerformanceTypes.js';
 import {
@@ -124,6 +125,11 @@ async function loadAdvisorSettings(
         const label = String(name || '').trim();
         if (code.trim() && label) codeMap.set(normalizePbsAdvisorCode(code), label);
       }
+    }
+
+    const defaults = defaultPbsAdvisorCodeMap(dealershipId);
+    for (const [code, name] of Object.entries(defaults)) {
+      if (!codeMap.has(code)) codeMap.set(code, name);
     }
 
     return { roster: roster?.length ? roster : undefined, codeMap };
