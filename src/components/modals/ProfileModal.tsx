@@ -364,7 +364,13 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
             <div className="min-w-0">
               <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">Predictive</p>
               <p className="text-[11px] sm:text-xs font-black text-white mt-0.5 truncate">
-                {oilAnalysis && oilAnalysis.hasData ? `${oilAnalysis.avgMonths} mo` : 'Needs Service'}
+                {serviceAlerts.isStandardMode
+                  ? serviceAlerts.isServiceAlertActive(customer)
+                    ? 'Due Now'
+                    : `Due ${serviceAlerts.getNextServiceMilestone(customer)}`
+                  : oilAnalysis.hasData
+                    ? `${oilAnalysis.avgMonths} mo`
+                    : 'Building History'}
               </p>
             </div>
           </div>
