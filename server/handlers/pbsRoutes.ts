@@ -20,7 +20,12 @@ import {
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
-import { isPacificMorningSyncHour, runPbsSync, clearStalePbsSyncInProgress } from '../pbs/pbsSync.js';
+import {
+  isPacificMorningSyncHour,
+  isPbsSyncStateStale,
+  runPbsSync,
+  clearStalePbsSyncInProgress,
+} from '../pbs/pbsSync.js';
 import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
 import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
@@ -191,6 +196,8 @@ export function registerPbsRoutes(app: Express) {
   /**
    * Run PBS → Directory / Operations sync.
    * Auth: Firebase ID token (admin/manager) or PBS_SYNC_SECRET bearer.
+   * On Netlify the sync runs in the pbs-sync-background function (up to 15 min);
+   * this route returns 202 immediately and the client polls sync status.
    */
   app.post('/api/pbs/sync/run', async (req: Request, res: Response) => {
     const caller = await resolvePbsSyncCaller(req);
@@ -210,15 +217,68 @@ export function registerPbsRoutes(app: Express) {
       });
     }
 
+    // Refuse duplicate runs up-front so we do not double-trigger the background job.
+    const db = getAdminFirestore();
+    if (db && !force) {
+      const snap = await dealershipSettingsDoc(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID).get();
+      const state = snap.data()?.pbsSyncState as PbsSyncState | undefined;
+      if (state?.syncInProgress && state.syncStartedAt && !isPbsSyncStateStale(state)) {
+        return res.status(409).json({
+          ok: false,
+          inProgress: true,
+          syncStartedAt: state.syncStartedAt,
+          error: 'A PBS sync is already running.',
+          summary: 'A PBS sync is already running.',
+        });
+      }
+    }
+
+    const siteUrl = (process.env.URL || process.env.DEPLOY_PRIME_URL || '').trim();
+    const onNetlify = Boolean(process.env.NETLIFY) && Boolean(siteUrl);
+
+    if (!onNetlify) {
+      // Local/express dev — run inline (no gateway timeout).
+      try {
+        const result = await runPbsSync({
+          triggeredBy: cron ? 'cron' : 'manual',
+          triggeredByEmail: caller.email,
+          triggeredByUsername: caller.username,
+          fullRefresh,
+          force,
+        });
+        return res.status(result.ok ? 200 : 500).json(result);
+      } catch (err) {
+        return handlePbsError(res, err);
+      }
+    }
+
     try {
-      const result = await runPbsSync({
-        triggeredBy: cron ? 'cron' : 'manual',
-        triggeredByEmail: caller.email,
-        triggeredByUsername: caller.username,
-        fullRefresh,
-        force,
+      const startedAt = new Date().toISOString();
+      const trigger = await fetch(`${siteUrl}/.netlify/functions/pbs-sync-background`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
+          ...(typeof req.headers['x-pbs-sync-secret'] === 'string'
+            ? { 'x-pbs-sync-secret': req.headers['x-pbs-sync-secret'] }
+            : {}),
+        },
+        body: JSON.stringify({ fullRefresh, force, cron, secret: req.body?.secret }),
       });
-      return res.status(result.ok ? 200 : 500).json(result);
+
+      if (trigger.status !== 202 && !trigger.ok) {
+        const text = await trigger.text();
+        throw new Error(
+          `Failed to start background PBS sync (${trigger.status}): ${text.slice(0, 200)}`
+        );
+      }
+
+      return res.status(202).json({
+        ok: true,
+        accepted: true,
+        startedAt,
+        summary: 'PBS sync started — this usually takes 2–5 minutes.',
+      });
     } catch (err) {
       return handlePbsError(res, err);
     }

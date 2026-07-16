@@ -166,12 +166,17 @@ export async function runPbsSyncNow(
     return pollPbsSyncUntilComplete(data.syncStartedAt || data.startedAt);
   }
 
-  if (!res.ok && !data.skipped) {
+  if (!res.ok && !data.skipped && !data.accepted) {
     throw new Error(data.error || data.summary || 'PBS sync failed');
   }
 
   if (data.skipped) {
     return data;
+  }
+
+  // 202 — sync runs in a Netlify background function; poll Firestore for the result.
+  if (res.status === 202 || data.accepted) {
+    return pollPbsSyncUntilComplete(data.startedAt);
   }
 
   return data;
