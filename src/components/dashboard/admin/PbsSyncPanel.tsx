@@ -221,7 +221,7 @@ function PbsSyncPanelInner({
     try {
       const result = await runPbsSyncNow({ fullRefresh }, (progress) => {
         setPanelMessage(
-          `Step ${progress.stageIndex} of ${progress.totalStages}: ${progress.stageLabel}…`
+          `Step ${progress.stageIndex} of ${progress.totalStages}: ${progress.stageLabel}${progress.detail ? ` (${progress.detail})` : ''}…`
         );
       });
       await refreshStatus();

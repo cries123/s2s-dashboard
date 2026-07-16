@@ -74,4 +74,15 @@ const deduped = dedupeRepairOrders([
 ]);
 assert(deduped.length === 1, 'dedupes repair orders by key');
 
+const { buildRoHistoryWindows } = await import('../server/pbs/pbsSync.js');
+const windows = buildRoHistoryWindows(new Date('2026-07-16T12:00:00Z'));
+assert(windows.length === 6, 'splits 3-year history into 6 windows');
+assert(
+  windows.every((w: { sinceIso: string; untilIso: string }) => w.sinceIso < w.untilIso),
+  'each window has valid bounds'
+);
+const newest = windows[0];
+const oldest = windows[windows.length - 1];
+assert(newest.untilIso > oldest.untilIso, 'windows ordered newest first');
+
 console.log('Verification PASSED — PBS incremental sync criteria');

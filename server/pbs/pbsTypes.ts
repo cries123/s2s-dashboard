@@ -186,6 +186,8 @@ export interface PbsSyncStagedRun {
   triggeredByEmail?: string;
   triggeredByUsername?: string;
   completedStages: string[];
+  /** Resume point inside a chunked stage (e.g. RO history window index). */
+  stageCursor?: string | null;
   counts: PbsSyncCounts;
   fetched: PbsSyncFetched;
 }

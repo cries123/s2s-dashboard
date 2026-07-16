@@ -74,7 +74,6 @@ import {
   resolveIncrementalWatermark,
   shouldLogRepairOrderVisit,
   toPbsPacificCriteriaIso,
-  yearsAgoPacificCriteria,
 } from './pbsIncrementalCriteria.js';
 
 const MAX_RECENT_VISITS = 100;
@@ -294,14 +293,47 @@ async function fetchAllContactVehicles(
   return pbsContactVehicleItems(response) as PbsContactVehicle[];
 }
 
-async function fetchRepairOrdersForSync(watermark?: string): Promise<PbsRepairOrder[]> {
-  if (!watermark) {
-    const response = await pbsRepairOrderGet({
-      CashieredSince: yearsAgoPacificCriteria(REPAIR_ORDER_LOOKBACK_YEARS),
+/** Months per full-history window — keeps each PBS RepairOrderGet small enough for one request. */
+const RO_HISTORY_WINDOW_MONTHS = 6;
+
+export interface RoHistoryWindow {
+  sinceIso: string;
+  untilIso: string;
+  index: number;
+  total: number;
+}
+
+/** Split the 3-year full history into windows so each request stays fast. */
+export function buildRoHistoryWindows(reference = new Date()): RoHistoryWindow[] {
+  const windows: RoHistoryWindow[] = [];
+  const totalMonths = REPAIR_ORDER_LOOKBACK_YEARS * 12;
+  const total = Math.ceil(totalMonths / RO_HISTORY_WINDOW_MONTHS);
+
+  for (let i = 0; i < total; i += 1) {
+    const since = new Date(reference);
+    since.setMonth(since.getMonth() - Math.min(totalMonths, (i + 1) * RO_HISTORY_WINDOW_MONTHS));
+    const until = new Date(reference);
+    until.setMonth(until.getMonth() - i * RO_HISTORY_WINDOW_MONTHS);
+    windows.push({
+      sinceIso: since.toISOString(),
+      untilIso: until.toISOString(),
+      index: i,
+      total,
     });
-    return (response.RepairOrders || []) as PbsRepairOrder[];
   }
 
+  return windows;
+}
+
+async function fetchRepairOrdersHistoryWindow(window: RoHistoryWindow): Promise<PbsRepairOrder[]> {
+  const response = await pbsRepairOrderGet({
+    CashieredSince: toPbsPacificCriteriaIso(window.sinceIso),
+    CashieredUntil: toPbsPacificCriteriaIso(window.untilIso),
+  });
+  return (response.RepairOrders || []) as PbsRepairOrder[];
+}
+
+async function fetchRepairOrdersIncremental(watermark: string): Promise<PbsRepairOrder[]> {
   const since = toPbsPacificCriteriaIso(watermark);
   const [modifiedResponse, cashieredResponse, openedResponse] = await Promise.all([
     pbsRepairOrderGet({ ModifiedSince: since }),
@@ -417,9 +449,14 @@ interface PbsSyncStageContext {
   counts: PbsSyncCounts;
   fetched: PbsSyncFetched;
   monthRange: { start: string; end: string };
+  /** Resume point for chunked stages (e.g. RO history window index). */
+  stageCursor?: string;
 }
 
-async function stageCustomers(ctx: PbsSyncStageContext): Promise<void> {
+/** Chunked stages return moreWork+cursor so each HTTP request stays short. */
+type PbsSyncStageOutcome = { moreWork?: false } | { moreWork: true; cursor: string; detail?: string };
+
+async function stageCustomers(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
   const { db, dealershipId, startedAt, watermark, counts, fetched } = ctx;
   const index = await loadCustomerIndex(db, dealershipId);
   const customerWrites: Array<(batch: WriteBatch) => void> = [];
@@ -469,17 +506,15 @@ async function stageCustomers(ctx: PbsSyncStageContext): Promise<void> {
   }
 
   await commitBatches(db, customerWrites);
+  return {};
 }
 
-async function stageRepairOrders(ctx: PbsSyncStageContext): Promise<void> {
-  const { db, dealershipId, startedAt, watermark, counts, fetched } = ctx;
+async function processRepairOrdersBatch(
+  ctx: PbsSyncStageContext,
+  repairOrders: PbsRepairOrder[]
+): Promise<void> {
+  const { db, dealershipId, startedAt, watermark, counts } = ctx;
   const index = await loadCustomerIndex(db, dealershipId);
-
-  const repairOrders = await fetchRepairOrdersForSync(watermark);
-  fetched.repairOrders = repairOrders.length;
-  console.log(
-    `[PBS Sync] Repair orders fetched: ${repairOrders.length} (${watermark ? 'incremental since ' + watermark : 'full 3-year window'})`
-  );
 
   const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
   for (const ro of repairOrders) {
@@ -551,7 +586,45 @@ async function stageRepairOrders(ctx: PbsSyncStageContext): Promise<void> {
   await commitBatches(db, visitWrites);
 }
 
-async function stageAppointments(ctx: PbsSyncStageContext): Promise<void> {
+async function stageRepairOrders(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
+  const { watermark, fetched } = ctx;
+
+  if (watermark) {
+    const repairOrders = await fetchRepairOrdersIncremental(watermark);
+    fetched.repairOrders = (fetched.repairOrders || 0) + repairOrders.length;
+    console.log(
+      `[PBS Sync] Repair orders fetched: ${repairOrders.length} (incremental since ${watermark})`
+    );
+    await processRepairOrdersBatch(ctx, repairOrders);
+    return {};
+  }
+
+  // Full history — process one date window per request so no single call times out.
+  const windows = buildRoHistoryWindows();
+  const windowIndex = Math.max(0, Number(ctx.stageCursor || 0) || 0);
+  const window = windows[windowIndex];
+  if (!window) return {};
+
+  const repairOrders = await fetchRepairOrdersHistoryWindow(window);
+  fetched.repairOrders = (fetched.repairOrders || 0) + repairOrders.length;
+  console.log(
+    `[PBS Sync] Repair orders window ${windowIndex + 1}/${windows.length} (${window.sinceIso.slice(0, 10)}..${window.untilIso.slice(0, 10)}): ${repairOrders.length} ROs`
+  );
+
+  await processRepairOrdersBatch(ctx, repairOrders);
+
+  const nextIndex = windowIndex + 1;
+  if (nextIndex < windows.length) {
+    return {
+      moreWork: true,
+      cursor: String(nextIndex),
+      detail: `history window ${nextIndex + 1} of ${windows.length}`,
+    };
+  }
+  return {};
+}
+
+async function stageAppointments(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
   const { db, dealershipId, startedAt, watermark, counts, fetched, monthRange } = ctx;
   const index = await loadCustomerIndex(db, dealershipId);
 
@@ -635,9 +708,10 @@ async function stageAppointments(ctx: PbsSyncStageContext): Promise<void> {
     console.error('[PBS Sync] Appointment schedule failed:', scheduleErr);
     counts.appointmentScheduleError = message;
   }
+  return {};
 }
 
-async function stagePerformance(ctx: PbsSyncStageContext): Promise<void> {
+async function stagePerformance(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
   const { db, dealershipId, startedAt, counts, fetched, monthRange } = ctx;
   const { start: perfStart, end: perfEnd } = monthRange;
   fetched.performanceMonthStart = perfStart;
@@ -675,9 +749,10 @@ async function stagePerformance(ctx: PbsSyncStageContext): Promise<void> {
     console.error('[PBS Sync] Technician performance failed:', techErr);
     counts.technicianSyncError = message;
   }
+  return {};
 }
 
-async function stageExtended(ctx: PbsSyncStageContext): Promise<void> {
+async function stageExtended(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
   const { db, dealershipId, startedAt, counts, fetched } = ctx;
   const index = await loadCustomerIndex(db, dealershipId);
 
@@ -713,11 +788,12 @@ async function stageExtended(ctx: PbsSyncStageContext): Promise<void> {
     console.error('[PBS Sync] Extended sync (reminders/inventory/dispatch) failed:', extendedErr);
     counts.extendedSyncError = message;
   }
+  return {};
 }
 
 const PBS_SYNC_STAGE_RUNNERS: Record<
   PbsSyncStageName,
-  (ctx: PbsSyncStageContext) => Promise<void>
+  (ctx: PbsSyncStageContext) => Promise<PbsSyncStageOutcome>
 > = {
   customers: stageCustomers,
   'repair-orders': stageRepairOrders,
@@ -897,7 +973,11 @@ export async function runPbsSync(options: RunPbsSyncOptions = {}): Promise<PbsSy
 
   try {
     for (const stage of PBS_SYNC_STAGES) {
-      await PBS_SYNC_STAGE_RUNNERS[stage](ctx);
+      let cursor: string | undefined;
+      do {
+        const outcome = await PBS_SYNC_STAGE_RUNNERS[stage]({ ...ctx, stageCursor: cursor });
+        cursor = outcome.moreWork ? outcome.cursor : undefined;
+      } while (cursor);
       await touchPbsSyncLock(db, dealershipId);
     }
     return finalizePbsSyncRun(db, dealershipId, startedAt, meta, counts, fetched, true);
@@ -1011,6 +1091,8 @@ export interface ExecutePbsSyncStageResult {
   nextStage?: PbsSyncStageName;
   stageIndex?: number;
   totalStages?: number;
+  /** Sub-progress within a chunked stage (e.g. "history window 2 of 6"). */
+  detail?: string;
   result?: PbsSyncResult;
   error?: string;
 }
@@ -1067,10 +1149,12 @@ export async function executePbsSyncStage(
     counts,
     fetched,
     monthRange: { start: monthStart, end: monthEnd },
+    stageCursor: run.stageCursor ?? undefined,
   };
 
+  let outcome: PbsSyncStageOutcome;
   try {
-    await PBS_SYNC_STAGE_RUNNERS[stage](ctx);
+    outcome = await PBS_SYNC_STAGE_RUNNERS[stage](ctx);
   } catch (err) {
     const message =
       err instanceof PbsPartnerHubError
@@ -1092,6 +1176,29 @@ export async function executePbsSyncStage(
     return { ok: false, error: message, result };
   }
 
+  // Chunked stage with more work — same stage continues in the next request.
+  if (outcome.moreWork) {
+    await writePbsSyncState(db, dealershipId, {
+      ...(state as PbsSyncState),
+      syncInProgress: true,
+      syncStartedAt: new Date().toISOString(),
+      stagedRun: {
+        ...run,
+        stageCursor: outcome.cursor,
+        counts,
+        fetched,
+      },
+    });
+
+    return {
+      ok: true,
+      nextStage: stage,
+      stageIndex: PBS_SYNC_STAGES.indexOf(stage) + 1,
+      totalStages: PBS_SYNC_STAGES.length,
+      detail: outcome.detail,
+    };
+  }
+
   const completedStages = [...run.completedStages, stage];
   const nextStage = PBS_SYNC_STAGES.find((s) => !completedStages.includes(s));
 
@@ -1107,6 +1214,7 @@ export async function executePbsSyncStage(
     stagedRun: {
       ...run,
       completedStages,
+      stageCursor: null,
       counts,
       fetched,
     },

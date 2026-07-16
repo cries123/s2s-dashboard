@@ -303,6 +303,7 @@ export function registerPbsRoutes(app: Express) {
         nextStage: outcome.nextStage,
         stageIndex: outcome.stageIndex,
         totalStages: outcome.totalStages,
+        detail: outcome.detail,
         stageLabels: PBS_SYNC_STAGE_LABELS,
         result: outcome.result,
       });

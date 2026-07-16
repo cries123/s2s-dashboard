@@ -179,6 +179,7 @@ interface StagedStageResponse {
   nextStage?: string;
   stageIndex?: number;
   totalStages?: number;
+  detail?: string;
   stageLabels?: Record<string, string>;
   result?: PbsSyncRunResponse;
   error?: string;
@@ -189,6 +190,7 @@ export interface PbsSyncProgress {
   stageLabel: string;
   stageIndex: number;
   totalStages: number;
+  detail?: string;
 }
 
 /**
@@ -222,14 +224,18 @@ export async function runPbsSyncNow(
   const stageLabels = start.stageLabels || {};
   let stage: string | undefined = start.nextStage;
   let stageIndex = 1;
+  let detail: string | undefined;
   const totalStages = start.totalStages || 5;
+  // Chunked stages repeat — cap total requests to protect against server bugs.
+  const MAX_STAGE_REQUESTS = 60;
 
-  while (stage) {
+  for (let i = 0; stage && i < MAX_STAGE_REQUESTS; i += 1) {
     onProgress?.({
       stage,
       stageLabel: stageLabels[stage] || stage,
       stageIndex,
       totalStages,
+      detail,
     });
 
     const stageRes = await fetch('/api/pbs/sync/stage', {
@@ -259,6 +265,7 @@ export async function runPbsSyncNow(
 
     stage = outcome.nextStage;
     stageIndex = outcome.stageIndex || stageIndex + 1;
+    detail = outcome.detail;
   }
 
   throw new Error('PBS sync ended unexpectedly without a result.');
