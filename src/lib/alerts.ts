@@ -49,7 +49,7 @@ function isDueWithBuffer(dueStr: string, bufferDays: number, now: Date = new Dat
 }
 
 export function getOptimizedServiceReminderDueDate(customer: Customer): string | null {
-  if (customer.serviceReminderDueDate?.trim()) {
+  if (customer.lastServiceContact && customer.serviceReminderDueDate?.trim()) {
     return customer.serviceReminderDueDate.trim();
   }
 

@@ -3,6 +3,7 @@ import { pbsWorkplanReminderGet } from './partnerHubClient.js';
 import {
   commitBatches,
   customersCollection,
+  dealershipSettingsDoc,
   serverTimestamp,
   stripUndefinedDeep,
 } from './pbsFirestore.js';
