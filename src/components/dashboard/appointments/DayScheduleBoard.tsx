@@ -4,12 +4,14 @@ import { cn } from '../../../lib/utils';
 import type { PerformanceAdvisorSlot, ScheduledAppointmentSlot } from '../../../types';
 import {
   buildScheduleTechColumns,
-  categoryScheduleColor,
-  formatScheduleTime,
+  categoryScheduleCardClass,
+  categoryScheduleLegendClass,
+  formatScheduleTimeDetail,
   layoutColumnAppointments,
+  minutesToSchedulePx,
   resolveScheduleGridBounds,
   scheduleHourLabelsForRange,
-  SCHEDULE_PIXELS_PER_HOUR,
+  scheduleLunchBand,
 } from '../../../lib/appointmentSchedule';
 
 interface DayScheduleBoardProps {
@@ -52,13 +54,12 @@ function categoryLabel(category: ScheduledAppointmentSlot['category']): string {
   }
 }
 
-/** Legacy synced slots stored placeholder text — swap for something useful. */
 function displayCustomerName(appt: ScheduledAppointmentSlot): string {
   const name = (appt.customerName || '').trim();
   if (!name || name.toUpperCase() === 'CUSTOMER') {
-    return appt.appointmentNumber ? `Appt #${appt.appointmentNumber}` : 'Unmatched customer';
+    return appt.appointmentNumber ? `APPT #${appt.appointmentNumber}` : 'UNMATCHED CUSTOMER';
   }
-  return name;
+  return name.toUpperCase();
 }
 
 function displayVehicleLabel(appt: ScheduledAppointmentSlot): string {
@@ -66,9 +67,20 @@ function displayVehicleLabel(appt: ScheduledAppointmentSlot): string {
   return label.toUpperCase() === 'VEHICLE' ? '' : label;
 }
 
+function displayConcern(appt: ScheduledAppointmentSlot): string {
+  const concern = (appt.concern || '').trim();
+  const vehicle = displayVehicleLabel(appt);
+  if (concern && vehicle) {
+    const shortConcern =
+      concern.length > 42 ? `${concern.slice(0, 42).trim()}…` : concern;
+    return `${vehicle} · ${shortConcern}`;
+  }
+  return concern || vehicle || '';
+}
+
 function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; onBack: () => void }) {
   const rows: { label: string; value: string }[] = [
-    { label: 'Time', value: formatScheduleTime(appt.startMinutes) },
+    { label: 'Time', value: formatScheduleTimeDetail(appt.startMinutes) },
     { label: 'Duration', value: formatDuration(appt.durationMinutes) },
     { label: 'Customer', value: displayCustomerName(appt) },
     { label: 'Vehicle', value: displayVehicleLabel(appt) || '—' },
@@ -90,20 +102,20 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:text-white transition-colors"
       >
         <ChevronLeft size={14} />
-        Back to list
+        Back to schedule
       </button>
 
       <div
         className={cn(
-          'rounded-xl border p-4 space-y-4',
-          categoryScheduleColor(appt.category)
+          'rounded-lg border p-4 space-y-4',
+          categoryScheduleCardClass(appt.category)
         )}
       >
         <div>
-          <p className="text-[10px] uppercase tracking-wider font-bold opacity-70">Appointment</p>
-          <p className="text-lg font-bold mt-1">{displayCustomerName(appt)}</p>
-          <p className="text-sm opacity-90 mt-0.5">
-            {formatScheduleTime(appt.startMinutes)}
+          <p className="text-[10px] uppercase tracking-wider font-bold opacity-80">Appointment</p>
+          <p className="text-lg font-black mt-1 tracking-tight">{displayCustomerName(appt)}</p>
+          <p className="text-sm opacity-95 mt-0.5 font-semibold">
+            {formatScheduleTimeDetail(appt.startMinutes)}
             {appt.isWaiter ? ' · Waiter' : ''}
           </p>
         </div>
@@ -111,7 +123,7 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rows.map((row) => (
             <div key={row.label} className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wider font-bold opacity-60">{row.label}</dt>
+              <dt className="text-[10px] uppercase tracking-wider font-bold opacity-70">{row.label}</dt>
               <dd className="text-sm mt-0.5 break-words">{row.value}</dd>
             </div>
           ))}
@@ -120,6 +132,12 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
     </div>
   );
 }
+
+const LEGEND = [
+  { key: 'oilChange' as const, label: 'Oil' },
+  { key: 'diagnosis' as const, label: 'Diag' },
+  { key: 'recall' as const, label: 'Recall' },
+];
 
 export function DayScheduleBoard({
   date,
@@ -144,7 +162,10 @@ export function DayScheduleBoard({
 
   if (loading) {
     return (
-      <div className={cn('rounded-lg border p-8 text-center', className)} style={{ borderColor: 'var(--color-surface-border)' }}>
+      <div
+        className={cn('rounded-lg border p-8 text-center bg-[#0b1018]', className)}
+        style={{ borderColor: 'var(--color-surface-border)' }}
+      >
         <p className="crm-label">Loading day schedule…</p>
       </div>
     );
@@ -152,7 +173,10 @@ export function DayScheduleBoard({
 
   if (appointments.length === 0) {
     return (
-      <div className={cn('rounded-lg border p-8 text-center space-y-3', className)} style={{ borderColor: 'var(--color-surface-border)' }}>
+      <div
+        className={cn('rounded-lg border p-8 text-center space-y-3 bg-[#0b1018]', className)}
+        style={{ borderColor: 'var(--color-surface-border)' }}
+      >
         <p className="crm-label">No scheduled appointments stored for this day.</p>
         {expectedCount > 0 ? (
           <p className="text-xs text-amber-400/90">
@@ -177,7 +201,7 @@ export function DayScheduleBoard({
   if (selectedAppt) {
     return (
       <div className={cn('space-y-3', className)}>
-        <p className="text-sm font-medium text-slate-200">{formatDisplayDate(date)}</p>
+        <p className="text-sm font-semibold text-slate-200">{formatDisplayDate(date)}</p>
         <AppointmentDetail appt={selectedAppt} onBack={() => setSelectedAppt(null)} />
       </div>
     );
@@ -185,135 +209,172 @@ export function DayScheduleBoard({
 
   const bounds = resolveScheduleGridBounds(appointments);
   const hourLabels = scheduleHourLabelsForRange(bounds.startMinutes, bounds.endMinutes);
+  const lunchBand = scheduleLunchBand(bounds.startMinutes);
+  const halfHourTicks: number[] = [];
+  for (let m = bounds.startMinutes + 30; m < bounds.endMinutes; m += 60) {
+    halfHourTicks.push(m);
+  }
 
   return (
-    <div className={cn('space-y-4', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-medium text-slate-200">{formatDisplayDate(date)}</p>
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/60" /> Oil
-          </span>
-          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span className="w-2.5 h-2.5 rounded-sm bg-cyan-500/60" /> Diag
-          </span>
-          <span className="flex items-center gap-1.5 text-[10px] text-slate-400">
-            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500/60" /> Recall
-          </span>
-          <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-            {appointments.length} appointments
+    <div className={cn('space-y-3', className)}>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+        <p className="text-sm font-bold text-white tracking-tight">{formatDisplayDate(date)}</p>
+        <div className="flex flex-wrap items-center gap-4">
+          {LEGEND.map((item) => (
+            <span key={item.key} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+              <span className={cn('w-2.5 h-2.5 rounded-full', categoryScheduleLegendClass(item.key))} />
+              {item.label}
+            </span>
+          ))}
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+            {appointments.length} appts
           </span>
         </div>
       </div>
 
       <div
-        className="rounded-xl border overflow-x-auto"
-        style={{ borderColor: 'var(--color-surface-border)' }}
+        className="rounded-lg border overflow-hidden bg-[#0b1018] shadow-inner"
+        style={{ borderColor: '#1e293b' }}
       >
-        <div className="min-w-fit">
-          {/* Column headers */}
-          <div className="flex sticky top-0 z-20 bg-slate-950/95 backdrop-blur border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
-            <div className="w-16 shrink-0 sticky left-0 z-10 bg-slate-950/95 border-r" style={{ borderColor: 'var(--color-surface-border)' }} />
-            {columns.map((column) => (
-              <div
-                key={column.id || 'open'}
-                className="flex-1 min-w-[160px] px-3 py-2.5 border-r last:border-r-0 text-center"
-                style={{ borderColor: 'var(--color-surface-border)' }}
-              >
-                <p className="text-xs font-black uppercase tracking-wider text-slate-200 truncate">
-                  {column.id ? `Tech ${column.label}` : column.label}
-                </p>
-                <p className="text-[10px] text-slate-500 tabular-nums">
-                  {column.count} appt{column.count === 1 ? '' : 's'}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Time grid */}
-          <div className="flex">
-            {/* Time axis */}
+        <div className="overflow-x-auto">
+          <div className="min-w-[720px]">
+            {/* Column headers — PBS style */}
             <div
-              className="w-16 shrink-0 sticky left-0 z-10 bg-slate-950/95 border-r relative"
-              style={{ borderColor: 'var(--color-surface-border)', height: bounds.heightPx }}
+              className="flex border-b bg-[#0d1320]"
+              style={{ borderColor: '#1e293b' }}
             >
-              {hourLabels.map((hour) => (
-                <span
-                  key={hour.minutes}
-                  className="absolute right-2 -translate-y-1/2 text-[10px] font-semibold text-slate-500 tabular-nums"
-                  style={{
-                    top: ((hour.minutes - bounds.startMinutes) / 60) * SCHEDULE_PIXELS_PER_HOUR,
-                  }}
+              <div className="w-[52px] shrink-0 border-r" style={{ borderColor: '#1e293b' }} />
+              {columns.map((column) => (
+                <div
+                  key={column.id || 'open'}
+                  className="flex-1 min-w-[132px] px-2 py-2 border-r last:border-r-0 text-center"
+                  style={{ borderColor: '#1e293b' }}
                 >
-                  {hour.label}
-                </span>
+                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-100 truncate">
+                    {column.id ? `Tech ${column.label}` : column.label}
+                    <span className="text-slate-500 font-bold"> ({column.count})</span>
+                  </p>
+                </div>
               ))}
             </div>
 
-            {columns.map((column) => {
-              const positioned = layoutColumnAppointments(
-                appointments,
-                column.id,
-                bounds.startMinutes
-              );
+            <div className="flex relative">
+              {/* Time axis */}
+              <div
+                className="w-[52px] shrink-0 border-r relative bg-[#0b1018]"
+                style={{ borderColor: '#1e293b', height: bounds.heightPx }}
+              >
+                {hourLabels.map((hour) => (
+                  <span
+                    key={hour.minutes}
+                    className="absolute right-1.5 -translate-y-1/2 text-[10px] font-bold text-slate-500 tabular-nums leading-none"
+                    style={{ top: minutesToSchedulePx(hour.minutes, bounds.startMinutes) }}
+                  >
+                    {hour.label}
+                  </span>
+                ))}
+              </div>
 
-              return (
-                <div
-                  key={column.id || 'open'}
-                  className="flex-1 min-w-[160px] relative border-r last:border-r-0"
-                  style={{ borderColor: 'var(--color-surface-border)', height: bounds.heightPx }}
-                >
-                  {/* Hour gridlines show open availability */}
-                  {hourLabels.map((hour) => (
+              {/* Tech columns */}
+              <div className="flex flex-1 relative">
+                {columns.map((column) => {
+                  const positioned = layoutColumnAppointments(
+                    appointments,
+                    column.id,
+                    bounds.startMinutes
+                  );
+
+                  return (
                     <div
-                      key={hour.minutes}
-                      className="absolute left-0 right-0 border-t border-white/[0.04] pointer-events-none"
-                      style={{
-                        top: ((hour.minutes - bounds.startMinutes) / 60) * SCHEDULE_PIXELS_PER_HOUR,
-                      }}
-                    />
-                  ))}
+                      key={column.id || 'open'}
+                      className="flex-1 min-w-[132px] relative border-r last:border-r-0 bg-[#0b1018]"
+                      style={{ borderColor: '#1e293b', height: bounds.heightPx }}
+                    >
+                      {hourLabels.map((hour) => (
+                        <div
+                          key={hour.minutes}
+                          className="absolute left-0 right-0 border-t pointer-events-none"
+                          style={{
+                            borderColor: 'rgba(148, 163, 184, 0.12)',
+                            top: minutesToSchedulePx(hour.minutes, bounds.startMinutes),
+                          }}
+                        />
+                      ))}
+                      {halfHourTicks.map((minutes) => (
+                        <div
+                          key={minutes}
+                          className="absolute left-0 right-0 border-t border-dashed pointer-events-none"
+                          style={{
+                            borderColor: 'rgba(148, 163, 184, 0.06)',
+                            top: minutesToSchedulePx(minutes, bounds.startMinutes),
+                          }}
+                        />
+                      ))}
 
-                  {positioned.map((appt) => {
-                    const laneWidth = 100 / appt.laneCount;
-                    return (
-                      <button
-                        key={`${appt.id}-${appt.startMinutes}`}
-                        type="button"
-                        onClick={() => setSelectedAppt(appt)}
-                        className={cn(
-                          'absolute rounded-md border px-1.5 py-1 text-left overflow-hidden transition-all hover:brightness-125 hover:z-10',
-                          categoryScheduleColor(appt.category)
-                        )}
-                        style={{
-                          top: appt.top,
-                          height: appt.height,
-                          left: `calc(${appt.lane * laneWidth}% + 3px)`,
-                          width: `calc(${laneWidth}% - 6px)`,
-                        }}
-                        title={`${formatScheduleTime(appt.startMinutes)} · ${displayCustomerName(appt)}`}
-                      >
-                        <p className="text-[10px] font-bold leading-tight truncate">
-                          {formatScheduleTime(appt.startMinutes)}
-                          {appt.isWaiter ? ' · W' : ''}
-                        </p>
-                        <p className="text-[11px] font-semibold leading-tight truncate">
-                          {displayCustomerName(appt)}
-                        </p>
-                        {appt.height >= 52 && (
-                          <p className="text-[10px] opacity-75 leading-tight truncate">
-                            {displayVehicleLabel(appt) || appt.concern}
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                      {positioned.map((appt) => {
+                        const laneWidth = 100 / appt.laneCount;
+                        const detail = displayConcern(appt);
+                        return (
+                          <button
+                            key={`${appt.id}-${appt.startMinutes}`}
+                            type="button"
+                            onClick={() => setSelectedAppt(appt)}
+                            className={cn(
+                              'absolute rounded-[3px] border px-1 py-0.5 text-left overflow-hidden transition-[filter,transform] hover:brightness-110 hover:z-20 hover:scale-[1.01]',
+                              categoryScheduleCardClass(appt.category)
+                            )}
+                            style={{
+                              top: appt.top,
+                              height: appt.height,
+                              left: `calc(${appt.lane * laneWidth}% + 2px)`,
+                              width: `calc(${laneWidth}% - 4px)`,
+                            }}
+                            title={`${formatScheduleTimeDetail(appt.startMinutes)} · ${displayCustomerName(appt)}`}
+                          >
+                            <p className="text-[10px] font-black leading-tight truncate">
+                              {formatScheduleTimeDetail(appt.startMinutes)}
+                              {appt.isWaiter ? ' (W)' : ''}
+                            </p>
+                            <p className="text-[10px] font-black leading-tight truncate tracking-tight">
+                              {displayCustomerName(appt)}
+                            </p>
+                            {appt.height >= 44 && detail ? (
+                              <p className="text-[9px] leading-tight opacity-90 truncate mt-0.5 font-medium">
+                                {detail}
+                              </p>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+
+                {/* Shop lunch — 12 PM to 1 PM across all columns */}
+                {lunchBand && lunchBand.height > 0 ? (
+                  <div
+                    className="absolute left-0 right-0 z-10 pointer-events-none flex items-center justify-center border-y border-amber-900/30"
+                    style={{
+                      top: lunchBand.top,
+                      height: lunchBand.height,
+                      background:
+                        'repeating-linear-gradient(-45deg, rgba(15,23,42,0.92) 0, rgba(15,23,42,0.92) 8px, rgba(30,41,59,0.75) 8px, rgba(30,41,59,0.75) 16px)',
+                    }}
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-500/70 bg-[#0b1018]/80 px-3 py-1 rounded border border-amber-900/30">
+                      Lunch
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <p className="text-[10px] text-slate-600 px-1">
+        Shop lunch blocked 12:00 PM – 1:00 PM · Tap an appointment for full details
+      </p>
     </div>
   );
 }

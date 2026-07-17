@@ -5,10 +5,12 @@ export function appointmentScheduleDocId(dealershipId: string, date: string): st
 }
 
 export const SCHEDULE_GRID_START_MINUTES = 7 * 60;
-export const SCHEDULE_GRID_END_MINUTES = 18 * 60;
-export const SCHEDULE_PIXELS_PER_HOUR = 56;
+export const SCHEDULE_GRID_END_MINUTES = 17 * 60;
+export const SCHEDULE_LUNCH_START_MINUTES = 12 * 60;
+export const SCHEDULE_LUNCH_END_MINUTES = 13 * 60;
+export const SCHEDULE_PIXELS_PER_HOUR = 68;
 export const SCHEDULE_GRID_MIN_START_MINUTES = 6 * 60;
-export const SCHEDULE_GRID_MAX_END_MINUTES = 19 * 60;
+export const SCHEDULE_GRID_MAX_END_MINUTES = 18 * 60;
 
 export interface ScheduleGridBounds {
   startMinutes: number;
@@ -49,6 +51,25 @@ export function resolveScheduleGridBounds(
   return { startMinutes, endMinutes, heightPx };
 }
 
+export function minutesToSchedulePx(minutes: number, gridStartMinutes: number): number {
+  return ((minutes - gridStartMinutes) / 60) * SCHEDULE_PIXELS_PER_HOUR;
+}
+
+export function scheduleLunchBand(gridStartMinutes: number): { top: number; height: number } | null {
+  if (
+    SCHEDULE_LUNCH_END_MINUTES <= gridStartMinutes ||
+    SCHEDULE_LUNCH_START_MINUTES >= SCHEDULE_GRID_MAX_END_MINUTES
+  ) {
+    return null;
+  }
+  const top = minutesToSchedulePx(
+    Math.max(SCHEDULE_LUNCH_START_MINUTES, gridStartMinutes),
+    gridStartMinutes
+  );
+  const endPx = minutesToSchedulePx(SCHEDULE_LUNCH_END_MINUTES, gridStartMinutes);
+  return { top, height: Math.max(0, endPx - top) };
+}
+
 export interface PositionedScheduleSlot extends ScheduledAppointmentSlot {
   top: number;
   height: number;
@@ -69,8 +90,8 @@ export function layoutColumnAppointments(
   const positioned: PositionedScheduleSlot[] = columnAppts.map((appt) => {
     const top = ((appt.startMinutes - gridStartMinutes) / 60) * SCHEDULE_PIXELS_PER_HOUR;
     const height = Math.max(
-      36,
-      (appt.durationMinutes / 60) * SCHEDULE_PIXELS_PER_HOUR - 4
+      32,
+      (appt.durationMinutes / 60) * SCHEDULE_PIXELS_PER_HOUR - 3
     );
     return {
       ...appt,
@@ -125,11 +146,21 @@ export function scheduleHourLabelsForRange(
 export function formatScheduleTime(minutes: number): string {
   const hour24 = Math.floor(minutes / 60);
   const minute = minutes % 60;
+  const periodPm = hour24 >= 12;
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  const suffix = periodPm ? 'PM' : 'AM';
+  if (minute === 0) {
+    return `${hour12} ${suffix}`;
+  }
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
+/** Compact time for appointment card headers — e.g. "8:45 AM". */
+export function formatScheduleTimeDetail(minutes: number): string {
+  const hour24 = Math.floor(minutes / 60);
+  const minute = minutes % 60;
   const period = hour24 >= 12 ? 'PM' : 'AM';
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
-  if (minute === 0) {
-    return `${hour12} ${period}`;
-  }
   return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
@@ -193,14 +224,32 @@ export function buildScheduleTechColumns(
 }
 
 export function categoryScheduleColor(category: ScheduledAppointmentSlot['category']): string {
+  return categoryScheduleCardClass(category);
+}
+
+/** Solid PBS-style appointment block colors. */
+export function categoryScheduleCardClass(category: ScheduledAppointmentSlot['category']): string {
   switch (category) {
     case 'oilChange':
-      return 'bg-emerald-500/20 border-emerald-500/40 text-emerald-100';
+      return 'bg-emerald-600 border-emerald-800 text-white shadow-sm shadow-emerald-950/40';
     case 'recall':
-      return 'bg-amber-500/20 border-amber-500/40 text-amber-100';
+      return 'bg-amber-700 border-amber-900 text-amber-50 shadow-sm shadow-amber-950/40';
     case 'diagnosis':
-      return 'bg-cyan-500/20 border-cyan-500/40 text-cyan-100';
+      return 'bg-sky-600 border-sky-800 text-white shadow-sm shadow-sky-950/40';
     default:
-      return 'bg-slate-500/20 border-slate-400/30 text-slate-100';
+      return 'bg-slate-600 border-slate-800 text-slate-100 shadow-sm shadow-slate-950/40';
+  }
+}
+
+export function categoryScheduleLegendClass(category: ScheduledAppointmentSlot['category']): string {
+  switch (category) {
+    case 'oilChange':
+      return 'bg-emerald-500';
+    case 'recall':
+      return 'bg-amber-600';
+    case 'diagnosis':
+      return 'bg-sky-500';
+    default:
+      return 'bg-slate-500';
   }
 }
