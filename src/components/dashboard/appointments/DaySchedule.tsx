@@ -341,7 +341,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
         </p>
       </div>
 
-      <div className="card-base p-4 sm:p-5">
+      <div className="card-base p-3 sm:p-4 bg-[#080c14]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="relative flex items-center">
             <button
