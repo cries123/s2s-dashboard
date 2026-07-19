@@ -4,6 +4,7 @@ import {
   Bell,
   Calendar,
   CalendarDays,
+  ClipboardList,
   Database,
   Layers,
   Search,
@@ -43,6 +44,7 @@ interface BuildSidebarNavArgs {
   };
   currentDealershipId: string | null;
   enableDispatchTab: boolean;
+  showOpenRosTab: boolean;
   showManager: boolean;
   showAdmin: boolean;
   activeAlertsCount: number;
@@ -52,6 +54,7 @@ export function buildSidebarNav({
   modules,
   currentDealershipId,
   enableDispatchTab,
+  showOpenRosTab,
   showManager,
   showAdmin,
   activeAlertsCount,
@@ -83,6 +86,15 @@ export function buildSidebarNav({
       badge: activeAlertsCount,
     },
   ];
+  if (showOpenRosTab) {
+    serviceItems.push({
+      id: 'open-ros',
+      label: 'Open ROs',
+      href: '/service/open-ros',
+      icon: ClipboardList,
+      tab: 'open-ros',
+    });
+  }
   if (enableDispatchTab) {
     serviceItems.push({
       id: 'dispatch',

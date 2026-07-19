@@ -10,6 +10,7 @@ export type AppTab =
   | 'pot-of-gold'
   | 'forecast'
   | 'dispatch'
+  | 'open-ros'
   | 'sales-performance';
 
 export type AdminSubTab =
@@ -34,6 +35,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/sales/vin-search': { activeTab: 'vin-search' },
   '/service/directory': { activeTab: 'search' },
   '/service/alerts': { activeTab: 'alerts' },
+  '/service/open-ros': { activeTab: 'open-ros' },
   '/service/dispatch': { activeTab: 'dispatch' },
   '/service/recalls': { activeTab: 'search' },
   '/service/bundle-menus': { activeTab: 'search' },
@@ -119,6 +121,8 @@ export function buildAppPath(state: AppRouteState): string {
       return '/service/directory';
     case 'alerts':
       return '/service/alerts';
+    case 'open-ros':
+      return '/service/open-ros';
     case 'dispatch':
       return '/service/dispatch';
     case 'pot-of-gold':

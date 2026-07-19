@@ -1,5 +1,5 @@
 import type { Firestore, WriteBatch } from 'firebase-admin/firestore';
-import { pbsRepairOrderGet } from './partnerHubClient.js';
+import { fetchOpenRepairOrdersFromPbs } from './pbsOpenRepairOrders.js';
 import { mapPbsOpenRepairOrderToDispatch } from './pbsDispatchMapper.js';
 import {
   commitBatches,
@@ -9,21 +9,6 @@ import {
 } from './pbsFirestore.js';
 import type { PbsCustomerIndexMaps, PbsOpenRepairOrder } from './pbsExtendedTypes.js';
 import { isOpenPbsRepairOrder } from './pbsTechnicianAggregator.js';
-
-const OPEN_RO_LOOKBACK_DAYS = 90;
-
-function openRoLookbackIso(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
-}
-
-async function fetchOpenRepairOrders(): Promise<PbsOpenRepairOrder[]> {
-  const response = await pbsRepairOrderGet({
-    OpenDateSince: openRoLookbackIso(OPEN_RO_LOOKBACK_DAYS),
-  });
-  return (response.RepairOrders || []) as PbsOpenRepairOrder[];
-}
 
 function preserveDispatchLane(
   existing: Record<string, unknown> | undefined,
@@ -74,7 +59,7 @@ export async function syncPbsDispatchBoard(
   dispatchOrdersCompleted: number;
 }> {
   const [repairOrders, existingById] = await Promise.all([
-    fetchOpenRepairOrders(),
+    fetchOpenRepairOrdersFromPbs(),
     loadExistingPbsDispatchDocs(db, dealershipId),
   ]);
 

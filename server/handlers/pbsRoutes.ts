@@ -20,6 +20,7 @@ import {
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
+import { listOpenRepairOrdersForDealership } from '../pbs/pbsOpenRepairOrders.js';
 import {
   executePbsSyncStage,
   isPacificMorningSyncHour,
@@ -306,6 +307,30 @@ export function registerPbsRoutes(app: Express) {
         detail: outcome.detail,
         stageLabels: PBS_SYNC_STAGE_LABELS,
         result: outcome.result,
+      });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /** Live open repair orders from PBS — for Service tab (no dispatch board required). */
+  app.get('/api/pbs/open-repair-orders', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized open repair orders request.' });
+    }
+
+    if (!isPbsPartnerHubConfigured()) {
+      return res.status(503).json({
+        error: 'PBS PartnerHUB credentials are not configured on the server.',
+      });
+    }
+
+    try {
+      const result = await listOpenRepairOrdersForDealership(PBS_AUTOMATED_SYNC_DEALERSHIP_ID);
+      return res.json({
+        dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        ...result,
       });
     } catch (err) {
       return handlePbsError(res, err);

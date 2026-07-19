@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2
+  BarChart2, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -27,6 +27,7 @@ import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget
 import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
 import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
 import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
+import OpenRepairOrders from './components/dashboard/service/OpenRepairOrders';
 import ProfileModal from './components/modals/ProfileModal';
 import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
@@ -50,6 +51,7 @@ import { AppSidebar } from './components/layout/AppSidebar';
 import { AppTopBar } from './components/layout/AppTopBar';
 import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
 import { buildMobileNavSections } from './lib/mobileNavSections';
+import { isPbsSyncDealership } from './lib/pbsSyncScope';
 import { isPreviewMode } from './lib/previewMode';
 import type { SidebarNavItem } from './lib/sidebarNav';
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
@@ -286,6 +288,7 @@ function DashboardShell({ user }: { user: User }) {
     { id: 'appointments', label: 'Operations', icon: Calendar },
     { id: 'schedule', label: 'Schedule', icon: Calendar },
     ...(dealershipSettings?.enableDispatchTab !== false ? [{ id: 'dispatch', label: 'Dispatch', icon: Layers }] : []),
+    ...(isPbsSyncDealership(currentDealershipId) ? [{ id: 'open-ros', label: 'Open ROs', icon: ClipboardList }] : []),
     ...(currentDealershipId === 'hyundai' && modules.showPotOfGoldTab
       ? [{ id: 'pot-of-gold', label: 'Competition', icon: Trophy }]
       : []),
@@ -304,6 +307,7 @@ function DashboardShell({ user }: { user: User }) {
         modules,
         currentDealershipId,
         enableDispatchTab: dealershipSettings?.enableDispatchTab !== false,
+        showOpenRosTab: isPbsSyncDealership(currentDealershipId),
         activeAlertsCount,
       }),
     [user, modules, currentDealershipId, dealershipSettings?.enableDispatchTab, activeAlertsCount]
@@ -397,6 +401,7 @@ function DashboardShell({ user }: { user: User }) {
         modules={modules}
         currentDealershipId={currentDealershipId}
         enableDispatchTab={dealershipSettings?.enableDispatchTab !== false}
+        showOpenRosTab={isPbsSyncDealership(currentDealershipId)}
         showManager={canSeeManagerPanel(user)}
         showAdmin={canAccessPrimaryAdminSettings(currentUser)}
         activeAlertsCount={activeAlertsCount}
@@ -467,6 +472,16 @@ function DashboardShell({ user }: { user: User }) {
               onRefresh={(msg, isError) =>
                 showNotification(msg || 'Alerts updated successfully.', isError)
               }
+            />
+          )}
+
+          {activeTab === 'open-ros' && (
+            <OpenRepairOrders
+              key={currentDealershipId || 'hyundai'}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              customers={customers}
+              onViewProfile={setSelectedProfile}
+              onError={(msg) => showNotification(msg, true)}
             />
           )}
 

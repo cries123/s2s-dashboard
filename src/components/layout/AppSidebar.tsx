@@ -22,6 +22,7 @@ interface AppSidebarProps {
   };
   currentDealershipId: string | null;
   enableDispatchTab: boolean;
+  showOpenRosTab: boolean;
   showManager: boolean;
   showAdmin: boolean;
   activeAlertsCount: number;
@@ -38,6 +39,7 @@ export function AppSidebar({
   modules,
   currentDealershipId,
   enableDispatchTab,
+  showOpenRosTab,
   showManager,
   showAdmin,
   activeAlertsCount,
@@ -49,6 +51,7 @@ export function AppSidebar({
     modules,
     currentDealershipId,
     enableDispatchTab,
+    showOpenRosTab,
     showManager,
     showAdmin,
     activeAlertsCount,
