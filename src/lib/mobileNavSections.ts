@@ -1,6 +1,7 @@
 import {
   BarChart2,
   Calendar,
+  ClipboardList,
   Shield,
   Trophy,
   UserPlus,
@@ -21,6 +22,7 @@ interface BuildMobileNavSectionsArgs {
   modules: DashboardModules;
   currentDealershipId: string | null;
   enableDispatchTab: boolean;
+  showOpenRosTab: boolean;
   activeAlertsCount: number;
 }
 
@@ -29,6 +31,7 @@ export function buildMobileNavSections({
   modules,
   currentDealershipId,
   enableDispatchTab,
+  showOpenRosTab,
   activeAlertsCount,
 }: BuildMobileNavSectionsArgs): MobileNavSection[] {
   const sections: MobileNavSection[] = [];
@@ -45,6 +48,9 @@ export function buildMobileNavSections({
     { tabId: 'search', label: 'Directory', href: '/service/directory' },
     { tabId: 'alerts', label: 'Alerts', href: '/service/alerts', badge: activeAlertsCount },
   ];
+  if (showOpenRosTab) {
+    serviceItems.push({ tabId: 'open-ros', label: 'Open ROs', href: '/service/open-ros' });
+  }
   if (enableDispatchTab) {
     serviceItems.push({ tabId: 'dispatch', label: 'Dispatch', href: '/service/dispatch' });
   }
