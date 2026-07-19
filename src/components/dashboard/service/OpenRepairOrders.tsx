@@ -125,6 +125,16 @@ export default function OpenRepairOrders({
     [orders, search]
   );
 
+  const handleCustomerClick = (
+    event: React.MouseEvent,
+    row: OpenRepairOrderRow
+  ) => {
+    event.stopPropagation();
+    if (!row.customerId) return;
+    const customer = customerById.get(row.customerId);
+    if (customer) onViewProfile(customer);
+  };
+
   const handleRowClick = async (row: OpenRepairOrderRow) => {
     setDetailLoadingId(row.repairOrderId);
     try {
@@ -180,7 +190,7 @@ export default function OpenRepairOrders({
             Open Repair Orders
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-            Live open ROs from PBS. Click a row to open the full repair order.
+            Live open ROs from PBS. Click a row for the repair order, or click a customer name to open their profile.
             {fetchedAt ? ` Last refreshed ${formatFetchedAt(fetchedAt)}.` : ''}
           </p>
         </div>
@@ -261,13 +271,24 @@ export default function OpenRepairOrders({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{row.tag || '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2 min-w-[8rem]">
                           {row.customerName ? (
                             <>
-                              <span className="text-white font-medium truncate max-w-[10rem] sm:max-w-none">
-                                {row.customerName}
-                              </span>
+                              {hasCrmMatch ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleCustomerClick(e, row)}
+                                  className="text-brand-primary font-medium truncate max-w-[10rem] sm:max-w-none text-left hover:underline"
+                                  title="Open customer profile"
+                                >
+                                  {row.customerName}
+                                </button>
+                              ) : (
+                                <span className="text-white font-medium truncate max-w-[10rem] sm:max-w-none">
+                                  {row.customerName}
+                                </span>
+                              )}
                               {row.isWaiting ? (
                                 <span className="shrink-0 text-[9px] font-bold uppercase bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
                                   Wait
@@ -326,25 +347,17 @@ export default function OpenRepairOrders({
       )}
 
       {selectedVisit ? (
-        <>
-          <ServiceVisitDetailModal
-            visit={selectedVisit.visit}
-            customerName={selectedVisit.customerName}
-            vehicleLabel={selectedVisit.vehicleLabel}
-            onClose={() => setSelectedVisit(null)}
-          />
-          {selectedVisit.customerId && customerById.has(selectedVisit.customerId) ? (
-            <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-[210]">
-              <button
-                type="button"
-                onClick={handleOpenCustomerFromModal}
-                className="btn-primary shadow-xl shadow-black/40 text-xs sm:text-sm px-4 py-2.5"
-              >
-                Open customer profile
-              </button>
-            </div>
-          ) : null}
-        </>
+        <ServiceVisitDetailModal
+          visit={selectedVisit.visit}
+          customerName={selectedVisit.customerName}
+          vehicleLabel={selectedVisit.vehicleLabel}
+          onOpenCustomer={
+            selectedVisit.customerId && customerById.has(selectedVisit.customerId)
+              ? handleOpenCustomerFromModal
+              : undefined
+          }
+          onClose={() => setSelectedVisit(null)}
+        />
       ) : null}
     </div>
   );
