@@ -18,6 +18,7 @@ import {
   fetchContactVehicleDisplayByRefs,
   formatPbsDisplayName,
   formatPbsVehicleLabel,
+  lookupVehicleDisplay,
   type PbsRefDisplayInfo,
 } from './pbsContactVehicleFallback.js';
 import type { PbsRepairOrder } from './pbsTypes.js';
@@ -90,6 +91,11 @@ export interface OpenRepairOrderDetail {
   };
 }
 
+interface OpenRoCustomerIndex extends PbsCustomerIndexMaps {
+  byPhone: Map<string, string>;
+  byVinLast8: Map<string, string>;
+}
+
 interface OpenRoEnrichment {
   byVehicleRef: Map<string, PbsRefDisplayInfo>;
   byContactRef: Map<string, PbsRefDisplayInfo>;
@@ -111,11 +117,13 @@ export async function fetchOpenRepairOrdersFromPbs(): Promise<PbsOpenRepairOrder
 
 async function loadCustomerIndexForOpenRos(
   dealershipId: string
-): Promise<PbsCustomerIndexMaps> {
+): Promise<OpenRoCustomerIndex> {
   const db = getAdminFirestore();
-  const index: PbsCustomerIndexMaps = {
+  const index: OpenRoCustomerIndex = {
     byContactRef: new Map(),
     byVehicleRef: new Map(),
+    byPhone: new Map(),
+    byVinLast8: new Map(),
     dataById: new Map(),
   };
   if (!db) return index;
@@ -131,14 +139,21 @@ async function loadCustomerIndexForOpenRos(
 
     const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
     if (contactRef) index.byContactRef.set(contactRef, docSnap.id);
+
+    const phone = normalizePhone(String(data.phone || ''));
+    if (phone) index.byPhone.set(phone, docSnap.id);
+
+    const vinLast8 = String(data.vinLast8 || vinLast8FromVin(String(data.vin || ''))).toUpperCase();
+    if (vinLast8) index.byVinLast8.set(vinLast8, docSnap.id);
   }
 
   return index;
 }
 
 function resolveCustomerFromIndex(
-  index: PbsCustomerIndexMaps,
-  ro: PbsOpenRepairOrder
+  index: OpenRoCustomerIndex,
+  ro: PbsOpenRepairOrder,
+  vinLast8Hint?: string
 ): { customerId?: string; customer?: Record<string, unknown> } {
   const contactRef = normalizePbsRef(ro.ContactRef);
   if (contactRef) {
@@ -150,19 +165,49 @@ function resolveCustomerFromIndex(
     const id = index.byVehicleRef.get(vehicleRef);
     if (id) return { customerId: id, customer: index.dataById.get(id) };
   }
+
+  const phone = normalizePhone(ro.TodayPhoneNumber || '');
+  if (phone) {
+    const id = index.byPhone.get(phone);
+    if (id) return { customerId: id, customer: index.dataById.get(id) };
+  }
+
+  const vinKey = (vinLast8Hint || '').trim().toUpperCase();
+  if (vinKey) {
+    const id = index.byVinLast8.get(vinKey);
+    if (id) return { customerId: id, customer: index.dataById.get(id) };
+  }
+
   return {};
 }
 
+function customerNameFromRecord(customer: Record<string, unknown>): string | undefined {
+  const firstName = String(customer.firstName || '').trim();
+  const lastName = String(customer.lastName || '').trim();
+  const full = [firstName, lastName].filter(Boolean).join(' ');
+  return full ? full.toUpperCase() : undefined;
+}
+
+function vehicleLabelFromRecord(customer: Record<string, unknown>): string | undefined {
+  const year = String(customer.year || '').trim();
+  const make = String(customer.make || '').trim();
+  const model = String(customer.model || '').trim();
+  return [year, make, model].filter(Boolean).join(' ') || undefined;
+}
+
+function vinLast8FromRecord(customer: Record<string, unknown>): string | undefined {
+  const vin = String(customer.vin || '');
+  const vinLast8 = String(customer.vinLast8 || vinLast8FromVin(vin));
+  return vinLast8 || undefined;
+}
+
 async function buildEnrichmentForOpenRos(
-  repairOrders: PbsOpenRepairOrder[],
-  index: PbsCustomerIndexMaps
+  repairOrders: PbsOpenRepairOrder[]
 ): Promise<OpenRoEnrichment> {
   const vehicleRefs: string[] = [];
   const contactRefs: string[] = [];
 
   for (const ro of repairOrders) {
-    const { customerId } = resolveCustomerFromIndex(index, ro);
-    if (customerId) continue;
     const vehicleRef = (ro.VehicleRef || '').trim();
     const contactRef = (ro.ContactRef || '').trim();
     if (vehicleRef) vehicleRefs.push(vehicleRef);
@@ -241,7 +286,7 @@ function daysBetween(isoDate: string, now = new Date()): number {
 
 export function mapOpenRepairOrderRow(
   ro: PbsOpenRepairOrder,
-  index: PbsCustomerIndexMaps,
+  index: OpenRoCustomerIndex,
   enrichment?: OpenRoEnrichment
 ): OpenRepairOrderRow | null {
   if (!isOpenPbsRepairOrder(ro)) return null;
@@ -250,26 +295,38 @@ export function mapOpenRepairOrderRow(
   const roNumber = repairOrderSoNumber(ro);
   if (!repairOrderId || !roNumber) return null;
 
-  const { customerId, customer } = resolveCustomerFromIndex(index, ro);
+  const pbsDisplay = enrichment ? resolvePbsFallbackDisplay(ro, enrichment) : {};
+  const vehicleFromRo = enrichment
+    ? lookupVehicleDisplay(enrichment.byVehicleRef, ro.VehicleRef)
+    : undefined;
+  const vehicleLabelFromPbs =
+    formatPbsVehicleLabel(vehicleFromRo) || pbsDisplay.vehicleLabel;
+  const vinLast8FromPbs =
+    (vehicleFromRo?.vin ? vinLast8FromVin(vehicleFromRo.vin) : undefined) || pbsDisplay.vinLast8;
+
+  const { customerId, customer } = resolveCustomerFromIndex(index, ro, vinLast8FromPbs);
+
   let customerName: string | undefined;
   let vehicleLabel: string | undefined;
   let vinLast8: string | undefined;
 
   if (customer) {
-    const firstName = String(customer.firstName || '').trim();
-    const lastName = String(customer.lastName || '').trim();
-    customerName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
-    const year = String(customer.year || '').trim();
-    const make = String(customer.make || '').trim();
-    const model = String(customer.model || '').trim();
-    vehicleLabel = [year, make, model].filter(Boolean).join(' ') || undefined;
-    const vin = String(customer.vin || '');
-    vinLast8 = String(customer.vinLast8 || vinLast8FromVin(vin)) || undefined;
-  } else if (enrichment) {
-    const fallback = resolvePbsFallbackDisplay(ro, enrichment);
-    customerName = fallback.customerName;
-    vehicleLabel = fallback.vehicleLabel;
-    vinLast8 = fallback.vinLast8;
+    customerName = customerNameFromRecord(customer);
+    vehicleLabel = vehicleLabelFromPbs || vehicleLabelFromRecord(customer);
+    vinLast8 = vinLast8FromPbs || vinLast8FromRecord(customer);
+  } else {
+    customerName = pbsDisplay.customerName;
+    vehicleLabel = vehicleLabelFromPbs;
+    vinLast8 = vinLast8FromPbs;
+  }
+
+  if (!vehicleLabel && enrichment) {
+    const contactKey = normalizePbsRef(ro.ContactRef);
+    const contactInfo = contactKey ? enrichment.byContactRef.get(contactKey) : undefined;
+    vehicleLabel = formatPbsVehicleLabel(contactInfo);
+    if (!vinLast8 && contactInfo?.vin) {
+      vinLast8 = vinLast8FromVin(contactInfo.vin);
+    }
   }
 
   const dateOpened = pbsIsoToDateString(ro.DateOpened) || new Date().toISOString().slice(0, 10);
@@ -338,7 +395,7 @@ export async function getOpenRepairOrderDetail(
   if (!ro || !isOpenPbsRepairOrder(ro)) return null;
 
   const index = await loadCustomerIndexForOpenRos(dealershipId);
-  const enrichment = await buildEnrichmentForOpenRos([ro], index);
+  const enrichment = await buildEnrichmentForOpenRos([ro]);
   const row = mapOpenRepairOrderRow(ro, index, enrichment);
   if (!row) return null;
 
@@ -372,7 +429,7 @@ export async function listOpenRepairOrdersForDealership(
   ]);
 
   const openOrders = repairOrders.filter(isOpenPbsRepairOrder);
-  const enrichment = await buildEnrichmentForOpenRos(openOrders, index);
+  const enrichment = await buildEnrichmentForOpenRos(openOrders);
 
   const orders = openOrders
     .map((ro) => mapOpenRepairOrderRow(ro, index, enrichment))

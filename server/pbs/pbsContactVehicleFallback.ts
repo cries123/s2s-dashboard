@@ -1,4 +1,4 @@
-import { pbsContactVehicleGet, pbsContactVehicleItems } from './partnerHubClient.js';
+import { pbsContactVehicleGet, pbsContactVehicleItems, pbsVehicleGet } from './partnerHubClient.js';
 import { normalizePbsRef } from './pbsAppointmentSchedule.js';
 import type { PbsContactVehicle } from './pbsTypes.js';
 
@@ -61,6 +61,8 @@ export async function fetchContactVehicleDisplayByRefs(
     }
   }
 
+  await enrichVehicleRefsFromVehicleGet(byVehicleRef, uniqueVehicleRefs);
+
   const uniqueContactRefs = [...new Set(contactRefs.map((ref) => ref.trim()).filter(Boolean))];
   const missingContacts = uniqueContactRefs.filter((ref) => !byContactRef.has(normalizePbsRef(ref)));
   for (let i = 0; i < missingContacts.length; i += BATCH_SIZE) {
@@ -76,6 +78,64 @@ export async function fetchContactVehicleDisplayByRefs(
   }
 
   return { byVehicleRef, byContactRef };
+}
+
+interface PbsVehicleRecord {
+  VehicleId?: string;
+  Year?: string;
+  Make?: string;
+  Model?: string;
+  VIN?: string;
+}
+
+async function fetchVehicleGetBatch(batch: string[]): Promise<PbsVehicleRecord[]> {
+  if (!batch.length) return [];
+  try {
+    const response = await pbsVehicleGet({ VehicleIdList: batch, IncludeInactive: true });
+    return (response.Vehicles || []) as PbsVehicleRecord[];
+  } catch (err) {
+    console.warn(
+      '[PBS] VehicleGet fallback batch failed:',
+      err instanceof Error ? err.message : err
+    );
+    return [];
+  }
+}
+
+function mapVehicleRecord(vehicle: PbsVehicleRecord): PbsRefDisplayInfo {
+  return {
+    year: (vehicle.Year || '').trim() || undefined,
+    make: (vehicle.Make || '').trim() || undefined,
+    model: (vehicle.Model || '').trim() || undefined,
+    vin: (vehicle.VIN || '').replace(/\s/g, '').toUpperCase() || undefined,
+  };
+}
+
+/** Fill any vehicle refs still missing after ContactVehicleGet. */
+export async function enrichVehicleRefsFromVehicleGet(
+  byVehicleRef: Map<string, PbsRefDisplayInfo>,
+  vehicleRefs: string[]
+): Promise<void> {
+  const missing = [...new Set(vehicleRefs.map((ref) => ref.trim()).filter(Boolean))].filter(
+    (ref) => !byVehicleRef.has(normalizePbsRef(ref))
+  );
+  for (let i = 0; i < missing.length; i += BATCH_SIZE) {
+    const batch = missing.slice(i, i + BATCH_SIZE);
+    const vehicles = await fetchVehicleGetBatch(batch);
+    for (const vehicle of vehicles) {
+      const vehicleKey = normalizePbsRef(String(vehicle.VehicleId || ''));
+      if (!vehicleKey || byVehicleRef.has(vehicleKey)) continue;
+      byVehicleRef.set(vehicleKey, mapVehicleRecord(vehicle));
+    }
+  }
+}
+
+export function lookupVehicleDisplay(
+  byVehicleRef: Map<string, PbsRefDisplayInfo>,
+  vehicleRef?: string
+): PbsRefDisplayInfo | undefined {
+  const key = normalizePbsRef(vehicleRef || '');
+  return key ? byVehicleRef.get(key) : undefined;
 }
 
 export function formatPbsDisplayName(info?: PbsRefDisplayInfo): string | undefined {

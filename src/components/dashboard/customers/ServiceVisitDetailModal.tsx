@@ -8,6 +8,7 @@ interface ServiceVisitDetailModalProps {
   visit: ServiceVisit;
   customerName?: string;
   vehicleLabel?: string;
+  onOpenCustomer?: () => void;
   onClose: () => void;
 }
 
@@ -73,6 +74,7 @@ export function ServiceVisitDetailModal({
   visit,
   customerName,
   vehicleLabel,
+  onOpenCustomer,
   onClose,
 }: ServiceVisitDetailModalProps) {
   const lines = resolveVisitLines(visit);
@@ -146,7 +148,21 @@ export function ServiceVisitDetailModal({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
-            <InfoCell label="Customer" value={customerName || '—'} />
+            {customerName && onOpenCustomer ? (
+              <div className="min-w-0">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Customer</p>
+                <button
+                  type="button"
+                  onClick={onOpenCustomer}
+                  className="text-sm font-semibold text-brand-primary mt-0.5 truncate text-left hover:underline"
+                  title="Open customer profile"
+                >
+                  {customerName}
+                </button>
+              </div>
+            ) : (
+              <InfoCell label="Customer" value={customerName || '—'} />
+            )}
             <InfoCell label="Vehicle" value={vehicleLabel || '—'} />
             <InfoCell
               label="Mileage"
