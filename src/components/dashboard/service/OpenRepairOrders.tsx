@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Loader2, RefreshCw, Search, User } from 'lucide-react';
-import type { Customer } from '../../../types';
-import { fetchOpenRepairOrders, type OpenRepairOrderRow } from '../../../lib/openRepairOrdersApi';
+import type { Customer, ServiceVisit } from '../../../types';
+import {
+  fetchOpenRepairOrderDetail,
+  fetchOpenRepairOrders,
+  type OpenRepairOrderRow,
+} from '../../../lib/openRepairOrdersApi';
 import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
 import { cn } from '../../../lib/utils';
 import { isPbsSyncDealership } from '../../../lib/pbsSyncScope';
+import { ServiceVisitDetailModal } from '../customers/ServiceVisitDetailModal';
 
 interface OpenRepairOrdersProps {
   currentDealershipId: string;
@@ -70,6 +75,13 @@ export default function OpenRepairOrders({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [selectedVisit, setSelectedVisit] = useState<{
+    visit: ServiceVisit;
+    customerName?: string;
+    vehicleLabel?: string;
+    customerId?: string;
+  } | null>(null);
 
   const customerById = useMemo(() => {
     const map = new Map<string, Customer>();
@@ -113,10 +125,42 @@ export default function OpenRepairOrders({
     [orders, search]
   );
 
-  const handleRowClick = (row: OpenRepairOrderRow) => {
-    if (!row.customerId) return;
-    const customer = customerById.get(row.customerId);
-    if (customer) onViewProfile(customer);
+  const handleRowClick = async (row: OpenRepairOrderRow) => {
+    setDetailLoadingId(row.repairOrderId);
+    try {
+      const detail = await fetchOpenRepairOrderDetail(row.repairOrderId);
+      const visit: ServiceVisit = {
+        id: detail.repairOrderId,
+        soNumber: detail.visit.soNumber,
+        date: detail.visit.date,
+        mileage: detail.visit.mileage,
+        advisor: detail.visit.advisor,
+        requests: detail.visit.requests,
+        status: detail.visit.status,
+        lines: detail.visit.lines,
+        createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as ServiceVisit['createdAt'],
+      };
+      setSelectedVisit({
+        visit,
+        customerName: detail.customerName || row.customerName,
+        vehicleLabel: detail.vehicleLabel || row.vehicleLabel,
+        customerId: detail.customerId || row.customerId,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load repair order detail.';
+      onError(message);
+    } finally {
+      setDetailLoadingId(null);
+    }
+  };
+
+  const handleOpenCustomerFromModal = () => {
+    if (!selectedVisit?.customerId) return;
+    const customer = customerById.get(selectedVisit.customerId);
+    if (customer) {
+      setSelectedVisit(null);
+      onViewProfile(customer);
+    }
   };
 
   if (!isPbsSyncDealership(currentDealershipId)) {
@@ -136,7 +180,7 @@ export default function OpenRepairOrders({
             Open Repair Orders
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-            Live open ROs from PBS. Click a matched customer to open their profile.
+            Live open ROs from PBS. Click a row to open the full repair order.
             {fetchedAt ? ` Last refreshed ${formatFetchedAt(fetchedAt)}.` : ''}
           </p>
         </div>
@@ -199,18 +243,22 @@ export default function OpenRepairOrders({
               </thead>
               <tbody className="divide-y divide-white/5">
                 {filtered.map((row) => {
-                  const clickable = Boolean(row.customerId && customerById.has(row.customerId));
+                  const isLoadingRow = detailLoadingId === row.repairOrderId;
+                  const hasCrmMatch = Boolean(row.customerId && customerById.has(row.customerId));
                   return (
                     <tr
                       key={row.repairOrderId}
-                      onClick={() => handleRowClick(row)}
+                      onClick={() => void handleRowClick(row)}
                       className={cn(
-                        'transition-colors',
-                        clickable ? 'cursor-pointer hover:bg-brand-primary/5' : 'hover:bg-white/[0.02]'
+                        'transition-colors cursor-pointer hover:bg-brand-primary/5',
+                        isLoadingRow && 'opacity-60 pointer-events-none'
                       )}
                     >
                       <td className="px-4 py-3 font-mono font-semibold text-white whitespace-nowrap">
-                        {row.roNumber}
+                        <span className="inline-flex items-center gap-2">
+                          {row.roNumber}
+                          {isLoadingRow ? <Loader2 size={12} className="animate-spin text-brand-primary" /> : null}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{row.tag || '—'}</td>
                       <td className="px-4 py-3">
@@ -225,12 +273,12 @@ export default function OpenRepairOrders({
                                   Wait
                                 </span>
                               ) : null}
-                              {clickable ? (
-                                <User size={12} className="shrink-0 text-brand-primary opacity-70" />
+                              {hasCrmMatch ? (
+                                <User size={12} className="shrink-0 text-brand-primary opacity-70" title="Matched in customer directory" />
                               ) : null}
                             </>
                           ) : (
-                            <span className="text-slate-500 italic">Unmatched</span>
+                            <span className="text-slate-500 italic">—</span>
                           )}
                         </div>
                         <p className="md:hidden text-[10px] text-slate-500 mt-0.5 truncate max-w-[12rem]">
@@ -276,6 +324,28 @@ export default function OpenRepairOrders({
           </div>
         </div>
       )}
+
+      {selectedVisit ? (
+        <>
+          <ServiceVisitDetailModal
+            visit={selectedVisit.visit}
+            customerName={selectedVisit.customerName}
+            vehicleLabel={selectedVisit.vehicleLabel}
+            onClose={() => setSelectedVisit(null)}
+          />
+          {selectedVisit.customerId && customerById.has(selectedVisit.customerId) ? (
+            <div className="fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-[210]">
+              <button
+                type="button"
+                onClick={handleOpenCustomerFromModal}
+                className="btn-primary shadow-xl shadow-black/40 text-xs sm:text-sm px-4 py-2.5"
+              >
+                Open customer profile
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

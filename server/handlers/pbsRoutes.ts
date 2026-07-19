@@ -20,7 +20,7 @@ import {
 } from '../pbs/pbsDealershipScope.js';
 import { resolvePbsSyncCaller } from '../admin/requirePbsSyncCaller.js';
 import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
-import { listOpenRepairOrdersForDealership } from '../pbs/pbsOpenRepairOrders.js';
+import { listOpenRepairOrdersForDealership, getOpenRepairOrderDetail } from '../pbs/pbsOpenRepairOrders.js';
 import {
   executePbsSyncStage,
   isPacificMorningSyncHour,
@@ -331,6 +331,38 @@ export function registerPbsRoutes(app: Express) {
       return res.json({
         dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
         ...result,
+      });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /** Full open RO detail — job lines, concern/cause/correction from PBS. */
+  app.get('/api/pbs/open-repair-orders/:repairOrderId', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized open repair order detail request.' });
+    }
+
+    const repairOrderId = String(req.params.repairOrderId || '').trim();
+    if (!repairOrderId) {
+      return res.status(400).json({ error: 'Repair order id is required.' });
+    }
+
+    if (!isPbsPartnerHubConfigured()) {
+      return res.status(503).json({
+        error: 'PBS PartnerHUB credentials are not configured on the server.',
+      });
+    }
+
+    try {
+      const detail = await getOpenRepairOrderDetail(repairOrderId, PBS_AUTOMATED_SYNC_DEALERSHIP_ID);
+      if (!detail) {
+        return res.status(404).json({ error: 'Open repair order not found.' });
+      }
+      return res.json({
+        dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        ...detail,
       });
     } catch (err) {
       return handlePbsError(res, err);
