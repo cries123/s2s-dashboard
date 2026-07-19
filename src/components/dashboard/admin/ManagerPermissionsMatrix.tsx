@@ -7,14 +7,16 @@ const ROWS: {
   admin: string;
   staff: string;
 }[] = [
+  { action: 'Dealership user administration', manager: 'Yes — own store', admin: 'Master users only', staff: 'No' },
   { action: 'Approve staff enrollments', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
-  { action: 'Approve manager enrollments', manager: 'No', admin: 'Yes', staff: 'No' },
+  { action: 'Approve manager enrollments', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
   { action: 'Daily / monthly goals', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
   { action: 'DMS provider & parsers', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
   { action: 'Dispatch lane capacity & toggles', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
   { action: 'Pot of Gold / competition rosters', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
   { action: 'Store workspace defaults', manager: 'Yes — own store', admin: 'Yes — all stores', staff: 'No' },
-  { action: 'Master user email / password', manager: 'No', admin: 'Yes', staff: 'No' },
+  { action: 'Send password reset (staff)', manager: 'Yes — own store staff', admin: 'Yes — all stores', staff: 'No' },
+  { action: 'Master user email / password override', manager: 'No', admin: 'Yes', staff: 'No' },
   { action: 'Audit logs (all tenants)', manager: 'No', admin: 'Yes', staff: 'No' },
   { action: 'Audit logs (own tenant)', manager: 'Yes', admin: 'Yes', staff: 'No' },
   { action: 'Personal workspace preferences', manager: 'Own profile', admin: 'Own profile', staff: 'Own profile' },

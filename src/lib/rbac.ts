@@ -230,12 +230,23 @@ export function canModifyUser(actor: User | null | undefined, target: User): boo
   if (isPrimaryAdmin(actor) || isPlatformAdmin(actor)) return true;
   if (!isManager(actor)) return false;
   if (resolveUserDealershipId(actor) !== resolveUserDealershipId(target)) return false;
+  if (target.role === 'admin') return false;
+  if (isPendingManagerEnrollment(target) || isPendingStaffEnrollment(target)) return true;
   return (
     target.role !== 'manager' &&
     target.role !== 'Manager' &&
-    target.role !== 'admin' &&
     target.isManager !== true
   );
+}
+
+/** Managers can see same-store users in the admin list (including other managers). */
+export function canManagerViewDealershipUser(actor: User | null | undefined, target: User): boolean {
+  if (!actor) return false;
+  if (isPrimaryAdmin(actor) || isPlatformAdmin(actor)) return true;
+  if (!isManager(actor)) return false;
+  if (resolveUserDealershipId(actor) !== resolveUserDealershipId(target)) return false;
+  if (target.role === 'admin' && !isPendingUser(target)) return false;
+  return true;
 }
 
 

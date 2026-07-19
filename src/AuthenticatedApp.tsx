@@ -175,7 +175,7 @@ function DashboardShell({ user }: { user: User }) {
     return route;
   }, []);
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
-  const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'users');
+  const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'logs');
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
   const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
