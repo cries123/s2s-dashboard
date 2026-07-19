@@ -1,12 +1,26 @@
 import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
 import { pbsRepairOrderGet } from './partnerHubClient.js';
 import { customersCollection } from './pbsFirestore.js';
-import { normalizePhone, pbsIsoToDateString, repairOrderSoNumber, vinLast8FromVin } from './pbsMappers.js';
+import {
+  normalizePhone,
+  pbsIsoToDateString,
+  repairOrderSoNumber,
+  vinLast8FromVin,
+  mapRepairOrderToVisit,
+} from './pbsMappers.js';
 import { normalizePbsRef } from './pbsAppointmentSchedule.js';
 import { customerBelongsToPbsSyncDealership, PBS_AUTOMATED_SYNC_DEALERSHIP_ID } from './pbsDealershipScope.js';
 import type { PbsCustomerIndexMaps, PbsOpenRepairOrder } from './pbsExtendedTypes.js';
 import { isOpenPbsRepairOrder } from './pbsTechnicianAggregator.js';
 import { mapPbsDispatchStatus } from './pbsDispatchMapper.js';
+import { fetchContactNamesByRefs, type PbsContactName } from './pbsContactNameFallback.js';
+import {
+  fetchContactVehicleDisplayByRefs,
+  formatPbsDisplayName,
+  formatPbsVehicleLabel,
+  type PbsRefDisplayInfo,
+} from './pbsContactVehicleFallback.js';
+import type { PbsRepairOrder } from './pbsTypes.js';
 
 const OPEN_RO_LOOKBACK_DAYS = 90;
 
@@ -32,6 +46,54 @@ export interface OpenRepairOrderRow {
   vehicleLabel?: string;
   vinLast8?: string;
   isWaiting?: boolean;
+}
+
+export interface OpenRepairOrderVisitLine {
+  lineNumber: number;
+  requestCode?: string;
+  concern?: string;
+  cause?: string;
+  correction?: string;
+  tech?: string;
+  status?: string;
+  labourLines?: Array<{
+    opCode?: string;
+    description?: string;
+    soldHours?: number;
+    tech?: string;
+    price?: number;
+  }>;
+  partLines?: Array<{
+    partNumber?: string;
+    description?: string;
+    qty?: number;
+    price?: number;
+  }>;
+}
+
+export interface OpenRepairOrderDetail {
+  repairOrderId: string;
+  roNumber: string;
+  status: string;
+  customStatus?: string;
+  customerName?: string;
+  vehicleLabel?: string;
+  customerId?: string;
+  visit: {
+    soNumber: string;
+    date: string;
+    mileage: number;
+    advisor: string;
+    requests: string;
+    status?: string;
+    lines: OpenRepairOrderVisitLine[];
+  };
+}
+
+interface OpenRoEnrichment {
+  byVehicleRef: Map<string, PbsRefDisplayInfo>;
+  byContactRef: Map<string, PbsRefDisplayInfo>;
+  contactNames: Map<string, PbsContactName>;
 }
 
 function openRoLookbackIso(days: number): string {
@@ -91,6 +153,56 @@ function resolveCustomerFromIndex(
   return {};
 }
 
+async function buildEnrichmentForOpenRos(
+  repairOrders: PbsOpenRepairOrder[],
+  index: PbsCustomerIndexMaps
+): Promise<OpenRoEnrichment> {
+  const vehicleRefs: string[] = [];
+  const contactRefs: string[] = [];
+
+  for (const ro of repairOrders) {
+    const { customerId } = resolveCustomerFromIndex(index, ro);
+    if (customerId) continue;
+    const vehicleRef = (ro.VehicleRef || '').trim();
+    const contactRef = (ro.ContactRef || '').trim();
+    if (vehicleRef) vehicleRefs.push(vehicleRef);
+    if (contactRef) contactRefs.push(contactRef);
+  }
+
+  const [pbsDisplay, contactNames] = await Promise.all([
+    fetchContactVehicleDisplayByRefs(vehicleRefs, contactRefs),
+    fetchContactNamesByRefs(contactRefs),
+  ]);
+
+  return {
+    byVehicleRef: pbsDisplay.byVehicleRef,
+    byContactRef: pbsDisplay.byContactRef,
+    contactNames,
+  };
+}
+
+function resolvePbsFallbackDisplay(
+  ro: PbsOpenRepairOrder,
+  enrichment: OpenRoEnrichment
+): { customerName?: string; vehicleLabel?: string; vinLast8?: string } {
+  const vehicleKey = normalizePbsRef(ro.VehicleRef);
+  const contactKey = normalizePbsRef(ro.ContactRef);
+  const vehicleInfo = vehicleKey ? enrichment.byVehicleRef.get(vehicleKey) : undefined;
+  const contactInfo = contactKey ? enrichment.byContactRef.get(contactKey) : undefined;
+  const namedContact = contactKey ? enrichment.contactNames.get(contactKey) : undefined;
+
+  const displayInfo = vehicleInfo || contactInfo;
+  const customerName =
+    formatPbsDisplayName(displayInfo) ||
+    formatPbsDisplayName(namedContact) ||
+    undefined;
+  const vehicleLabel = formatPbsVehicleLabel(vehicleInfo || contactInfo);
+  const vin = displayInfo?.vin;
+  const vinLast8 = vin ? vinLast8FromVin(vin) : undefined;
+
+  return { customerName, vehicleLabel, vinLast8 };
+}
+
 function pickPrimaryTech(ro: PbsOpenRepairOrder): string {
   for (const req of ro.Requests || []) {
     const tech = (req.Tech || '').trim();
@@ -129,7 +241,8 @@ function daysBetween(isoDate: string, now = new Date()): number {
 
 export function mapOpenRepairOrderRow(
   ro: PbsOpenRepairOrder,
-  index: PbsCustomerIndexMaps
+  index: PbsCustomerIndexMaps,
+  enrichment?: OpenRoEnrichment
 ): OpenRepairOrderRow | null {
   if (!isOpenPbsRepairOrder(ro)) return null;
 
@@ -138,17 +251,26 @@ export function mapOpenRepairOrderRow(
   if (!repairOrderId || !roNumber) return null;
 
   const { customerId, customer } = resolveCustomerFromIndex(index, ro);
-  const firstName = customer ? String(customer.firstName || '').trim() : '';
-  const lastName = customer ? String(customer.lastName || '').trim() : '';
-  const customerName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
-  const year = customer ? String(customer.year || '').trim() : '';
-  const make = customer ? String(customer.make || '').trim() : '';
-  const model = customer ? String(customer.model || '').trim() : '';
-  const vehicleLabel = [year, make, model].filter(Boolean).join(' ') || undefined;
-  const vin = customer ? String(customer.vin || '') : '';
-  const vinLast8 = customer
-    ? String(customer.vinLast8 || vinLast8FromVin(vin))
-    : undefined;
+  let customerName: string | undefined;
+  let vehicleLabel: string | undefined;
+  let vinLast8: string | undefined;
+
+  if (customer) {
+    const firstName = String(customer.firstName || '').trim();
+    const lastName = String(customer.lastName || '').trim();
+    customerName = [firstName, lastName].filter(Boolean).join(' ') || undefined;
+    const year = String(customer.year || '').trim();
+    const make = String(customer.make || '').trim();
+    const model = String(customer.model || '').trim();
+    vehicleLabel = [year, make, model].filter(Boolean).join(' ') || undefined;
+    const vin = String(customer.vin || '');
+    vinLast8 = String(customer.vinLast8 || vinLast8FromVin(vin)) || undefined;
+  } else if (enrichment) {
+    const fallback = resolvePbsFallbackDisplay(ro, enrichment);
+    customerName = fallback.customerName;
+    vehicleLabel = fallback.vehicleLabel;
+    vinLast8 = fallback.vinLast8;
+  }
 
   const dateOpened = pbsIsoToDateString(ro.DateOpened) || new Date().toISOString().slice(0, 10);
   const promiseIso = ro.DatePromisedUTC || ro.DatePromised;
@@ -190,6 +312,57 @@ export function mapOpenRepairOrderRow(
   };
 }
 
+async function fetchRepairOrderById(repairOrderId: string): Promise<PbsOpenRepairOrder | null> {
+  const id = repairOrderId.trim();
+  if (!id) return null;
+
+  try {
+    const byId = await pbsRepairOrderGet({ RepairOrderId: id });
+    const direct = ((byId.RepairOrders || []) as PbsOpenRepairOrder[]).find(
+      (ro) => (ro.RepairOrderId || '').trim() === id
+    );
+    if (direct) return direct;
+  } catch {
+    /* fall through to open-RO scan */
+  }
+
+  const openOrders = await fetchOpenRepairOrdersFromPbs();
+  return openOrders.find((ro) => (ro.RepairOrderId || '').trim() === id) || null;
+}
+
+export async function getOpenRepairOrderDetail(
+  repairOrderId: string,
+  dealershipId: string = PBS_AUTOMATED_SYNC_DEALERSHIP_ID
+): Promise<OpenRepairOrderDetail | null> {
+  const ro = await fetchRepairOrderById(repairOrderId);
+  if (!ro || !isOpenPbsRepairOrder(ro)) return null;
+
+  const index = await loadCustomerIndexForOpenRos(dealershipId);
+  const enrichment = await buildEnrichmentForOpenRos([ro], index);
+  const row = mapOpenRepairOrderRow(ro, index, enrichment);
+  if (!row) return null;
+
+  const visit = mapRepairOrderToVisit(ro as PbsRepairOrder);
+  if (!visit) return null;
+
+  const statusLabel = [row.status, row.customStatus].filter(Boolean).join(' · ') || row.status;
+
+  return {
+    repairOrderId: row.repairOrderId,
+    roNumber: row.roNumber,
+    status: row.status,
+    customStatus: row.customStatus,
+    customerName: row.customerName,
+    vehicleLabel: row.vehicleLabel,
+    customerId: row.customerId,
+    visit: {
+      ...visit,
+      status: statusLabel,
+      advisor: row.advisor !== '—' ? row.advisor : visit.advisor,
+    },
+  };
+}
+
 export async function listOpenRepairOrdersForDealership(
   dealershipId: string = PBS_AUTOMATED_SYNC_DEALERSHIP_ID
 ): Promise<{ orders: OpenRepairOrderRow[]; fetchedAt: string }> {
@@ -198,8 +371,11 @@ export async function listOpenRepairOrdersForDealership(
     loadCustomerIndexForOpenRos(dealershipId),
   ]);
 
-  const orders = repairOrders
-    .map((ro) => mapOpenRepairOrderRow(ro, index))
+  const openOrders = repairOrders.filter(isOpenPbsRepairOrder);
+  const enrichment = await buildEnrichmentForOpenRos(openOrders, index);
+
+  const orders = openOrders
+    .map((ro) => mapOpenRepairOrderRow(ro, index, enrichment))
     .filter((row): row is OpenRepairOrderRow => Boolean(row))
     .sort((a, b) => {
       const byDays = b.daysOpen - a.daysOpen;
