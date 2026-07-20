@@ -125,7 +125,6 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
   const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState(
     () => defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
   );
-  const [showPerformanceTools, setShowPerformanceTools] = useState(false);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const rawTrackerStatsRef = React.useRef<DailyStat[]>([]);
   const viewPeriodOptions = React.useMemo(() => buildOperationsViewPeriodOptions(), []);
@@ -1051,24 +1050,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         )}
       </AnimatePresence>
 
-      <div className="card-base overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowPerformanceTools((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.02] transition-colors"
-        >
-          <span className="crm-section-title">Advisor performance</span>
-          <span className="crm-label">{showPerformanceTools ? 'Hide' : 'Expand'}</span>
-        </button>
-        {showPerformanceTools && (
-          <div className="px-5 pb-5 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
-            <AdvisorPerformance
-              currentDealershipId={currentDealershipId}
-              selectedMonth={selectedMonth}
-              allowArchiveEditing={allowArchiveEditing}
-            />
-          </div>
-        )}
+      <div className="card-base p-5">
+        <AdvisorPerformance
+          currentDealershipId={currentDealershipId}
+          selectedMonth={selectedMonth}
+          allowArchiveEditing={allowArchiveEditing}
+        />
       </div>
 
       <div className="card-base p-5">
