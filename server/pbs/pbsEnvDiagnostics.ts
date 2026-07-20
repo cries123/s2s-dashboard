@@ -1,5 +1,6 @@
 import { loadServiceAccountFromEnv } from '../admin/parseServiceAccountJson.js';
 import { isPbsPartnerHubConfigured } from './partnerHubConfig.js';
+import { getPbsSyncSecret } from './pbsSyncAuth.js';
 
 function envPresent(name: string): boolean {
   const value = process.env[name]?.trim();
@@ -27,5 +28,21 @@ export function getPbsEnvDiagnostics() {
     firebaseProjectId: process.env.VITE_FIREBASE_PROJECT_ID?.trim() || null,
     redeployHint:
       'After changing Netlify env vars you must trigger a new production deploy (Deploys → Trigger deploy). Saving variables alone is not enough.',
+  };
+}
+
+export function getPbsCronDiagnostics() {
+  const env = getPbsEnvDiagnostics();
+  return {
+    schedule: '@hourly (executes pull at 6:00 AM America/Los_Angeles)',
+    functionName: 'pbs-daily-sync',
+    cronReady: env.pbsConfigured && env.firestoreAdminReady,
+    pbsSyncSecretConfigured: Boolean(getPbsSyncSecret()),
+    missingForCron: [
+      ...(!env.pbsConfigured ? env.missingPbsVars : []),
+      ...(!env.firestoreAdminReady ? ['FIREBASE_SERVICE_ACCOUNT_JSON'] : []),
+    ],
+    setupHint:
+      'Netlify runs the pbs-daily-sync function every hour. It only pulls PBS data during the 6 AM Pacific hour. After saving env vars, trigger a new production deploy.',
   };
 }

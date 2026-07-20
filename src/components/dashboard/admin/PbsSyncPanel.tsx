@@ -70,6 +70,7 @@ function PbsSyncPanelInner({
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState(false);
   const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
+  const [cronStatus, setCronStatus] = useState<PbsSyncStatusResponse['cron']>();
   const [serverState, setServerState] = useState<PbsSyncStatusResponse['state']>(null);
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
@@ -85,6 +86,7 @@ function PbsSyncPanelInner({
       setFirestoreError(status.firestoreError ?? null);
       setFirestoreQuotaExceeded(Boolean(status.firestoreQuotaExceeded));
       setDiagnostics(status.diagnostics);
+      setCronStatus(status.cron);
       setServerState(status.state);
       return status;
     } catch (err) {
@@ -305,7 +307,7 @@ function PbsSyncPanelInner({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
             <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">PBS credentials</p>
             <p className={cn('text-xs font-bold mt-1', configured ? 'text-emerald-300' : 'text-rose-300')}>
@@ -332,6 +334,29 @@ function PbsSyncPanelInner({
             </p>
             {firestoreError ? (
               <p className="text-[10px] text-amber-400/90 mt-1 line-clamp-3">{firestoreError}</p>
+            ) : null}
+          </div>
+          <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
+            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Morning auto-sync</p>
+            <p
+              className={cn(
+                'text-xs font-bold mt-1',
+                cronStatus?.cronReady ? 'text-emerald-300' : 'text-amber-300'
+              )}
+            >
+              {cronStatus?.cronReady ? 'Scheduled (6 AM Pacific)' : 'Not ready'}
+            </p>
+            {cronStatus?.lastRunAt ? (
+              <p className="text-[10px] text-slate-600 mt-1">
+                Last scheduled run {formatWhen(cronStatus.lastRunAt)}
+                {cronStatus.lastRunOk === false ? ' · failed' : ''}
+              </p>
+            ) : cronStatus?.cronReady ? (
+              <p className="text-[10px] text-slate-600 mt-1">No scheduled run logged yet</p>
+            ) : cronStatus?.missingForCron?.length ? (
+              <p className="text-[10px] text-amber-400/90 mt-1 line-clamp-3">
+                Missing: {cronStatus.missingForCron.join(', ')}
+              </p>
             ) : null}
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
@@ -389,6 +414,13 @@ function PbsSyncPanelInner({
                   <strong className="text-amber-50">production deploy</strong> — saving alone does not update live
                   functions.
                 </p>
+                {cronStatus && !cronStatus.cronReady ? (
+                  <p>
+                    Morning auto-sync will not run until PBS credentials and{' '}
+                    <code className="text-amber-100">FIREBASE_SERVICE_ACCOUNT_JSON</code> are set. Check the
+                    Morning auto-sync card above after redeploy.
+                  </p>
+                ) : null}
                 {missingPbsVars.length ? (
                   <p>
                     Missing PBS vars on the server:{' '}

@@ -32,7 +32,7 @@ import {
   type PbsSyncStageName,
 } from '../pbs/pbsSync.js';
 import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
-import { getPbsEnvDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
+import { getPbsEnvDiagnostics, getPbsCronDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
 
@@ -167,11 +167,19 @@ export function registerPbsRoutes(app: Express) {
           }
         }
         const logs = (data?.pbsSyncLogs as PbsSyncLogEntry[] | undefined) ?? [];
+        const lastCronLog = logs.find((entry) => entry.triggeredBy === 'cron');
+        const cron = getPbsCronDiagnostics();
         return res.json({
           configured: diagnostics.pbsConfigured,
           firestoreAdmin: true,
           firestoreReachable: true,
           diagnostics,
+          cron: {
+            ...cron,
+            lastRunAt: lastCronLog?.finishedAt ?? lastCronLog?.startedAt,
+            lastRunOk: lastCronLog?.ok,
+            lastRunSummary: lastCronLog?.summary,
+          },
           dealershipId,
           dealershipName: PBS_AUTOMATED_SYNC_DEALERSHIP_NAME,
           scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],

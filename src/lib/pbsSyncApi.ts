@@ -35,6 +35,17 @@ export interface PbsSyncStatusResponse {
   } | null;
   logs: PbsSyncLogEntry[];
   nextScheduledWindow?: string;
+  cron?: {
+    schedule: string;
+    functionName: string;
+    cronReady: boolean;
+    pbsSyncSecretConfigured: boolean;
+    missingForCron: string[];
+    setupHint: string;
+    lastRunAt?: string;
+    lastRunOk?: boolean;
+    lastRunSummary?: string;
+  };
 }
 
 export interface PbsSyncRunResponse {
