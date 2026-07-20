@@ -6,6 +6,7 @@ import type { DispatchStatus, PerformanceAdvisorSlot } from '../../../types';
 import { DispatchPromiseTimeInput } from './DispatchPromiseTimeInput';
 import { normalizeTechNumber, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
 import { PROMISE_PRESETS, type PromisePresetId } from '../../../lib/dispatchPromiseTime';
+import { formatPhoneAsYouType, formatPhoneDisplay } from '../../../lib/phoneFormat';
 
 interface DispatchIntakeFormProps {
   customerFirstName: string;
@@ -124,7 +125,7 @@ export function DispatchIntakeForm({
           type="tel"
           placeholder="(805) 555-0100"
           value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
+          onChange={(e) => setPhoneNumber(formatPhoneAsYouType(e.target.value))}
           className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
         />
       </div>
@@ -157,7 +158,7 @@ export function DispatchIntakeForm({
                   setCustomerFirstName(cust.firstName || '');
                   setCustomerLastName(cust.lastName);
                   setVinLastEight(cust.vinLast8 || '');
-                  setPhoneNumber(cust.phone || '');
+                  setPhoneNumber(formatPhoneDisplay(cust.phone) || '');
                 }}
                 className="w-full text-left px-3 py-2 rounded-lg text-[10px] border border-transparent bg-slate-900/60 text-slate-300 hover:bg-indigo-950/40 hover:border-indigo-500/30 transition-all"
               >

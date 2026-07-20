@@ -8,6 +8,7 @@ import {
   validatePromiseDateAndTime,
 } from '../../../lib/dispatchPromiseTime';
 import { findCustomersByLastName, splitDispatchCustomerName } from '../../../lib/dispatchCustomerMatch';
+import { formatPhoneAsYouType, formatPhoneDisplay } from '../../../lib/phoneFormat';
 import { normalizeTechNumber, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
 import { DispatchPromiseTimeInput } from './DispatchPromiseTimeInput';
 
@@ -44,7 +45,7 @@ function initialValuesFromRo(ro: DispatchRepairOrder): DispatchRoEditValues {
   return {
     customerFirstName: firstName,
     customerLastName: lastName,
-    phoneNumber: ro.phoneNumber || '',
+    phoneNumber: formatPhoneDisplay(ro.phoneNumber),
     roNumber: ro.roNumber,
     vinLastEight: ro.vinLastEight || '',
     techNumber: ro.techNumber,
@@ -186,7 +187,7 @@ export function DispatchRoEditModal({
                       ...prev,
                       customerFirstName: cust.firstName || '',
                       customerLastName: cust.lastName,
-                      phoneNumber: cust.phone || prev.phoneNumber,
+                      phoneNumber: formatPhoneDisplay(cust.phone) || prev.phoneNumber,
                       vinLastEight: cust.vinLast8 || prev.vinLastEight,
                       customerId: cust.id,
                     }))
@@ -218,8 +219,11 @@ export function DispatchRoEditModal({
             </label>
             <input
               type="tel"
+              placeholder="(805) 555-0100"
               value={values.phoneNumber}
-              onChange={(e) => setValues((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+              onChange={(e) =>
+                setValues((prev) => ({ ...prev, phoneNumber: formatPhoneAsYouType(e.target.value) }))
+              }
               className="input-field w-full"
             />
           </div>
