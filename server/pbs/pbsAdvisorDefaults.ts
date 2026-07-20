@@ -1,5 +1,6 @@
 /** Known PBS PartnerHUB login codes → advisor display names (Hyundai Santa Maria). */
 export const HYUNDAI_PBS_ADVISOR_CODE_MAP: Record<string, string> = {
+  '01': 'Frank',
   lv4278: 'Lemmy',
 };
 

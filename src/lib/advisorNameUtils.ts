@@ -117,6 +117,46 @@ export function filterAdvisorsByPerformanceRoster<T extends { name: string }>(
   return advisors.filter((row) => matchesPerformanceAdvisorRoster(row.name, roster));
 }
 
+export interface PerformanceAdvisorRow {
+  name: string;
+  soCount: number;
+  hrsSold: number;
+  laborSold: number;
+  grossLabor: number;
+  partsSold: number;
+  grossParts: number;
+  totalSales: number;
+  gpPercent: number;
+  elr: number;
+  upsells?: Array<{ code: string; description: string; count: number; revenue: number }>;
+}
+
+/** Show every roster advisor — pad missing PBS rows with zeros. */
+export function mergePerformanceAdvisorsWithRoster<T extends PerformanceAdvisorRow>(
+  advisors: T[],
+  roster: { label: string }[] | undefined
+): T[] {
+  if (!roster?.length) return advisors;
+  const filtered = filterAdvisorsByPerformanceRoster(advisors, roster);
+  return roster.map((slot) => {
+    const match = filtered.find((row) => matchesPerformanceAdvisorRoster(row.name, [slot]));
+    if (match) return match;
+    return {
+      name: slot.label,
+      soCount: 0,
+      hrsSold: 0,
+      laborSold: 0,
+      grossLabor: 0,
+      partsSold: 0,
+      grossParts: 0,
+      totalSales: 0,
+      gpPercent: 0,
+      elr: 0,
+      upsells: [],
+    } as T;
+  });
+}
+
 /** Legacy PBS demo names — reject when importing DealerBuilt reports. */
 export function isPhantomPbsAdvisorName(name: string): boolean {
   const n = name.toLowerCase().trim();

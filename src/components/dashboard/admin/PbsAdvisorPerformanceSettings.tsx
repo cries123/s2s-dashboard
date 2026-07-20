@@ -145,10 +145,10 @@ export function PbsAdvisorPerformanceSettings({
           PBS login code map
         </label>
         <p className="text-[10px] text-slate-500 max-w-2xl leading-relaxed">
-          When PBS puts a login code in the CSR field (e.g. <strong className="text-slate-300">LV4278</strong>
-          ), map it to the advisor name on your roster. After saving, run{' '}
-          <strong className="text-slate-300">Admin → PBS Sync → Pull changes</strong> to rebuild the
-          breakdown.
+          When PBS puts a login code in the CSR field (e.g. <strong className="text-slate-300">01</strong> for
+          Frank, <strong className="text-slate-300">LV4278</strong> for Lemmy), map it to the advisor name on your
+          roster. After saving, run{' '}
+          <strong className="text-slate-300">Admin → PBS Sync → Pull changes</strong> to rebuild the breakdown.
         </p>
 
         {suggestedCodes.length > 0 ? (
@@ -173,7 +173,7 @@ export function PbsAdvisorPerformanceSettings({
                     return next;
                   });
                 }}
-                placeholder="PBS code (LV4278)"
+                placeholder="PBS code (01, LV4278)"
                 className="w-full sm:w-36 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 uppercase"
               />
               <input

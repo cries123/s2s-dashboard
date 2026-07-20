@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, ChevronDown, X, Keyboard, RotateCcw
+  FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, X, Keyboard, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
@@ -33,6 +33,7 @@ import {
   isPhantomPbsAdvisorName,
   isRealAdvisorName,
   matchesPerformanceAdvisorRoster,
+  mergePerformanceAdvisorsWithRoster,
 } from '../../../lib/advisorNameUtils';
 import type { PerformanceAdvisorSlot } from '../../../types';
 import {
@@ -75,7 +76,6 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [importProgress, setImportProgress] = useState<string | null>(null);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  const [expandedAdvisors, setExpandedAdvisors] = useState<Record<string, boolean>>({});
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
   const [totals, setTotals] = useState<any>(null);
   const [reportStartDate, setReportStartDate] = useState<string | undefined>();
@@ -192,9 +192,10 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
       : defaultPerformanceAdvisorRoster(currentDealershipId) ?? [];
 
   const visibleAdvisors = React.useMemo(() => {
-    const filtered = filterAdvisorsByPerformanceRoster(advisors, effectiveAdvisorRoster);
-    if (filtered.length > 0 || effectiveAdvisorRoster.length === 0) return filtered;
-    return advisors;
+    if (effectiveAdvisorRoster.length === 0) {
+      return advisors;
+    }
+    return mergePerformanceAdvisorsWithRoster(advisors, effectiveAdvisorRoster);
   }, [advisors, effectiveAdvisorRoster]);
 
   const isPbsDealership = effectiveDmsProvider === 'pbs';
@@ -1032,66 +1033,45 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                   </div>
 
                   <div className="px-6 py-4 bg-slate-950/40 border-t border-slate-800/50">
-                    <button 
-                      onClick={() => setExpandedAdvisors(prev => ({ ...prev, [advisor.name]: !prev[advisor.name] }))}
-                      className="w-full flex items-center justify-between group/btn"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-brand-primary/10 rounded-lg group-hover/btn:bg-brand-primary/20 transition-colors">
-                          <Target size={14} className="text-brand-primary" />
-                        </div>
-                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Service Frequency / Upsells</span>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-1.5 bg-brand-primary/10 rounded-lg">
+                        <Target size={14} className="text-brand-primary" />
                       </div>
-                      <ChevronDown 
-                        size={16} 
-                        className={cn(
-                          "text-slate-600 transition-transform duration-300",
-                          expandedAdvisors[advisor.name] && "rotate-180"
-                        )} 
-                      />
-                    </button>
-                    
-                    <AnimatePresence>
-                      {expandedAdvisors[advisor.name] && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="pt-4 space-y-2">
-                            {advisor.upsells?.map((item, i) => (
-                              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-slate-800/30 hover:border-slate-700/50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-400 border border-slate-700/50">
-                                    {item.code}
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] font-black text-white leading-none mb-1">
-                                      {item.code === 'FB' || (item.description.toUpperCase().includes('FRONT BRAKE') && item.description.toUpperCase().includes('RESURFACE')) 
-                                        ? 'FB PAD R&R ROTOR RESURFACE' 
-                                        : item.code === 'RB' || (item.description.toUpperCase().includes('REAR BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
-                                        ? 'RB PAD R&R ROTOR RESURFACE'
-                                        : item.description}
-                                    </p>
-                                    <p className="text-[8px] font-bold text-brand-secondary uppercase tracking-tighter">Labor: ${item.revenue.toFixed(2)}</p>
-                                  </div>
-                                </div>
-                                <div className="text-right flex-shrink-0 ml-2">
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
-                                    <span className="text-xs">{item.count}</span>
-                                    <span className="opacity-70 uppercase text-[8px]">Sold</span>
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                            {(!advisor.upsells || advisor.upsells.length === 0) && (
-                              <p className="text-center py-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest italic">No upsell data available</p>
-                            )}
+                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                        Service Frequency / Upsells
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {advisor.upsells?.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-slate-800/30 hover:border-slate-700/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-400 border border-slate-700/50">
+                              {item.code}
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black text-white leading-none mb-1">
+                                {item.code === 'FB' || (item.description.toUpperCase().includes('FRONT BRAKE') && item.description.toUpperCase().includes('RESURFACE')) 
+                                  ? 'FB PAD R&R ROTOR RESURFACE' 
+                                  : item.code === 'RB' || (item.description.toUpperCase().includes('REAR BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
+                                  ? 'RB PAD R&R ROTOR RESURFACE'
+                                  : item.description}
+                              </p>
+                              <p className="text-[8px] font-bold text-brand-secondary uppercase tracking-tighter">Labor: ${item.revenue.toFixed(2)}</p>
+                            </div>
                           </div>
-                        </motion.div>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
+                              <span className="text-xs">{item.count}</span>
+                              <span className="opacity-70 uppercase text-[8px]">Sold</span>
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {(!advisor.upsells || advisor.upsells.length === 0) && (
+                        <p className="text-center py-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest italic">No upsell data available</p>
                       )}
-                    </AnimatePresence>
+                    </div>
                   </div>
                 </div>
               ))}

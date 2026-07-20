@@ -122,6 +122,14 @@ assert(
   'junk line CSR falls back to header PBS code alias'
 );
 
+const frankAliases = buildPbsAdvisorAliases(['LEMMY LV4278']);
+frankAliases.set('01', 'Frank');
+assert(
+  resolvePbsAdvisorCsr('01', '01', frankAliases) === 'Frank',
+  'numeric PBS login code 01 resolves to Frank via code map'
+);
+assert(cleanPbsCsrName('01', frankAliases) === 'Frank', 'cleanPbsCsrName resolves 01 via alias');
+
 const codeRepairOrders: PbsRepairOrderFull[] = [
   {
     RawRepairOrderNumber: '2001',

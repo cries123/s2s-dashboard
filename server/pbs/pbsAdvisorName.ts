@@ -50,6 +50,9 @@ export function cleanPbsCsrName(
   const trimmed = (raw || '').trim();
   if (!trimmed) return '';
 
+  const directAlias = aliases?.get(normalizePbsAdvisorCode(trimmed));
+  if (directAlias) return directAlias;
+
   const upper = trimmed.toUpperCase();
   if (upper.includes('FRANK')) return 'Frank';
   if (upper.includes('LEMMY')) return 'Lemmy';
