@@ -1,16 +1,17 @@
-import { schedule } from '@netlify/functions';
+import type { Handler, HandlerContext } from '@netlify/functions';
 import { getAdminFirestore } from '../../server/admin/initFirebaseAdmin.js';
 import { isPbsPartnerHubConfigured } from '../../server/pbs/partnerHubConfig.js';
 import { isPacificMorningSyncHour, runPbsSync } from '../../server/pbs/pbsSync.js';
 
 /**
- * Netlify scheduled function — runs hourly and executes the PBS pull at 6:00 AM
- * Pacific. Scheduled invocations are not behind the HTTP gateway, so the sync can
- * use the full function timeout (300s in netlify.toml).
+ * Netlify scheduled function — cron is configured in netlify.toml (@hourly).
+ * Executes the PBS pull during the 6:00 AM Pacific window.
  *
  * Requires PBS PartnerHUB credentials + FIREBASE_SERVICE_ACCOUNT_JSON in Netlify env.
  */
-const scheduledHandler = schedule('@hourly', async () => {
+export const handler: Handler = async (_event, context: HandlerContext) => {
+  context.callbackWaitsForEmptyEventLoop = false;
+
   if (!isPbsPartnerHubConfigured()) {
     console.warn('[pbs-daily-sync] PBS PartnerHUB credentials are not configured — skipping.');
     return {
@@ -41,6 +42,4 @@ const scheduledHandler = schedule('@hourly', async () => {
     statusCode: result.ok ? 200 : 500,
     body: JSON.stringify(result),
   };
-});
-
-export const handler = scheduledHandler;
+};
