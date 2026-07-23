@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2, ClipboardList
+  BarChart2, ClipboardList, MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,13 +37,13 @@ import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
+import { resolveUserTenantId, canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPrimaryAdmin, isUserApproved } from './lib/rbac';
+import { subscribeTenantUsers } from './lib/userDirectory';
+import { useDealershipChatInbox } from './hooks/useDealershipChatInbox';
 import {
-  canAccessPrimaryAdminSettings,
-  canSeeManagerPanel,
-  canSwitchDealership,
-  isPrimaryAdmin,
-  isUserApproved,
-} from './lib/rbac';
+  DealershipChatNotifications,
+  DealershipChatPanel,
+} from './components/chat/DealershipChatNotifications';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
@@ -342,7 +342,28 @@ function DashboardShell({ user }: { user: User }) {
   // Modal States
   const [selectedProfile, setSelectedProfile] = useState<Customer | null>(null);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
+  const [chatRecipientUid, setChatRecipientUid] = useState<string | null>(null);
+  const [chatRecipientName, setChatRecipientName] = useState<string | null>(null);
+  const [tenantUsers, setTenantUsers] = useState<User[]>([]);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
+
+  const tenantId = resolveUserTenantId(user);
+  const { inbox: chatInbox, unreadCount: chatUnreadCount } = useDealershipChatInbox(
+    currentDealershipId || undefined,
+    user?.uid
+  );
+
+  React.useEffect(() => {
+    if (!tenantId) {
+      setTenantUsers([]);
+      return;
+    }
+    const unsub = subscribeTenantUsers(tenantId, setTenantUsers, (err) =>
+      console.error('[DealershipChat] users error', err)
+    );
+    return () => unsub();
+  }, [tenantId]);
 
   const showNotification = (text: string, isError = false) => {
     setNotification({ text, isError });
@@ -425,6 +446,8 @@ function DashboardShell({ user }: { user: User }) {
         }}
         onSignOut={handleSignOut}
         onOpenSuggestions={() => setShowSuggestionModal(true)}
+        onOpenChat={() => setShowChatPanel(true)}
+        chatUnreadCount={chatUnreadCount}
       />
 
       <DealershipAnnouncementBanner
@@ -625,6 +648,29 @@ function DashboardShell({ user }: { user: User }) {
       />
       </div>
     </div>
+
+      <DealershipChatNotifications
+        inbox={chatInbox}
+        onOpenThread={(fromUid, fromName) => {
+          setChatRecipientUid(fromUid);
+          setChatRecipientName(fromName);
+          setShowChatPanel(true);
+        }}
+      />
+
+      <DealershipChatPanel
+        open={showChatPanel}
+        onClose={() => {
+          setShowChatPanel(false);
+          setChatRecipientUid(null);
+          setChatRecipientName(null);
+        }}
+        currentUser={currentUser}
+        dealershipId={currentDealershipId || 'hyundai'}
+        tenantUsers={tenantUsers}
+        initialRecipientUid={chatRecipientUid}
+        initialRecipientName={chatRecipientName}
+      />
     </ServiceAlertProvider>
   );
 }

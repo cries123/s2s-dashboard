@@ -1721,7 +1721,7 @@ export function DispatchBoard({
                   value={val} 
                   className="font-bold text-xs bg-slate-950 text-white py-1"
                 >
-                  {info.label} ({val})
+                  {info.label}
                 </option>
               ))}
             </select>
@@ -2191,7 +2191,7 @@ export function DispatchBoard({
               {Object.entries(DISPATCH_STATUS_COLORS).map(([code, info]) => (
                 <div key={code} className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: info.hex }}></span>
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">{info.label} ({code})</span>
+                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">{info.label}</span>
                 </div>
               ))}
               <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">

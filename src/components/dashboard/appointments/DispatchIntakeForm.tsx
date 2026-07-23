@@ -195,18 +195,33 @@ export function DispatchIntakeForm({
         />
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
-          RO Number <span className="text-rose-400/90">*</span>
-        </label>
-        <input
-          type="text"
-          placeholder="883719"
-          value={roNumber}
-          onChange={(e) => setRoNumber(e.target.value)}
-          className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
-          required
-        />
+      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] sm:grid-cols-[9rem_1fr] gap-3">
+        <div className="space-y-1.5">
+          <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+            RO Number <span className="text-rose-400/90">*</span>
+          </label>
+          <input
+            type="text"
+            placeholder="883719"
+            value={roNumber}
+            onChange={(e) => setRoNumber(e.target.value)}
+            className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold tabular-nums"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+            Tag Number <span className="text-rose-400/90">*</span>
+          </label>
+          <input
+            type="text"
+            placeholder="A-142"
+            value={tagNumber}
+            onChange={(e) => setTagNumber(e.target.value)}
+            className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
+            required
+          />
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -223,45 +238,30 @@ export function DispatchIntakeForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
-            Technician <span className="text-rose-400/90">*</span>
-          </label>
-          <select
-            value={techNumber}
-            onChange={(e) => setTechNumber(e.target.value)}
-            className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold"
-            required
-          >
-            <option value="" disabled>
-              Select technician…
-            </option>
-            {dispatchTechRoster.map((row) => {
-              const key = normalizeTechNumber(row.id);
-              const count = techRoCounts.get(key) ?? 0;
-              return (
-                <option key={row.id} value={row.id}>
-                  {resolveTechDisplayName(row.id, dispatchTechRoster)}
-                  {count > 0 ? ` (${count} ROs)` : ''} — #{row.id}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
-            Tag Number <span className="text-rose-400/90">*</span>
-          </label>
-          <input
-            type="text"
-            placeholder="A-142"
-            value={tagNumber}
-            onChange={(e) => setTagNumber(e.target.value)}
-            className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-slate-700 transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold uppercase"
-            required
-          />
-        </div>
+      <div className="space-y-1.5">
+        <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+          Technician <span className="text-rose-400/90">*</span>
+        </label>
+        <select
+          value={techNumber}
+          onChange={(e) => setTechNumber(e.target.value)}
+          className="w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white transition-all focus:ring-2 focus:ring-indigo-500/15 font-semibold"
+          required
+        >
+          <option value="" disabled>
+            Select technician…
+          </option>
+          {dispatchTechRoster.map((row) => {
+            const key = normalizeTechNumber(row.id);
+            const count = techRoCounts.get(key) ?? 0;
+            return (
+              <option key={row.id} value={row.id}>
+                {resolveTechDisplayName(row.id, dispatchTechRoster)}
+                {count > 0 ? ` (${count} ROs)` : ''} — #{row.id}
+              </option>
+            );
+          })}
+        </select>
       </div>
 
       <div className="space-y-1.5">

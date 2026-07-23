@@ -530,7 +530,7 @@ export type DepartmentColumnId =
 
 export type DispatchLifecycleStatus = 'active' | 'overnight';
 
-export type DispatchStatus = 'WIP' | 'POO' | 'WFA' | 'SBL';
+export type DispatchStatus = 'WIP' | 'PRT' | 'POO' | 'WFA' | 'SBL';
 
 export interface DispatchRepairOrder {
   id: string;
@@ -564,6 +564,21 @@ export interface DispatchRepairOrder {
   promiseTimeAt?: string;
   /** Customer concern / reason for visit */
   concern?: string;
+}
+
+export interface DealershipChatMessage {
+  id: string;
+  dealershipId: string;
+  tenantId?: string;
+  threadKey: string;
+  fromUid: string;
+  fromName: string;
+  toUid: string;
+  toName: string;
+  body: string;
+  createdAt: string;
+  readAt?: string;
+  dismissedAt?: string;
 }
 
 export type SuggestionStatus = 'new' | 'reviewed' | 'resolved';

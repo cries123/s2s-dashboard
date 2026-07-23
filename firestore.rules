@@ -238,6 +238,31 @@ service cloud.firestore {
       allow write: if isSignedIn();
     }
 
+    // --- Tenant-scoped dealership chat (dispatch ↔ advisors) ---
+    match /artifacts/hyundai-sales-to-service/public/data/dealershipChatMessages/{messageId} {
+      allow read: if isApproved() &&
+                     resource.data.dealershipId == userDealershipId() &&
+                     (resource.data.fromUid == request.auth.uid ||
+                      resource.data.toUid == request.auth.uid);
+
+      allow create: if isApproved() &&
+                       incoming().dealershipId == userDealershipId() &&
+                       incoming().fromUid == request.auth.uid &&
+                       incoming().toUid is string &&
+                       incoming().toUid != request.auth.uid &&
+                       incoming().fromName is string &&
+                       incoming().toName is string &&
+                       incoming().threadKey is string &&
+                       incoming().body is string &&
+                       incoming().body.size() > 0 &&
+                       incoming().body.size() <= 500 &&
+                       incoming().createdAt is string;
+
+      allow update: if isApproved() &&
+                       resource.data.toUid == request.auth.uid &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dismissedAt', 'readAt']);
+    }
+
     // --- User suggestions (top-bar feedback) ---
     match /artifacts/hyundai-sales-to-service/public/data/suggestions/{suggestionId} {
       allow create: if isApproved() &&

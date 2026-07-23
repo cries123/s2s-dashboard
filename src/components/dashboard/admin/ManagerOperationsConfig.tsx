@@ -117,6 +117,7 @@ function Toggle({
 
 const STATUS_OPTIONS: { id: DispatchStatus; label: string }[] = [
   { id: 'WIP', label: 'WIP' },
+  { id: 'PRT', label: 'In parts' },
   { id: 'POO', label: 'Parts on order' },
   { id: 'WFA', label: 'Waiting advisor' },
   { id: 'SBL', label: 'Sublet' },

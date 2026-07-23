@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyRound, Lightbulb, LogOut } from 'lucide-react';
+import { KeyRound, Lightbulb, LogOut, MessageSquare } from 'lucide-react';
 import type { User } from '../../types';
 import { canSwitchDealership } from '../../lib/rbac';
 import { getDealershipEnrollmentCode } from '../../lib/dealershipEnrollment';
@@ -14,6 +14,8 @@ interface AppTopBarProps {
   onDealershipChange: (id: string) => void;
   onSignOut: () => void;
   onOpenSuggestions?: () => void;
+  onOpenChat?: () => void;
+  chatUnreadCount?: number;
 }
 
 export function AppTopBar({
@@ -24,6 +26,8 @@ export function AppTopBar({
   onDealershipChange,
   onSignOut,
   onOpenSuggestions,
+  onOpenChat,
+  chatUnreadCount = 0,
 }: AppTopBarProps) {
   const canSwitch = canSwitchDealership(user);
   const fordEnrollmentCode =
@@ -90,6 +94,21 @@ export function AppTopBar({
             {user.jobTitle || user.role}
           </p>
         </div>
+        {onOpenChat ? (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="btn-secondary p-2.5 relative"
+            title="Team chat"
+          >
+            <MessageSquare size={16} className="text-indigo-300" />
+            {chatUnreadCount > 0 ? (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-[9px] font-black text-white flex items-center justify-center">
+                {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+              </span>
+            ) : null}
+          </button>
+        ) : null}
         {onOpenSuggestions ? (
           <button
             type="button"

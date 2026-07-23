@@ -137,7 +137,7 @@ export function DispatchMetricsBar({
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-950/80 text-[9px] font-black uppercase tracking-wider text-slate-400"
           >
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: info.hex }} />
-            {code}
+            {info.label}
             <span className="text-white tabular-nums">{metrics.statusCounts[code as keyof typeof metrics.statusCounts]}</span>
           </span>
         ))}

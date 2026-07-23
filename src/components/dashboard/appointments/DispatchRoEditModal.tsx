@@ -341,7 +341,7 @@ export function DispatchRoEditModal({
             >
               {Object.entries(DISPATCH_STATUS_COLORS).map(([code, info]) => (
                 <option key={code} value={code}>
-                  {info.label} ({code})
+                  {info.label}
                 </option>
               ))}
             </select>
