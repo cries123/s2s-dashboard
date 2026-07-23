@@ -65,6 +65,20 @@ export async function sendDealershipChatMessage(input: {
   return docRef.id;
 }
 
+function sortMessages(rows: DealershipChatMessage[]): DealershipChatMessage[] {
+  return [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function mergeMessages(...groups: DealershipChatMessage[][]): DealershipChatMessage[] {
+  const merged = new Map<string, DealershipChatMessage>();
+  for (const group of groups) {
+    for (const message of group) {
+      merged.set(message.id, message);
+    }
+  }
+  return sortMessages([...merged.values()]);
+}
+
 export function subscribeDealershipInbox(
   dealershipId: string,
   uid: string,
@@ -80,12 +94,116 @@ export function subscribeDealershipInbox(
   return onSnapshot(
     q,
     (snapshot) => {
-      const rows = snapshot.docs
-        .map((docSnap) => mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>))
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      onData(rows);
+      onData(
+        sortMessages(
+          snapshot.docs.map((docSnap) =>
+            mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>)
+          )
+        )
+      );
     },
     (error) => onError?.(error)
+  );
+}
+
+export function subscribeDealershipOutbox(
+  dealershipId: string,
+  uid: string,
+  onData: (messages: DealershipChatMessage[]) => void,
+  onError?: (error: unknown) => void
+): Unsubscribe {
+  const q = query(
+    messagesCollection(),
+    where('dealershipId', '==', dealershipId),
+    where('fromUid', '==', uid)
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      onData(
+        sortMessages(
+          snapshot.docs.map((docSnap) =>
+            mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>)
+          )
+        )
+      );
+    },
+    (error) => onError?.(error)
+  );
+}
+
+/** All messages sent or received by this user at a dealership. */
+export function subscribeDealershipConversations(
+  dealershipId: string,
+  uid: string,
+  onData: (messages: DealershipChatMessage[]) => void,
+  onError?: (error: unknown) => void
+): Unsubscribe {
+  let inbox: DealershipChatMessage[] = [];
+  let outbox: DealershipChatMessage[] = [];
+
+  const publish = () => onData(mergeMessages(inbox, outbox));
+
+  const unsubInbox = subscribeDealershipInbox(dealershipId, uid, (rows) => {
+    inbox = rows;
+    publish();
+  }, onError);
+
+  const unsubOutbox = subscribeDealershipOutbox(dealershipId, uid, (rows) => {
+    outbox = rows;
+    publish();
+  }, onError);
+
+  return () => {
+    unsubInbox();
+    unsubOutbox();
+  };
+}
+
+export interface ChatThreadSummary {
+  threadKey: string;
+  otherUid: string;
+  otherName: string;
+  lastMessage: DealershipChatMessage;
+  unreadCount: number;
+}
+
+export function buildChatThreadSummaries(
+  messages: DealershipChatMessage[],
+  currentUid: string
+): ChatThreadSummary[] {
+  const byThread = new Map<string, DealershipChatMessage[]>();
+
+  for (const message of messages) {
+    const threadKey = message.threadKey || buildChatThreadKey(message.fromUid, message.toUid);
+    const existing = byThread.get(threadKey) || [];
+    existing.push(message);
+    byThread.set(threadKey, existing);
+  }
+
+  const summaries: ChatThreadSummary[] = [];
+
+  for (const [threadKey, threadMessages] of byThread) {
+    const sorted = sortMessages(threadMessages);
+    const lastMessage = sorted[sorted.length - 1];
+    const otherUid = lastMessage.fromUid === currentUid ? lastMessage.toUid : lastMessage.fromUid;
+    const otherName = lastMessage.fromUid === currentUid ? lastMessage.toName : lastMessage.fromName;
+    const unreadCount = threadMessages.filter(
+      (message) => message.toUid === currentUid && !message.dismissedAt
+    ).length;
+
+    summaries.push({
+      threadKey,
+      otherUid,
+      otherName,
+      lastMessage,
+      unreadCount,
+    });
+  }
+
+  return summaries.sort((a, b) =>
+    b.lastMessage.createdAt.localeCompare(a.lastMessage.createdAt)
   );
 }
 
@@ -106,10 +224,13 @@ export function subscribeDealershipThread(
   return onSnapshot(
     q,
     (snapshot) => {
-      const rows = snapshot.docs
-        .map((docSnap) => mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>))
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      onData(rows);
+      onData(
+        sortMessages(
+          snapshot.docs.map((docSnap) =>
+            mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>)
+          )
+        )
+      );
     },
     (error) => onError?.(error)
   );

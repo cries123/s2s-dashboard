@@ -45,6 +45,17 @@ export function resolveUserDealershipId(user: User | null | undefined): string {
   return dealershipIdFromTenantId(resolveUserTenantId(user));
 }
 
+/** Dealership id used for Firestore chat reads/writes (must match security rules). */
+export function resolveChatDealershipId(
+  user: User | null | undefined,
+  currentDealershipId?: string | null
+): string {
+  if (canSwitchDealership(user) && currentDealershipId) {
+    return currentDealershipId;
+  }
+  return resolveUserDealershipId(user);
+}
+
 export function isPendingUser(user: User | null | undefined): boolean {
   if (!user) return true;
   if (isPlatformAdmin(user) || isPrimaryAdmin(user)) return false;

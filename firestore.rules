@@ -180,7 +180,11 @@ service cloud.firestore {
     }
 
     function userDealershipId() {
-      return userExists() && 'dealershipId' in userData() ? userData().dealershipId : '';
+      return userExists() && 'dealershipId' in userData() && userData().dealershipId is string
+        ? userData().dealershipId
+        : (userTenantId() == 'nissan-mazda'
+            ? 'nissan'
+            : (userTenantId() == 'ford-lincoln' ? 'ford' : 'hyundai'));
     }
 
     function canAccessDispatchData(data) {

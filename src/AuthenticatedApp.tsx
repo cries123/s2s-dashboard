@@ -37,7 +37,7 @@ import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
-import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPrimaryAdmin, isUserApproved } from './lib/rbac';
+import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPrimaryAdmin, isUserApproved, resolveChatDealershipId } from './lib/rbac';
 import { subscribeDealershipUsers } from './lib/userDirectory';
 import { useDealershipChatInbox } from './hooks/useDealershipChatInbox';
 import {
@@ -348,21 +348,23 @@ function DashboardShell({ user }: { user: User }) {
   const [tenantUsers, setTenantUsers] = useState<User[]>([]);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
 
+  const chatDealershipId = resolveChatDealershipId(user, currentDealershipId);
+
   const { inbox: chatInbox, unreadCount: chatUnreadCount } = useDealershipChatInbox(
-    currentDealershipId || undefined,
+    chatDealershipId,
     user?.uid
   );
 
   React.useEffect(() => {
-    if (!currentDealershipId) {
+    if (!chatDealershipId) {
       setTenantUsers([]);
       return;
     }
-    const unsub = subscribeDealershipUsers(currentDealershipId, setTenantUsers, (err) =>
+    const unsub = subscribeDealershipUsers(chatDealershipId, setTenantUsers, (err) =>
       console.error('[DealershipChat] users error', err)
     );
     return () => unsub();
-  }, [currentDealershipId]);
+  }, [chatDealershipId]);
 
   const showNotification = (text: string, isError = false) => {
     setNotification({ text, isError });
@@ -665,7 +667,7 @@ function DashboardShell({ user }: { user: User }) {
           setChatRecipientName(null);
         }}
         currentUser={currentUser}
-        dealershipId={currentDealershipId || 'hyundai'}
+        dealershipId={chatDealershipId}
         tenantUsers={tenantUsers}
         initialRecipientUid={chatRecipientUid}
         initialRecipientName={chatRecipientName}
