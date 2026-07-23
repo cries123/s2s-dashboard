@@ -7,6 +7,7 @@ import {
   sendDealershipChatMessage,
   subscribeDealershipThread,
 } from '../../lib/dealershipChat';
+import { isDealershipChatEligible } from '../../lib/userDirectory';
 import { cn } from '../../lib/utils';
 
 interface DealershipChatNotificationsProps {
@@ -128,16 +129,13 @@ export function DealershipChatPanel({
       return;
     }
 
-    let unsub = () => {};
-    void import('../../lib/dealershipChat').then(({ subscribeDealershipThread }) => {
-      unsub = subscribeDealershipThread(
-        dealershipId,
-        currentUser.uid,
-        recipientUid,
-        setThreadMessages,
-        (err) => console.error('[DealershipChat] thread error', err)
-      );
-    });
+    const unsub = subscribeDealershipThread(
+      dealershipId,
+      currentUser.uid,
+      recipientUid,
+      setThreadMessages,
+      (err) => console.error('[DealershipChat] thread error', err)
+    );
 
     return () => unsub();
   }, [open, recipientUid, dealershipId, currentUser.uid]);
@@ -146,7 +144,7 @@ export function DealershipChatPanel({
     () =>
       tenantUsers
         .filter((u) => u.uid !== currentUser.uid)
-        .filter((u) => u.approved === true || u.status === 'approved' || u.role === 'admin')
+        .filter(isDealershipChatEligible)
         .sort((a, b) => a.username.localeCompare(b.username)),
     [tenantUsers, currentUser.uid]
   );
@@ -160,7 +158,6 @@ export function DealershipChatPanel({
     setSending(true);
     setError(null);
     try {
-      const { sendDealershipChatMessage } = await import('../../lib/dealershipChat');
       await sendDealershipChatMessage({
         dealershipId,
         tenantId: currentUser.tenantId,
@@ -216,6 +213,12 @@ export function DealershipChatPanel({
                 </option>
               ))}
             </select>
+            {recipients.length === 0 ? (
+              <p className="text-[10px] text-amber-400/90 leading-relaxed">
+                No teammates found yet. Approved staff at your dealership appear here once Firestore
+                rules are deployed — ask an admin to publish the latest rules if this stays empty.
+              </p>
+            ) : null}
           </div>
 
           {recipientUid ? (

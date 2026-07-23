@@ -9,7 +9,7 @@ import { cn } from './lib/utils';
 import { 
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2, ClipboardList, MessageSquare
+  BarChart2, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,8 +37,8 @@ import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
-import { resolveUserTenantId, canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPrimaryAdmin, isUserApproved } from './lib/rbac';
-import { subscribeTenantUsers } from './lib/userDirectory';
+import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPrimaryAdmin, isUserApproved } from './lib/rbac';
+import { subscribeDealershipUsers } from './lib/userDirectory';
 import { useDealershipChatInbox } from './hooks/useDealershipChatInbox';
 import {
   DealershipChatNotifications,
@@ -348,22 +348,21 @@ function DashboardShell({ user }: { user: User }) {
   const [tenantUsers, setTenantUsers] = useState<User[]>([]);
   const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const tenantId = resolveUserTenantId(user);
   const { inbox: chatInbox, unreadCount: chatUnreadCount } = useDealershipChatInbox(
     currentDealershipId || undefined,
     user?.uid
   );
 
   React.useEffect(() => {
-    if (!tenantId) {
+    if (!currentDealershipId) {
       setTenantUsers([]);
       return;
     }
-    const unsub = subscribeTenantUsers(tenantId, setTenantUsers, (err) =>
+    const unsub = subscribeDealershipUsers(currentDealershipId, setTenantUsers, (err) =>
       console.error('[DealershipChat] users error', err)
     );
     return () => unsub();
-  }, [tenantId]);
+  }, [currentDealershipId]);
 
   const showNotification = (text: string, isError = false) => {
     setNotification({ text, isError });

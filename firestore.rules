@@ -113,10 +113,12 @@ service cloud.firestore {
         request.auth.uid == userId ||
         isAdmin() ||
         isSystemWorker() ||
+        (isApproved() && sameTenantAsActor(resource.data)) ||
         (isTenantManager() && sameTenantAsActor(resource.data))
       );
 
-      allow list: if isAdmin() || isSystemWorker() || isTenantManager();
+      allow list: if isAdmin() || isSystemWorker() || isTenantManager() ||
+        (isApproved() && sameTenantAsActor(resource.data));
 
       allow update: if isAdmin() ||
         (isTenantManager() &&

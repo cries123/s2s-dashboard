@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { normalizeUserProfile, userBelongsToTenant } from './rbac';
-import { getTenantProfile } from './tenants';
+import { getTenantProfile, tenantIdFromDealershipId } from './tenants';
 import type { User } from '../types';
 
 const USERS_PATH = 'artifacts/hyundai-sales-to-service/public/data/users';
@@ -88,4 +88,25 @@ export function subscribeTenantUsers(
     unsubTenant();
     unsubLegacy();
   };
+}
+
+/** Approved teammates at a dealership — for chat recipient lists. */
+export function subscribeDealershipUsers(
+  dealershipId: string | undefined,
+  onData: (users: User[]) => void,
+  onError?: (error: unknown) => void
+): Unsubscribe {
+  if (!dealershipId) {
+    onData([]);
+    return () => {};
+  }
+  return subscribeTenantUsers(tenantIdFromDealershipId(dealershipId), onData, onError);
+}
+
+export function isDealershipChatEligible(user: User): boolean {
+  if (user.status === 'rejected' || user.role === 'pending') return false;
+  if (user.approved === true || user.status === 'approved') return true;
+  if (user.role === 'admin') return true;
+  if (user.role === 'manager' || user.role === 'Manager' || user.isManager) return true;
+  return false;
 }
