@@ -1,4 +1,4 @@
-import { DepartmentColumnId, DispatchLaneCustomization, DispatchStatus } from '../types';
+import { DepartmentColumnId, DispatchLaneCustomization } from '../types';
 
 /** Production lanes only (excludes unassigned queue). */
 export type DispatchProductionLane = Exclude<DepartmentColumnId, 'unassigned'>;
@@ -40,11 +40,7 @@ export const DISPATCH_STATUS_COLORS = {
   POO: { label: 'In Parts', hex: '#3B82F6', text: '#FFFFFF' },
   WFA: { label: 'Waiting Advisor', hex: '#9333EA', text: '#FFFFFF' },
   SBL: { label: 'Sublet', hex: '#14B8A6', text: '#FFFFFF' },
-  DIS: { label: 'Down in Shop', hex: '#64748B', text: '#FFFFFF' },
 } as const;
-
-/** Status options shown at intake — tickets start in the queue, not down in shop. */
-export const DISPATCH_INTAKE_STATUS_OPTIONS = ['WIP', 'POO', 'WFA', 'SBL'] as const satisfies readonly DispatchStatus[];
 
 export const DISPATCH_INTAKE_FLAG_STYLES = {
   waiting: { label: 'W', bg: '#EF4444', text: '#FFFFFF' },

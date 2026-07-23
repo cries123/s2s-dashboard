@@ -530,7 +530,7 @@ export type DepartmentColumnId =
 
 export type DispatchLifecycleStatus = 'active' | 'overnight';
 
-export type DispatchStatus = 'WIP' | 'POO' | 'WFA' | 'SBL' | 'DIS';
+export type DispatchStatus = 'WIP' | 'POO' | 'WFA' | 'SBL';
 
 export interface DispatchRepairOrder {
   id: string;

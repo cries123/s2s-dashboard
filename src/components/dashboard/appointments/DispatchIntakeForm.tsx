@@ -1,7 +1,7 @@
 import React from 'react';
 import { CheckCircle2, Plus, RefreshCw, UserSearch, Clock } from 'lucide-react';
 import { Customer } from '../../../types';
-import { DISPATCH_STATUS_COLORS, DISPATCH_INTAKE_STATUS_OPTIONS } from '../../../lib/dispatchConfig';
+import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
 import type { DispatchStatus, PerformanceAdvisorSlot } from '../../../types';
 import { DispatchPromiseTimeInput } from './DispatchPromiseTimeInput';
 import { normalizeTechNumber, resolveTechDisplayName } from '../../../lib/dispatchTechRoster';
@@ -309,9 +309,9 @@ export function DispatchIntakeForm({
             onChange={(e) => setInitialStatus(e.target.value as DispatchStatus)}
             className="w-full appearance-none bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg pl-7 pr-8 py-2.5 text-[11px] text-slate-200 font-bold uppercase tracking-wide cursor-pointer focus:ring-2 focus:ring-indigo-500/15"
           >
-            {DISPATCH_INTAKE_STATUS_OPTIONS.map((val) => (
+            {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
               <option key={val} value={val} className="bg-slate-950 text-white">
-                {DISPATCH_STATUS_COLORS[val].label}
+                {info.label}
               </option>
             ))}
           </select>
