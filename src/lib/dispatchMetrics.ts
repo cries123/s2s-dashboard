@@ -34,7 +34,7 @@ export function computeDispatchMetrics(
       new Date(o.lastUpdated).toLocaleDateString('en-CA') === currentSystemDate
   ).length;
 
-  const statusCounts: Record<DispatchStatus, number> = { WIP: 0, POO: 0, WFA: 0, SBL: 0 };
+  const statusCounts: Record<DispatchStatus, number> = { WIP: 0, POO: 0, WFA: 0, SBL: 0, DIS: 0 };
   active.forEach((o) => {
     statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
   });

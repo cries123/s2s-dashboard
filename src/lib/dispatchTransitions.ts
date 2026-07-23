@@ -37,7 +37,7 @@ export function normalizeDispatchDateKey(value: string | undefined): string | nu
 }
 
 export function normalizeDispatchStatus(status: string | undefined): DispatchStatus {
-  if (status === 'POO' || status === 'WFA' || status === 'SBL') return status;
+  if (status === 'POO' || status === 'WFA' || status === 'SBL' || status === 'DIS') return status;
   return 'WIP';
 }
 
@@ -134,6 +134,17 @@ export function buildDispatchMoveUpdate(
       department: 'unassigned',
       currentLaneId: 'unassigned',
       lastUpdated,
+      ...(ro.status === 'DIS' ? { status: 'WIP' satisfies DispatchStatus } : {}),
+    };
+  }
+
+  if (target === 'down_in_shop') {
+    return {
+      lifecycleStatus: 'active' satisfies DispatchLifecycleStatus,
+      department: 'down_in_shop',
+      currentLaneId: 'down_in_shop',
+      status: 'DIS' satisfies DispatchStatus,
+      lastUpdated,
     };
   }
 
@@ -143,7 +154,31 @@ export function buildDispatchMoveUpdate(
     department: target,
     currentLaneId: target,
     lastUpdated,
+    ...(ro.status === 'DIS' ? { status: 'WIP' satisfies DispatchStatus } : {}),
     ...(refreshDate ? { dateCreated: businessDatePst } : {}),
+  };
+}
+
+/** Status changes — selecting Down in Shop moves the ticket out of its production lane. */
+export function buildDispatchStatusUpdate(
+  ro: DispatchRepairOrder,
+  newStatus: DispatchStatus
+): Partial<DispatchRepairOrder> {
+  const lastUpdated = new Date().toISOString();
+
+  if (newStatus === 'DIS') {
+    return {
+      status: 'DIS',
+      department: 'down_in_shop',
+      currentLaneId: 'down_in_shop',
+      lifecycleStatus: 'active',
+      lastUpdated,
+    };
+  }
+
+  return {
+    status: newStatus,
+    lastUpdated,
   };
 }
 

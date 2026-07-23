@@ -120,6 +120,7 @@ const STATUS_OPTIONS: { id: DispatchStatus; label: string }[] = [
   { id: 'POO', label: 'Parts on order' },
   { id: 'WFA', label: 'Waiting advisor' },
   { id: 'SBL', label: 'Sublet' },
+  { id: 'DIS', label: 'Down in shop' },
 ];
 
 export function ManagerOperationsConfig({

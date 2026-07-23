@@ -54,6 +54,7 @@ import {
 } from '../../../lib/appointmentTracker';
 import {
   buildDispatchMoveUpdate,
+  buildDispatchStatusUpdate,
   buildOvernightDownInShopPatch,
   isOvernightRo,
   normalizeDispatchOrder,
@@ -323,11 +324,26 @@ export function DispatchBoard({
   const visibleDepartments = useMemo(
     () =>
       buildDepartmentsFromSettings(dealershipSettings).filter(
-        (d) => !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)
+        (d) =>
+          d.id !== 'down_in_shop' &&
+          !(dealershipSettings?.hiddenDispatchLanes ?? []).includes(d.id)
       ),
     [dealershipSettings]
   );
   const productionDisplayColumns = visibleDepartments;
+  const downInShopDepartment = useMemo(
+    () => ({
+      id: 'down_in_shop' as const,
+      label: dispatchLaneLabel('down_in_shop', dealershipSettings?.dispatchLaneCustomization),
+      shortLabel: 'Down',
+      icon: Moon,
+    }),
+    [dealershipSettings?.dispatchLaneCustomization]
+  );
+  const mobileDisplayColumns = useMemo(
+    () => [...productionDisplayColumns, downInShopDepartment],
+    [productionDisplayColumns, downInShopDepartment]
+  );
 
   const dispatchTechRoster = useMemo(
     () => dispatchTechRosterFromSettings(dealershipSettings, currentDealershipId),
@@ -1054,16 +1070,17 @@ export function DispatchBoard({
       values.customerLastName;
     const promiseIso = combinePromiseDateAndTime(values.promiseDate, values.promiseTime);
 
+    const statusPatch = buildDispatchStatusUpdate(editingRo, values.status);
     const patch: Record<string, unknown> = {
       roNumber: values.roNumber,
       techNumber: values.techNumber,
       tagNumber: values.tagNumber,
       customerLastName: values.customerLastName,
       customerName: displayName,
-      status: values.status,
       isWaiting: values.isWaiting,
       isPdl: values.isPdl,
       lastUpdated: new Date().toISOString(),
+      ...statusPatch,
     };
 
     if (values.phoneNumber) patch.phoneNumber = values.phoneNumber;
@@ -1160,13 +1177,15 @@ export function DispatchBoard({
 
   const handleUpdateStatus = async (roId: string, newStatus: DispatchStatus) => {
     const ro = orders.find((order) => order.id === roId);
-    if (ro && !assertDispatchScope(ro)) return;
+    if (!ro || !assertDispatchScope(ro)) return;
+
+    const patch = buildDispatchStatusUpdate(ro, newStatus);
 
     if (isPreviewMode) {
       setOrders((prev) =>
         prev.map((order) =>
           order.id === roId
-            ? { ...order, status: newStatus, lastUpdated: new Date().toISOString() }
+            ? { ...order, ...patch }
             : order
         )
       );
@@ -1175,10 +1194,7 @@ export function DispatchBoard({
 
     try {
       const docRef = doc(db, 'artifacts/hyundai-sales-to-service/public/data/dispatchOrders', roId);
-      await updateDoc(docRef, {
-        status: newStatus,
-        lastUpdated: new Date().toISOString()
-      });
+      await updateDoc(docRef, patch);
     } catch (err: any) {
       console.error('[Dispatch] Status update error:', err);
     }
@@ -2181,6 +2197,50 @@ export function DispatchBoard({
             })}
           </div>
 
+          {/* Down in Shop — holding area outside production lanes */}
+          <div
+            className={cn(
+              'bg-gradient-to-r from-slate-900/60 to-slate-900/30 border border-slate-850 rounded-2xl p-4.5 flex flex-col md:flex-row md:items-center gap-5 w-full transition-all duration-300 shadow-md relative',
+              ticketsByColumn.down_in_shop.length > 0
+                ? 'border-slate-700/80 bg-slate-900/50'
+                : 'border-slate-900/60',
+              dragOverLane === 'down_in_shop' && 'ring-2 ring-slate-400/40 border-slate-500/30'
+            )}
+            {...laneDropProps('down_in_shop')}
+          >
+            <div className="flex items-center justify-between md:flex-col md:items-start md:justify-center gap-1.5 md:w-48 shrink-0 border-b md:border-b-0 md:border-r border-slate-800/80 pb-3 md:pb-0 md:pr-4 select-none">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-slate-950 border border-slate-800/85 rounded-lg text-slate-400">
+                  <Moon size={13} />
+                </div>
+                <h3 className="text-xs font-black text-slate-100 uppercase tracking-widest font-sans">
+                  {downInShopDepartment.label}
+                </h3>
+              </div>
+              <span className="border px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider tabular-nums bg-slate-950 text-slate-400 border-slate-800">
+                {ticketsByColumn.down_in_shop.length}{' '}
+                {ticketsByColumn.down_in_shop.length === 1 ? 'ticket' : 'tickets'}
+              </span>
+            </div>
+
+            <div className="flex-1 flex gap-4 overflow-x-auto pb-2 min-h-[150px] items-center scrollbar-thin">
+              {ticketsByColumn.down_in_shop.length === 0 ? (
+                <div className="flex items-center gap-2 text-slate-600 py-6 px-3 border border-dashed border-slate-950/60 rounded-xl w-full">
+                  <Moon size={14} className="text-slate-700" />
+                  <p className="text-[10px] font-black uppercase tracking-wider">
+                    Set status to Down in Shop or drag tickets here
+                  </p>
+                </div>
+              ) : (
+                ticketsByColumn.down_in_shop.map((ro) => (
+                  <div key={ro.id} className="w-[285px] shrink-0">
+                    {renderRoCard(ro)}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* QUICK LEGEND & COLOR CODE */}
           <div className="bg-slate-900 border border-slate-850 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 select-none">
             <div className="space-y-1">
@@ -2205,7 +2265,7 @@ export function DispatchBoard({
         <DispatchMobileBoard
           activeTab={mobileLaneTab}
           onTabChange={setMobileLaneTab}
-          displayColumns={productionDisplayColumns}
+          displayColumns={mobileDisplayColumns}
           ticketsByColumn={ticketsByColumn}
           laneCapacity={laneCapacity}
           renderCard={renderRoCard}
