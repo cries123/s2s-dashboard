@@ -214,26 +214,55 @@ export function subscribeDealershipThread(
   onData: (messages: DealershipChatMessage[]) => void,
   onError?: (error: unknown) => void
 ): Unsubscribe {
-  const threadKey = buildChatThreadKey(uid, otherUid);
-  const q = query(
+  let sent: DealershipChatMessage[] = [];
+  let received: DealershipChatMessage[] = [];
+
+  const publish = () => onData(mergeMessages(sent, received));
+
+  const qSent = query(
     messagesCollection(),
     where('dealershipId', '==', dealershipId),
-    where('threadKey', '==', threadKey)
+    where('fromUid', '==', uid),
+    where('toUid', '==', otherUid)
   );
 
-  return onSnapshot(
-    q,
+  const qReceived = query(
+    messagesCollection(),
+    where('dealershipId', '==', dealershipId),
+    where('fromUid', '==', otherUid),
+    where('toUid', '==', uid)
+  );
+
+  const unsubSent = onSnapshot(
+    qSent,
     (snapshot) => {
-      onData(
-        sortMessages(
-          snapshot.docs.map((docSnap) =>
-            mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>)
-          )
+      sent = sortMessages(
+        snapshot.docs.map((docSnap) =>
+          mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>)
         )
       );
+      publish();
     },
     (error) => onError?.(error)
   );
+
+  const unsubReceived = onSnapshot(
+    qReceived,
+    (snapshot) => {
+      received = sortMessages(
+        snapshot.docs.map((docSnap) =>
+          mapMessage(docSnap.id, docSnap.data() as Record<string, unknown>)
+        )
+      );
+      publish();
+    },
+    (error) => onError?.(error)
+  );
+
+  return () => {
+    unsubSent();
+    unsubReceived();
+  };
 }
 
 export async function dismissDealershipChatMessage(messageId: string): Promise<void> {
