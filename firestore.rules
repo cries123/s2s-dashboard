@@ -100,6 +100,23 @@ service cloud.firestore {
       return !('tenantId' in incoming()) || incoming().tenantId == resource.data.tenantId;
     }
 
+    function isManagerRoleValue(data) {
+      return data.role == 'manager' || data.role == 'Manager' || data.isManager == true;
+    }
+
+    // A user who self-selected "manager" at signup sits in the pending-enrollment
+    // queue with approved == false. Approving them only flips approved/status —
+    // it isn't a promotion, so it's exempted from managerCannotPromoteToManager()
+    // and isStaffTarget() below. incoming().role != 'admin' is a hard backstop so
+    // this path can never be used to grant admin.
+    function isApprovingPendingManager() {
+      return resource.data.approved == false &&
+             isManagerRoleValue(resource.data) &&
+             isManagerRoleValue(incoming()) &&
+             incoming().approved == true &&
+             incoming().role != 'admin';
+    }
+
     // --- Users Collection ---
     match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
       allow create: if isSignedIn() &&
@@ -117,7 +134,11 @@ service cloud.firestore {
         (isTenantManager() && sameTenantAsActor(resource.data))
       );
 
-      allow list: if isAdmin() || isSystemWorker() || isTenantManager() ||
+      // NOTE: isTenantManager() must stay paired with sameTenantAsActor() here — unlike
+      // get() (single doc), list() queries an entire collection, and an unscoped
+      // isTenantManager() would let any manager list every user across every dealership.
+      allow list: if isAdmin() || isSystemWorker() ||
+        (isTenantManager() && sameTenantAsActor(resource.data)) ||
         (isApproved() && sameTenantAsActor(resource.data));
 
       allow update: if isAdmin() ||
@@ -125,8 +146,8 @@ service cloud.firestore {
          sameTenantAsActor(resource.data) &&
          request.auth.uid != userId &&
          !isProtectedAccount(resource.data) &&
-         isStaffTarget(resource.data) &&
-         managerCannotPromoteToManager() &&
+         (isStaffTarget(resource.data) || isApprovingPendingManager()) &&
+         (managerCannotPromoteToManager() || isApprovingPendingManager()) &&
          tenantUnchanged()) ||
         (request.auth.uid == userId &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferences']));
@@ -162,23 +183,6 @@ service cloud.firestore {
         (isTenantManager() && userExists() && userData().dealershipId == dealershipId);
     }
 
-    // --- Customer & Operations Data ---
-    match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-
-      match /contactLog/{logId} {
-        allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-      }
-    }
-
-    match /artifacts/hyundai-sales-to-service/public/data/appointmentTracker/{date=**} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-    }
-
-    match /artifacts/hyundai-sales-to-service/public/data/appointmentSchedule/{docId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-    }
-
     function userDealershipId() {
       return userExists() && 'dealershipId' in userData() && userData().dealershipId is string
         ? userData().dealershipId
@@ -187,10 +191,55 @@ service cloud.firestore {
             : (userTenantId() == 'ford-lincoln' ? 'ford' : 'hyundai'));
     }
 
+    // Docs written before multi-tenant support carry no dealershipId and belonged to
+    // Hyundai (the original single-tenant dataset). Safe for single-doc get()/write
+    // checks; NOT safe for list/query rules, which must match an explicit, queryable
+    // where('dealershipId','==', ...) clause — see the `allow list` rules below.
+    function docBelongsToActor(data) {
+      return ('dealershipId' in data && data.dealershipId is string)
+        ? data.dealershipId == userDealershipId()
+        : userDealershipId() == 'hyundai';
+    }
+
     function canAccessDispatchData(data) {
       return isAdmin() ||
              isSystemWorker() ||
              (userExists() && data.dealershipId == userDealershipId());
+    }
+
+    // --- Customer & Operations Data ---
+    match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
+      allow get: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
+      allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+      allow create: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(incoming()));
+      allow update: if isAdmin() || isSystemWorker() ||
+                       (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()));
+      allow delete: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
+
+      match /contactLog/{logId} {
+        allow read, write: if isAdmin() || isSystemWorker() ||
+          (isApproved() &&
+           docBelongsToActor(get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/customers/$(customerId)).data));
+      }
+    }
+
+    match /artifacts/hyundai-sales-to-service/public/data/appointmentTracker/{docId} {
+      allow get: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
+      allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+      allow create: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(incoming()));
+      allow update: if isAdmin() || isSystemWorker() ||
+                       (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()));
+      allow delete: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
+    }
+
+    match /artifacts/hyundai-sales-to-service/public/data/appointmentSchedule/{docId} {
+      allow get: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+      allow create: if isAdmin() || isSystemWorker() || (isApproved() && incoming().dealershipId == userDealershipId());
+      allow update: if isAdmin() || isSystemWorker() ||
+                       (isApproved() &&
+                        resource.data.dealershipId == userDealershipId() &&
+                        incoming().dealershipId == userDealershipId());
+      allow delete: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
     }
 
     match /artifacts/hyundai-sales-to-service/public/data/dispatchOrders/{orderId} {
@@ -213,22 +262,36 @@ service cloud.firestore {
       allow write: if isAdmin() || isSystemWorker();
     }
 
-    match /artifacts/hyundai-sales-to-service/public/data/vehicleRecalls/{recallId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
-    }
+    // vehicleRecalls: the only client feature that read/wrote this collection
+    // (VehicleRecalls.tsx) was unreachable dead code and has been removed. No
+    // explicit rule here means the top-level `allow read, write: if false` at
+    // the top of this file applies — locked down until a real, tenant-scoped
+    // feature needs it again.
 
     match /artifacts/hyundai-sales-to-service/public/data/recallCampaignLeads/{leadId} {
-      allow read, write: if isApproved() || isAdmin() || isSystemWorker();
+      allow get: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
+      allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+      allow create: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(incoming()));
+      allow update: if isAdmin() || isSystemWorker() ||
+                       (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()));
+      allow delete: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
     }
 
-    // --- Performance Tracking ---
+    // --- Performance Tracking (always accessed by a specific tenant-scoped
+    // doc id — never listed as a collection — so a single docBelongsToActor
+    // check on get()/write() is sufficient here). ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
-      allow read, write: if isApproved() || isAdmin();
+      allow get: if isAdmin() || (isApproved() && docBelongsToActor(resource.data));
+      allow create: if isAdmin() || (isApproved() && docBelongsToActor(incoming()));
+      allow update: if isAdmin() || (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()));
+      allow delete: if isAdmin() || (isApproved() && docBelongsToActor(resource.data));
     }
 
     // --- AI Usage Logs ---
     match /artifacts/hyundai-sales-to-service/public/data/aiUsageLogs/{logId} {
-      allow create: if isSignedIn();
+      // Only approved staff (or admins) generate real usage — signed-in-but-pending
+      // accounts have no legitimate reason to write here.
+      allow create: if isApproved();
       allow read: if isAdmin();
     }
 
@@ -241,7 +304,9 @@ service cloud.firestore {
     // --- System Activity Logs ---
     match /artifacts/hyundai-sales-to-service/public/audit/systemLogs/{logId} {
       allow read: if isApproved() || isAdmin() || (isTenantManager() && resource.data.dealershipId == userData().dealershipId);
-      allow write: if isSignedIn();
+      // Was `isSignedIn()` — let any pending/unapproved account write audit-log
+      // entries. Approved staff, admins, and the internal sync worker only.
+      allow write: if isApproved() || isAdmin() || isSystemWorker();
     }
 
     // --- Tenant-scoped dealership chat (dispatch ↔ advisors) ---

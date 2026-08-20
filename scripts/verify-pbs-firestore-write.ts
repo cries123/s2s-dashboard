@@ -87,7 +87,7 @@ const newPayload = stripUndefinedDeep({
   pbsSyncedAt: startedAt,
 });
 
-const cases = [
+const cases: [string, object][] = [
   ['existing update without serviceReminderDueDate', patchA],
   ['existing update with null serviceReminderDueDate', patchB],
   ['new customer payload', newPayload],

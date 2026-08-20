@@ -219,6 +219,9 @@ export async function syncPbsAdvisorPerformance(
       partsInvoicesSkipReason: skippedReason,
       laborGrossPreservedFromImport: preserveImportedLabor || undefined,
       unmatchedAdvisorNames: unmatchedAdvisorNames.length ? unmatchedAdvisorNames : undefined,
+      // Customer/Warranty/Internal mix — lets Fixed Ops Forecast's operations-seed
+      // pull real numbers for PBS dealerships once this month gets archived.
+      payTypes: aggregate.payTypes,
       updatedAt: serverTimestamp(),
     }),
     { merge: false }

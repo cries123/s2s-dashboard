@@ -159,6 +159,27 @@ const lemmyFromCode = codeResult.advisors.find((row) => row.name === 'Lemmy');
 assert(Boolean(lemmyFromCode), 'labor from a code-only CSR buckets under the resolved advisor');
 assert((lemmyFromCode?.grossLabor || 0) === 150, 'code-attributed labor gross is correct');
 
+// --- Pay-type mix (feeds Fixed Ops Forecast operations-seed) ---
+assert(Boolean(result.payTypes), 'aggregate includes a payTypes summary');
+const payTypes = result.payTypes!;
+assert(payTypes.totalRoCount === 4, `totalRoCount should count all 4 cashiered ROs, got ${payTypes.totalRoCount}`);
+const roCountSum = payTypes.customer.roCount + payTypes.warranty.roCount + payTypes.internal.roCount;
+assert(roCountSum === payTypes.totalRoCount, 'segment roCounts sum to totalRoCount');
+const mixSum = payTypes.customer.mixPercent + payTypes.warranty.mixPercent + payTypes.internal.mixPercent;
+assert(Math.abs(mixSum - 100) < 0.5, `segment mixPercent should sum to ~100, got ${mixSum}`);
+assert(payTypes.customer.laborSold > 0, 'customer segment carries labor $');
+assert(payTypes.warranty.laborSold > 0, 'RO 1003 warranty summary $ is not silently dropped');
+// No PBS pay-type summary is ever double-counted or lost: every dollar of
+// real shop labor lands in exactly one segment.
+const segmentLaborSum = payTypes.customer.laborSold + payTypes.warranty.laborSold + payTypes.internal.laborSold;
+const shopLaborSum = result.totals.totalLabor;
+assert(
+  Math.abs(segmentLaborSum - shopLaborSum) < 0.01,
+  `segment laborSold should sum to shop totalLabor (${segmentLaborSum} vs ${shopLaborSum})`
+);
+assert(payTypes.warranty.gpPercent <= 100, `warranty gpPercent should never exceed 100%, got ${payTypes.warranty.gpPercent}`);
+assert(payTypes.customer.gpPercent <= 100, `customer gpPercent should never exceed 100%, got ${payTypes.customer.gpPercent}`);
+
 console.log('Verification PASSED — PBS advisor performance aggregation');
 console.log(
   JSON.stringify(
@@ -170,6 +191,7 @@ console.log(
         grossParts: row.grossParts,
       })),
       totals: result.totals,
+      payTypes: result.payTypes,
     },
     null,
     2

@@ -1,5 +1,5 @@
 import serverless from 'serverless-http';
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
+import type { Handler, HandlerEvent, HandlerContext, HandlerResponse } from '@netlify/functions';
 import { createApiApp } from '../../server.ts';
 
 type ServerlessHandler = ReturnType<typeof serverless>;
@@ -33,5 +33,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     });
   }
 
-  return cached(event, context);
+  // serverless-http's own type declarations return a loose `Promise<Object>`
+  // even though the resolved value is always a Netlify-compatible response.
+  return cached(event, context) as Promise<HandlerResponse>;
 };

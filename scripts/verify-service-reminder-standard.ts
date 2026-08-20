@@ -4,6 +4,7 @@ import {
   computeServiceReminderDueDate,
   getStandardServiceReminderDueDate,
 } from '../src/lib/serviceReminder.ts';
+import type { Customer } from '../src/types.ts';
 
 const standard = resolveServiceAlertConfig({ serviceAlertMode: 'standard' });
 const now = new Date('2026-07-16T12:00:00');
@@ -12,7 +13,7 @@ const baseCustomer = {
   enableServiceAlert: true,
   soldDate: '2026-06-30',
   createdAt: { toDate: () => new Date('2026-07-07T00:00:00') },
-};
+} as unknown as Customer;
 
 assert.equal(computeServiceReminderDueDate('2026-06-30'), '2026-12-30');
 
@@ -29,7 +30,7 @@ const pbsPastDue = {
   ...baseCustomer,
   serviceReminderDueDate: '2026-06-30',
   pbsReminderSyncedAt: '2026-07-16T00:00:00Z',
-};
+} as unknown as Customer;
 
 assert.equal(
   getStandardServiceReminderDueDate(pbsPastDue),
@@ -46,7 +47,7 @@ const afterContact = {
   ...baseCustomer,
   lastServiceContact: { seconds: Math.floor(now.getTime() / 1000) },
   serviceReminderDueDate: '2027-01-16',
-};
+} as unknown as Customer;
 
 assert.equal(
   getStandardServiceReminderDueDate(afterContact),

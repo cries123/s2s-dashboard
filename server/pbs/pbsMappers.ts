@@ -207,6 +207,9 @@ export function mapContactVehicleToCustomerFields(
     make: cv.VehicleMake?.trim() || 'Hyundai',
     model: cv.VehicleModel?.trim() || 'Unknown',
     year: cv.VehicleYear?.trim() || undefined,
+    // Only used on first creation — buildPbsCustomerUpdatePatch always preserves
+    // the existing `notes` value on updates, so staff edits are never overwritten.
+    notes: cv.ContactNotes?.trim() || undefined,
     vin: vin || undefined,
     vinLast8,
     mileage,

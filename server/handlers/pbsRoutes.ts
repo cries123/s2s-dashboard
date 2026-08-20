@@ -57,7 +57,12 @@ export function registerPbsRoutes(app: Express) {
   });
 
   /** Lightweight connectivity test — returns small sample counts only. */
-  app.post('/api/pbs/test-connection', async (_req, res) => {
+  app.post('/api/pbs/test-connection', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized PBS test-connection request.' });
+    }
+
     if (!isPbsPartnerHubConfigured()) {
       return res.status(503).json({
         ok: false,
@@ -89,8 +94,16 @@ export function registerPbsRoutes(app: Express) {
     }
   });
 
-  /** Lookup helpers for debugging / future sync jobs. */
+  /**
+   * Lookup helpers for debugging / future sync jobs — these hit PartnerHUB with
+   * the server's own stored credentials, so they're gated the same as every
+   * other PBS route: an approved staff account or the internal sync secret.
+   */
   app.post('/api/pbs/contact-get', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized PBS contact-get request.' });
+    }
     try {
       const data = await pbsContactGet(req.body ?? {});
       res.json(data);
@@ -100,6 +113,10 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/contact-vehicle-get', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized PBS contact-vehicle-get request.' });
+    }
     try {
       const data = await pbsContactVehicleGet(req.body ?? {});
       res.json(data);
@@ -109,6 +126,10 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/repair-order-get', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized PBS repair-order-get request.' });
+    }
     try {
       const data = await pbsRepairOrderGet(req.body ?? {});
       res.json(data);
@@ -118,6 +139,10 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/appointment-get', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized PBS appointment-get request.' });
+    }
     try {
       const data = await pbsAppointmentGet(req.body ?? {});
       res.json(data);
@@ -127,6 +152,10 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/parts-invoice-get', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized PBS parts-invoice-get request.' });
+    }
     try {
       const data = await pbsPartsInvoiceGet(req.body ?? {});
       res.json(data);
@@ -136,7 +165,12 @@ export function registerPbsRoutes(app: Express) {
   });
 
   /** Last PBS sync status (no secrets). */
-  app.get('/api/pbs/sync/status', async (_req, res) => {
+  app.get('/api/pbs/sync/status', async (req: Request, res: Response) => {
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized PBS sync status request.' });
+    }
+
     try {
       const diagnostics = {
         ...getPbsEnvDiagnostics(),
