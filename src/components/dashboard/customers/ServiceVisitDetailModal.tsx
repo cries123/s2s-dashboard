@@ -70,6 +70,12 @@ function CccBlock({ label, value, accent }: { label: string; value?: string; acc
   );
 }
 
+function lineTotal(line: ServiceVisitLine): number {
+  const laborTotal = (line.labourLines || []).reduce((s, l) => s + (Number(l.price) || 0), 0);
+  const partsTotal = (line.partLines || []).reduce((s, p) => s + (Number(p.price) || 0), 0);
+  return laborTotal + partsTotal;
+}
+
 export function ServiceVisitDetailModal({
   visit,
   customerName,
@@ -87,6 +93,16 @@ export function ServiceVisitDetailModal({
     (sum, line) => sum + (line.partLines || []).length,
     0
   );
+  const allLinesTotal = lines.reduce((sum, line) => sum + lineTotal(line), 0);
+
+  const payTotals = visit.payTypeTotals;
+  const customerPayTotal = payTotals ? payTotals.customer.labor + payTotals.customer.parts : undefined;
+  const warrantyTotal = payTotals ? payTotals.warranty.labor + payTotals.warranty.parts : undefined;
+  const internalTotal = payTotals ? payTotals.internal.labor + payTotals.internal.parts : undefined;
+  const finishTotal =
+    customerPayTotal !== undefined && warrantyTotal !== undefined && internalTotal !== undefined
+      ? customerPayTotal + warrantyTotal + internalTotal
+      : undefined;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -197,13 +213,18 @@ export function ServiceVisitDetailModal({
                       ) : null}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {line.tech && (
                       <span className="badge badge-info text-[10px]">Tech {line.tech}</span>
                     )}
                     {line.status && (
                       <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
                         {line.status}
+                      </span>
+                    )}
+                    {lineTotal(line) > 0 && (
+                      <span className="text-xs font-bold tabular-nums text-white">
+                        {formatCurrency(lineTotal(line))}
                       </span>
                     )}
                   </div>
@@ -283,14 +304,78 @@ export function ServiceVisitDetailModal({
           )}
         </div>
 
-        {/* Footer summary */}
-        <div className="shrink-0 border-t border-slate-700/60 bg-slate-950/60 px-5 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
-            {lines.length} job line{lines.length === 1 ? '' : 's'}
-            {totalLaborHours > 0 ? ` · ${totalLaborHours.toFixed(1)} hrs sold` : ''}
-            {totalParts > 0 ? ` · ${totalParts} part${totalParts === 1 ? '' : 's'}` : ''}
-          </p>
-          <p className="text-[10px] text-slate-600">Data from PBS PartnerHUB</p>
+        {/* Footer summary + totals */}
+        <div className="shrink-0 border-t border-slate-700/60 bg-slate-950/60 px-5 sm:px-8 py-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
+              {lines.length} job line{lines.length === 1 ? '' : 's'}
+              {totalLaborHours > 0 ? ` · ${totalLaborHours.toFixed(1)} hrs sold` : ''}
+              {totalParts > 0 ? ` · ${totalParts} part${totalParts === 1 ? '' : 's'}` : ''}
+            </p>
+            <p className="text-[10px] text-slate-600">Data from PBS PartnerHUB</p>
+          </div>
+
+          {(allLinesTotal > 0 || payTotals) && (
+            <div className="rounded-xl border border-slate-700/50 bg-white/[0.02] px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                    Job lines total (parts + labor)
+                  </p>
+                  <p className="text-sm font-semibold text-slate-200 mt-0.5 tabular-nums">
+                    {formatCurrency(allLinesTotal)}
+                  </p>
+                </div>
+
+                {payTotals && (
+                  <>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        Customer pay
+                      </p>
+                      <p className="text-sm font-semibold text-slate-200 mt-0.5 tabular-nums">
+                        {formatCurrency(customerPayTotal)}
+                      </p>
+                    </div>
+                    {warrantyTotal! > 0 && (
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                          Warranty
+                        </p>
+                        <p className="text-sm font-semibold text-amber-400 mt-0.5 tabular-nums">
+                          {formatCurrency(warrantyTotal)}
+                        </p>
+                      </div>
+                    )}
+                    {internalTotal! > 0 && (
+                      <div>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                          Internal
+                        </p>
+                        <p className="text-sm font-semibold text-sky-400 mt-0.5 tabular-nums">
+                          {formatCurrency(internalTotal)}
+                        </p>
+                      </div>
+                    )}
+                    <div className="ml-auto">
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        Finish total
+                      </p>
+                      <p className="text-base font-black text-brand-primary mt-0.5 tabular-nums">
+                        {formatCurrency(finishTotal)}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+              {payTotals && (customerPayTotal !== allLinesTotal) && (
+                <p className="text-[9px] text-slate-600 mt-2">
+                  Customer / warranty / internal totals come from PBS's own repair-order summary and
+                  may not exactly match the sum of job lines shown above.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

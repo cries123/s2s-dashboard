@@ -383,6 +383,13 @@ export interface ServiceVisitLine {
   partLines?: ServiceVisitPartLine[];
 }
 
+/** RO-level pay-type $ breakdown, straight from PBS's own summary rows (not per-line). */
+export interface ServiceVisitPayTypeTotals {
+  customer: { labor: number; parts: number };
+  warranty: { labor: number; parts: number };
+  internal: { labor: number; parts: number };
+}
+
 export interface ServiceVisit {
   id: string;
   soNumber: string;
@@ -394,6 +401,7 @@ export interface ServiceVisit {
   lines?: ServiceVisitLine[];
   createdAt: Timestamp;
   pbsVehicleRef?: string;
+  payTypeTotals?: ServiceVisitPayTypeTotals;
 }
 
 export interface Customer {

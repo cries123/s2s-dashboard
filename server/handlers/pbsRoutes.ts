@@ -335,7 +335,10 @@ export function registerPbsRoutes(app: Express) {
     }
 
     try {
-      const result = await listOpenRepairOrdersForDealership(PBS_AUTOMATED_SYNC_DEALERSHIP_ID);
+      const forceRefresh = String(req.query.refresh || '') === '1';
+      const result = await listOpenRepairOrdersForDealership(PBS_AUTOMATED_SYNC_DEALERSHIP_ID, {
+        forceRefresh,
+      });
       return res.json({
         dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
         ...result,

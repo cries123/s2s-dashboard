@@ -338,6 +338,45 @@ export function mapRepairOrderRequestLines(
     );
 }
 
+function num(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export interface RepairOrderPayTypeTotals {
+  customer: { labor: number; parts: number };
+  warranty: { labor: number; parts: number };
+  internal: { labor: number; parts: number };
+}
+
+/**
+ * Repair-order-level pay-type breakdown (who pays: customer, warranty, or internal),
+ * straight from PBS's own summary rows on the RO — not derived from the individual
+ * job lines, since PBS doesn't tag pay type per labor/part line. Returns undefined
+ * when the RO carries no summary data at all (e.g. older/incomplete pulls) so the UI
+ * can fall back to just the line-level parts+labor total with no payer breakdown.
+ */
+export function mapRepairOrderPayTypeTotals(ro: PbsRepairOrder): RepairOrderPayTypeTotals | undefined {
+  const customer = {
+    labor: num(ro.CustomerSummary?.Labour),
+    parts: num(ro.CustomerSummary?.Parts),
+  };
+  const warranty = {
+    labor: num(ro.WarrantySummary?.Labour),
+    parts: num(ro.WarrantySummary?.Parts),
+  };
+  const internal = {
+    labor: num(ro.InternalSummary?.Labour),
+    parts: num(ro.InternalSummary?.Parts),
+  };
+
+  const hasAny =
+    customer.labor || customer.parts || warranty.labor || warranty.parts || internal.labor || internal.parts;
+  if (!hasAny) return undefined;
+
+  return { customer, warranty, internal };
+}
+
 export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   soNumber: string;
   date: string;
@@ -346,6 +385,7 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   requests: string;
   status?: string;
   lines: ReturnType<typeof mapRepairOrderRequestLines>;
+  payTypeTotals?: RepairOrderPayTypeTotals;
 } | null {
   const soNumber = repairOrderSoNumber(ro);
   if (!soNumber) return null;
@@ -372,6 +412,7 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
     requests,
     status: (ro.Status || '').trim() || undefined,
     lines,
+    payTypeTotals: mapRepairOrderPayTypeTotals(ro),
   };
 }
 

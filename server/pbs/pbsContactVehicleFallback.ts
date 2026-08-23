@@ -53,9 +53,16 @@ export async function fetchContactVehicleDisplayByRefs(
   const byContactRef = new Map<string, PbsRefDisplayInfo>();
 
   const uniqueVehicleRefs = [...new Set(vehicleRefs.map((ref) => ref.trim()).filter(Boolean))];
+  const vehicleBatches: string[][] = [];
   for (let i = 0; i < uniqueVehicleRefs.length; i += BATCH_SIZE) {
-    const batch = uniqueVehicleRefs.slice(i, i + BATCH_SIZE);
-    const rows = await fetchContactVehicleBatch({ VehicleIdList: batch });
+    vehicleBatches.push(uniqueVehicleRefs.slice(i, i + BATCH_SIZE));
+  }
+  // Batches are independent PBS requests keyed off disjoint ref slices — run them
+  // concurrently instead of one-at-a-time to cut this fallback's wall-clock time.
+  const vehicleBatchResults = await Promise.all(
+    vehicleBatches.map((batch) => fetchContactVehicleBatch({ VehicleIdList: batch }))
+  );
+  for (const rows of vehicleBatchResults) {
     for (const cv of rows) {
       const vehicleKey = normalizePbsRef(String(cv.VehicleId || ''));
       const contactKey = normalizePbsRef(String(cv.ContactId || ''));
@@ -69,9 +76,14 @@ export async function fetchContactVehicleDisplayByRefs(
 
   const uniqueContactRefs = [...new Set(contactRefs.map((ref) => ref.trim()).filter(Boolean))];
   const missingContacts = uniqueContactRefs.filter((ref) => !byContactRef.has(normalizePbsRef(ref)));
+  const contactBatches: string[][] = [];
   for (let i = 0; i < missingContacts.length; i += BATCH_SIZE) {
-    const batch = missingContacts.slice(i, i + BATCH_SIZE);
-    const rows = await fetchContactVehicleBatch({ ContactIdList: batch });
+    contactBatches.push(missingContacts.slice(i, i + BATCH_SIZE));
+  }
+  const contactBatchResults = await Promise.all(
+    contactBatches.map((batch) => fetchContactVehicleBatch({ ContactIdList: batch }))
+  );
+  for (const rows of contactBatchResults) {
     for (const cv of rows) {
       const contactKey = normalizePbsRef(String(cv.ContactId || ''));
       const vehicleKey = normalizePbsRef(String(cv.VehicleId || ''));
@@ -140,6 +152,26 @@ export async function enrichVehicleRefsFromVehicleGet(
   await enrichVehicleRefsOneByOne(byVehicleRef, vehicleRefs);
 }
 
+/** How many one-by-one vehicle lookups run at once. PBS has no documented rate limit
+ *  we can rely on, so this stays moderate rather than fully unbounded. */
+const ONE_BY_ONE_CONCURRENCY = 8;
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  let cursor = 0;
+  const lane = async () => {
+    while (cursor < items.length) {
+      const item = items[cursor];
+      cursor += 1;
+      await worker(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => lane()));
+}
+
 async function enrichVehicleRefsOneByOne(
   byVehicleRef: Map<string, PbsRefDisplayInfo>,
   vehicleRefs: string[]
@@ -148,9 +180,12 @@ async function enrichVehicleRefsOneByOne(
     (ref) => !byVehicleRef.has(normalizePbsRef(ref))
   );
 
-  for (const ref of missing.slice(0, 120)) {
+  // This used to run these lookups one at a time — up to 4 sequential PBS round trips
+  // per ref, for up to 120 refs, was the single biggest contributor to a slow page load.
+  // Same per-ref logic, just fanned out with a concurrency cap instead of fully serial.
+  await runWithConcurrency(missing.slice(0, 120), ONE_BY_ONE_CONCURRENCY, async (ref) => {
     const key = normalizePbsRef(ref);
-    if (!key || byVehicleRef.has(key)) continue;
+    if (!key || byVehicleRef.has(key)) return;
 
     const contactVehicleAttempts = [{ VehicleId: ref }, { VehicleRef: ref }, { Id: ref }];
     for (const criteria of contactVehicleAttempts) {
@@ -161,13 +196,13 @@ async function enrichVehicleRefsOneByOne(
       }
     }
 
-    if (byVehicleRef.has(key)) continue;
+    if (byVehicleRef.has(key)) return;
 
     const vehicles = await fetchVehicleGetBatch([ref]);
     if (vehicles.length) {
       byVehicleRef.set(key, mapVehicleRecord(vehicles[0]));
     }
-  }
+  });
 }
 
 export function lookupContactDisplay(

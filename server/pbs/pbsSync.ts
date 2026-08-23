@@ -543,6 +543,7 @@ async function processRepairOrdersBatch(
       requests: visit.requests,
       status: visit.status,
       lines: visit.lines,
+      payTypeTotals: visit.payTypeTotals,
       pbsVehicleRef: vehicleRef,
       pbsSyncedAt: startedAt,
       createdAt: Timestamp.now(),

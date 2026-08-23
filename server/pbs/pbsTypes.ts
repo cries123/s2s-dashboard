@@ -51,6 +51,12 @@ export interface PbsRepairOrderRequest {
   }>;
 }
 
+/** Pay-type dollar summary PBS attaches to a repair order (Labour/Parts split by who pays). */
+export interface PbsRepairOrderPaySummary {
+  Labour?: number;
+  Parts?: number;
+}
+
 export interface PbsRepairOrder {
   RepairOrderId?: string;
   RepairOrderNumber?: number | string;
@@ -64,6 +70,12 @@ export interface PbsRepairOrder {
   MileageIn?: number;
   MileageOut?: number;
   Status?: string;
+  /** Customer-pay dollar total for the RO (excludes warranty and internal). */
+  CustomerSummary?: PbsRepairOrderPaySummary;
+  /** Warranty-pay dollar total for the RO. */
+  WarrantySummary?: PbsRepairOrderPaySummary;
+  /** Internal (shop-pay) dollar total for the RO. */
+  InternalSummary?: PbsRepairOrderPaySummary;
   Requests?: PbsRepairOrderRequest[];
 }
 

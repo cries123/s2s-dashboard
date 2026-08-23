@@ -7,6 +7,7 @@ import {
   repairOrderSoNumber,
   vinLast8FromVin,
   mapRepairOrderToVisit,
+  type RepairOrderPayTypeTotals,
 } from './pbsMappers.js';
 import { normalizePbsRef } from './pbsAppointmentSchedule.js';
 import { customerBelongsToPbsSyncDealership, PBS_AUTOMATED_SYNC_DEALERSHIP_ID } from './pbsDealershipScope.js';
@@ -93,6 +94,7 @@ export interface OpenRepairOrderDetail {
     requests: string;
     status?: string;
     lines: OpenRepairOrderVisitLine[];
+    payTypeTotals?: RepairOrderPayTypeTotals;
   };
 }
 
@@ -497,9 +499,30 @@ export async function getOpenRepairOrderDetail(
   };
 }
 
+/**
+ * Open ROs require a live PBS repair-order pull plus fallback contact/vehicle lookups
+ * and a full customers-collection read, every one of which is a real network round trip
+ * to PBS PartnerHUB — that chain is what makes a cold load slow. A short in-memory cache
+ * keeps repeat page visits (tab switches, re-renders) fast without going back to PBS each
+ * time; the page's "Refresh from PBS" button passes forceRefresh to always get live data.
+ */
+const OPEN_RO_CACHE_TTL_MS = 60_000;
+let openRoCache: { dealershipId: string; expiresAt: number; result: { orders: OpenRepairOrderRow[]; fetchedAt: string } } | null = null;
+
 export async function listOpenRepairOrdersForDealership(
-  dealershipId: string = PBS_AUTOMATED_SYNC_DEALERSHIP_ID
+  dealershipId: string = PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+  opts: { forceRefresh?: boolean } = {}
 ): Promise<{ orders: OpenRepairOrderRow[]; fetchedAt: string }> {
+  const now = Date.now();
+  if (
+    !opts.forceRefresh &&
+    openRoCache &&
+    openRoCache.dealershipId === dealershipId &&
+    openRoCache.expiresAt > now
+  ) {
+    return openRoCache.result;
+  }
+
   const [repairOrders, index] = await Promise.all([
     fetchOpenRepairOrdersFromPbs(),
     loadCustomerIndexForOpenRos(dealershipId),
@@ -517,5 +540,7 @@ export async function listOpenRepairOrdersForDealership(
       return a.roNumber.localeCompare(b.roNumber);
     });
 
-  return { orders, fetchedAt: new Date().toISOString() };
+  const result = { orders, fetchedAt: new Date().toISOString() };
+  openRoCache = { dealershipId, expiresAt: now + OPEN_RO_CACHE_TTL_MS, result };
+  return result;
 }

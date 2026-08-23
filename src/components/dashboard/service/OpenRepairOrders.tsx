@@ -1,15 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Loader2, RefreshCw, Search, User } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  ClipboardList,
+  Loader2,
+  RefreshCw,
+  Search,
+  User,
+} from 'lucide-react';
 import type { Customer, ServiceVisit } from '../../../types';
 import {
   fetchOpenRepairOrderDetail,
   fetchOpenRepairOrders,
   type OpenRepairOrderRow,
 } from '../../../lib/openRepairOrdersApi';
-import { DISPATCH_STATUS_COLORS } from '../../../lib/dispatchConfig';
 import { cn } from '../../../lib/utils';
 import { isPbsSyncDealership } from '../../../lib/pbsSyncScope';
 import { ServiceVisitDetailModal } from '../customers/ServiceVisitDetailModal';
+
+type SortColumn = 'roNumber' | 'advisor' | 'days';
+type SortDirection = 'asc' | 'desc';
 
 interface OpenRepairOrdersProps {
   currentDealershipId: string;
@@ -47,21 +58,9 @@ function matchesSearch(row: OpenRepairOrderRow, query: string): boolean {
   return haystack.includes(q);
 }
 
-function StatusBadge({ row }: { row: OpenRepairOrderRow }) {
-  const lane = row.laneStatus as keyof typeof DISPATCH_STATUS_COLORS;
-  const colors = DISPATCH_STATUS_COLORS[lane];
-  const label = colors?.label || row.customStatus || row.status;
-  const bg = colors?.hex || '#64748B';
-  const text = colors?.text || '#FFFFFF';
-
-  return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
-      style={{ backgroundColor: bg, color: text }}
-    >
-      {label}
-    </span>
-  );
+function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
+  if (!active) return <ChevronsUpDown size={12} className="opacity-40" />;
+  return direction === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />;
 }
 
 export default function OpenRepairOrders({
@@ -75,6 +74,8 @@ export default function OpenRepairOrders({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('days');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<{
     visit: ServiceVisit;
@@ -113,7 +114,7 @@ export default function OpenRepairOrders({
       else setLoading(true);
 
       try {
-        const result = await fetchOpenRepairOrders();
+        const result = await fetchOpenRepairOrders({ forceRefresh: isRefresh });
         setOrders(result.orders);
         setFetchedAt(result.fetchedAt);
       } catch (err) {
@@ -139,6 +140,33 @@ export default function OpenRepairOrders({
     [orders, search]
   );
 
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(column);
+      // Days defaults to oldest-first (most urgent); RO # and Advisor default A→Z.
+      setSortDirection(column === 'days' ? 'desc' : 'asc');
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const rows = [...filtered];
+    rows.sort((a, b) => {
+      let cmp = 0;
+      if (sortColumn === 'roNumber') {
+        cmp = a.roNumber.localeCompare(b.roNumber, undefined, { numeric: true });
+      } else if (sortColumn === 'advisor') {
+        cmp = (a.advisor || '').localeCompare(b.advisor || '');
+      } else if (sortColumn === 'days') {
+        cmp = a.daysOpen - b.daysOpen;
+      }
+      if (cmp === 0) cmp = a.roNumber.localeCompare(b.roNumber, undefined, { numeric: true });
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  }, [filtered, sortColumn, sortDirection]);
+
   const handleCustomerClick = (
     event: React.MouseEvent,
     row: OpenRepairOrderRow
@@ -162,6 +190,7 @@ export default function OpenRepairOrders({
         requests: detail.visit.requests,
         status: detail.visit.status,
         lines: detail.visit.lines,
+        payTypeTotals: detail.visit.payTypeTotals,
         createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 } as ServiceVisit['createdAt'],
       };
       setSelectedVisit({
@@ -251,7 +280,7 @@ export default function OpenRepairOrders({
         <>
           {/* Mobile — one card per repair order, all fields visible without horizontal scroll */}
           <div className="md:hidden space-y-3">
-            {filtered.map((row) => {
+            {sorted.map((row) => {
               const isLoadingRow = detailLoadingId === row.repairOrderId;
               const hasCrmMatch = Boolean(row.customerId && customerById.has(row.customerId));
               return (
@@ -314,7 +343,6 @@ export default function OpenRepairOrders({
                       </div>
                     </div>
                     <div className="shrink-0 flex flex-col items-end gap-1">
-                      <StatusBadge row={row} />
                       <span
                         className={cn(
                           'font-semibold tabular-nums text-xs',
@@ -342,10 +370,6 @@ export default function OpenRepairOrders({
                       <p className="crm-label">Tech</p>
                       <p className="text-slate-200 truncate">{row.techNumber || '—'}</p>
                     </div>
-                    <div>
-                      <p className="crm-label">Promise</p>
-                      <p className="text-slate-200 truncate">{row.datePromisedLabel || '—'}</p>
-                    </div>
                     {row.concern ? (
                       <div className="col-span-2">
                         <p className="crm-label">Concern</p>
@@ -364,20 +388,45 @@ export default function OpenRepairOrders({
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-white/5 bg-slate-900/50 text-[10px] uppercase tracking-wider text-slate-500">
-                  <th className="px-4 py-3 font-semibold">RO #</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => handleSort('roNumber')}
+                      className="inline-flex items-center gap-1 hover:text-slate-300 transition-colors"
+                    >
+                      RO #
+                      <SortIcon active={sortColumn === 'roNumber'} direction={sortDirection} />
+                    </button>
+                  </th>
                   <th className="px-4 py-3 font-semibold">Tag</th>
                   <th className="px-4 py-3 font-semibold">Customer</th>
                   <th className="px-4 py-3 font-semibold hidden md:table-cell">Vehicle</th>
-                  <th className="px-4 py-3 font-semibold hidden lg:table-cell">Advisor</th>
+                  <th className="px-4 py-3 font-semibold hidden lg:table-cell">
+                    <button
+                      type="button"
+                      onClick={() => handleSort('advisor')}
+                      className="inline-flex items-center gap-1 hover:text-slate-300 transition-colors"
+                    >
+                      Advisor
+                      <SortIcon active={sortColumn === 'advisor'} direction={sortDirection} />
+                    </button>
+                  </th>
                   <th className="px-4 py-3 font-semibold hidden lg:table-cell">Tech</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Days</th>
-                  <th className="px-4 py-3 font-semibold hidden xl:table-cell">Promise</th>
+                  <th className="px-4 py-3 font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => handleSort('days')}
+                      className="inline-flex items-center gap-1 hover:text-slate-300 transition-colors"
+                    >
+                      Days
+                      <SortIcon active={sortColumn === 'days'} direction={sortDirection} />
+                    </button>
+                  </th>
                   <th className="px-4 py-3 font-semibold hidden xl:table-cell">Concern</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filtered.map((row) => {
+                {sorted.map((row) => {
                   const isLoadingRow = detailLoadingId === row.repairOrderId;
                   const hasCrmMatch = Boolean(row.customerId && customerById.has(row.customerId));
                   return (
@@ -444,9 +493,6 @@ export default function OpenRepairOrders({
                         {row.techNumber || '—'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <StatusBadge row={row} />
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
                         <span
                           className={cn(
                             'font-semibold tabular-nums',
@@ -455,9 +501,6 @@ export default function OpenRepairOrders({
                         >
                           {row.daysOpen}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-400 hidden xl:table-cell whitespace-nowrap">
-                        {row.datePromisedLabel || '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-400 hidden xl:table-cell max-w-[14rem] truncate">
                         {row.concern || '—'}

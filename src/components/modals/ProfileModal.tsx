@@ -204,6 +204,36 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
   const oilAnalysis = analyzeOilChangeInterval(customer);
 
+  // Lifetime spend, from repair-order pay-type totals on the visits stored for this
+  // customer (up to the most recent 25 — see mergeServiceVisits). Older visits synced
+  // before pay-type totals existed won't have this data, so we're honest below about
+  // how many visits actually contributed.
+  const spendSummary = React.useMemo(() => {
+    const visits = customer.recentVisits || [];
+    let customerTotal = 0;
+    let warrantyTotal = 0;
+    let internalTotal = 0;
+    let visitsWithData = 0;
+    for (const visit of visits) {
+      const totals = visit.payTypeTotals;
+      if (!totals) continue;
+      visitsWithData += 1;
+      customerTotal += totals.customer.labor + totals.customer.parts;
+      warrantyTotal += totals.warranty.labor + totals.warranty.parts;
+      internalTotal += totals.internal.labor + totals.internal.parts;
+    }
+    return {
+      customerTotal,
+      warrantyTotal,
+      internalTotal,
+      visitsWithData,
+      totalVisits: visits.length,
+    };
+  }, [customer.recentVisits]);
+
+  const formatMoney = (value: number) =>
+    `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -690,6 +720,41 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           )}
                         </div>
                       </div>
+                    </div>
+
+                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                        <Wrench size={14} className="text-brand-primary" /> Customer Value
+                      </p>
+
+                      {spendSummary.visitsWithData > 0 ? (
+                        <div className="space-y-3.5">
+                          <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                              Customer Pay Spend
+                            </span>
+                            <span className="text-sm font-black text-white tabular-nums">
+                              {formatMoney(spendSummary.customerTotal)}
+                            </span>
+                          </div>
+                          <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                              Warranty Pay Received
+                            </span>
+                            <span className="text-sm font-black text-amber-400 tabular-nums">
+                              {formatMoney(spendSummary.warrantyTotal)}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-slate-600 leading-relaxed">
+                            From {spendSummary.visitsWithData} of {spendSummary.totalVisits} repair order
+                            {spendSummary.totalVisits === 1 ? '' : 's'} on file with pay-type data synced from PBS.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          No pay-type data synced for this customer's repair orders yet.
+                        </p>
+                      )}
                     </div>
 
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">

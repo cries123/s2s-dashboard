@@ -54,6 +54,12 @@ export interface OpenRepairOrderVisitLine {
   }>;
 }
 
+export interface OpenRepairOrderPayTypeTotals {
+  customer: { labor: number; parts: number };
+  warranty: { labor: number; parts: number };
+  internal: { labor: number; parts: number };
+}
+
 export interface OpenRepairOrderDetailResponse {
   dealershipId: string;
   repairOrderId: string;
@@ -71,6 +77,7 @@ export interface OpenRepairOrderDetailResponse {
     requests: string;
     status?: string;
     lines: OpenRepairOrderVisitLine[];
+    payTypeTotals?: OpenRepairOrderPayTypeTotals;
   };
   error?: string;
 }
@@ -82,9 +89,12 @@ async function bearerHeaders(): Promise<HeadersInit> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function fetchOpenRepairOrders(): Promise<OpenRepairOrdersResponse> {
+export async function fetchOpenRepairOrders(
+  opts: { forceRefresh?: boolean } = {}
+): Promise<OpenRepairOrdersResponse> {
   const headers = await bearerHeaders();
-  const res = await fetch('/api/pbs/open-repair-orders', { headers });
+  const url = opts.forceRefresh ? '/api/pbs/open-repair-orders?refresh=1' : '/api/pbs/open-repair-orders';
+  const res = await fetch(url, { headers });
   const data = (await res.json()) as OpenRepairOrdersResponse;
   if (!res.ok) {
     throw new Error(data.error || 'Failed to load open repair orders from PBS.');
