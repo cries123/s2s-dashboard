@@ -1,6 +1,5 @@
 import { pbsIsoToDateString, repairOrderSoNumber } from './pbsMappers.js';
 import { cleanPbsCsrName, isRealPbsAdvisorName, resolvePbsAdvisorCsr } from './pbsAdvisorName.js';
-import { buildSegment, finalizeSummary, type PayTypeKey } from '../../src/lib/operationsPayTypes.js';
 import type {
   PbsAdvisorPerformanceRow,
   PbsPartLine,
@@ -67,73 +66,6 @@ function allSummaryTotals(breakdown: PayTypeBreakdown): { labor: number; parts: 
     labor: breakdown.customer.labor + breakdown.warranty.labor + breakdown.internal.labor,
     parts: breakdown.customer.parts + breakdown.warranty.parts + breakdown.internal.parts,
   };
-}
-
-interface PayTypeAccumulator {
-  roCount: number;
-  hoursSold: number;
-  laborSold: number;
-  grossLabor: number;
-}
-
-function emptyPayTypeAccumulator(): PayTypeAccumulator {
-  return { roCount: 0, hoursSold: 0, laborSold: 0, grossLabor: 0 };
-}
-
-/**
- * Roll one cashiered RO into the shop-wide Customer/Warranty/Internal mix used
- * to seed the Fixed Ops Forecast's pay-type inputs.
- *
- * PBS's CustomerSummary/WarrantySummary/InternalSummary blocks give a dollar
- * split per pay type, but they can under-report against the RO's real
- * (line-reconciled) shop labor — e.g. a plain CP ticket with no summary block
- * populated at all. Whatever isn't accounted for by a summary is folded into
- * customer pay, the common default when PBS gives no other signal. PBS also
- * doesn't tag SoldHours or Cost by pay type, so hoursSold/grossLabor are
- * estimated by applying each segment's share of this "effective" labor $ to
- * the RO's real shop hours/gross. That means segment ELR/GP% are
- * approximations — a reasonable forecast starting point, not a
- * penny-accurate breakdown — while the labor $ totals folded into each
- * segment are exact PBS figures (plus the unaccounted-for remainder).
- */
-function accumulateRoPayType(
-  buckets: Record<PayTypeKey, PayTypeAccumulator>,
-  ro: PbsRepairOrderFull,
-  shopLabor: { laborSold: number; laborGross: number; hrsSold: number }
-): void {
-  const breakdown = readPayTypeBreakdown(ro);
-  const segments: PayTypeKey[] = ['customer', 'warranty', 'internal'];
-  const summaryLaborTotal = breakdown.customer.labor + breakdown.warranty.labor + breakdown.internal.labor;
-
-  const unaccountedLabor = Math.max(0, shopLabor.laborSold - summaryLaborTotal);
-  const effectiveLabor: Record<PayTypeKey, number> = {
-    customer: breakdown.customer.labor + unaccountedLabor,
-    warranty: breakdown.warranty.labor,
-    internal: breakdown.internal.labor,
-  };
-  const effectiveTotal = summaryLaborTotal + unaccountedLabor;
-
-  // RO-count / mix%: whichever pay type carries the larger $ amount for this RO.
-  let dominant: PayTypeKey = 'customer';
-  let dominantAmount = -1;
-  for (const seg of segments) {
-    const amount = effectiveLabor[seg] + breakdown[seg].parts;
-    if (amount > dominantAmount) {
-      dominantAmount = amount;
-      dominant = seg;
-    }
-  }
-  buckets[dominant].roCount += 1;
-
-  for (const seg of segments) {
-    buckets[seg].laborSold += effectiveLabor[seg];
-
-    const share = effectiveTotal > 0 ? effectiveLabor[seg] / effectiveTotal : 0;
-    if (share > 0) {
-      buckets[seg].hoursSold += shopLabor.hrsSold * share;
-      buckets[seg].grossLabor += shopLabor.laborGross * share;
-    }
-  }
 }
 
 function sumPayTypeSummaries(ro: PbsRepairOrderFull): {
@@ -520,11 +452,6 @@ export function aggregatePbsAdvisorPerformance(
   let shopLaborSold = 0;
   let shopLaborGross = 0;
   let shopHrsSold = 0;
-  const payTypeBuckets: Record<PayTypeKey, PayTypeAccumulator> = {
-    customer: emptyPayTypeAccumulator(),
-    warranty: emptyPayTypeAccumulator(),
-    internal: emptyPayTypeAccumulator(),
-  };
 
   for (const ro of repairOrders) {
     if (!isCashieredRepairOrder(ro)) continue;
@@ -536,7 +463,6 @@ export function aggregatePbsAdvisorPerformance(
     shopLaborGross += shopLabor.laborGross;
     shopHrsSold += shopLabor.hrsSold;
 
-    accumulateRoPayType(payTypeBuckets, ro, shopLabor);
     attributeRepairOrder(buckets, ro, aliases);
     repairOrdersProcessed += 1;
   }
@@ -581,15 +507,6 @@ export function aggregatePbsAdvisorPerformance(
     totalSales: Math.round((shopLaborSold + advisorTotals.totalParts) * 100) / 100,
   };
 
-  const totalPayTypeRo = payTypeBuckets.customer.roCount + payTypeBuckets.warranty.roCount + payTypeBuckets.internal.roCount;
-  const payTypes = totalPayTypeRo > 0
-    ? finalizeSummary(
-        buildSegment('customer', payTypeBuckets.customer.roCount, payTypeBuckets.customer.hoursSold, payTypeBuckets.customer.laborSold, payTypeBuckets.customer.grossLabor, totalPayTypeRo),
-        buildSegment('internal', payTypeBuckets.internal.roCount, payTypeBuckets.internal.hoursSold, payTypeBuckets.internal.laborSold, payTypeBuckets.internal.grossLabor, totalPayTypeRo),
-        buildSegment('warranty', payTypeBuckets.warranty.roCount, payTypeBuckets.warranty.hoursSold, payTypeBuckets.warranty.laborSold, payTypeBuckets.warranty.grossLabor, totalPayTypeRo)
-      )
-    : undefined;
-
   return {
     advisors,
     totals,
@@ -597,6 +514,5 @@ export function aggregatePbsAdvisorPerformance(
     reportEndDate: monthEnd,
     repairOrdersProcessed,
     partsInvoicesProcessed,
-    payTypes,
   };
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { collection, doc, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { db } from '../../../firebase';
 import type { DailyStat, PerformanceAdvisorSlot, ScheduledAppointmentSlot } from '../../../types';
@@ -8,7 +8,13 @@ import { PageHeader } from '../../layout/PageHeader';
 import { PageSkeleton } from '../../ui/Skeleton';
 import { cn } from '../../../lib/utils';
 import { addDaysToDateString, dedupeDailyStatsByDate, toLocalDateString } from '../../../lib/appointmentTracker';
-import { appointmentScheduleDocId } from '../../../lib/appointmentSchedule';
+import {
+  appointmentScheduleDocId,
+  CAPACITY_STATUS_STYLES,
+  computeScheduleCapacity,
+  formatScheduleDurationLabel,
+  SCHEDULE_HOURS_PER_TECH_PER_DAY,
+} from '../../../lib/appointmentSchedule';
 import { fetchDayAppointmentSchedule } from '../../../lib/appointmentScheduleApi';
 import { dispatchTechRosterFromSettings } from '../../../lib/dispatchTechRoster';
 import { isPreviewMode } from '../../../lib/previewMode';
@@ -77,18 +83,14 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
     }
 
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const q = collection(db, path);
+    // Firestore security rules require an explicit dealershipId match to list this
+    // collection (no more open collection-wide reads across tenants).
+    const q = query(collection(db, path), where('dealershipId', '==', currentDealershipId || 'hyundai'));
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        let stats = snapshot.docs.map((row) => ({ id: row.id, ...row.data() } as DailyStat));
-        stats = stats.filter((s) => {
-          if (currentDealershipId === 'hyundai') {
-            return !s.dealershipId || s.dealershipId === 'hyundai';
-          }
-          return s.dealershipId === currentDealershipId;
-        });
+        const stats = snapshot.docs.map((row) => ({ id: row.id, ...row.data() } as DailyStat));
         setTrackerStats(dedupeDailyStatsByDate(stats, currentDealershipId));
         setLoadingTracker(false);
       },
@@ -249,6 +251,21 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
     setWeekOffset(0);
   };
 
+  const capacity = useMemo(
+    () => computeScheduleCapacity(appointments, dispatchTechRoster),
+    [appointments, dispatchTechRoster]
+  );
+
+  const selectedDateShortLabel = useMemo(
+    () =>
+      new Date(`${selectedDate}T12:00:00`).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }),
+    [selectedDate]
+  );
+
   if (loadingTracker) {
     return <PageSkeleton />;
   }
@@ -273,6 +290,53 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
         }
       />
 
+      <div className="card-base p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="crm-label">Today's operational capacity</p>
+            <p className="text-4xl font-black tracking-tight mt-1">{capacity.utilizationPercent}%</p>
+          </div>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-full whitespace-nowrap',
+              CAPACITY_STATUS_STYLES[capacity.status].chip
+            )}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+            {CAPACITY_STATUS_STYLES[capacity.status].label}
+          </span>
+        </div>
+
+        <div className={cn('relative h-2.5 rounded-full mt-4 mb-3 overflow-hidden', CAPACITY_STATUS_STYLES[capacity.status].track)}>
+          <div
+            className={cn('absolute inset-y-0 left-0 rounded-full transition-all', CAPACITY_STATUS_STYLES[capacity.status].fill)}
+            style={{ width: `${Math.min(100, capacity.utilizationPercent)}%` }}
+          />
+        </div>
+
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+          <strong className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            {formatScheduleDurationLabel(capacity.scheduledMinutes)}
+          </strong>{' '}
+          scheduled of{' '}
+          <strong className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            {formatScheduleDurationLabel(capacity.capacityMinutes)}
+          </strong>{' '}
+          available
+        </p>
+
+        <div
+          className="flex items-center justify-between mt-3 pt-3 border-t text-xs"
+          style={{ borderColor: 'var(--color-surface-border)' }}
+        >
+          <span style={{ color: 'var(--color-text-secondary)' }}>
+            <strong style={{ color: 'var(--color-text-primary)' }}>{capacity.techCount}</strong>{' '}
+            technician{capacity.techCount === 1 ? '' : 's'} × {SCHEDULE_HOURS_PER_TECH_PER_DAY}h/day
+          </span>
+          <span style={{ color: 'var(--color-text-secondary)' }}>{selectedDateShortLabel}</span>
+        </div>
+      </div>
+
       <div className="card-base overflow-hidden">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
           <h3 className="crm-section-title flex items-center gap-2">
@@ -291,7 +355,8 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
             </button>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        {/* Desktop — unchanged table */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="crm-table">
             <thead>
               <tr>
@@ -336,6 +401,51 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
             </tbody>
           </table>
         </div>
+
+        {/* Mobile — condensed day cards, total appointments always visible up front */}
+        <div className="lg:hidden divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
+          {weekDays.map((day) => {
+            const isSelected = selectedDate === day.date;
+            const parts: string[] = [];
+            if (day.breakdown.oilChange) parts.push(`${day.breakdown.oilChange} oil`);
+            if (day.breakdown.diagnosis) parts.push(`${day.breakdown.diagnosis} diag`);
+            if (day.breakdown.recall) parts.push(`${day.breakdown.recall} recall`);
+            if (day.breakdown.misc) parts.push(`${day.breakdown.misc} misc`);
+
+            return (
+              <button
+                key={day.date}
+                type="button"
+                onClick={() => setSelectedDate(day.date)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
+                  isSelected ? 'bg-brand-primary/5' : 'hover:bg-slate-500/5'
+                )}
+              >
+                <div className="w-11 shrink-0">
+                  <p className="text-xs font-black">{day.label}</p>
+                  <p className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>
+                    {day.monthLabel} {day.dayNum}
+                  </p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                    {parts.length > 0 ? parts.join(' · ') : 'No appointments'}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-base font-black tabular-nums leading-none">
+                    {day.count}
+                    <span className="text-[9px] font-bold uppercase ml-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                      appts
+                    </span>
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
         <p className="px-4 py-2.5 text-[10px] text-slate-500 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
           Visits combining an oil change with other work (recall, diag) count as oil changes.
         </p>

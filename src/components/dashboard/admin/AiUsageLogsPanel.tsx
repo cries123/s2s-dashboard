@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Loader2, Cpu, RefreshCw } from 'lucide-react';
-import { cn } from '../../../lib/utils';
+import { Cpu } from 'lucide-react';
+import { EmptyState } from '../../ui/EmptyState';
+import { TableSkeleton } from '../../ui/Skeleton';
 
 interface AiUsageEntry {
   id: string;
@@ -37,8 +38,12 @@ export function AiUsageLogsPanel() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="animate-spin text-brand-primary" size={28} />
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em]">
+          <Cpu size={12} />
+          Platform AI telemetry
+        </div>
+        <TableSkeleton rows={6} cols={5} />
       </div>
     );
   }
@@ -52,46 +57,77 @@ export function AiUsageLogsPanel() {
       <p className="text-xs text-slate-500 max-w-2xl">
         Token usage from Gemini/OpenAI parse routes. Admin read-only.
       </p>
-      <div className="card-base border border-white/5 overflow-hidden">
-        <div className="overflow-x-auto max-h-[560px]">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900/80 sticky top-0">
-              <tr className="text-[9px] font-black uppercase tracking-widest text-slate-500">
-                <th className="px-4 py-3">When</th>
-                <th className="px-4 py-3">Action</th>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Store</th>
-                <th className="px-4 py-3 text-right">Tokens</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {logs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
-                    No AI usage logged yet.
-                  </td>
-                </tr>
-              ) : (
-                logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-900/40">
-                    <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
-                      {log.timestamp?.toDate?.()?.toLocaleString?.() || '—'}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-white">{log.action || '—'}</td>
-                    <td className="px-4 py-3 text-slate-400">{log.userEmail || '—'}</td>
-                    <td className="px-4 py-3 text-brand-primary uppercase text-[10px] font-black">
-                      {log.dealershipId || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-emerald-400">
-                      {log.usage?.totalTokenCount?.toLocaleString() ?? '—'}
-                    </td>
+
+      {logs.length === 0 ? (
+        <EmptyState
+          title="No AI usage logged yet."
+          description="Token usage from AI parse routes will appear here once activity is recorded."
+        />
+      ) : (
+        <>
+          {/* Mobile — one card per log row */}
+          <div className="lg:hidden space-y-2">
+            {logs.map((log) => (
+              <div
+                key={log.id}
+                className="card-base p-4 space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-sm font-bold text-white">
+                    {log.action || '—'}
+                  </span>
+                  <span className="text-right font-mono text-xs text-emerald-400 shrink-0">
+                    {log.usage?.totalTokenCount?.toLocaleString() ?? '—'} tok
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 font-mono">
+                  <span>{log.timestamp?.toDate?.()?.toLocaleString?.() || '—'}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                  <span className="text-slate-400">{log.userEmail || '—'}</span>
+                  <span className="text-brand-primary uppercase font-black">
+                    {log.dealershipId || '—'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop — table */}
+          <div className="hidden lg:block card-base border border-white/5 overflow-hidden">
+            <div className="overflow-x-auto max-h-[560px]">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900/80 sticky top-0">
+                  <tr className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                    <th className="px-4 py-3">When</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">User</th>
+                    <th className="px-4 py-3">Store</th>
+                    <th className="px-4 py-3 text-right">Tokens</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-900/40">
+                      <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
+                        {log.timestamp?.toDate?.()?.toLocaleString?.() || '—'}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-white">{log.action || '—'}</td>
+                      <td className="px-4 py-3 text-slate-400">{log.userEmail || '—'}</td>
+                      <td className="px-4 py-3 text-brand-primary uppercase text-[10px] font-black">
+                        {log.dealershipId || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-emerald-400">
+                        {log.usage?.totalTokenCount?.toLocaleString() ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

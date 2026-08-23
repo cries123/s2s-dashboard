@@ -6,6 +6,7 @@ import { writeBatch, doc, collection, serverTimestamp } from 'firebase/firestore
 import { db } from '../../../firebase';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
+import { ConfirmModal } from '../../ui/ConfirmModal';
 
 interface ServiceAlertsProps {
   customers: Customer[];
@@ -26,16 +27,17 @@ export default function ServiceAlerts({
   const activeAlerts = customers.filter(serviceAlerts.isServiceAlertActive);
 
   const [isResetting, setIsResetting] = React.useState(false);
+  const [showResetConfirm, setShowResetConfirm] = React.useState(false);
+
+  const handleResetAllClick = () => {
+    if (activeAlerts.length === 0) return;
+    setShowResetConfirm(true);
+  };
 
   const handleResetAll = async () => {
     const alertsToProcess = [...activeAlerts];
-    if (alertsToProcess.length === 0) return;
-
-    const confirmMessage = serviceAlerts.isStandardMode
-      ? `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new 6-month reminder from today.`
-      : `Confirm complete reset of all ${alertsToProcess.length} service reminders? Each customer will get a new reminder based on their service interval from today.`;
-
-    if (!confirm(confirmMessage)) {
+    if (alertsToProcess.length === 0) {
+      setShowResetConfirm(false);
       return;
     }
 
@@ -106,8 +108,13 @@ export default function ServiceAlerts({
       }
     } finally {
       setIsResetting(false);
+      setShowResetConfirm(false);
     }
   };
+
+  const resetConfirmDescription = serviceAlerts.isStandardMode
+    ? `Confirm complete reset of all ${activeAlerts.length} service reminders? Each customer will get a new 6-month reminder from today.`
+    : `Confirm complete reset of all ${activeAlerts.length} service reminders? Each customer will get a new reminder based on their service interval from today.`;
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-24 md:pb-8">
@@ -131,7 +138,7 @@ export default function ServiceAlerts({
 
           {activeAlerts.length > 0 && (
             <button
-              onClick={handleResetAll}
+              onClick={handleResetAllClick}
               disabled={isResetting}
               className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs sm:text-sm py-2.5 px-4 shadow-lg shadow-emerald-900/20 disabled:opacity-50 w-full sm:w-auto min-h-[44px]"
             >
@@ -179,6 +186,17 @@ export default function ServiceAlerts({
           ))
         )}
       </div>
+
+      <ConfirmModal
+        open={showResetConfirm}
+        title="Reset Service Reminders"
+        description={resetConfirmDescription}
+        confirmLabel="Reset Reminders"
+        tone="danger"
+        loading={isResetting}
+        onConfirm={handleResetAll}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from 'express';
 import { normalizeRecallEmail, normalizeRecallPhone } from '../../src/lib/recallCampaignParser.ts';
-import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
 
 interface OutreachRecipient {
   id: string;
@@ -123,10 +122,6 @@ export function registerOutreachRoutes(app: Express) {
   });
 
   app.post('/api/outreach/bulk', async (req: Request, res: Response) => {
-    const user = await resolveApprovedUser(req);
-    if (!user) {
-      return res.status(401).json({ error: 'Unauthorized bulk outreach request.' });
-    }
     try {
       const {
         channel,

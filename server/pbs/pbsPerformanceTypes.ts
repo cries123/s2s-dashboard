@@ -1,7 +1,5 @@
 /** PBS RepairOrder / PartsInvoice shapes used for advisor performance aggregation. */
 
-import type { OperationsPayTypeSummary } from '../../src/lib/operationsPayTypes.js';
-
 export interface PbsMoneySummary {
   Labour?: number;
   Parts?: number;
@@ -99,6 +97,4 @@ export interface PbsPerformanceAggregate {
   reportEndDate: string;
   repairOrdersProcessed: number;
   partsInvoicesProcessed: number;
-  /** Customer/Warranty/Internal mix — feeds the Fixed Ops Forecast operations-seed. */
-  payTypes?: OperationsPayTypeSummary;
 }

@@ -6,8 +6,8 @@ import { auth, db } from './firebase';
 import { doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { Customer, User } from './types';
 import { cn } from './lib/utils';
-import { 
-  LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus, 
+import {
+  LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus,
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
   BarChart2, ClipboardList
 } from 'lucide-react';
@@ -37,7 +37,7 @@ import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
-import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPrimaryAdmin, isUserApproved, resolveChatDealershipId } from './lib/rbac';
+import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPendingManagerEnrollment, isPrimaryAdmin, isUserApproved, resolveChatDealershipId } from './lib/rbac';
 import { subscribeDealershipUsers } from './lib/userDirectory';
 import { useDealershipChatInbox } from './hooks/useDealershipChatInbox';
 import {
@@ -46,15 +46,17 @@ import {
 } from './components/chat/DealershipChatNotifications';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
+import { ConfirmModal } from './components/ui/ConfirmModal';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { AppSidebar } from './components/layout/AppSidebar';
-import { AppTopBar } from './components/layout/AppTopBar';
+import { AppTopBar, type TopBarNotification } from './components/layout/AppTopBar';
 import { DealershipAnnouncementBanner } from './components/layout/DealershipAnnouncementBanner';
 import { buildMobileNavSections } from './lib/mobileNavSections';
 import { isPbsSyncDealership } from './lib/pbsSyncScope';
 import { isPreviewMode } from './lib/previewMode';
 import type { SidebarNavItem } from './lib/sidebarNav';
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext';
+import { useToast } from './context/ToastContext';
 import {
   type AdminSubTab,
   type AppTab,
@@ -87,7 +89,7 @@ function NavDropdown({ label, isActive, children }: NavDropdownProps) {
   }, []);
 
   return (
-    <div 
+    <div
       className="relative inline-block"
       ref={containerRef}
       onMouseEnter={() => setIsOpen(true)}
@@ -97,8 +99,8 @@ function NavDropdown({ label, isActive, children }: NavDropdownProps) {
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 rounded-xl text-[9.5px] font-black uppercase tracking-wider transition-all relative border shrink-0",
-          isActive 
-            ? "bg-white/10 text-white shadow-inner border-white/10" 
+          isActive
+            ? "bg-white/10 text-white shadow-inner border-white/10"
             : "text-slate-400 hover:text-slate-200 border-transparent hover:bg-white/5"
         )}
       >
@@ -151,8 +153,8 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
       }}
       className={cn(
         "flex items-center justify-between px-3 py-2 text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all",
-        isActive 
-          ? "bg-brand-primary/20 text-brand-primary" 
+        isActive
+          ? "bg-brand-primary/20 text-brand-primary"
           : "text-slate-300 hover:bg-white/5 hover:text-white"
       )}
     >
@@ -277,7 +279,7 @@ function DashboardShell({ user }: { user: User }) {
   );
   const activeAlertsCount = customers.filter(serviceAlerts.isServiceAlertActive).length;
   const currentDealership = DEALERSHIPS.find(d => d.id === currentDealershipId) || DEALERSHIPS[0];
-  
+
   // Filter tabs - Pot of Gold (Competition) only for Hyundai
   const modules = preferences.dashboardModules;
 
@@ -346,7 +348,62 @@ function DashboardShell({ user }: { user: User }) {
   const [chatRecipientUid, setChatRecipientUid] = useState<string | null>(null);
   const [chatRecipientName, setChatRecipientName] = useState<string | null>(null);
   const [tenantUsers, setTenantUsers] = useState<User[]>([]);
-  const [notification, setNotification] = useState<{ text: string; isError: boolean } | null>(null);
+  const [pendingDeleteCustomer, setPendingDeleteCustomer] = useState<{ id: string; name: string } | null>(null);
+  const [isDeletingCustomer, setIsDeletingCustomer] = useState(false);
+  const { showToast } = useToast();
+
+  const canSeeAlertsBell = canAccessPrimaryAdminSettings(user) || canSeeManagerPanel(user);
+  const topBarNotifications = React.useMemo<TopBarNotification[]>(() => {
+    const items: TopBarNotification[] = [];
+
+    if (canAccessPrimaryAdminSettings(user)) {
+      const pbsState = dealershipSettings?.pbsSyncState;
+      if (pbsState?.lastSyncOk === false) {
+        items.push({
+          id: 'pbs-sync-failed',
+          tone: 'danger',
+          title: 'PBS sync failed',
+          detail: pbsState.lastError || 'The last automated sync did not complete successfully.',
+          onClick: () => {
+            setActiveTab('admin');
+            setAdminSubTab('pbs-sync');
+          },
+        });
+      }
+
+      const dmsFailures = dealershipSettings?.dmsImportHealth?.recentFailures ?? [];
+      if (dmsFailures.length > 0) {
+        items.push({
+          id: 'dms-import-failures',
+          tone: 'warning',
+          title: `${dmsFailures.length} DMS import ${dmsFailures.length === 1 ? 'failure' : 'failures'}`,
+          detail: dmsFailures[0]?.filename ? `Most recent: ${dmsFailures[0].filename}` : undefined,
+          onClick: () => {
+            setActiveTab('admin');
+            setAdminSubTab('import-health');
+          },
+        });
+      }
+    }
+
+    if (canSeeManagerPanel(user)) {
+      const pendingCount = tenantUsers.filter(isPendingManagerEnrollment).length;
+      if (pendingCount > 0) {
+        items.push({
+          id: 'pending-enrollments',
+          tone: 'info',
+          title: `${pendingCount} pending manager ${pendingCount === 1 ? 'enrollment' : 'enrollments'}`,
+          detail: 'Waiting on your approval.',
+          onClick: () => {
+            setActiveTab('manager');
+            setManagerSubTab('team');
+          },
+        });
+      }
+    }
+
+    return items;
+  }, [user, dealershipSettings, tenantUsers]);
 
   const chatDealershipId = resolveChatDealershipId(user, currentDealershipId);
 
@@ -366,21 +423,30 @@ function DashboardShell({ user }: { user: User }) {
     return () => unsub();
   }, [chatDealershipId]);
 
+  // Thin wrapper kept so every existing call site (showNotification(text, isError))
+  // is unchanged — now backed by the real stacked/dismissible toast system.
   const showNotification = (text: string, isError = false) => {
-    setNotification({ text, isError });
-    setTimeout(() => setNotification(null), 5000);
+    showToast(text, isError ? 'error' : 'success');
   };
 
   const handleSignOut = () => signOut(auth);
 
-  const handleDeleteCustomer = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to PERMANENTLY delete ${name}?`)) return;
+  const handleDeleteCustomer = (id: string, name: string) => {
+    setPendingDeleteCustomer({ id, name });
+  };
+
+  const confirmDeleteCustomer = async () => {
+    if (!pendingDeleteCustomer) return;
+    setIsDeletingCustomer(true);
     try {
-      await deleteDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', id));
+      await deleteDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', pendingDeleteCustomer.id));
       setSelectedProfile(null);
       showNotification("Customer deleted successfully.");
     } catch (err: any) {
       showNotification(err.message, true);
+    } finally {
+      setIsDeletingCustomer(false);
+      setPendingDeleteCustomer(null);
     }
   };
 
@@ -449,6 +515,7 @@ function DashboardShell({ user }: { user: User }) {
         onOpenSuggestions={() => setShowSuggestionModal(true)}
         onOpenChat={() => setShowChatPanel(true)}
         chatUnreadCount={chatUnreadCount}
+        notifications={canSeeAlertsBell ? topBarNotifications : undefined}
       />
 
       <DealershipAnnouncementBanner
@@ -458,27 +525,17 @@ function DashboardShell({ user }: { user: User }) {
 
       {/* Main Content */}
       <main className="section-container animate-fade-in app-main-with-mobile-nav">
-        {notification && (
-          <div className={cn(
-            "p-4 rounded-2xl mb-8 flex items-center gap-4 animate-slide-in border shadow-lg",
-            notification.isError ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-          )}>
-            <div className={cn("w-2 h-2 rounded-full", notification.isError ? "bg-rose-500" : "bg-emerald-500")}></div>
-            <span className="font-semibold text-sm">{notification.text}</span>
-          </div>
-        )}
-
         <div className="space-y-10">
           {activeTab === 'add' && (
-            <CustomerForm 
-              currentUser={currentUser} 
-              onSuccess={msg => showNotification(msg)} 
-              onError={msg => showNotification(msg, true)} 
+            <CustomerForm
+              currentUser={currentUser}
+              onSuccess={msg => showNotification(msg)}
+              onError={msg => showNotification(msg, true)}
             />
           )}
 
           {activeTab === 'search' && (
-            <CustomerDirectory 
+            <CustomerDirectory
               customers={customers}
               currentUser={currentUser}
               onViewProfile={setSelectedProfile}
@@ -512,8 +569,8 @@ function DashboardShell({ user }: { user: User }) {
           {activeTab === 'appointments' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
               {modules.showWeatherWidget && <WeatherWidget lat={mergedDealershipSettings.weatherLat} lon={mergedDealershipSettings.weatherLon} displayCity={mergedDealershipSettings.weatherDisplayCity} />}
-              <Appointments 
-                currentUser={currentUser} 
+              <Appointments
+                currentUser={currentUser}
                 currentDealershipId={currentDealershipId || 'hyundai'}
                 modulePrefs={modules}
                 onSuccess={msg => showNotification(msg)}
@@ -530,7 +587,7 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'dispatch' && (
-            <DispatchBoard 
+            <DispatchBoard
               key={currentDealershipId || 'hyundai'}
               currentDealershipId={currentDealershipId || 'hyundai'}
               customers={customers}
@@ -548,19 +605,19 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'forecast' && (
-            <FixedOpsForecast 
-              key={currentDealershipId || 'hyundai'} 
-              currentDealershipId={currentDealershipId || 'hyundai'} 
+            <FixedOpsForecast
+              key={currentDealershipId || 'hyundai'}
+              currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
             />
           )}
 
           {activeTab === 'sales-performance' && (
-            <SalesPerformance 
-              customers={customers} 
-              currentUser={currentUser} 
-              currentDealershipId={currentDealershipId || 'ford'} 
+            <SalesPerformance
+              customers={customers}
+              currentUser={currentUser}
+              currentDealershipId={currentDealershipId || 'ford'}
             />
           )}
 
@@ -599,10 +656,10 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'admin' && canAccessPrimaryAdminSettings(currentUser) && (
-            <AdminPanel 
+            <AdminPanel
               key="primary-admin"
               panelMode="admin"
-              currentDealershipId={currentDealershipId || 'hyundai'} 
+              currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
               activeSubTab={adminSubTab}
@@ -615,10 +672,10 @@ function DashboardShell({ user }: { user: User }) {
 
       {/* Modals */}
       {selectedProfile && (
-        <ProfileModal 
-          customer={selectedProfile} 
+        <ProfileModal
+          customer={selectedProfile}
           currentUser={currentUser}
-          onClose={() => setSelectedProfile(null)} 
+          onClose={() => setSelectedProfile(null)}
           onDelete={handleDeleteCustomer}
         />
       )}
@@ -632,6 +689,21 @@ function DashboardShell({ user }: { user: User }) {
           onError={(msg) => showNotification(msg, true)}
         />
       )}
+
+      <ConfirmModal
+        open={!!pendingDeleteCustomer}
+        title="Delete Customer"
+        description={
+          pendingDeleteCustomer
+            ? `Are you sure you want to PERMANENTLY delete ${pendingDeleteCustomer.name}?`
+            : undefined
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        loading={isDeletingCustomer}
+        onConfirm={confirmDeleteCustomer}
+        onCancel={() => setPendingDeleteCustomer(null)}
+      />
 
       <MobileBottomNav
         activeTab={activeTab}

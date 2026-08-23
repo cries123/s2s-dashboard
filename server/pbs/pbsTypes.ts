@@ -168,8 +168,6 @@ export interface PbsSyncLogEntry {
   startedAt: string;
   finishedAt: string;
   ok: boolean;
-  /** True when the run finished (ok=true) but one or more sub-stages caught and recorded their own error. */
-  hadPartialFailure?: boolean;
   triggeredBy: 'cron' | 'manual';
   triggeredByEmail?: string;
   triggeredByUsername?: string;
@@ -200,7 +198,6 @@ export interface PbsSyncState {
   /** Watermark for incremental Pull changes — only advances on successful sync. */
   lastSuccessfulSyncAt?: string;
   lastSyncOk: boolean;
-  hadPartialFailure?: boolean;
   lastError?: string | null;
   counts?: PbsSyncCounts;
   fetched?: PbsSyncFetched;
@@ -222,7 +219,6 @@ export interface PbsSyncStartResult {
 
 export interface PbsSyncResult {
   ok: boolean;
-  hadPartialFailure?: boolean;
   startedAt: string;
   finishedAt: string;
   counts: PbsSyncCounts;

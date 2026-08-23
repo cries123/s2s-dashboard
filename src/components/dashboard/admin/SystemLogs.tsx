@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { 
-  FileText, Search, Filter, RefreshCw, User, Calendar, 
+import {
+  FileText, Search, Filter, User, Calendar,
   Settings, Database, Shield, ShieldCheck, HelpCircle, Laptop, Clock
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
@@ -40,7 +40,6 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -61,21 +60,13 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
       
       setLogs(logsList);
       setLoading(false);
-      setRefreshing(false);
     }, (error) => {
       setLoading(false);
-      setRefreshing(false);
       handleFirestoreError(error, OperationType.LIST, path);
     });
 
     return () => unsubscribe();
   }, [user, authLoading]);
-
-  const handleManualRefresh = () => {
-    setRefreshing(true);
-    // onSnapshot auto-updates, but we simulate a clean feedback trigger
-    setTimeout(() => setRefreshing(false), 600);
-  };
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -160,15 +151,14 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
             Real-time audit log tracking administrative overrides, demographics data entry, AI scanning, database synchronizations, and system parameters edits.
           </p>
         </div>
-        
-        <button 
-          onClick={handleManualRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest rounded-xl text-slate-300 transition-all border border-white/5"
-        >
-          <RefreshCw size={13} className={cn(refreshing ? "animate-spin text-brand-primary" : "")} />
-          {refreshing ? "Refreshing Feed..." : "Refresh Logs"}
-        </button>
+
+        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 text-xs font-black uppercase tracking-widest rounded-xl text-slate-300 border border-white/5">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          Live
+        </div>
       </div>
 
       {/* Filter and Search Bar */}

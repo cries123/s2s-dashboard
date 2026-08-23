@@ -19,6 +19,7 @@ import { User } from '../../../types';
 import { cn } from '../../../lib/utils';
 import { DEALERSHIPS } from '../../../constants';
 import { TENANT_PROFILES, dealershipIdFromTenantId, getTenantProfile } from '../../../lib/tenants';
+import { TableSkeleton } from '../../ui/Skeleton';
 import {
   buildMasterPermissionPatch,
   buildUserApprovalPatch,
@@ -406,11 +407,7 @@ export function MasterUserSettings({
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="animate-spin text-brand-primary" size={32} />
-      </div>
-    );
+    return <TableSkeleton rows={8} cols={4} />;
   }
 
   return (

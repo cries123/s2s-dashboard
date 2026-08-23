@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc 
+import {
+  collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc, query, where
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { User, DailyStat } from '../../../types';
@@ -40,6 +40,74 @@ import {
 } from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
 import { PageSkeleton } from '../../ui/Skeleton';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ReferenceLine,
+} from 'recharts';
+
+interface AppointmentPacePoint {
+  day: number;
+  dateLabel: string;
+  actual: number | null;
+  goal: number;
+}
+
+/**
+ * Cumulative appointments booked so far this month vs. the cumulative goal
+ * pace (dailyTarget applied on working days only). Built from the same
+ * per-day stats the KPI cards already use — no synthetic history.
+ */
+function buildAppointmentPaceSeries(
+  stats: { date: string; count: number }[],
+  dailyTarget: number,
+  referenceDate: Date
+): AppointmentPacePoint[] {
+  const year = referenceDate.getFullYear();
+  const month = referenceDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayStr = toLocalDateString(referenceDate);
+
+  const countByDate = new Map<string, number>();
+  stats.forEach((s) => {
+    const d = new Date(`${s.date}T00:00:00`);
+    if (d.getFullYear() === year && d.getMonth() === month) {
+      countByDate.set(s.date, (countByDate.get(s.date) || 0) + (s.count || 0));
+    }
+  });
+
+  const points: AppointmentPacePoint[] = [];
+  let actualCumulative = 0;
+  let goalCumulative = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d);
+    const dateStr = toLocalDateString(date);
+    const dayOfWeek = date.getDay();
+    const isWorkingDay = dayOfWeek >= 1 && dayOfWeek <= 5;
+    if (isWorkingDay) goalCumulative += dailyTarget;
+
+    if (dateStr <= todayStr) {
+      actualCumulative += countByDate.get(dateStr) || 0;
+    }
+
+    points.push({
+      day: d,
+      dateLabel: `${month + 1}/${d}`,
+      actual: dateStr <= todayStr ? actualCumulative : null,
+      goal: Math.round(goalCumulative),
+    });
+  }
+
+  return points;
+}
 
 function ProjectionProgressBar({ percent, onTrack }: { percent: number; onTrack: boolean }) {
   const fillWidth = Math.min(100, Math.max(0, percent));
@@ -341,18 +409,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     if (!currentDealershipId) return;
 
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const q = collection(db, path);
+    // Firestore security rules require an explicit dealershipId match to list this
+    // collection (no more open collection-wide reads across tenants).
+    const q = query(collection(db, path), where('dealershipId', '==', currentDealershipId || 'hyundai'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       let stats = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyStat));
-      
-      // Filter by dealershipId, allowing legacy data (no id) in Hyundai view
-      stats = stats.filter(s => {
-        if (currentDealershipId === 'hyundai') {
-          return !s.dealershipId || s.dealershipId === 'hyundai';
-        }
-        return s.dealershipId === currentDealershipId;
-      });
 
       const dealershipId = currentDealershipId || 'hyundai';
       rawTrackerStatsRef.current = stats;
@@ -620,6 +682,12 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
     prevTargetRef.current = targetValue;
   }, [targetValue, loading, onSuccess]);
 
+  const appointmentPaceSeries = React.useMemo(
+    () => buildAppointmentPaceSeries(effectiveStats, targetValue, new Date()),
+    [effectiveStats, targetValue]
+  );
+  const todayDayNum = new Date().getDate();
+
   const projectionRows = [
     { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
     { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
@@ -743,6 +811,65 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-5 pt-4 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="crm-label">Appointment pace — cumulative MTD vs. goal</span>
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <ComposedChart data={appointmentPaceSeries} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" vertical={false} />
+                <XAxis
+                  dataKey="dateLabel"
+                  stroke="#64748b"
+                  fontSize={10}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                />
+                <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} width={44} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--color-surface-card)',
+                    borderColor: 'var(--color-surface-border)',
+                    borderRadius: '12px',
+                  }}
+                  labelStyle={{ color: 'var(--color-text-primary)', fontSize: '11px', fontWeight: 'bold' }}
+                  formatter={(v: number) => Math.round(v).toLocaleString()}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#94a3b8', paddingTop: '8px' }} />
+                <ReferenceLine
+                  x={appointmentPaceSeries.find((p) => p.day === todayDayNum)?.dateLabel}
+                  stroke="#94a3b8"
+                  strokeDasharray="3 3"
+                  label={{ value: 'Today', position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="actual"
+                  name="Actual (cumulative)"
+                  stroke="var(--color-brand-primary)"
+                  strokeWidth={2}
+                  fill="var(--color-brand-primary)"
+                  fillOpacity={0.12}
+                  connectNulls={false}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="goal"
+                  name="Goal pace"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

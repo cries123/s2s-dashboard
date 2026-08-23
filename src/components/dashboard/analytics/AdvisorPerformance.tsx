@@ -201,7 +201,14 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const isPbsDealership = effectiveDmsProvider === 'pbs';
 
   const saveToFirestore = async (
-    newData: { advisors: AdvisorData[], totals?: any, reportStartDate?: string, reportEndDate?: string }, 
+    newData: {
+      advisors: AdvisorData[],
+      totals?: any,
+      reportStartDate?: string,
+      reportEndDate?: string,
+      advisorMix?: AdvisorMixRow[],
+      payTypes?: unknown,
+    },
     overwrite = false,
     targetMonthOverride?: string
   ): Promise<{ advisorCount: number; skippedCount: number; targetMonth: string; advisors: AdvisorData[]; totals?: any }> => {
@@ -629,7 +636,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
         filename: file.name,
         importKind: 'advisor_performance',
-        userEmail: currentUser?.email,
+        userEmail: user?.email,
       });
       
     } catch (error: any) {
@@ -639,7 +646,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         filename: file.name,
         importKind: 'advisor_performance',
         error: message,
-        userEmail: currentUser?.email,
+        userEmail: user?.email,
       });
       setImportStatus({ type: 'error', message });
     } finally {
@@ -742,7 +749,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </p>
           )}
           {selectedMonth === 'active' && reportStartDate && reportEndDate && (
-            <p className="text-[10px] text-slate-500 mt-1 font-medium">
+            <p className="crm-label text-[10px] mt-1">
               Active period: {reportStartDate} – {reportEndDate}
               {pbsSyncedAt ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}` : ''}
             </p>
@@ -772,7 +779,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </p>
           )}
           {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && (
-            <p className="text-[10px] text-slate-500 mt-2 max-w-2xl leading-relaxed">
+            <p className="crm-label text-[10px] mt-2 max-w-2xl leading-relaxed">
               Labor gross is computed from cashiered repair orders via PBS. For an exact match to the CSR
               productivity report, import that PDF here — PBS has no dedicated productivity report API.
             </p>
@@ -780,7 +787,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         </div>
         
         {selectedMonth !== 'active' && !allowArchiveEditing ? (
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
+          <div className="card-base flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
               🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
@@ -807,9 +814,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               }}
               className={cn(
                 "w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:px-3 md:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-lg cursor-pointer touch-manipulation min-h-[44px]",
-                showResetConfirm 
-                  ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse" 
-                  : "bg-slate-800 text-slate-400 hover:text-rose-400 border-white/5"
+                showResetConfirm
+                  ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse"
+                  : "btn-secondary hover:text-rose-400"
               )}
               title="Clear all advisors and technicians for this view period"
             >
@@ -817,9 +824,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               {showResetConfirm ? "Confirm Reset?" : "Reset Data"}
             </button>
 
-            <button 
+            <button
               onClick={() => setIsManualEntryOpen(true)}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/5 shadow-lg cursor-pointer touch-manipulation min-h-[44px]"
+              className="btn-secondary w-full md:w-auto px-4 py-3 md:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg cursor-pointer touch-manipulation min-h-[44px] hover:opacity-80"
             >
               <Keyboard size={14} className="shrink-0" />
               Manual Entry
@@ -960,30 +967,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {visibleAdvisors.map((advisor, idx) => (
-                <div key={idx} className="group flex flex-col bg-slate-900/50 border border-slate-800 rounded-3xl overflow-hidden hover:border-slate-700 transition-all hover:shadow-2xl hover:shadow-black/50">
-                  <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/30">
+                <div key={idx} className="card-base group flex flex-col rounded-3xl overflow-hidden transition-all hover:shadow-2xl hover:shadow-black/50">
+                  <div className="p-6 border-b flex justify-between items-center" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-sm font-black text-white border border-slate-700 shadow-inner">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black border shadow-inner" style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-primary)', borderColor: 'var(--color-surface-border)' }}>
                         {advisor.name[0]}
                       </div>
                       <div>
-                        <h4 className="font-black text-white uppercase tracking-tighter text-lg leading-none">{advisor.name}</h4>
-                        <p className="text-[9px] font-bold text-slate-500 uppercase mt-1 tracking-widest">Service Advisor</p>
+                        <h4 className="font-black uppercase tracking-tighter text-lg leading-none" style={{ color: 'var(--color-text-primary)' }}>{advisor.name}</h4>
+                        <p className="crm-label text-[9px] font-bold uppercase mt-1 tracking-widest">Service Advisor</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="p-6 space-y-5 flex-1">
                     <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-6">
-                      <div className="p-3 md:p-4 bg-slate-950/40 rounded-2xl border border-slate-800/50 relative overflow-hidden">
+                      <div className="p-3 md:p-4 rounded-2xl border relative overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
                         <div className="absolute top-0 right-0 p-2 opacity-10"><DollarSign size={20} /></div>
-                        <p className="text-[9px] font-black text-slate-500 uppercase mb-1">Labor Sales</p>
-                        <p className="text-base md:text-lg font-black text-white leading-none tracking-tighter">${advisor.laborSold.toLocaleString()}</p>
+                        <p className="crm-label text-[9px] font-black uppercase mb-1">Labor Sales</p>
+                        <p className="text-base md:text-lg font-black leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.laborSold.toLocaleString()}</p>
                       </div>
                       <div className="p-3 md:p-4 bg-brand-secondary/5 rounded-2xl border border-brand-secondary/10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 p-2 opacity-10 text-brand-secondary"><TrendingUp size={20} /></div>
                         <p className="text-[9px] font-black text-brand-secondary uppercase mb-1">Gross Labor</p>
-                        <p className="text-base md:text-lg font-black text-white leading-none tracking-tighter">${advisor.grossLabor.toLocaleString()}</p>
+                        <p className="text-base md:text-lg font-black leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.grossLabor.toLocaleString()}</p>
                       </div>
                     </div>
 
@@ -991,11 +998,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                        <div className="flex justify-between items-end">
                          <div className="flex items-center gap-1.5">
                             <Target size={12} className="text-slate-600" />
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Labor Gross Profit</p>
+                            <p className="crm-label text-[10px] font-black uppercase tracking-widest">Labor Gross Profit</p>
                          </div>
-                         <p className="text-sm font-black text-white">{Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}% GP</p>
+                         <p className="text-sm font-black" style={{ color: 'var(--color-text-primary)' }}>{Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}% GP</p>
                        </div>
-                       <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                       <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
                          <div className={cn(
                            "h-full transition-all duration-1000 shadow-[0_0_8px_rgba(var(--brand-primary-rgb),0.5)]",
                            (advisor.grossLabor / (advisor.laborSold || 1)) > 0.8 ? "bg-emerald-500" : (advisor.grossLabor / (advisor.laborSold || 1)) > 0.7 ? "bg-brand-primary" : "bg-rose-500"
@@ -1005,26 +1012,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center gap-3">
-                         <div className="p-2 bg-slate-800/50 rounded-lg"><Clock size={14} className="text-slate-400" /></div>
+                         <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-surface-muted)' }}><Clock size={14} className="text-slate-400" /></div>
                          <div>
-                            <p className="text-[10px] font-bold text-slate-600 uppercase">Hours</p>
-                            <p className="text-sm font-black text-white">{advisor.hrsSold.toFixed(1)}</p>
+                            <p className="crm-label text-[10px] font-bold uppercase">Hours</p>
+                            <p className="text-sm font-black" style={{ color: 'var(--color-text-primary)' }}>{advisor.hrsSold.toFixed(1)}</p>
                          </div>
                       </div>
                       <div className="flex items-center gap-3">
-                         <div className="p-2 bg-slate-800/50 rounded-lg"><DollarSign size={14} className="text-slate-400" /></div>
+                         <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-surface-muted)' }}><DollarSign size={14} className="text-slate-400" /></div>
                          <div>
-                            <p className="text-[10px] font-bold text-slate-600 uppercase">Avg E.L.R.</p>
+                            <p className="crm-label text-[10px] font-bold uppercase">Avg E.L.R.</p>
                             <p className="text-sm font-black text-brand-secondary">${advisor.elr}</p>
                          </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="px-6 py-4 bg-slate-950/20 border-t border-slate-800/50 flex items-center justify-between">
+                  <div className="px-6 py-4 border-t flex items-center justify-between" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Repair Orders:</span>
-                      <span className="text-xs font-black text-white">{advisor.soCount}</span>
+                      <span className="crm-label text-[10px] font-black uppercase tracking-widest">Repair Orders:</span>
+                      <span className="text-xs font-black" style={{ color: 'var(--color-text-primary)' }}>{advisor.soCount}</span>
                     </div>
                     <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full">
                        <CheckCircle2 size={10} className="text-emerald-500" />
@@ -1032,27 +1039,27 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                     </div>
                   </div>
 
-                  <div className="px-6 py-4 bg-slate-950/40 border-t border-slate-800/50">
+                  <div className="px-6 py-4 border-t" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
                     <div className="flex items-center gap-2 mb-4">
                       <div className="p-1.5 bg-brand-primary/10 rounded-lg">
                         <Target size={14} className="text-brand-primary" />
                       </div>
-                      <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                      <span className="crm-label text-[10px] font-black uppercase tracking-widest">
                         Service Frequency / Upsells
                       </span>
                     </div>
 
                     <div className="space-y-2">
                       {advisor.upsells?.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-slate-800/30 hover:border-slate-700/50 transition-colors">
+                        <div key={i} className="flex items-center justify-between p-2.5 rounded-xl border transition-colors" style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}>
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-400 border border-slate-700/50">
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[8px] font-black border" style={{ backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-surface-border)' }}>
                               {item.code}
                             </div>
                             <div>
-                              <p className="text-[10px] font-black text-white leading-none mb-1">
-                                {item.code === 'FB' || (item.description.toUpperCase().includes('FRONT BRAKE') && item.description.toUpperCase().includes('RESURFACE')) 
-                                  ? 'FB PAD R&R ROTOR RESURFACE' 
+                              <p className="text-[10px] font-black leading-none mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                                {item.code === 'FB' || (item.description.toUpperCase().includes('FRONT BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
+                                  ? 'FB PAD R&R ROTOR RESURFACE'
                                   : item.code === 'RB' || (item.description.toUpperCase().includes('REAR BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
                                   ? 'RB PAD R&R ROTOR RESURFACE'
                                   : item.description}
@@ -1069,7 +1076,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                         </div>
                       ))}
                       {(!advisor.upsells || advisor.upsells.length === 0) && (
-                        <p className="text-center py-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest italic">No upsell data available</p>
+                        <p className="crm-label text-center py-4 text-[10px] font-bold uppercase tracking-widest italic">No upsell data available</p>
                       )}
                     </div>
                   </div>

@@ -35,7 +35,32 @@ export function ManagerPermissionsMatrix() {
           Who can change operational settings vs personal preferences. System admin = primary platform admin account.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-white/5">
+
+      {/* Mobile / tablet — stacked definition-list cards, no horizontal scroll */}
+      <div className="md:hidden space-y-2">
+        {ROWS.map((row) => (
+          <div key={row.action} className="card-base rounded-xl p-3 space-y-2.5">
+            <p className="text-xs font-bold text-white">{row.action}</p>
+            <div className="grid grid-cols-1 gap-2 text-[11px]">
+              <div>
+                <p className="crm-label">Manager</p>
+                <p className="text-slate-300">{row.manager}</p>
+              </div>
+              <div>
+                <p className="crm-label">System admin</p>
+                <p className="text-slate-300">{row.admin}</p>
+              </div>
+              <div>
+                <p className="crm-label">Staff</p>
+                <p className="text-slate-300">{row.staff}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop — full reference table */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-white/5">
         <table className="w-full text-left text-[11px]">
           <thead>
             <tr className="border-b border-white/5 bg-slate-950/80">

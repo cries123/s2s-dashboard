@@ -89,6 +89,17 @@ export default function OpenRepairOrders({
     return map;
   }, [customers]);
 
+  // Keep the latest onError in a ref instead of a useCallback dependency. The parent
+  // passes an inline arrow function that gets a new identity on every render (e.g. any
+  // time a toast is shown); depending on it directly caused loadOrders -> onError ->
+  // toast -> re-render -> new loadOrders -> loadOrders effect refiring -> loadOrders ->
+  // onError... an infinite fetch/toast loop whenever the fetch fails (as it always does
+  // in preview mode, with no authenticated Firebase user).
+  const onErrorRef = React.useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
   const loadOrders = useCallback(
     async (isRefresh = false) => {
       if (!isPbsSyncDealership(currentDealershipId)) {
@@ -107,18 +118,21 @@ export default function OpenRepairOrders({
         setFetchedAt(result.fetchedAt);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load open repair orders.';
-        onError(message);
+        onErrorRef.current(message);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [currentDealershipId, onError]
+    [currentDealershipId]
   );
 
   useEffect(() => {
     void loadOrders();
-  }, [loadOrders]);
+    // Only re-fetch when the dealership actually changes (or on mount) — not on every
+    // re-render of loadOrders's identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDealershipId]);
 
   const filtered = useMemo(
     () => orders.filter((row) => matchesSearch(row, search)),
@@ -234,7 +248,118 @@ export default function OpenRepairOrders({
           </p>
         </div>
       ) : (
-        <div className="card-base rounded-2xl border border-white/5 overflow-hidden">
+        <>
+          {/* Mobile — one card per repair order, all fields visible without horizontal scroll */}
+          <div className="md:hidden space-y-3">
+            {filtered.map((row) => {
+              const isLoadingRow = detailLoadingId === row.repairOrderId;
+              const hasCrmMatch = Boolean(row.customerId && customerById.has(row.customerId));
+              return (
+                <div
+                  key={row.repairOrderId}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => void handleRowClick(row)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      void handleRowClick(row);
+                    }
+                  }}
+                  className={cn(
+                    'card-base card-interactive rounded-2xl p-4 space-y-3 cursor-pointer',
+                    isLoadingRow && 'opacity-60 pointer-events-none'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 font-mono font-semibold text-white">
+                        {row.roNumber}
+                        {isLoadingRow ? <Loader2 size={12} className="animate-spin text-brand-primary" /> : null}
+                        {row.tag ? (
+                          <span className="text-[10px] font-sans font-normal text-slate-500">· {row.tag}</span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        {row.customerName ? (
+                          <>
+                            {hasCrmMatch ? (
+                              <button
+                                type="button"
+                                onClick={(e) => handleCustomerClick(e, row)}
+                                className="text-brand-primary font-medium truncate text-left hover:underline"
+                                title="Open customer profile"
+                              >
+                                {row.customerName}
+                              </button>
+                            ) : (
+                              <span className="text-white font-medium truncate">
+                                {row.customerName}
+                              </span>
+                            )}
+                            {row.isWaiting ? (
+                              <span className="shrink-0 text-[9px] font-bold uppercase bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
+                                Wait
+                              </span>
+                            ) : null}
+                            {hasCrmMatch ? (
+                              <span className="shrink-0" title="Matched in customer directory">
+                                <User size={12} className="text-brand-primary opacity-70" />
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-slate-500 italic">—</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      <StatusBadge row={row} />
+                      <span
+                        className={cn(
+                          'font-semibold tabular-nums text-xs',
+                          row.daysOpen >= 5 ? 'text-amber-400' : 'text-slate-300'
+                        )}
+                      >
+                        {row.daysOpen} day{row.daysOpen === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs border-t border-white/5 pt-3">
+                    <div>
+                      <p className="crm-label">Vehicle</p>
+                      <p className="text-slate-200 truncate">{row.vehicleLabel || '—'}</p>
+                      {row.vinLast8 ? (
+                        <p className="text-[10px] text-slate-500 font-mono">…{row.vinLast8}</p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <p className="crm-label">Advisor</p>
+                      <p className="text-slate-200 truncate">{row.advisor || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="crm-label">Tech</p>
+                      <p className="text-slate-200 truncate">{row.techNumber || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="crm-label">Promise</p>
+                      <p className="text-slate-200 truncate">{row.datePromisedLabel || '—'}</p>
+                    </div>
+                    {row.concern ? (
+                      <div className="col-span-2">
+                        <p className="crm-label">Concern</p>
+                        <p className="text-slate-200">{row.concern}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop / tablet — full data table */}
+          <div className="hidden md:block card-base rounded-2xl border border-white/5 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
@@ -343,7 +468,8 @@ export default function OpenRepairOrders({
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {selectedVisit ? (

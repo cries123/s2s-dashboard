@@ -326,15 +326,15 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-[2.5rem] p-10 shadow-2xl"
+              className="relative w-full max-w-md card-base rounded-[2.5rem] p-10 shadow-2xl"
             >
               <div className="flex flex-col items-center text-center">
                 <div className="w-20 h-20 rounded-3xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 mb-6">
                   <Trash2 className="text-rose-500" size={32} />
                 </div>
-                <h3 className="text-2xl font-black text-white tracking-tighter mb-4 uppercase">Clear All Data?</h3>
-                <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                  Are you sure you want to clear all current advisor and technician statistics? 
+                <h3 className="text-2xl font-black tracking-tighter mb-4 uppercase" style={{ color: 'var(--color-text-primary)' }}>Clear All Data?</h3>
+                <p className="crm-label text-sm leading-relaxed mb-8">
+                  Are you sure you want to clear all current advisor and technician statistics?
                   <span className="block mt-2 text-rose-400/80 font-bold uppercase text-[10px] tracking-widest">
                     This action cannot be undone, but payout settings will be preserved.
                   </span>
@@ -342,7 +342,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 <div className="flex items-center gap-4 w-full">
                   <button
                     onClick={() => setShowClearConfirm(false)}
-                    className="flex-1 px-6 py-4 bg-slate-800 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-750 transition-all"
+                    className="btn-secondary flex-1 py-4 text-[10px] font-black uppercase tracking-widest"
                   >
                     Cancel
                   </button>
@@ -381,7 +381,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
       </AnimatePresence>
 
       {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 border border-slate-800 p-5 md:p-12">
+      <div className="relative overflow-hidden rounded-[2.5rem] card-base p-5 md:p-12">
         <div className="absolute top-0 right-0 p-8 opacity-10">
           <Trophy size={120} className="text-brand-primary" />
         </div>
@@ -397,11 +397,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
             {/* Local Month/Archive Switcher */}
             <div className="flex items-center gap-2">
-              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">View Period:</span>
+              <span className="crm-label text-[8px] uppercase tracking-widest leading-none">View Period:</span>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-9 px-3 bg-slate-950 border border-slate-850 text-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer hover:border-slate-750 transition-all"
+                className="h-9 px-3 input-field w-auto text-[9px] font-black uppercase tracking-widest py-0 cursor-pointer"
               >
                 {viewPeriodOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -412,10 +412,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             </div>
           </div>
           
-          <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-4 uppercase">
+          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 uppercase" style={{ color: 'var(--color-text-primary)' }}>
              POT OF <span className="text-brand-primary">GOLD</span>
           </h2>
-          <p className="text-slate-400 max-w-xl text-sm leading-relaxed mb-6">
+          <p className="crm-label max-w-xl text-sm leading-relaxed mb-6">
             Intelligent AI tracking for your sales competition. Upload Op Code Frequency reports to automatically audit advisor payouts and technician contributions with Gemini AI.
           </p>
 
@@ -442,16 +442,16 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 {isAiProcessing ? 'Deep Multi-Audit...' : 'PDF Multi-Audit'}
               </button>
 
-              <button 
+              <button
                 onClick={() => alert("Data validation check: OK. Format alignment matches schema.")}
-                className="flex items-center gap-2 px-6 py-3 bg-slate-800 text-slate-300 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-750 transition-all border border-slate-700"
+                className="btn-secondary text-[10px] font-black uppercase tracking-widest"
               >
                 <Shield size={16} className="text-brand-primary" />
                 Format Validator
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 px-5 py-3.5 bg-slate-950 border border-slate-800 rounded-2xl shadow-xl">
+            <div className="flex items-center gap-2.5 px-5 py-3.5 card-base rounded-2xl shadow-xl">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
               <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
                 🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
@@ -478,7 +478,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           <div className="relative">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-white focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
+              className="w-full card-base rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
+              style={{ color: 'var(--color-text-primary)' }}
             >
               <div className="flex items-center gap-3">
                 <div className="w-6 h-6 rounded-lg bg-brand-primary/20 flex items-center justify-center">
@@ -508,10 +509,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    className="absolute top-full left-0 right-0 mt-2 z-50 bg-slate-900 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
+                    className="absolute top-full left-0 right-0 mt-2 z-50 card-base rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
                   >
-                    <div className="px-6 py-3 border-b border-slate-800 bg-slate-800/30">
-                      <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Switch View</span>
+                    <div className="px-6 py-3 border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
+                      <span className="crm-label text-[8px] uppercase tracking-widest">Switch View</span>
                     </div>
                     {[
                       { id: 'advisors', label: 'Advisors View', icon: Users },
@@ -526,9 +527,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           setIsMobileMenuOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center gap-4 px-6 py-4.5 text-[10px] font-black uppercase tracking-widest text-left transition-colors border-b border-slate-800/50 last:border-0",
-                          activeSubTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
+                          "w-full flex items-center gap-4 px-6 py-4.5 text-[10px] font-black uppercase tracking-widest text-left transition-colors border-b last:border-0",
+                          activeSubTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "hover:bg-slate-800/50"
                         )}
+                        style={activeSubTab === tab.id ? { borderColor: 'var(--color-surface-border)' } : { borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}
                       >
                         <tab.icon size={16} />
                         {tab.label}
@@ -542,7 +544,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         </div>
 
         {/* Desktop Tabs */}
-        <div className="hidden lg:flex items-center gap-2 bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800/50 w-fit">
+        <div className="hidden lg:flex items-center gap-2 card-base p-1.5 rounded-2xl w-fit">
           {[
             { id: 'advisors', label: 'Advisors', icon: Users },
             { id: 'technicians', label: 'Technicians', icon: Shield },
@@ -554,10 +556,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               onClick={() => setActiveSubTab(tab.id as any)}
               className={cn(
                 "flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                activeSubTab === tab.id 
-                  ? "bg-brand-primary text-white shadow-lg" 
-                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
+                activeSubTab === tab.id
+                  ? "bg-brand-primary text-white shadow-lg"
+                  : "hover:bg-slate-800/50"
               )}
+              style={activeSubTab !== tab.id ? { color: 'var(--color-text-secondary)' } : undefined}
             >
               <tab.icon size={14} />
               {tab.label}
@@ -576,15 +579,15 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         >
           {activeSubTab === 'advisors' && (
             <div className="space-y-6">
-              <div className="overflow-x-auto rounded-3xl border border-slate-800 bg-slate-900/30">
+              <div className="overflow-x-auto rounded-3xl card-base">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/50">
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest w-24">Code</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Description</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Frank</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Lemmy</th>
-                      <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Total</th>
+                    <tr className="border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
+                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest w-24">Code</th>
+                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest">Description</th>
+                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest text-center">Frank</th>
+                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest text-center">Lemmy</th>
+                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest text-center">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
@@ -594,7 +597,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           <span className="px-2 py-1 bg-brand-primary/10 text-brand-primary rounded text-[10px] font-black">{row.code}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <p className="text-xs font-bold text-slate-300">{row.desc}</p>
+                          <p className="text-xs font-bold" style={{ color: 'var(--color-text-secondary)' }}>{row.desc}</p>
                         </td>
                         <td className="px-6 py-2 text-center">
                           <input 
@@ -609,7 +612,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setAdvData(newData);
                               saveToFirestore({ advData: newData });
                             }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
+                            className="w-16 input-field px-2 py-1.5 text-center text-xs font-black"
                           />
                         </td>
                         <td className="px-6 py-2 text-center">
@@ -625,7 +628,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setAdvData(newData);
                               saveToFirestore({ advData: newData });
                             }}
-                            className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
+                            className="w-16 input-field px-2 py-1.5 text-center text-xs font-black"
                           />
                         </td>
                         <td className="px-6 py-4 text-center">
@@ -635,10 +638,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-slate-900 border-t-2 border-slate-700">
-                      <td colSpan={2} className="px-6 py-6 text-[10px] font-black text-white uppercase tracking-widest italic">Advisor Grand Totals</td>
-                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.frank}</td>
-                      <td className="px-6 py-6 text-center text-lg font-black text-white">{advTotals.lemmy}</td>
+                    <tr className="border-t-2" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
+                      <td colSpan={2} className="px-6 py-6 text-[10px] font-black uppercase tracking-widest italic" style={{ color: 'var(--color-text-primary)' }}>Advisor Grand Totals</td>
+                      <td className="px-6 py-6 text-center text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>{advTotals.frank}</td>
+                      <td className="px-6 py-6 text-center text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>{advTotals.lemmy}</td>
                       <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{advTotals.grand}</td>
                     </tr>
                   </tfoot>
@@ -654,10 +657,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                  ].map((earn, idx) => (
                    <div key={idx} className={cn(
                      "p-6 rounded-3xl border flex flex-col items-center text-center",
-                     earn.primary ? "bg-brand-primary/10 border-brand-primary" : "bg-slate-900 border-slate-800"
+                     earn.primary ? "bg-brand-primary/10 border-brand-primary" : "card-base"
                    )}>
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 leading-none">{earn.name} Earnings</p>
-                      <p className={cn("text-3xl font-black", earn.primary ? "text-brand-primary" : "text-white")}>
+                      <p className="crm-label text-[10px] uppercase tracking-widest mb-2 leading-none">{earn.name} Earnings</p>
+                      <p className={cn("text-3xl font-black", earn.primary ? "text-brand-primary" : "")} style={!earn.primary ? { color: 'var(--color-text-primary)' } : undefined}>
                         ${earn.val.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
                    </div>
@@ -668,24 +671,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
           {activeSubTab === 'technicians' && (
             <div className="space-y-6">
-              <div className="-mx-1 sm:mx-0 max-w-[100vw] sm:max-w-none overflow-x-auto no-scrollbar rounded-3xl border border-slate-800 bg-slate-900/30">
+              <div className="-mx-1 sm:mx-0 max-w-[100vw] sm:max-w-none overflow-x-auto no-scrollbar rounded-3xl card-base">
                 <table className="w-full min-w-[560px] text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/50">
-                      <th className="sticky left-0 z-10 bg-slate-900/95 px-3 md:px-6 py-3 md:py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest min-w-[100px]">Service Code</th>
+                    <tr className="border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
+                      <th className="crm-label sticky left-0 z-10 px-3 md:px-6 py-3 md:py-4 text-[10px] uppercase tracking-widest min-w-[100px]" style={{ backgroundColor: 'var(--color-surface-muted)' }}>Service Code</th>
                       {TECHNICIANS.map(t => (
-                        <th key={t} className="px-2 md:px-4 py-3 md:py-4 text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest text-center min-w-[52px] max-w-[64px] truncate">{t}</th>
+                        <th key={t} className="crm-label px-2 md:px-4 py-3 md:py-4 text-[9px] md:text-[10px] uppercase tracking-widest text-center min-w-[52px] max-w-[64px] truncate">{t}</th>
                       ))}
-                      <th className="px-3 md:px-6 py-3 md:py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center min-w-[56px]">Total</th>
+                      <th className="crm-label px-3 md:px-6 py-3 md:py-4 text-[10px] uppercase tracking-widest text-center min-w-[56px]">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {techData.map((row, rIdx) => (
                       <tr key={row.code} className="hover:bg-slate-800/20 transition-colors">
-                        <td className="sticky left-0 z-[1] bg-slate-900/95 px-3 md:px-6 py-3 md:py-4 min-w-[100px]">
+                        <td className="sticky left-0 z-[1] px-3 md:px-6 py-3 md:py-4 min-w-[100px]" style={{ backgroundColor: 'var(--color-surface-card)' }}>
                           <div className="flex flex-col">
-                            <span className="text-[10px] md:text-xs font-black text-white">{row.code}</span>
-                            <span className="text-[8px] md:text-[9px] font-bold text-slate-500 uppercase leading-snug">{row.desc}</span>
+                            <span className="text-[10px] md:text-xs font-black" style={{ color: 'var(--color-text-primary)' }}>{row.code}</span>
+                            <span className="crm-label text-[8px] md:text-[9px] uppercase leading-snug">{row.desc}</span>
                           </div>
                         </td>
                          {TECHNICIANS.map(t => (
@@ -702,7 +705,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                                 setTechData(newData);
                                 saveToFirestore({ techData: newData });
                               }}
-                              className="w-12 md:w-16 bg-slate-950 border border-slate-800 rounded-lg px-1 py-1 text-center text-xs font-black text-white focus:border-brand-primary outline-none transition-all disabled:opacity-60"
+                              className="w-12 md:w-16 input-field px-1 py-1 text-center text-xs font-black"
                             />
                           </td>
                         ))}
@@ -715,10 +718,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="bg-slate-900 border-t-2 border-slate-700">
-                      <td className="px-6 py-6 text-[10px] font-black text-white uppercase tracking-widest italic">Tech Grand Totals</td>
+                    <tr className="border-t-2" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
+                      <td className="px-6 py-6 text-[10px] font-black uppercase tracking-widest italic" style={{ color: 'var(--color-text-primary)' }}>Tech Grand Totals</td>
                       {TECHNICIANS.map(t => (
-                        <td key={t} className="px-4 py-6 text-center text-base font-black text-white">{techTotals.totals[t]}</td>
+                        <td key={t} className="px-4 py-6 text-center text-base font-black" style={{ color: 'var(--color-text-primary)' }}>{techTotals.totals[t]}</td>
                       ))}
                       <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{techTotals.grand}</td>
                     </tr>
@@ -729,8 +732,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                {/* Tech Earnings Summary */}
                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                   {TECHNICIANS.map(t => (
-                    <div key={t} className="p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center">
-                      <p className="text-[9px] font-black text-slate-500 uppercase mb-2">{t}</p>
+                    <div key={t} className="p-4 card-base rounded-2xl flex flex-col items-center">
+                      <p className="crm-label text-[9px] uppercase mb-2">{t}</p>
                       <p className="text-lg font-black text-emerald-400">
                         ${techEarnings.earnings[t].toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </p>
@@ -742,33 +745,33 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
           {activeSubTab === 'upsells' && (
             <div className="max-w-3xl mx-auto space-y-6">
-              <div className="bg-slate-900/50 border border-slate-800 rounded-3xl overflow-hidden p-8">
+              <div className="card-base rounded-3xl overflow-hidden p-8">
                 <div className="flex items-center gap-4 mb-8">
                   <div className="p-3 bg-brand-primary/10 rounded-2xl">
                     <Settings className="text-brand-primary" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-black text-white tracking-tighter uppercase">Incentive Pricing</h4>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Configure payout values per Operation Code</p>
+                    <h4 className="text-xl font-black tracking-tighter uppercase" style={{ color: 'var(--color-text-primary)' }}>Incentive Pricing</h4>
+                    <p className="crm-label text-xs uppercase tracking-widest mt-1">Configure payout values per Operation Code</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {INITIAL_PERFORMANCE_DATA.map(d => (
-                    <div key={d.code} className="flex items-center justify-between p-4 bg-slate-950/50 border border-slate-800 rounded-2xl hover:border-slate-700 transition-colors">
+                    <div key={d.code} className="flex items-center justify-between p-4 card-base rounded-2xl hover:border-slate-700 transition-colors">
                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-700">
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[10px] font-black border" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>
                             {d.code}
                           </div>
                           <div>
-                            <p className="text-[10px] font-black text-white uppercase leading-none mb-1">{d.desc}</p>
+                            <p className="text-[10px] font-black uppercase leading-none mb-1" style={{ color: 'var(--color-text-primary)' }}>{d.desc}</p>
                           </div>
                        </div>
                        <div className="relative">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-primary">
                             <DollarSign size={14} />
                           </div>
-                          <input 
+                          <input
                             type="number"
                             step="0.01"
                             value={prices[d.code]}
@@ -779,7 +782,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setPrices(newPrices);
                               saveToFirestore({ prices: newPrices });
                             }}
-                            className="bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-4 py-2.5 text-sm font-black text-white w-32 focus:border-brand-primary outline-none disabled:opacity-60"
+                            className="input-field pl-8 pr-4 py-2.5 text-sm font-black w-32"
                           />
                        </div>
                     </div>
@@ -787,19 +790,19 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 </div>
 
                 {selectedMonth === 'active' && (
-                  <div className="mt-12 flex flex-col md:flex-row gap-4 justify-between items-center pt-8 border-t border-slate-800">
+                  <div className="mt-12 flex flex-col md:flex-row gap-4 justify-between items-center pt-8 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
                      <div className="flex items-center gap-3">
                         <div className="p-3 bg-rose-500/10 rounded-2xl">
                           <Trash2 className="text-rose-500" size={20} />
                         </div>
                         <div>
                           <p className="text-xs font-black text-rose-500 uppercase">Reset Competition</p>
-                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">This will clear all current entry data</p>
+                          <p className="crm-label text-[10px] uppercase tracking-widest">This will clear all current entry data</p>
                         </div>
                      </div>
-                     <button 
+                     <button
                       onClick={() => setShowClearConfirm(true)}
-                      className="px-8 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-550 border border-rose-550/30 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      className="px-8 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
                      >
                        Reset All Statistics
                      </button>
@@ -808,13 +811,13 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               </div>
 
               {/* Data Persistence Info */}
-              <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl flex items-start gap-4">
+              <div className="p-6 card-base rounded-3xl flex items-start gap-4">
                  <div className="p-2 bg-emerald-500/10 rounded-lg">
                     <Info className="text-emerald-500" size={16} />
                  </div>
                  <div className="flex-1">
-                    <h5 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-1">Local Storage Active</h5>
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <h5 className="text-[10px] font-black uppercase tracking-[0.2em] mb-1" style={{ color: 'var(--color-text-primary)' }}>Local Storage Active</h5>
+                    <p className="crm-label text-xs leading-relaxed">
                       Your competition data is saved directly in this browser. You can export the state as a file to move it between devices, or clear it when a new month starts.
                     </p>
                  </div>
@@ -826,37 +829,38 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             <div className="space-y-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Advisor Chart */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-[2.5rem] p-8 min-h-[450px] flex flex-col">
+                <div className="card-base rounded-[2.5rem] p-8 min-h-[450px] flex flex-col">
                   <div className="flex items-center justify-between mb-8">
                      <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-brand-primary/10 rounded-xl">
                           <BarChart3 className="text-brand-primary" size={20} />
                         </div>
-                        <h4 className="text-lg font-black text-white uppercase tracking-tighter">Advisor Distribution</h4>
+                        <h4 className="text-lg font-black uppercase tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>Advisor Distribution</h4>
                      </div>
                   </div>
                   <div className="flex-1">
                     <ResponsiveContainer width="100%" height={350}>
                       <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="#64748b" 
-                          fontSize={10} 
-                          tickLine={false}
-                          axisLine={false} 
-                        />
-                        <YAxis 
-                          stroke="#64748b" 
-                          fontSize={10} 
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" vertical={false} />
+                        <XAxis
+                          dataKey="name"
+                          stroke="var(--color-text-secondary)"
+                          fontSize={10}
                           tickLine={false}
                           axisLine={false}
                         />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
-                          itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                        <YAxis
+                          stroke="var(--color-text-secondary)"
+                          fontSize={10}
+                          tickLine={false}
+                          axisLine={false}
                         />
-                        <Legend />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: 'var(--color-surface-card)', border: '1px solid var(--color-surface-border)', borderRadius: '12px' }}
+                          itemStyle={{ color: 'var(--color-text-primary)', fontSize: '12px', fontWeight: 'bold' }}
+                          labelStyle={{ color: 'var(--color-text-secondary)' }}
+                        />
+                        <Legend wrapperStyle={{ color: 'var(--color-text-secondary)', fontSize: '11px' }} />
                         <Bar dataKey="Frank" fill="#2e86c1" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="Lemmy" fill="#e74c3c" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="Jaryn" fill="#82ccdd" radius={[4, 4, 0, 0]} />
@@ -866,38 +870,51 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 </div>
 
                 {/* Tech Highlights */}
-                <div className="bg-slate-900/50 border border-slate-800 rounded-[2.5rem] p-8 flex flex-col">
+                <div className="card-base rounded-[2.5rem] p-8 flex flex-col">
                    <div className="flex items-center gap-3 mb-8">
                       <div className="p-2.5 bg-brand-secondary/10 rounded-xl">
                         <Target className="text-brand-secondary" size={20} />
                       </div>
-                      <h4 className="text-lg font-black text-white uppercase tracking-tighter">Technician Leaderboard</h4>
+                      <h4 className="text-lg font-black uppercase tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>Technician Leaderboard</h4>
                    </div>
-                   
+
                    <div className="space-y-4 flex-1">
                       {TECHNICIANS
                         .map(t => ({ name: t, total: techTotals.totals[t] }))
                         .sort((a,b) => b.total - a.total)
-                        .map((tech, i) => (
-                          <div key={i} className="flex items-center justify-between p-4 bg-slate-950/40 border border-slate-800/50 rounded-2xl group hover:border-slate-700 transition-all">
-                             <div className="flex items-center gap-4">
-                                <div className={cn(
-                                  "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black border",
-                                  i === 0 ? "bg-amber-500/10 text-amber-500 border-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"
-                                )}>
-                                  {i + 1}
-                                </div>
-                                <div>
-                                  <p className="text-sm font-black text-white uppercase tracking-tight">{tech.name}</p>
-                                  <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-0.5">Service Technician</p>
-                                </div>
-                             </div>
-                             <div className="text-right">
-                               <p className="text-lg font-black text-white">{tech.total}</p>
-                               <p className="text-[9px] font-bold text-emerald-500 uppercase">Upsells Logged</p>
-                             </div>
-                          </div>
-                        ))
+                        .map((tech, i, ranked) => {
+                          const maxTotal = ranked[0]?.total || 0;
+                          const meterPct = maxTotal > 0 ? Math.max(4, Math.round((tech.total / maxTotal) * 100)) : 0;
+                          return (
+                            <div key={tech.name} className="p-4 card-base rounded-2xl group hover:border-slate-700 transition-all">
+                               <div className="flex items-center justify-between gap-4 mb-3">
+                                  <div className="flex items-center gap-4 min-w-0">
+                                     <div className={cn(
+                                       "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border",
+                                       i === 0 ? "bg-amber-500/10 text-amber-500 border-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"
+                                     )}>
+                                       {i + 1}
+                                     </div>
+                                     <div className="min-w-0">
+                                       <p className="text-sm font-black uppercase tracking-tight truncate" style={{ color: 'var(--color-text-primary)' }}>{tech.name}</p>
+                                       <p className="crm-label text-[9px] uppercase tracking-widest mt-0.5">Service Technician</p>
+                                     </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <p className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>{tech.total}</p>
+                                    <p className="text-[9px] font-bold text-emerald-500 uppercase">Upsells Logged</p>
+                                  </div>
+                               </div>
+                               {/* Meter bar — same color family & weight as the Advisor Distribution chart beside it */}
+                               <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${meterPct}%`, backgroundColor: '#2e86c1' }}
+                                  />
+                               </div>
+                            </div>
+                          );
+                        })
                       }
                    </div>
                 </div>

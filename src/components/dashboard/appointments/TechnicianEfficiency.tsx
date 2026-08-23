@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  doc, setDoc, onSnapshot, serverTimestamp 
+import {
+  doc, setDoc, onSnapshot, serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { User } from '../../../types';
@@ -9,9 +9,9 @@ import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dms
 import { withDmsProvider } from '../../../lib/reportIngestion';
 import type { DmsProviderId } from '../../../constants/dmsProviders';
 import { DEFAULT_DMS_PROVIDER, normalizeDmsProvider } from '../../../constants/dmsProviders';
-import { 
-  FileUp, Clock, User as UserIcon, Gauge, Plus, Trash2, Loader2, 
-  CheckCircle2, TrendingUp, UserPlus, Edit2, Save, RotateCcw, Sparkles 
+import {
+  FileUp, Clock, User as UserIcon, Gauge, Plus, Trash2, Loader2,
+  CheckCircle2, TrendingUp, UserPlus, Edit2, Save, RotateCcw, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
@@ -84,7 +84,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   // Helper: Detect date range from raw text
   const detectDateRangeFromText = (text: string): { start: string; end: string } | null => {
     if (!text) return null;
-    const regexSlashRange = /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-\u2013\u2014to]+\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/;
+    const regexSlashRange = /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-–—to]+\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/;
     const slashMatch = text.match(regexSlashRange);
     if (slashMatch) {
       const parseFlexibleStr = (str: string): string => {
@@ -108,7 +108,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     }
 
     const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-    const regexWordRange = /([a-zA-Z]+)\s+(\d{1,2})\s*,\s*(\d{4})\s*[-\u2013\u2014to]+\s*([a-zA-Z]+)\s+(\d{1,2})\s*,\s*(\d{4})/;
+    const regexWordRange = /([a-zA-Z]+)\s+(\d{1,2})\s*,\s*(\d{4})\s*[-–—to]+\s*([a-zA-Z]+)\s+(\d{1,2})\s*,\s*(\d{4})/;
     const wordMatch = text.match(regexWordRange);
     if (wordMatch) {
       try {
@@ -120,7 +120,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         const startM = getMonthIndex(wordMatch[1]) + 1;
         const startD = parseInt(wordMatch[2], 10);
         const startY = parseInt(wordMatch[3], 10);
-        
+
         const endM = getMonthIndex(wordMatch[4]) + 1;
         const endD = parseInt(wordMatch[5], 10);
         const endY = parseInt(wordMatch[6], 10);
@@ -223,7 +223,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       const baseId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
       const docId = targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
       const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
-      
+
       const newStart = CustomStart || reportStartDate;
       const newEnd = CustomEnd || reportEndDate;
 
@@ -280,7 +280,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       }
 
       const parsedTechs: TechnicianData[] = resData.data.technicians || [];
-      
+
       if (parsedTechs.length === 0) {
         onError?.("No technician rows found. Try keying technician data manually.");
         setParsing(false);
@@ -474,13 +474,13 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       className={cn(
         embedded
           ? 'space-y-4'
-          : 'bg-slate-950/40 border border-white/5 backdrop-blur-xl p-8 rounded-3xl relative shadow-2xl overflow-hidden group/box'
+          : 'card-base backdrop-blur-xl p-8 rounded-3xl relative shadow-2xl overflow-hidden group/box'
       )}
     >
       {!embedded && (
       <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/5 rounded-full blur-[80px] pointer-events-none group-hover/box:bg-brand-primary/10 transition-all duration-500" />
       )}
-      
+
       {/* Section Header */}
       <div
         className={cn(
@@ -541,7 +541,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         )}
 
         {!embedded && selectedMonth !== 'active' && !allowArchiveEditing ? (
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/5 rounded-xl shadow-lg">
+          <div className="card-base flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
               🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
@@ -561,7 +561,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               <UserPlus size={14} className="text-brand-primary" />
               {showAddForm ? "Hide Form" : "Add Technician"}
             </button>
-            
+
             {technicians.length > 0 && (
               <div className="relative flex items-center">
                 {showResetConfirm ? (
@@ -685,20 +685,20 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
             onDrop={onDrop}
             className={cn(
               "border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center text-center transition-all min-h-[300px] cursor-pointer",
-              isDragOver 
-                ? "border-brand-primary bg-brand-primary/10 scale-[1.01]" 
+              isDragOver
+                ? "border-brand-primary bg-brand-primary/10 scale-[1.01]"
                 : "border-white/10 hover:border-white/25 bg-white/[0.01] hover:bg-white/[0.03]"
             )}
             onClick={() => fileInputRef.current?.click()}
           >
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept=".pdf" 
-              className="hidden" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".pdf"
+              className="hidden"
             />
-            
+
             <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-slate-400 mb-6 transition-all shadow-lg shadow-black/45 hover:scale-105">
               {parsing ? (
                 <div className="relative">
@@ -723,10 +723,10 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
 
           {/* Quick Average Widget if techs logged */}
           {technicians.length > 0 && (
-            <div className="mt-6 bg-[#0c1224] border border-white/5 p-6 rounded-2xl flex items-center gap-5 shadow-inner">
+            <div className="mt-6 card-base p-6 rounded-2xl flex items-center gap-5 shadow-inner">
               <div className={cn(
                 "w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 shadow-md",
-                averageEfficiency >= 100 
+                averageEfficiency >= 100
                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                   : averageEfficiency >= 80
                     ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
@@ -767,7 +767,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               }
             />
           ) : (
-            <div className={embedded ? 'overflow-x-auto' : 'bg-slate-900/40 border border-white/5 rounded-3xl overflow-hidden shadow-inner'}>
+            <>
+            <div className={embedded ? 'overflow-x-auto' : 'hidden lg:block card-base rounded-3xl overflow-hidden shadow-inner'}>
               <div className="overflow-x-auto">
                 <table className={embedded ? 'crm-table' : 'w-full text-left border-collapse'} id="technicians-efficiency-table">
                   <thead>
@@ -783,13 +784,13 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                     {technicians.map((tech, index) => {
                       const isEditing = editingTechIndex === index;
                       const avatarLetters = tech.techName.replace(/[^a-zA-Z\s]/g, '').trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase() || "T";
-                      
-                      const performanceColor = tech.efficiency >= 80 
-                        ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/10" 
+
+                      const performanceColor = tech.efficiency >= 80
+                        ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/10"
                         : "text-rose-500 bg-rose-500/10 border-rose-500/20";
-                      
-                      const progressBarColor = tech.efficiency >= 80 
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-400" 
+
+                      const progressBarColor = tech.efficiency >= 80
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-400"
                         : "bg-gradient-to-r from-rose-600 to-rose-550";
 
                       return (
@@ -801,8 +802,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                               <div className="flex items-center gap-3">
                                 <div className={cn(
                                   "w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black uppercase shadow-sm shrink-0 border",
-                                  tech.efficiency >= 80 
-                                    ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10" 
+                                  tech.efficiency >= 80
+                                    ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10"
                                     : "bg-rose-500/5 text-rose-550 border-rose-500/20"
                                 )}>
                                   {avatarLetters}
@@ -866,9 +867,9 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                                   {tech.efficiency >= 80 ? 'Above Standard' : 'Below Standard'}
                                 </span>
                                 <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden hidden sm:block">
-                                  <div 
-                                    className={cn("h-full rounded-full transition-all duration-500", progressBarColor)} 
-                                    style={{ width: `${Math.min(100, tech.efficiency)}%` }} 
+                                  <div
+                                    className={cn("h-full rounded-full transition-all duration-500", progressBarColor)}
+                                    style={{ width: `${Math.min(100, tech.efficiency)}%` }}
                                   />
                                 </div>
                               </div>
@@ -926,6 +927,147 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                 </table>
               </div>
             </div>
+
+            {/* Mobile — one card per technician, no side-scrolling */}
+            {!embedded && (
+              <div className="lg:hidden space-y-3">
+                {technicians.map((tech, index) => {
+                  const isEditing = editingTechIndex === index;
+                  const avatarLetters = tech.techName.replace(/[^a-zA-Z\s]/g, '').trim().split(/\s+/).map(n => n[0]).join('').substring(0, 2).toUpperCase() || "T";
+                  const progressBarColor = tech.efficiency >= 80
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                    : "bg-gradient-to-r from-rose-600 to-rose-550";
+                  const canEdit = selectedMonth === 'active' || allowArchiveEditing;
+
+                  return (
+                    <div key={index} className="card-base p-4 rounded-2xl">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={cn(
+                            "w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-black uppercase shadow-sm shrink-0 border",
+                            tech.efficiency >= 80
+                              ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10"
+                              : "bg-rose-500/5 text-rose-550 border-rose-500/20"
+                          )}>
+                            {avatarLetters}
+                          </div>
+                          <p className="text-sm font-bold text-white truncate">{tech.techName}</p>
+                        </div>
+
+                        {canEdit && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={saveInlineEdit}
+                                  className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded border border-emerald-500/20 transition-all cursor-pointer"
+                                  title="Save changes"
+                                >
+                                  <CheckCircle2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingTechIndex(null);
+                                    setEditForm(null);
+                                  }}
+                                  className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded border border-rose-500/20 transition-all cursor-pointer"
+                                  title="Cancel"
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => startEditing(index)}
+                                  className="p-1.5 text-slate-450 hover:text-white rounded hover:bg-white/5 transition-all cursor-pointer"
+                                  title="Edit measurements"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTech(index)}
+                                  className="p-1.5 text-slate-455 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-all cursor-pointer"
+                                  title="Remove technician"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {isEditing ? (
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Clocked Hrs</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editForm?.clockedHours ?? 0}
+                              onChange={e => setEditForm(prev => prev ? { ...prev, clockedHours: parseFloat(e.target.value) || 0 } : null)}
+                              className="w-full h-9 text-center bg-slate-950 border border-white/10 rounded-lg text-xs font-semibold text-white outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Flagged Hrs</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editForm?.flaggedHours ?? 0}
+                              onChange={e => setEditForm(prev => prev ? { ...prev, flaggedHours: parseFloat(e.target.value) || 0 } : null)}
+                              className="w-full h-9 text-center bg-slate-950 border border-white/10 rounded-lg text-xs font-semibold text-white outline-none"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-4 mb-3">
+                          <div>
+                            <p className="crm-label text-[9px]">Clocked</p>
+                            <p className="text-sm font-mono font-bold text-slate-300">
+                              {flaggedOnlyMode ? '—' : tech.clockedHours.toFixed(1)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="crm-label text-[9px]">Flagged</p>
+                            <p className="text-sm font-mono font-bold text-emerald-500">{tech.flaggedHours.toFixed(1)}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {!flaggedOnlyMode && (
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "px-2 py-1 rounded-lg text-[10px] font-mono font-black border text-center min-w-[54px] shadow-sm shrink-0",
+                            tech.efficiency >= 80
+                              ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/10"
+                              : "text-rose-500 bg-rose-500/10 border-rose-500/20"
+                          )}>
+                            {tech.efficiency}%
+                          </span>
+                          <span className={cn(
+                            "inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border whitespace-nowrap shrink-0",
+                            tech.efficiency >= 80
+                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                              : "bg-rose-500/10 text-rose-500 border-rose-500/20 font-bold animate-pulse"
+                          )}>
+                            {tech.efficiency >= 80 ? 'Above Standard' : 'Below Standard'}
+                          </span>
+                          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full transition-all duration-500", progressBarColor)}
+                              style={{ width: `${Math.min(100, tech.efficiency)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>

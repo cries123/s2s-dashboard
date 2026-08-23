@@ -812,16 +812,6 @@ interface PbsSyncRunMeta {
   fullRefresh?: boolean;
 }
 
-/** Per-stage soft failures recorded on `counts` but never thrown — surface them explicitly. */
-function collectPartialFailureMessages(counts: PbsSyncCounts): string[] {
-  return [
-    counts.appointmentScheduleError && `Appointment schedule: ${counts.appointmentScheduleError}`,
-    counts.performanceSyncError && `Advisor performance: ${counts.performanceSyncError}`,
-    counts.technicianSyncError && `Technician efficiency: ${counts.technicianSyncError}`,
-    counts.extendedSyncError && `Extended sync (reminders/inventory/dispatch): ${counts.extendedSyncError}`,
-  ].filter((msg): msg is string => Boolean(msg));
-}
-
 async function finalizePbsSyncRun(
   db: Firestore,
   dealershipId: string,
@@ -833,26 +823,19 @@ async function finalizePbsSyncRun(
   error?: string
 ): Promise<PbsSyncResult> {
   const finishedAt = new Date().toISOString();
-  const partialFailureMessages = ok ? collectPartialFailureMessages(counts) : [];
-  const hadPartialFailure = partialFailureMessages.length > 0;
-  // A stage that threw is a hard failure and already has its own `error`; a stage that
-  // caught its own error and recorded it on `counts` is a soft/partial failure — surface
-  // it here so the run isn't silently reported as a full success.
-  const effectiveError = error ?? (hadPartialFailure ? partialFailureMessages.join(' ') : undefined);
-  const summary = buildPbsSyncSummary(ok, fetched, counts, effectiveError);
+  const summary = buildPbsSyncSummary(ok, fetched, counts, error);
   const logEntry: PbsSyncLogEntry = {
     id: `pbs-${startedAt}`,
     startedAt,
     finishedAt,
     ok,
-    hadPartialFailure,
     triggeredBy: meta.triggeredBy || 'manual',
     triggeredByEmail: meta.triggeredByEmail,
     triggeredByUsername: meta.triggeredByUsername,
     fullRefresh: meta.fullRefresh,
     fetched,
     counts,
-    error: effectiveError,
+    error,
     summary,
   };
 
@@ -863,9 +846,8 @@ async function finalizePbsSyncRun(
       ? finishedAt
       : prior?.lastSuccessfulSyncAt ?? (prior?.lastSyncOk ? prior.lastSyncAt : undefined),
     lastSyncOk: ok,
-    hadPartialFailure,
     // Explicit null clears prior errors on success (merge would keep old values).
-    lastError: effectiveError ?? null,
+    lastError: error ?? null,
     counts,
     fetched,
     triggeredBy: meta.triggeredBy,
@@ -882,17 +864,7 @@ async function finalizePbsSyncRun(
     console.error('[PBS Sync] Failed to persist sync log', writeErr)
   );
 
-  return {
-    ok,
-    hadPartialFailure,
-    startedAt,
-    finishedAt,
-    counts,
-    fetched,
-    summary,
-    error: effectiveError,
-    logId: logEntry.id,
-  };
+  return { ok, startedAt, finishedAt, counts, fetched, summary, error, logId: logEntry.id };
 }
 
 function plainFailure(

@@ -223,6 +223,83 @@ export function buildScheduleTechColumns(
   return columns;
 }
 
+export const SCHEDULE_HOURS_PER_TECH_PER_DAY = 8;
+
+export type ScheduleCapacityStatus = 'light' | 'good' | 'near-capacity';
+
+export interface ScheduleCapacitySummary {
+  /** Distinct techs with at least one appointment today — a live proxy for "on the schedule". */
+  techCount: number;
+  capacityMinutes: number;
+  /** Includes unassigned/open appointments — real demand even before a tech is picked. */
+  scheduledMinutes: number;
+  utilizationPercent: number;
+  status: ScheduleCapacityStatus;
+}
+
+/**
+ * Operational capacity for a day: techs on the schedule × 8h vs. total
+ * scheduled minutes. techCount comes from appointments themselves (same
+ * source as the tech columns on the board) rather than a separate roster
+ * size, so it reflects who actually has work today.
+ */
+export function computeScheduleCapacity(
+  appointments: ScheduledAppointmentSlot[],
+  techRoster: PerformanceAdvisorSlot[] = []
+): ScheduleCapacitySummary {
+  const columns = buildScheduleTechColumns(appointments, techRoster);
+  const techCount = columns.filter((column) => column.id).length;
+  const capacityMinutes = techCount * SCHEDULE_HOURS_PER_TECH_PER_DAY * 60;
+  const scheduledMinutes = appointments.reduce(
+    (sum, appt) => sum + Math.max(0, appt.durationMinutes || 0),
+    0
+  );
+  const utilizationPercent =
+    capacityMinutes > 0 ? Math.round((scheduledMinutes / capacityMinutes) * 100) : 0;
+
+  let status: ScheduleCapacityStatus = 'good';
+  if (capacityMinutes === 0 || utilizationPercent < 60) {
+    status = 'light';
+  } else if (utilizationPercent > 95) {
+    status = 'near-capacity';
+  }
+
+  return { techCount, capacityMinutes, scheduledMinutes, utilizationPercent, status };
+}
+
+export const CAPACITY_STATUS_STYLES: Record<
+  ScheduleCapacityStatus,
+  { label: string; chip: string; fill: string; track: string }
+> = {
+  light: {
+    label: 'Light day',
+    chip: 'bg-amber-500/15 text-amber-500',
+    fill: 'bg-amber-500',
+    track: 'bg-amber-500/15',
+  },
+  good: {
+    label: 'Well booked',
+    chip: 'bg-brand-primary/15 text-brand-primary',
+    fill: 'bg-brand-primary',
+    track: 'bg-brand-primary/15',
+  },
+  'near-capacity': {
+    label: 'At capacity',
+    chip: 'bg-rose-500/15 text-rose-500',
+    fill: 'bg-rose-500',
+    track: 'bg-rose-500/15',
+  },
+};
+
+/** e.g. 645 -> "10h 45m", 480 -> "8h", 45 -> "45m". */
+export function formatScheduleDurationLabel(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours === 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
+}
+
 export function categoryScheduleColor(category: ScheduledAppointmentSlot['category']): string {
   return categoryScheduleCardClass(category);
 }

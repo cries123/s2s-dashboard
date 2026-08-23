@@ -49,6 +49,7 @@ import {
   Cell
 } from 'recharts';
 import { PageHeader } from '../../layout/PageHeader';
+import { PageSkeleton } from '../../ui/Skeleton';
 import {
   ForecastPanel,
   ForecastSectionHeader,
@@ -298,19 +299,35 @@ const calculateBillingDaysForCurrentMonth = (): number => {
   const d = new Date(Date.UTC(year, month, 1));
   let count = 0;
 
+  // Kept in sync with calculateBillingDaysForNextMonth's isFederalHoliday above —
+  // this version was previously missing Juneteenth/Columbus/Veterans Day and had
+  // a bogus "any Monday on/after Dec 25" rule instead of the fixed Dec 25 date.
   const isFederalHoliday = (date: Date): boolean => {
     const m = date.getUTCMonth();
     const day = date.getUTCDate();
     const dayOfWeek = date.getUTCDay();
+    // New Year's Day (Jan 1)
     if (m === 0 && day === 1) return true;
-    if (m === 6 && day === 4) return true;
-    if (m === 11 && day === 25) return true;
+    // MLK Day (3rd Monday in Jan)
     if (m === 0 && dayOfWeek === 1 && day >= 15 && day <= 21) return true;
+    // Washington's Birthday / Presidents Day (3rd Monday in Feb)
     if (m === 1 && dayOfWeek === 1 && day >= 15 && day <= 21) return true;
-    if (m === 4 && dayOfWeek === 1 && day >= 25) return true;
-    if (m === 8 && dayOfWeek === 1 && day <= 7) return true;
+    // Memorial Day (last Monday in May)
+    if (m === 4 && dayOfWeek === 1 && day >= 25 && day <= 31) return true;
+    // Juneteenth (June 19)
+    if (m === 5 && day === 19) return true;
+    // Independence Day (July 4)
+    if (m === 6 && day === 4) return true;
+    // Labor Day (1st Monday in Sept)
+    if (m === 8 && dayOfWeek === 1 && day >= 1 && day <= 7) return true;
+    // Columbus Day (2nd Monday in Oct)
+    if (m === 9 && dayOfWeek === 1 && day >= 8 && day <= 14) return true;
+    // Veterans Day (Nov 11)
+    if (m === 10 && day === 11) return true;
+    // Thanksgiving (4th Thursday in Nov)
     if (m === 10 && dayOfWeek === 4 && day >= 22 && day <= 28) return true;
-    if (m === 11 && dayOfWeek === 1 && day >= 25) return true;
+    // Christmas Day (Dec 25)
+    if (m === 11 && day === 25) return true;
     return false;
   };
 
@@ -732,6 +749,9 @@ export default function FixedOpsForecast({
   
   // Preset Active state ('conservative' | 'balanced' | 'aggressive')
   const [activePreset, setActivePreset] = useState<'conservative' | 'balanced' | 'aggressive'>(INITIAL_PRESET);
+  // Dealership's configured billing period — presets must respect this instead of
+  // hardcoding "next month" (see applyPreset below).
+  const [forecastReportPeriod, setForecastReportPeriod] = useState<'current_month' | 'next_month'>('next_month');
 
   const [mtdTelemetry, setMtdTelemetry] = useState(INITIAL_MTD_TELEMETRY);
 
@@ -745,6 +765,10 @@ export default function FixedOpsForecast({
   const [isApplyingOperationsSeed, setIsApplyingOperationsSeed] = useState(false);
   const operationsSeedMonthRef = useRef<string | null>(null);
   const seedAttemptedRef = useRef(false);
+
+  // Gates rendering of the form/inputs until the initial Firestore config load resolves
+  // (success, no-doc, or error) — avoids flashing default/zero values before real data arrives.
+  const [loading, setLoading] = useState(true);
 
   // Load from Firestore on mount or context changes
   useEffect(() => {
@@ -771,8 +795,10 @@ export default function FixedOpsForecast({
         setMtdTelemetry(INITIAL_MTD_TELEMETRY);
         setActivePreset(INITIAL_PRESET);
       }
+      setLoading(false);
     }, (error) => {
       console.error("[Forecast] Error syncing from Firestore:", error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -791,6 +817,7 @@ export default function FixedOpsForecast({
     );
     const unsub = onSnapshot(settingsRef, (snap) => {
       const defaults = resolveForecastDefaults(snap.exists() ? snap.data() : null);
+      setForecastReportPeriod(defaults.reportPeriod);
       if (defaults.reportPeriod === 'current_month') {
         setInputs((prev) => ({
           ...prev,
@@ -949,7 +976,13 @@ export default function FixedOpsForecast({
   // Apply Preset Values
   const applyPreset = (presetName: 'conservative' | 'balanced' | 'aggressive') => {
     setActivePreset(presetName);
-    const billingDaysVal = calculateBillingDaysForNextMonth();
+    // Respect the dealership's configured billing period instead of always
+    // forecasting next month — a dealership tracking the current month would
+    // otherwise get every preset's billing-day count silently wrong.
+    const billingDaysVal =
+      forecastReportPeriod === 'current_month'
+        ? calculateBillingDaysForCurrentMonth()
+        : calculateBillingDaysForNextMonth();
     if (presetName === 'conservative') {
       setInputs({
         billingDays: billingDaysVal,
@@ -1599,6 +1632,14 @@ export default function FixedOpsForecast({
 
   const totalMixAllocationValue = Number(inputs.cpMix) + Number(inputs.warrMix) + Number(inputs.internalMix);
 
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <PageSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto min-h-screen text-slate-200">
       <PageHeader
@@ -2022,10 +2063,10 @@ export default function FixedOpsForecast({
           <div className="w-full">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={barChartData} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" vertical={false} />
+                <XAxis dataKey="name" stroke="var(--color-text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis
-                  stroke="#64748b"
+                  stroke="var(--color-text-secondary)"
                   fontSize={11}
                   tickLine={false}
                   axisLine={false}
@@ -2033,16 +2074,16 @@ export default function FixedOpsForecast({
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'var(--color-surface-card)',
+                    borderColor: 'var(--color-surface-border)',
                     borderRadius: '12px',
                   }}
-                  labelStyle={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}
+                  labelStyle={{ color: 'var(--color-text-primary)', fontSize: '11px', fontWeight: 'bold' }}
                   formatter={(v: number) => [`$${Number(v).toLocaleString()}`, '']}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#94a3b8', paddingTop: '12px' }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '12px' }} />
                 <Bar dataKey="current" name="Current MTD" fill="var(--color-brand-primary, #6366f1)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="projected" name="Projected Forecast" fill="#94a3b8" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="projected" name="Projected Forecast" fill="var(--color-text-secondary)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -2072,11 +2113,11 @@ export default function FixedOpsForecast({
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderColor: 'rgba(255,255,255,0.08)',
+                      backgroundColor: 'var(--color-surface-card)',
+                      borderColor: 'var(--color-surface-border)',
                       borderRadius: '12px',
                     }}
-                    labelStyle={{ color: '#fff', fontSize: '11px' }}
+                    labelStyle={{ color: 'var(--color-text-primary)', fontSize: '11px' }}
                     formatter={(v: number) => [`$${Number(v).toLocaleString()}`, '']}
                   />
                 </PieChart>
@@ -2471,9 +2512,9 @@ export default function FixedOpsForecast({
                 <div className="border-l-3 border-indigo-600 pl-3">
                   <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Consolidation</span>
                 </div>
-                <div class="space-y-2.5 font-medium text-xs font-sans">
-                  <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
-                    <span class="text-slate-500">Labor Gross:</span>
+                <div className="space-y-2.5 font-medium text-xs font-sans">
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
+                    <span className="text-slate-500">Labor Gross:</span>
                     <span className="font-bold font-mono text-slate-900">${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
