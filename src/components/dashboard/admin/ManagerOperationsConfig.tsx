@@ -431,6 +431,12 @@ export function ManagerOperationsConfig({
                 description:
                   'Tracks oil-change intervals from service history (e.g. every 2.2 months). Falls back to standard when history is insufficient.',
               },
+              {
+                id: 'smart' as ServiceAlertMode,
+                title: 'Smart (upcoming only)',
+                description:
+                  'Only customers seen in the last 12 months, surfaced from 3 weeks before their own predicted due date until 60 days after. Customers who went quiet years ago never appear.',
+              },
             ] as const
           ).map((option) => {
             const selected = serviceAlertMode === option.id;

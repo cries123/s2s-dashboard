@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:rules": "firebase emulators:exec --only firestore \"node scripts/rules.test.mjs\" --project demo-s2s"
+    "test:rules": "firebase emulators:exec --only firestore \"node scripts/rules.test.mjs\" --project demo-s2s",
+    "test:alerts": "node scripts/smart-alerts.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

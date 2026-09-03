@@ -122,7 +122,7 @@ export interface DealershipAnnouncement {
   updatedBy?: string;
 }
 
-export type ServiceAlertMode = 'standard' | 'optimized';
+export type ServiceAlertMode = 'standard' | 'optimized' | 'smart';
 
 export interface DealershipSettings {
   id: string;
@@ -146,6 +146,12 @@ export interface DealershipSettings {
   enableVinSearchTab?: boolean;
   /** Standard = fixed 6-month reminders from delivery; optimized = oil-change interval from service history. */
   serviceAlertMode?: ServiceAlertMode;
+  /** Smart mode: customer must have visited within this many days to be alerted. */
+  serviceAlertActiveWithinDays?: number;
+  /** Smart mode: start alerting this many days before the predicted due date. */
+  serviceAlertLeadTimeDays?: number;
+  /** Smart mode: drop the alert once it is this many days past due. */
+  serviceAlertStaleAfterDays?: number;
   serviceAlertIntervalDays?: number;
   /** Extra days after due date before a customer appears in Service Alerts (0–60). */
   serviceAlertBufferDays?: number;

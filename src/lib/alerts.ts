@@ -10,6 +10,17 @@ import {
 } from './serviceReminder';
 import { analyzeOilChangeInterval } from './serviceIntervalAnalytics';
 import {
+  DEFAULT_ACTIVE_WITHIN_DAYS,
+  DEFAULT_LEAD_TIME_DAYS,
+  DEFAULT_STALE_AFTER_DAYS,
+  evaluateSmartAlert,
+  type SmartAlertConfig,
+  type SmartAlertResult,
+} from './serviceAlertWindow';
+
+export { evaluateSmartAlert };
+export type { SmartAlertResult };
+import {
   DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
   DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
   DEFAULT_SERVICE_ALERT_MODE,
@@ -23,6 +34,8 @@ export interface ServiceAlertConfig {
   mode: ServiceAlertMode;
   intervalDays: number;
   bufferDays: number;
+  /** Only used when mode === 'smart'. */
+  smart: SmartAlertConfig;
 }
 
 export function resolveServiceAlertConfig(
@@ -32,6 +45,11 @@ export function resolveServiceAlertConfig(
     mode: resolveServiceAlertMode(settings),
     intervalDays: settings?.serviceAlertIntervalDays ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
     bufferDays: settings?.serviceAlertBufferDays ?? DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
+    smart: {
+      activeWithinDays: settings?.serviceAlertActiveWithinDays ?? DEFAULT_ACTIVE_WITHIN_DAYS,
+      leadTimeDays: settings?.serviceAlertLeadTimeDays ?? DEFAULT_LEAD_TIME_DAYS,
+      staleAfterDays: settings?.serviceAlertStaleAfterDays ?? DEFAULT_STALE_AFTER_DAYS,
+    },
   };
 }
 
@@ -135,6 +153,12 @@ export function isServiceAlertActive(
   if (!customer.enableServiceAlert) return false;
   if (customer.stopAlertInfo) return false;
 
+  // Smart mode answers a different question from the other two: not 'are they past
+  // due' but 'are they an active customer coming up for service soon'.
+  if (config.mode === 'smart') {
+    return evaluateSmartAlert(customer, config.smart).shouldAlert;
+  }
+
   if (config.mode === 'standard') {
     const dueStr = getStandardServiceReminderDueDate(customer);
     if (!dueStr) return false;
@@ -164,7 +188,9 @@ export function computeContactClearDueDate(
 }
 
 export function getServiceAlertModeLabel(mode: ServiceAlertMode = DEFAULT_SERVICE_ALERT_MODE): string {
-  return mode === 'optimized' ? 'Optimized' : 'Standard (6 mo)';
+  if (mode === 'optimized') return 'Optimized';
+  if (mode === 'smart') return 'Smart (upcoming only)';
+  return 'Standard (6 mo)';
 }
 
 export function isStandardServiceAlertMode(

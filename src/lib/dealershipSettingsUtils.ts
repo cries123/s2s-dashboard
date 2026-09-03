@@ -100,5 +100,7 @@ export function serviceAlertIntervalMonths(days: number): string {
 export function resolveServiceAlertMode(
   settings?: Partial<DealershipSettings> | null
 ): ServiceAlertMode {
-  return settings?.serviceAlertMode === 'optimized' ? 'optimized' : DEFAULT_SERVICE_ALERT_MODE;
+  if (settings?.serviceAlertMode === 'optimized') return 'optimized';
+  if (settings?.serviceAlertMode === 'smart') return 'smart';
+  return DEFAULT_SERVICE_ALERT_MODE;
 }

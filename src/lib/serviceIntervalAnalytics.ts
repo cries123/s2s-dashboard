@@ -1,4 +1,4 @@
-import type { Customer } from '../types';
+import type { Customer, ServiceVisit } from '../types';
 
 export interface OilChangeIntervalAnalysis {
   hasData: boolean;
@@ -34,6 +34,24 @@ export function isOilChangeServiceText(text: string): boolean {
   );
 }
 
+/**
+ * A visit is an oil change if its summary says so, or any of its structured job
+ * lines do. Records synced from PBS often carry a generic summary with the real
+ * work described on the lines.
+ */
+export function visitIsOilChange(visit: ServiceVisit): boolean {
+  if (isOilChangeServiceText(visit.requests || '')) return true;
+  for (const line of visit.lines || []) {
+    if (isOilChangeServiceText(line.correction || '')) return true;
+    if (isOilChangeServiceText(line.concern || '')) return true;
+    for (const labour of line.labourLines || []) {
+      if (isOilChangeServiceText(labour.description || '')) return true;
+      if (isOilChangeServiceText(labour.opCode || '')) return true;
+    }
+  }
+  return false;
+}
+
 function addDaysIso(from: Date, days: number): string {
   const next = new Date(from.getTime());
   next.setDate(next.getDate() + Math.round(days));
@@ -58,7 +76,7 @@ export function analyzeOilChangeInterval(customer: Customer): OilChangeIntervalA
   }
 
   const oilVisits = [...visits]
-    .filter((v) => isOilChangeServiceText(v.requests))
+    .filter((v) => visitIsOilChange(v))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   if (oilVisits.length === 0) {

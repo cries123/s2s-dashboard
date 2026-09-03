@@ -171,7 +171,12 @@ async function loadCustomerIndex(
   db: Firestore,
   dealershipId: string
 ): Promise<CustomerIndex> {
-  const snap = await customersCollection(db).get();
+  // Scope the index to the store being synced. This previously read every
+  // store every run (hourly), which is both wasted reads and a needless
+  // cross-store data pull.
+  const snap = await customersCollection(db)
+    .where('dealershipId', '==', dealershipId)
+    .get();
   const index: CustomerIndex = {
     byVinLast8: new Map(),
     byVin: new Map(),
