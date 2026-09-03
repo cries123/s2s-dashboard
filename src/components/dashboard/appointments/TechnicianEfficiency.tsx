@@ -228,6 +228,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       const newEnd = CustomEnd || reportEndDate;
 
       await setDoc(docRef, {
+        dealershipId: currentDealershipId,
         technicians: updatedTechs,
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username || currentUser.email,

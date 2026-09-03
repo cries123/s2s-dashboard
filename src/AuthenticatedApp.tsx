@@ -15,29 +15,30 @@ import { motion, AnimatePresence } from 'motion/react';
 
 // Components
 import CustomerForm from './components/dashboard/customers/CustomerForm';
-import SalesPerformance from './components/dashboard/analytics/SalesPerformance';
+const SalesPerformance = React.lazy(() => import('./components/dashboard/analytics/SalesPerformance'));
 import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
-import Appointments from './components/dashboard/appointments/Appointments';
-import DaySchedule from './components/dashboard/appointments/DaySchedule';
+const Appointments = React.lazy(() => import('./components/dashboard/appointments/Appointments'));
+const DaySchedule = React.lazy(() => import('./components/dashboard/appointments/DaySchedule'));
 import { CustomerDirectory } from './components/dashboard/customers/CustomerDirectory';
-import AdminPanel from './components/dashboard/admin/AdminPanel';
-import ManagerDashboard from './components/dashboard/admin/ManagerDashboard';
-import { VinLookup } from './components/dashboard/vin/VinLookup';
+const AdminPanel = React.lazy(() => import('./components/dashboard/admin/AdminPanel'));
+const ManagerDashboard = React.lazy(() => import('./components/dashboard/admin/ManagerDashboard'));
+const VinLookup = React.lazy(() => import('./components/dashboard/vin/VinLookup').then(m => ({ default: m.VinLookup })));
 import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
-import { PotOfGold } from './components/dashboard/analytics/PotOfGold';
-import FixedOpsForecast from './components/dashboard/admin/FixedOpsForecast';
-import { DispatchBoard } from './components/dashboard/appointments/DispatchBoard';
-import OpenRepairOrders from './components/dashboard/service/OpenRepairOrders';
+const PotOfGold = React.lazy(() => import('./components/dashboard/analytics/PotOfGold').then(m => ({ default: m.PotOfGold })));
+const FixedOpsForecast = React.lazy(() => import('./components/dashboard/admin/FixedOpsForecast'));
+const DispatchBoard = React.lazy(() => import('./components/dashboard/appointments/DispatchBoard').then(m => ({ default: m.DispatchBoard })));
+const OpenRepairOrders = React.lazy(() => import('./components/dashboard/service/OpenRepairOrders'));
 import ProfileModal from './components/modals/ProfileModal';
 import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
+const SettingsPage = React.lazy(() => import('./components/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
 import { ServiceAlertProvider } from './context/ServiceAlertContext';
 import { isNavFeatureEnabled, mergeDealershipSettings } from './lib/dealershipSettingsUtils';
 
 import { DEALERSHIPS } from './constants';
-import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPendingManagerEnrollment, isPrimaryAdmin, isUserApproved, resolveChatDealershipId } from './lib/rbac';
+import { canAccessPrimaryAdminSettings, canSeeManagerPanel, canSwitchDealership, isPendingManagerEnrollment, isPrimaryAdmin, isUserApproved, resolveChatDealershipId, resolveUserDealershipId } from './lib/rbac';
 import { subscribeDealershipUsers } from './lib/userDirectory';
 import { useDealershipChatInbox } from './hooks/useDealershipChatInbox';
 import {
@@ -46,6 +47,8 @@ import {
 } from './components/chat/DealershipChatNotifications';
 
 import { LoadingScreen } from './components/ui/LoadingScreen';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { PageSkeleton } from './components/ui/Skeleton';
 import { ConfirmModal } from './components/ui/ConfirmModal';
 import { MobileBottomNav } from './components/layout/MobileBottomNav';
 import { AppSidebar } from './components/layout/AppSidebar';
@@ -63,6 +66,7 @@ import {
   type ManagerSubTab,
   parseAppRoute,
   readInitialAppRoute,
+  clearStoredDealershipId,
   readStoredDealershipId,
   storeDealershipId,
   syncAppRoute,
@@ -201,23 +205,45 @@ function DashboardShell({ user }: { user: User }) {
     readStoredDealershipId(DEALERSHIPS.map((d) => d.id))
   );
 
-  const selectDealership = React.useCallback((dealershipId: string) => {
-    setCurrentDealershipId(dealershipId);
-    storeDealershipId(dealershipId);
-  }, []);
+  const canSwitchStores = canSwitchDealership(user);
+
+  const selectDealership = React.useCallback(
+    (dealershipId: string) => {
+      // Switching stores is an admin-only capability. Ignore any attempt from a
+      // non-admin, so a stale sessionStorage value or a hand-edited call can't
+      // repoint the session at another dealership.
+      if (!canSwitchStores) return;
+      setCurrentDealershipId(dealershipId);
+      storeDealershipId(dealershipId);
+    },
+    [canSwitchStores]
+  );
 
   React.useEffect(() => {
     if (isPreviewMode) {
-      selectDealership('ford');
+      setCurrentDealershipId('ford');
+      storeDealershipId('ford');
     }
-  }, [selectDealership]);
+  }, []);
 
-  // Sync current dealership with user's dealership on load
+  // Pin the active dealership to the signed-in user's own store unless they are an
+  // admin. sessionStorage survives sign-out within the same tab, so on a shared
+  // dealership terminal an admin who switched to another store would otherwise
+  // leave that scope behind for the next person who signs in.
   React.useEffect(() => {
-    if (user && !currentDealershipId) {
+    if (!user) return;
+
+    if (!canSwitchStores) {
+      const ownDealershipId = resolveUserDealershipId(user);
+      clearStoredDealershipId();
+      setCurrentDealershipId((current) => (current === ownDealershipId ? current : ownDealershipId));
+      return;
+    }
+
+    if (!currentDealershipId) {
       setCurrentDealershipId(user.dealershipId || 'hyundai');
     }
-  }, [user, currentDealershipId]);
+  }, [user, canSwitchStores, currentDealershipId]);
 
   React.useEffect(() => {
     syncAppRoute({
@@ -242,7 +268,9 @@ function DashboardShell({ user }: { user: User }) {
 
   // Synchronize dealership settings in real-time (such as enabling/disabling the Dispatch tab)
   React.useEffect(() => {
-    if (!currentDealershipId) return;
+    // Preview mode runs on fixtures and has no signed-in user, so a live listener
+    // here only produces a permission-denied retry loop.
+    if (!currentDealershipId || isPreviewMode) return;
 
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     const unsubscribe = onSnapshot(settingsRef, (snapshot) => {
@@ -318,7 +346,7 @@ function DashboardShell({ user }: { user: User }) {
   // If current activeTab is hidden, fallback to first available.
   // Admin/manager panels are opened from the header gear or Manager menu, not mobile tabs.
   React.useEffect(() => {
-    if (activeTab === 'admin' || activeTab === 'manager') return;
+    if (activeTab === 'admin' || activeTab === 'manager' || activeTab === 'settings') return;
     if (!availableTabs.find(t => t.id === activeTab)) {
       setActiveTab('appointments');
     }
@@ -417,6 +445,10 @@ function DashboardShell({ user }: { user: User }) {
       setTenantUsers([]);
       return;
     }
+    if (isPreviewMode) {
+      setTenantUsers([]);
+      return;
+    }
     const unsub = subscribeDealershipUsers(chatDealershipId, setTenantUsers, (err) =>
       console.error('[DealershipChat] users error', err)
     );
@@ -429,7 +461,12 @@ function DashboardShell({ user }: { user: User }) {
     showToast(text, isError ? 'error' : 'success');
   };
 
-  const handleSignOut = () => signOut(auth);
+  const handleSignOut = () => {
+    // Drop the admin's chosen store so it can't seed the next session in this tab.
+    clearStoredDealershipId();
+    setCurrentDealershipId(null);
+    return signOut(auth);
+  };
 
   const handleDeleteCustomer = (id: string, name: string) => {
     setPendingDeleteCustomer({ id, name });
@@ -493,7 +530,7 @@ function DashboardShell({ user }: { user: User }) {
         showManager={canSeeManagerPanel(user)}
         showAdmin={canAccessPrimaryAdminSettings(currentUser)}
         activeAlertsCount={activeAlertsCount}
-        canSwitchDealership={canSwitchDealership(currentUser)}
+        canSwitchDealership={canSwitchStores}
         onDealershipChange={(id) => {
           selectDealership(id);
           showNotification(`Switched to ${DEALERSHIPS.find((d) => d.id === id)?.name || id}`);
@@ -513,6 +550,7 @@ function DashboardShell({ user }: { user: User }) {
         }}
         onSignOut={handleSignOut}
         onOpenSuggestions={() => setShowSuggestionModal(true)}
+        onOpenSettings={() => setActiveTab('settings')}
         onOpenChat={() => setShowChatPanel(true)}
         chatUnreadCount={chatUnreadCount}
         notifications={canSeeAlertsBell ? topBarNotifications : undefined}
@@ -525,6 +563,8 @@ function DashboardShell({ user }: { user: User }) {
 
       {/* Main Content */}
       <main className="section-container animate-fade-in app-main-with-mobile-nav">
+        <ErrorBoundary inline area="this view">
+        <React.Suspense fallback={<PageSkeleton />}>
         <div className="space-y-10">
           {activeTab === 'add' && (
             <CustomerForm
@@ -538,6 +578,7 @@ function DashboardShell({ user }: { user: User }) {
             <CustomerDirectory
               customers={customers}
               currentUser={currentUser}
+              currentDealershipId={currentDealershipId || 'hyundai'}
               onViewProfile={setSelectedProfile}
               onViewLog={setSelectedProfile}
               onRefresh={showNotification}
@@ -621,6 +662,17 @@ function DashboardShell({ user }: { user: User }) {
             />
           )}
 
+          {/* Personal preferences — available to every approved user, not just
+              managers. Store-wide configuration stays under Manager. */}
+          {activeTab === 'settings' && (
+            <SettingsPage
+              onNavigate={(tab) => setActiveTab(tab as typeof activeTab)}
+              onNotify={(msg, isError) => showNotification(msg, isError)}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              onDealershipChange={selectDealership}
+            />
+          )}
+
           {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab === 'team' && (
             <ManagerDashboard
               activeSubTab={managerDashboardSubTab}
@@ -651,7 +703,7 @@ function DashboardShell({ user }: { user: User }) {
                 else setManagerSubTab('operations');
               }}
               onNavigateTab={(tab) => setActiveTab(tab as typeof activeTab)}
-              onDealershipChange={setCurrentDealershipId}
+              onDealershipChange={selectDealership}
             />
           )}
 
@@ -663,11 +715,13 @@ function DashboardShell({ user }: { user: User }) {
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
               activeSubTab={adminSubTab}
-              onChangeSubTab={setAdminSubTab}
+              onChangeSubTab={(tab: AdminSubTab) => setAdminSubTab(tab)}
               onNavigateTab={(tab) => setActiveTab(tab as typeof activeTab)}
             />
           )}
         </div>
+        </React.Suspense>
+        </ErrorBoundary>
       </main>
 
       {/* Modals */}

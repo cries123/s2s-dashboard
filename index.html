@@ -3,11 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Service to Sales dashboard for dealership service and sales teams." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      media="print"
+      onload="this.media=&quot;all&quot;"
+    />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" /></noscript>
     <title>S2S Dashboard</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Cpath d='M11 21.5c1.6 1 3.2 1.5 5 1.5 3 0 4.8-1.3 4.8-3.3 0-4.3-9.3-2.4-9.3-8 0-2.8 2.4-4.7 6-4.7 1.7 0 3.2.4 4.5 1.1' fill='none' stroke='%233b82f6' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      /* Painted immediately by the HTML so the viewport is never blank while the
+         application bundle downloads. Removed by main.tsx once React mounts. */
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #0f172a;
+        color: #94a3b8;
+        font: 500 13px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      #boot .ring {
+        width: 34px;
+        height: 34px;
+        border: 2.5px solid rgba(148, 163, 184, 0.22);
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .ring { animation-duration: 2.4s; }
+      }
+    </style>
   </head>
-  <body>
+  <body style="margin: 0; background: #0f172a">
     <div id="root"></div>
+    <div id="boot">
+      <div class="ring"></div>
+      <span>Loading dashboard</span>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

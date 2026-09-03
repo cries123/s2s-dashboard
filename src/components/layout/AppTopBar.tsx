@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Bell, FileWarning, KeyRound, Lightbulb, LogOut, MessageSquare, UserCheck } from 'lucide-react';
+import { AlertTriangle, Bell, FileWarning, KeyRound, Lightbulb, LogOut, MessageSquare, Settings as SettingsIcon, UserCheck } from 'lucide-react';
 import type { User } from '../../types';
 import { canSwitchDealership } from '../../lib/rbac';
 import { getDealershipEnrollmentCode } from '../../lib/dealershipEnrollment';
@@ -29,7 +29,7 @@ function NotificationBell({ notifications }: { notifications: TopBarNotification
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="btn-secondary p-2.5 relative"
+        className="btn-secondary p-3 relative min-w-[44px] min-h-[44px] justify-center"
         title="Alerts"
         aria-expanded={open}
       >
@@ -118,6 +118,8 @@ interface AppTopBarProps {
   onDealershipChange: (id: string) => void;
   onSignOut: () => void;
   onOpenSuggestions?: () => void;
+  /** Opens personal settings. Available to every approved user, not just managers. */
+  onOpenSettings?: () => void;
   onOpenChat?: () => void;
   chatUnreadCount?: number;
   /** Only rendered when set — callers gate this on whether the user can act on any of these alerts. */
@@ -132,6 +134,7 @@ export function AppTopBar({
   onDealershipChange,
   onSignOut,
   onOpenSuggestions,
+  onOpenSettings,
   onOpenChat,
   chatUnreadCount = 0,
   notifications,
@@ -221,16 +224,28 @@ export function AppTopBar({
           <button
             type="button"
             onClick={onOpenSuggestions}
-            className="btn-secondary p-2.5"
+            className="btn-secondary p-3 min-w-[44px] min-h-[44px] justify-center"
             title="Send a suggestion"
+            aria-label="Send a suggestion"
           >
             <Lightbulb size={16} className="text-amber-400" />
+          </button>
+        ) : null}
+        {onOpenSettings ? (
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="btn-secondary p-3 min-w-[44px] min-h-[44px] justify-center"
+            title="Settings"
+            aria-label="Settings"
+          >
+            <SettingsIcon size={16} style={{ color: 'var(--color-text-secondary)' }} />
           </button>
         ) : null}
         <button
           type="button"
           onClick={onSignOut}
-          className="btn-secondary p-2.5"
+          className="btn-secondary p-3 min-w-[44px] min-h-[44px] justify-center"
           title="Sign out"
         >
           <LogOut size={16} />

@@ -50,10 +50,10 @@ interface MobileBottomNavProps {
 
 const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
   sales: ['add', 'vin-search'],
-  service: ['search', 'alerts', 'dispatch'],
+  service: ['search', 'alerts', 'dispatch', 'open-ros'],
   competitions: ['pot-of-gold'],
-  reports: ['appointments', 'forecast', 'sales-performance'],
-  manager: ['manager'],
+  reports: ['appointments', 'forecast', 'sales-performance', 'schedule'],
+  manager: ['manager', 'admin'],
 };
 
 function resolveActiveSection(
@@ -148,7 +148,7 @@ export function MobileBottomNav({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="md:hidden fixed inset-0 z-[75] bg-slate-950/60 backdrop-blur-[2px]"
+              className="lg:hidden fixed inset-0 z-[75] bg-slate-950/60 backdrop-blur-[2px]"
               onClick={() => setExpandedSection(null)}
             />
             <motion.div
@@ -156,8 +156,8 @@ export function MobileBottomNav({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 16 }}
               transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-              className="md:hidden fixed inset-x-0 z-[85] px-3"
-              style={{ bottom: 'calc(4.25rem + env(safe-area-inset-bottom, 0px))' }}
+              className="lg:hidden fixed inset-x-0 z-[85] px-3"
+              style={{ bottom: 'calc(4.25rem + 1px + env(safe-area-inset-bottom, 0px))' }}
             >
               <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-slate-900/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between">
@@ -214,7 +214,7 @@ export function MobileBottomNav({
       </AnimatePresence>
 
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-[80] border-t border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.35)]"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-[80] border-t border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.35)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         aria-label="Primary navigation"
       >
@@ -249,7 +249,7 @@ export function MobileBottomNav({
                 </span>
                 <span
                   className={cn(
-                    'text-[8px] font-black uppercase tracking-wide leading-none text-center px-0.5',
+                    'text-[10px] font-black uppercase tracking-wide leading-none text-center px-0.5',
                     (isSectionActive || isExpanded) && 'text-brand-primary'
                   )}
                 >

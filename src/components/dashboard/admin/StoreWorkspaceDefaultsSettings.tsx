@@ -24,6 +24,21 @@ export function StoreWorkspaceDefaultsSettings({
   defaults,
   onChange,
 }: StoreWorkspaceDefaultsSettingsProps) {
+  // Typing in the number field used to write to Firestore (plus two audit-log docs
+  // and a toast) on every keystroke. Hold a local draft and commit on blur/Enter.
+  const [followUpDraft, setFollowUpDraft] = React.useState(String(defaults.followUpDays ?? 3));
+
+  React.useEffect(() => {
+    setFollowUpDraft(String(defaults.followUpDays ?? 3));
+  }, [defaults.followUpDays]);
+
+  const commitFollowUp = () => {
+    const next = clampFollowUpDays(parseInt(followUpDraft, 10) || 3);
+    setFollowUpDraft(String(next));
+    if (next === (defaults.followUpDays ?? 3)) return;
+    onChange({ storeWorkspaceDefaults: { ...defaults, followUpDays: next } });
+  };
+
   return (
     <div className="space-y-4 pt-4 border-t border-white/5">
       <div>
@@ -42,15 +57,12 @@ export function StoreWorkspaceDefaultsSettings({
             type="number"
             min={1}
             max={14}
-            value={defaults.followUpDays ?? 3}
-            onChange={(e) =>
-              onChange({
-                storeWorkspaceDefaults: {
-                  ...defaults,
-                  followUpDays: clampFollowUpDays(parseInt(e.target.value, 10) || 3),
-                },
-              })
-            }
+            value={followUpDraft}
+            onChange={(e) => setFollowUpDraft(e.target.value)}
+            onBlur={commitFollowUp}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
             className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
           />
         </div>

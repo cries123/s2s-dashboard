@@ -58,6 +58,32 @@ export default function LoginView() {
       getDealershipEnrollmentCode(selectedDealershipId, null)
     : '';
 
+  /** Firebase error codes are not user-facing copy. */
+  const friendlyAuthError = (err: unknown): string => {
+    const code = (err as { code?: string })?.code || '';
+    switch (code) {
+      case 'auth/invalid-credential':
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+        return 'That email and password do not match an account.';
+      case 'auth/invalid-email':
+        return 'That does not look like a valid email address.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Contact your manager.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Wait a few minutes and try again.';
+      case 'auth/email-already-in-use':
+        return 'An account already exists for that email. Try signing in instead.';
+      case 'auth/weak-password':
+        return 'Choose a password of at least 6 characters.';
+      case 'auth/network-request-failed':
+        return 'Could not reach the server. Check your connection and try again.';
+      default:
+        // Our own thrown validation messages are already written for people.
+        return !code && err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+    }
+  };
+
   const showMessage = (text: string, isError = false) => {
     setMessage({ text, isError });
     setTimeout(() => setMessage(null), 5000);
@@ -69,7 +95,7 @@ export default function LoginView() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      showMessage(err.message, true);
+      showMessage(friendlyAuthError(err), true);
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +160,7 @@ export default function LoginView() {
       );
       setMode('login');
     } catch (err: any) {
-      showMessage(err.message, true);
+      showMessage(friendlyAuthError(err), true);
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +174,7 @@ export default function LoginView() {
       showMessage('Password reset email sent.', false);
       setMode('login');
     } catch (err: any) {
-      showMessage(err.message, true);
+      showMessage(friendlyAuthError(err), true);
     } finally {
       setIsLoading(false);
     }

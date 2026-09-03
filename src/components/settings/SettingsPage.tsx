@@ -15,7 +15,7 @@ import {
   CrmDensity,
 } from '../../types';
 import { CONTACT_OUTCOMES } from '../../lib/contactOutcomes';
-import { clampFollowUpDays } from '../../lib/userPreferencesDefaults';
+import { clampFollowUpDays, DEFAULT_FOLLOW_UP_DAYS } from '../../lib/userPreferencesDefaults';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../hooks/useAuth';
 import { DealershipProfileField } from '../ui/DealershipProfileField';
@@ -174,7 +174,12 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
       )}
       <button
         type="button"
-        onClick={() => wrapSave(resetPreferences)}
+        onClick={() =>
+          wrapSave(async () => {
+            await resetPreferences();
+            setFollowUpDraft(String(DEFAULT_FOLLOW_UP_DAYS));
+          })
+        }
         disabled={saving}
         className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-[10px] font-black uppercase tracking-wider text-slate-300 disabled:opacity-50"
       >
@@ -255,7 +260,7 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
               Apply
             </button>
           </div>
-          <p className="text-[9px] text-slate-600 mt-1">1–14 days. Used for stale follow-up detection in alerts and CRM.</p>
+          <p className="text-[9px] text-slate-600 mt-1">1–14 days. Applied to new staff workspaces created from this store's defaults.</p>
         </div>
         <SelectField
           label="Default contact outcome"

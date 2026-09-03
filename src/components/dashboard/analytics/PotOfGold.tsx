@@ -54,6 +54,8 @@ const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
 
 interface PotOfGoldProps {
   currentDealershipId: string;
+  /** Store settings; reserved for payout labels and targets. */
+  dealershipSettings?: unknown;
 }
 
 export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => {
@@ -119,6 +121,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     try {
       await setDoc(docRef, {
         ...updates,
+        dealershipId: currentDealershipId,
         updatedAt: serverTimestamp(),
         updatedBy: user.uid
       }, { merge: true });
@@ -442,13 +445,6 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 {isAiProcessing ? 'Deep Multi-Audit...' : 'PDF Multi-Audit'}
               </button>
 
-              <button
-                onClick={() => alert("Data validation check: OK. Format alignment matches schema.")}
-                className="btn-secondary text-[10px] font-black uppercase tracking-widest"
-              >
-                <Shield size={16} className="text-brand-primary" />
-                Format Validator
-              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2.5 px-5 py-3.5 card-base rounded-2xl shadow-xl">

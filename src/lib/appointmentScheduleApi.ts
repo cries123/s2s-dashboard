@@ -26,9 +26,19 @@ export async function fetchDayAppointmentSchedule(
   const res = await fetch(`/api/pbs/appointment-schedule/${encodeURIComponent(date)}${query}`, {
     headers,
   });
-  const data = (await res.json()) as DayAppointmentScheduleResponse & { error?: string };
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to load day schedule from PBS.');
+    // The body may be an HTML error page rather than JSON, so never parse before
+    // checking status — that is what surfaced "SyntaxError: Unexpected token '<'".
+    const detail = await res.text().catch(() => '');
+    let message = 'Could not load the day schedule.';
+    try {
+      const parsed = JSON.parse(detail) as { error?: string };
+      if (parsed.error) message = parsed.error;
+    } catch {
+      if (res.status === 401) message = 'Your session expired. Sign in again to load the schedule.';
+      else if (res.status === 403) message = 'The day schedule is not available for your store.';
+    }
+    throw new Error(message);
   }
-  return data;
+  return (await res.json()) as DayAppointmentScheduleResponse;
 }

@@ -92,7 +92,14 @@ export const logSystemAction = async (
   tenantId?: string
 ) => {
   const path = 'artifacts/hyundai-sales-to-service/public/audit/systemLogs';
-  const resolvedTenant = tenantId || dealershipId || 'hyundai';
+  const resolvedDealership = dealershipId || 'hyundai';
+  const resolvedTenant =
+    tenantId ||
+    (resolvedDealership === 'nissan'
+      ? 'nissan-mazda'
+      : resolvedDealership === 'ford'
+        ? 'ford-lincoln'
+        : 'hyundai');
   try {
     const logsRef = collection(db, path);
     await addDoc(logsRef, {
@@ -101,7 +108,7 @@ export const logSystemAction = async (
       category,
       userEmail: userEmail || auth.currentUser?.email || 'unknown',
       username: username || 'System/Guest',
-      dealershipId: dealershipId || 'hyundai',
+      dealershipId: resolvedDealership,
       tenantId: resolvedTenant,
       timestamp: serverTimestamp()
     });

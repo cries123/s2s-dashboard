@@ -1555,7 +1555,7 @@ export default function FixedOpsForecast({
               <!-- Left Column: CAPACITY METRICS -->
               <div class="space-y-4">
                 <div class="border-l-3 border-indigo-600 pl-3">
-                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calender capacity</span>
+                  <span class="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar capacity</span>
                 </div>
                 <div class="space-y-2.5 font-medium text-xs">
                   <div class="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -2394,7 +2394,7 @@ export default function FixedOpsForecast({
             </div>
 
             {/* KEY PERFORMANCE INDICATORS (KPIs): Bento Boxes */}
-            <div className="grid grid-cols-4 gap-5 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 py-2">
               <div className="p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col justify-between shadow-sm">
                 <span className="text-[10px] uppercase text-slate-500 font-extrabold tracking-wider block">Projected Net Hours</span>
                 <div className="mt-2 text-xl font-mono font-black text-slate-900 whitespace-nowrap">{calculations.totalNetProjectedHours.toFixed(1)} <span className="text-xs text-slate-400 font-normal">hrs</span></div>
@@ -2421,8 +2421,8 @@ export default function FixedOpsForecast({
             </div>
 
             {/* REVENUE STRATEGY MIX TABLE */}
-            <div className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full text-left font-mono text-xs">
+            <div className="border border-slate-200/80 rounded-2xl overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[560px] text-left font-mono text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase text-[9.5px] tracking-wider">
                     <th className="py-3.5 px-4 font-bold">Revenue Block</th>
@@ -2481,7 +2481,7 @@ export default function FixedOpsForecast({
               {/* Capacity block */}
               <div className="space-y-4">
                 <div className="border-l-3 border-indigo-600 pl-3">
-                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calender capacity</span>
+                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar capacity</span>
                 </div>
                 <div className="space-y-2.5 font-medium text-xs">
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">

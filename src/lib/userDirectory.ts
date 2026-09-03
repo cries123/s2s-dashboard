@@ -43,24 +43,30 @@ export function subscribeTenantUsers(
     );
   }
 
-  const merged = new Map<string, User>();
+  // Keep each listener's snapshot separately and rebuild on every publish. A single
+  // shared accumulator was never pruned, so removed staff lingered forever.
+  const tenantDocs = new Map<string, User>();
+  const legacyDocs = new Map<string, User>();
   const dealershipId = getTenantProfile(scopeTenantId)?.dealershipId;
   let tenantReady = false;
   let legacyReady = !dealershipId;
 
   const publish = () => {
     if (!tenantReady || !legacyReady) return;
+    const merged = new Map<string, User>(legacyDocs);
+    tenantDocs.forEach((user, uid) => merged.set(uid, user));
     onData(mergeTenantUsers(scopeTenantId, merged));
   };
 
   const unsubTenant = onSnapshot(
     query(usersCollection(), where('tenantId', '==', scopeTenantId)),
     (snapshot) => {
-      snapshot.docs.forEach((docSnap) => {
-        const user = normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() });
-        merged.set(user.uid, user);
-      });
-      tenantReady = true;
+      tenantDocs.clear();
+        snapshot.docs.forEach((docSnap) => {
+          const user = normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() });
+          tenantDocs.set(user.uid, user);
+        });
+        tenantReady = true;
       publish();
     },
     (error) => onError?.(error)
@@ -71,10 +77,11 @@ export function subscribeTenantUsers(
     unsubLegacy = onSnapshot(
       query(usersCollection(), where('dealershipId', '==', dealershipId)),
       (snapshot) => {
+        legacyDocs.clear();
         snapshot.docs.forEach((docSnap) => {
           const user = normalizeUserProfile({ uid: docSnap.id, ...docSnap.data() });
           if (userBelongsToTenant(user, scopeTenantId)) {
-            merged.set(user.uid, user);
+            legacyDocs.set(user.uid, user);
           }
         });
         legacyReady = true;

@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc, query, where
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
-import { User, DailyStat } from '../../../types';
+import { User, DailyStat, UserPreferences } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
@@ -16,6 +16,7 @@ import { TechnicianEfficiency } from './TechnicianEfficiency';
 import { PerformancePrintModal } from './PerformancePrintModal';
 import { ArchiveControlModal } from './ArchiveControlModal';
 import { cn } from '../../../lib/utils';
+import { isPreviewMode } from '../../../lib/previewMode';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   addDaysToDateString,
@@ -132,6 +133,8 @@ function ProjectionProgressBar({ percent, onTrack }: { percent: number; onTrack:
 interface AppointmentsProps {
   currentUser: User;
   currentDealershipId: string;
+  /** Dashboard module toggles from Settings. Omitted means "show everything". */
+  modulePrefs?: Partial<UserPreferences['dashboardModules']>;
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -157,7 +160,12 @@ interface FirestoreErrorInfo {
   }
 }
 
-export default function Appointments({ currentUser, currentDealershipId, onSuccess, onError }: AppointmentsProps) {
+export default function Appointments({ currentUser, currentDealershipId, modulePrefs, onSuccess, onError }: AppointmentsProps) {
+  // Absent flags mean 'show it' — a user with no saved preferences sees everything.
+  const showProjections = modulePrefs?.showOperationsProjections !== false;
+  const showAdvisorPerformance = modulePrefs?.showAdvisorPerformance !== false;
+  const showTechEfficiency = modulePrefs?.showTechEfficiency !== false;
+  const showArchiveTools = modulePrefs?.showArchiveTools !== false;
   const [selectedDate, setSelectedDate] = useState(() => toLocalDateString(new Date()));
   const [dailyCount, setDailyCount] = useState<string>('');
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
@@ -265,8 +273,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
       }
 
       // Explicit ArchivePayload compliance: persist rich audit log metric record
-      const auditLogRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'audit', 'imports', `${targetYearMonth}_archive_payload`);
+      const auditLogRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'audit', 'imports', `${currentDealershipId}_${targetYearMonth}_archive_payload`);
       await setDoc(auditLogRef, {
+        dealershipId: currentDealershipId,
         targetYearMonth,
         dateArchived: new Date().toISOString(),
         metricsSnapshot: payload.metricsSnapshot,
@@ -275,12 +284,17 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
  
       // 4. NOW RESET ACTIVE COPIES
       // Reset active advisors to clean empty sheet
-      const initialAdvisors = [
-        { name: "Frank", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
-        { name: "Lemmy", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] },
-        { name: "Jaryn", soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0, grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [] }
-      ];
+      // Carry this store's existing roster forward with cleared figures, rather
+      // than seeding one store's advisor names into every store.
+      const existingAdvisors: Array<{ name: string }> =
+        (activeSnap.exists() ? (activeSnap.data() as { advisors?: Array<{ name: string }> }).advisors : []) || [];
+      const initialAdvisors = existingAdvisors.map((advisor) => ({
+        name: advisor.name,
+        soCount: 0, hrsSold: 0, laborSold: 0, grossLabor: 0, partsSold: 0,
+        grossParts: 0, totalSales: 0, gpPercent: 0, elr: 0, upsells: [],
+      }));
       await setDoc(activeRef, {
+        dealershipId: currentDealershipId,
         advisors: initialAdvisors,
         totals: {
           totalSales: 0,
@@ -315,6 +329,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         });
         await setDoc(activePoGRef, {
           ...data,
+          dealershipId: currentDealershipId,
           advData: clearedAdvData,
           techData: clearedTechData,
           updatedAt: serverTimestamp(),
@@ -324,6 +339,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
  
       // Reset Technician Reports in Active
       await setDoc(activeTechRef, {
+        dealershipId: currentDealershipId,
         technicians: [],
         reportStartDate: activeMonthRange.start,
         reportEndDate: activeMonthRange.end,
@@ -407,6 +423,11 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
 
   useEffect(() => {
     if (!currentDealershipId) return;
+
+    if (isPreviewMode) {
+      setLoading(false);
+      return;
+    }
 
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
     // Firestore security rules require an explicit dealershipId match to list this
@@ -768,6 +789,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         </div>
       </div>
 
+      {showProjections && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="card-base p-5 col-span-1 lg:col-span-2">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -933,6 +955,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           </div>
         </div>
       </div>
+      )}
 
       {/* Breakdown Modal */}
       <AnimatePresence>
@@ -1117,7 +1140,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
             )}
 
             {/* Dynamic Custom Archive Option - Only clickable with active tracker */}
-            {selectedMonth === 'active' && (
+            {selectedMonth === 'active' && showArchiveTools && (
               <button
                 onClick={() => setShowArchiveModal(true)}
                 className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
@@ -1177,6 +1200,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
         )}
       </AnimatePresence>
 
+      {showAdvisorPerformance && (
       <div className="card-base p-5">
         <AdvisorPerformance
           currentDealershipId={currentDealershipId}
@@ -1184,7 +1208,9 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           allowArchiveEditing={allowArchiveEditing}
         />
       </div>
+      )}
 
+      {showTechEfficiency && (
       <div className="card-base p-5">
         <TechnicianEfficiency
           currentUser={currentUser}
@@ -1196,6 +1222,7 @@ export default function Appointments({ currentUser, currentDealershipId, onSucce
           embedded
         />
       </div>
+      )}
 
 
       {/* PDF parse preview */}

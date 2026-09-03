@@ -1,4 +1,5 @@
 import {
+  UserRole,
   UserPreferences,
   ServiceDriveFilter,
   QueuePriorityProfile,
@@ -88,9 +89,11 @@ function mergeCrm(
 
 export function mergeUserPreferences(
   stored: Partial<UserPreferences> | undefined,
-  role?: Role | 'advisor'
+  role?: Role | UserRole
 ): UserPreferences {
-  const base = getRoleAwareDefaults(role === 'advisor' ? undefined : role);
+  const legacyRole = role === 'admin' || role === 'Manager' || role === 'Salesperson'
+    || role === 'Service Advisor' || role === 'Staff' ? role : undefined;
+  const base = getRoleAwareDefaults(legacyRole);
   if (!stored) return base;
 
   return {
@@ -100,6 +103,9 @@ export function mergeUserPreferences(
     crmDisplay: mergeCrm(base.crmDisplay, stored.crmDisplay),
   };
 }
+
+/** Default follow-up SLA, in days, when a user has no saved preference. */
+export const DEFAULT_FOLLOW_UP_DAYS = 3;
 
 export function clampFollowUpDays(days: number): number {
   return Math.min(14, Math.max(1, Math.round(days)));

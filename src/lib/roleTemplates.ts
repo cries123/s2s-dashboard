@@ -112,7 +112,7 @@ export function preferencesFromTemplate(
   storeDefaults?: StoreWorkspaceDefaults | null
 ): UserPreferences {
   const template = getStaffRoleTemplate(templateId);
-  const merged = mergeUserPreferences(template.preferences, 'advisor');
+  const merged = mergeUserPreferences(template.preferences as Partial<UserPreferences>, 'advisor');
 
   if (!storeDefaults) return merged;
 

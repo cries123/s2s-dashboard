@@ -1,4 +1,6 @@
-import express from "express";
+import express, { type Request } from "express";
+import compression from "compression";
+import { resolveApprovedUser, type ApprovedUser } from "./server/admin/requireApprovedUser.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -101,6 +103,8 @@ export async function createApiApp() {
   const app = express();
 
   // Middleware
+  // gzip everything — the client bundle is served from here in production.
+  app.use(compression());
   app.use(express.json({ limit: '50mb' }));
   
   // Logging Middleware
@@ -112,6 +116,35 @@ export async function createApiApp() {
   // Health check endpoint
   app.get("/api/ping", (req, res) => {
     res.json({ status: "alive", timestamp: new Date().toISOString() });
+  });
+
+  // --- Auth gate for every route that spends AI credits, touches customer data,
+  // or can send outbound messages. Applied as one middleware so a new route under
+  // these prefixes is protected by default rather than by remembering to add a guard.
+  const GUARDED_API_PREFIXES = [
+    '/api/parse-appointments',
+    '/api/parse-service-history',
+    '/api/parse-pot-of-gold',
+    '/api/parse-technician-report',
+    '/api/parse-performance',
+    '/api/parse-recall-campaign',
+    '/api/parse-sales-note',
+    '/api/estimate-value',
+    '/api/gemini-parse-dms',
+    '/api/outreach/bulk',
+    '/api/recalls/sync',
+  ];
+
+  app.use(async (req, res, next) => {
+    if (!GUARDED_API_PREFIXES.some((prefix) => req.path.startsWith(prefix))) {
+      return next();
+    }
+    const user = await resolveApprovedUser(req);
+    if (!user) {
+      return res.status(401).json({ error: 'Sign in with an approved account to use this feature.' });
+    }
+    (req as Request & { approvedUser?: ApprovedUser }).approvedUser = user;
+    return next();
   });
 
   // API Routes
@@ -1025,7 +1058,10 @@ async function startServer() {
   const PORT = 3000;
 
   // Serve static files / Vite (local dev + production Node server only)
-  if (process.env.NODE_ENV !== "production") {
+  // S2S_BUILD is stamped into the bundle by esbuild, so a built server is always
+  // production even when NODE_ENV is unset. Source runs (tsx) get the dev server.
+  const isProduction = process.env.S2S_BUILD === "production" || process.env.NODE_ENV === "production";
+  if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: {

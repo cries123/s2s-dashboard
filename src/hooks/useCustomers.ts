@@ -25,7 +25,8 @@ export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
       return;
     }
 
-    if (!dealershipId && !isAdmin) {
+    if (!dealershipId) {
+      setCustomers([]);
       setLoading(false);
       return;
     }
@@ -39,11 +40,10 @@ export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
       'customers'
     );
 
-    // Scope reads at the database when possible to reduce Firestore quota usage.
-    const q =
-      dealershipId && dealershipId !== 'hyundai'
-        ? query(collectionRef, where('dealershipId', '==', dealershipId))
-        : query(collectionRef);
+    // Always scope at the database. The rules evaluate list requests against the
+    // query, not the results, so an unfiltered read is denied outright for
+    // non-admins — and it would otherwise pull every store's customers.
+    const q = query(collectionRef, where('dealershipId', '==', dealershipId));
 
     const unsubscribe = onSnapshot(
       q,

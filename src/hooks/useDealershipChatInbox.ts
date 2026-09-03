@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { isPreviewMode } from '../lib/previewMode';
 import type { DealershipChatMessage } from '../types';
 import { subscribeDealershipInbox } from '../lib/dealershipChat';
 
@@ -9,7 +10,7 @@ export function useDealershipChatInbox(
   const [inbox, setInbox] = useState<DealershipChatMessage[]>([]);
 
   useEffect(() => {
-    if (!dealershipId || !uid) {
+    if (isPreviewMode || !dealershipId || !uid) {
       setInbox([]);
       return;
     }

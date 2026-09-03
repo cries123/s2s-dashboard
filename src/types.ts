@@ -2,6 +2,23 @@ import { Timestamp } from "firebase/firestore";
 
 export type Role = 'admin' | 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
+/** Language filter used by the CRM display preferences. */
+export type LanguageFilter = 'all' | 'english' | 'spanish';
+
+/** A row in the manager-facing audit log view. */
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  details?: string;
+  category?: string;
+  userEmail?: string;
+  username?: string;
+  dealershipId?: string;
+  tenantId?: string;
+  userId?: string;
+  timestamp?: { toDate?: () => Date } | null;
+}
+
 export type UserRole = 'admin' | 'manager' | 'advisor' | 'pending';
 export type UserDepartment = 'sales' | 'service';
 
@@ -268,6 +285,7 @@ export interface PbsSyncLogEntry {
     customersCreated: number;
     customersUpdated: number;
     ownerChanges?: number;
+    visitsLogged?: number;
     visitsMerged: number;
     appointmentDaysUpdated: number;
     appointmentsProcessed: number;

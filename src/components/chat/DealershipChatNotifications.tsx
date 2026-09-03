@@ -54,7 +54,10 @@ export function DealershipChatNotifications({
   if (activePopups.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[10040] flex flex-col gap-3 max-w-sm w-[calc(100vw-2rem)] pointer-events-none">
+    <div
+      className="fixed right-4 z-[10040] flex flex-col gap-3 max-w-sm w-[calc(100vw-2rem)] pointer-events-none"
+      style={{ bottom: 'calc(5.25rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       <AnimatePresence>
         {activePopups.map((message) => (
           <motion.div
@@ -295,7 +298,7 @@ export function DealershipChatPanel({
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <aside className="w-56 shrink-0 border-r border-slate-800 flex flex-col bg-slate-950/80">
+          <aside className="w-28 sm:w-56 shrink-0 border-r border-slate-800 flex flex-col bg-slate-950/80">
             <div className="px-3 py-2 border-b border-slate-800">
               <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 Open chats

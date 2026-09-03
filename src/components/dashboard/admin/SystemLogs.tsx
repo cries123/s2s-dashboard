@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, limit, Timestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import {
   FileText, Search, Filter, User, Calendar,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
+import { isPlatformAdmin, resolveUserDealershipId } from '../../../lib/rbac';
 import { OperationType, handleFirestoreError } from '../../../services/loggingService';
 
 interface LogEntry {
@@ -48,9 +49,20 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
       return;
     }
 
+    // Admins may inspect another store via the prop; everyone else is pinned to
+    // their own, matching what the security rules will actually allow.
+    const scopedDealershipId = isPlatformAdmin(user)
+      ? (dealershipId || resolveUserDealershipId(user))
+      : resolveUserDealershipId(user);
+
     const path = 'artifacts/hyundai-sales-to-service/public/audit/systemLogs';
     const logsRef = collection(db, path);
-    const q = query(logsRef, orderBy('timestamp', 'desc'), limit(150));
+    const q = query(
+      logsRef,
+      where('dealershipId', '==', scopedDealershipId),
+      orderBy('timestamp', 'desc'),
+      limit(150)
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const logsList = snapshot.docs.map(doc => ({
@@ -66,7 +78,7 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
     });
 
     return () => unsubscribe();
-  }, [user, authLoading]);
+  }, [user, authLoading, dealershipId]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {

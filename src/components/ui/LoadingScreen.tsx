@@ -88,7 +88,7 @@ export function LoadingScreen() {
             transition={{ delay: 1 }}
             className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]"
           >
-            Securing Neural Database Connection...
+            Connecting securely
           </motion.p>
         </div>
       </div>

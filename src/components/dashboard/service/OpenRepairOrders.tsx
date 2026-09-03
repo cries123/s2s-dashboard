@@ -469,7 +469,7 @@ export default function OpenRepairOrders({
                                 </span>
                               ) : null}
                               {hasCrmMatch ? (
-                                <User size={12} className="shrink-0 text-brand-primary opacity-70" title="Matched in customer directory" />
+                                <span title="Matched in customer directory" className="inline-flex shrink-0"><User size={12} className="text-brand-primary opacity-70" /></span>
                               ) : null}
                             </>
                           ) : (

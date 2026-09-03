@@ -8,7 +8,7 @@ const LEGACY_DEPARTMENT_MAP: Record<string, DepartmentColumnId> = {
   mobile_repair: 'down_in_shop',
 };
 
-const PRODUCTION_LANE_IDS = new Set(
+const PRODUCTION_LANE_IDS = new Set<string>(
   DISPATCH_PRODUCTION_LANES.map((lane) => lane.id).filter((id) => id !== 'down_in_shop')
 );
 

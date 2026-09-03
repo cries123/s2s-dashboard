@@ -11,7 +11,8 @@ export type AppTab =
   | 'forecast'
   | 'dispatch'
   | 'open-ros'
-  | 'sales-performance';
+  | 'sales-performance'
+  | 'settings';
 
 export type AdminSubTab =
   | 'users'
@@ -43,6 +44,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/schedule': { activeTab: 'schedule' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
+  '/settings': { activeTab: 'settings' },
   '/reports/forecast': { activeTab: 'forecast' },
   '/manager/operations': { activeTab: 'manager', managerSubTab: 'operations' },
   '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
@@ -133,6 +135,8 @@ export function buildAppPath(state: AppRouteState): string {
       return '/reports/schedule';
     case 'sales-performance':
       return '/reports/sales-performance';
+    case 'settings':
+      return '/settings';
     case 'forecast':
       return '/reports/forecast';
     default:
@@ -175,6 +179,15 @@ export function storeDealershipId(dealershipId: string): void {
   if (typeof window === 'undefined') return;
   try {
     sessionStorage.setItem(DEALERSHIP_STORAGE_KEY, dealershipId);
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+export function clearStoredDealershipId(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(DEALERSHIP_STORAGE_KEY);
   } catch {
     /* ignore storage errors */
   }

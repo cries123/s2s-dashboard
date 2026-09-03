@@ -1,0 +1,38 @@
+# Replaces the previous "Deploy to Firebase Hosting on merge" workflow.
+#
+# That workflow deployed to the Firebase Hosting `live` channel on every push to
+# main, but (a) it supplied no VITE_FIREBASE_* variables, so the bundle threw at
+# module scope and published a white screen, and (b) firebase.json rewrote `**` to
+# index.html, which swallowed /api/*, leaving the Express backend unreachable.
+# Netlify is production (see netlify.toml — it hosts the API function and the
+# scheduled PBS sync), so main is deployed by Netlify and CI just guards quality.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Firestore rules tests
+        run: npm run test:rules
+
+      - name: Build
+        run: npm run build

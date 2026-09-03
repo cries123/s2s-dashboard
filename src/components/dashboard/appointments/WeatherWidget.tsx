@@ -27,13 +27,9 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         const data = await res.json();
         setWeather(data.current);
       } catch (err) {
-        // Quietly fail and use fallback - API might be blocked or rate-limited
-        setWeather({
-          temperature_2m: 68,
-          weather_code: 1, // Partly cloudy
-          wind_speed_10m: 8,
-          apparent_temperature: 68
-        });
+        // Never show invented weather as if it were a live reading — the widget
+        // hides itself instead.
+        setWeather(null);
       } finally {
         setLoading(false);
       }
@@ -57,6 +53,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     if (code >= 51) return "Rainy";
     return "Overcast";
   };
+
+  // No live reading available (offline, blocked, or rate-limited): render nothing
+  // rather than a plausible-looking invented one.
+  if (!loading && !weather) return null;
 
   if (loading) return (
     <div className="flex items-center justify-center p-6 bg-slate-900/50 rounded-2xl border border-slate-800">

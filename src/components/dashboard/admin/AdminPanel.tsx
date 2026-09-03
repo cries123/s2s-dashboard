@@ -225,13 +225,24 @@ export default function AdminPanel({
   const updateSetting = async (id: string, updates: any) => {
     try {
       const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', id);
+      // Firestore rejects undefined. Clearing a value means dropping the key, not
+      // writing undefined into it.
+      const stripUndefined = (value: any): any => {
+        if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+        return Object.fromEntries(
+          Object.entries(value)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, stripUndefined(v)])
+        );
+      };
+      const cleanUpdates = stripUndefined(updates);
       await setDoc(settingsRef, {
-        ...updates,
+        ...cleanUpdates,
         id,
         updatedAt: serverTimestamp()
       }, { merge: true });
       
-      const details = Object.entries(updates)
+      const details = Object.entries(cleanUpdates)
         .map(([k, v]) => `${k} set to ${v}`)
         .join(', ');
       

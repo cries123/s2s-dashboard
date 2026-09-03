@@ -6,10 +6,24 @@ import { defineConfig } from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          // Split the heavy vendors out of the entry chunk so the shell paints
+          // without waiting on charting, animation and the Firebase SDK.
+          manualChunks: {
+            react: ['react', 'react-dom'],
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            charts: ['recharts'],
+          },
+        },
+      },
+    },
     // Never inject API keys into the client bundle — server routes only.
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, 'src'),
       },
     },
     server: {

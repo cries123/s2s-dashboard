@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { Printer, X, FileText, Loader2, BarChart2, TrendingUp, ShieldAlert, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -119,10 +119,12 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
   const [technicians, setTechnicians] = useState<TechnicianData[]>([]);
   const [loadingAdvisors, setLoadingAdvisors] = useState(true);
   const [loadingTechs, setLoadingTechs] = useState(true);
-  const [advisorStartDate, setAdvisorStartDate] = useState("2026-05-01");
-  const [advisorEndDate, setAdvisorEndDate] = useState("2026-05-28");
-  const [techStartDate, setTechStartDate] = useState("2026-05-16");
-  const [techEndDate, setTechEndDate] = useState("2026-05-28");
+  // Empty until the performance document supplies a real range — never invent dates
+  // on a document that goes in front of a customer.
+  const [advisorStartDate, setAdvisorStartDate] = useState("");
+  const [advisorEndDate, setAdvisorEndDate] = useState("");
+  const [techStartDate, setTechStartDate] = useState("");
+  const [techEndDate, setTechEndDate] = useState("");
   const [appointments, setAppointments] = useState<any[]>([]);
 
   // Capitalize dealership name
@@ -181,7 +183,10 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
 
     // 3. Subscribe to Appointments
     const apptPath = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const apptRef = collection(db, apptPath);
+    const apptRef = query(
+      collection(db, apptPath),
+      where('dealershipId', '==', currentDealershipId)
+    );
     const unsubAppts = onSnapshot(apptRef, (snap) => {
       let stats = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       stats = stats.filter(s => {

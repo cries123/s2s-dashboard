@@ -90,6 +90,7 @@ export const PREVIEW_CUSTOMERS: Customer[] = [
     createdAt: previewNow,
     addedBy: 'preview-user',
     dealershipId: 'ford',
+    addedByUsername: 'Preview User',
     lastServiceDate: '2026-07-07',
     recentVisits: PREVIEW_SERVICE_VISITS,
   },

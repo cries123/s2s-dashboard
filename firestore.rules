@@ -36,24 +36,44 @@ service cloud.firestore {
                 : 'hyundai'));
     }
 
+    function dealershipIdForTenant(tenantId) {
+      return tenantId == 'nissan-mazda'
+        ? 'nissan'
+        : (tenantId == 'ford-lincoln' ? 'ford' : 'hyundai');
+    }
+
+    function userDealershipId() {
+      return userExists() && 'dealershipId' in userData() && userData().dealershipId is string
+        ? userData().dealershipId
+        : dealershipIdForTenant(userTenantId());
+    }
+
     function isProtectedAccount(data) {
       return data.email == 'admin@hyundai.com';
     }
 
-    function isAdmin() {
-      return isSignedIn() &&
-             'email' in request.auth.token &&
+    // An email claim is only trustworthy once Firebase has verified it. Without
+    // email_verified, anyone who registers an unclaimed address in this project
+    // inherits admin. The role == 'admin' path below does not depend on email.
+    function hasVerifiedAdminEmail() {
+      return 'email' in request.auth.token &&
+             request.auth.token.email_verified == true &&
              (request.auth.token.email == 'admin@hyundai.com' ||
               request.auth.token.email == 'jaryn.b.healey@gmail.com' ||
               request.auth.token.email == 'Jaryn.B.Healey@gmail.com' ||
               request.auth.token.email == 'jaryn.healey@hyundaigp.com' ||
-              request.auth.token.email == 'Jaryn.Healey@hyundaigp.com' ||
-              (userExists() && userData().role == 'admin'));
+              request.auth.token.email == 'Jaryn.Healey@hyundaigp.com');
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+             ((userExists() && userData().role == 'admin') || hasVerifiedAdminEmail());
     }
 
     function isApproved() {
       return isAdmin() ||
              (userExists() &&
+              userData().approved != false &&
               (userData().approved == true ||
                userData().status == 'approved' ||
                userData().role == 'admin'));
@@ -121,10 +141,20 @@ service cloud.firestore {
     match /artifacts/hyundai-sales-to-service/public/data/users/{userId} {
       allow create: if isSignedIn() &&
                        request.auth.uid == userId &&
-                       incoming().tenantId is string &&
+                       incoming().tenantId in ['hyundai', 'nissan-mazda', 'ford-lincoln'] &&
+                       incoming().dealershipId == dealershipIdForTenant(incoming().tenantId) &&
                        incoming().department in ['sales', 'service'] &&
                        (incoming().role == 'pending' || incoming().role == 'manager' || incoming().role == 'Manager') &&
-                       incoming().approved == false;
+                       incoming().approved == false &&
+                       incoming().status == 'pending' &&
+                       // A self-selected manager enrolment may set isManager, but it
+                       // grants nothing until someone approves it: isApproved()
+                       // requires approved == true or status == 'approved', and both
+                       // are pinned above. Any other role must not set the flag.
+                       (!('isManager' in incoming()) ||
+                        incoming().isManager == false ||
+                        incoming().role == 'manager' ||
+                        incoming().role == 'Manager');
 
       allow get: if isSignedIn() && (
         request.auth.uid == userId ||
@@ -178,17 +208,10 @@ service cloud.firestore {
 
     // --- Settings & Metadata ---
     match /artifacts/hyundai-sales-to-service/public/data/dealershipSettings/{dealershipId} {
-      allow read: if isSignedIn();
+      allow read: if isAdmin() ||
+        (isApproved() && userDealershipId() == dealershipId);
       allow write: if isAdmin() ||
         (isTenantManager() && userExists() && userData().dealershipId == dealershipId);
-    }
-
-    function userDealershipId() {
-      return userExists() && 'dealershipId' in userData() && userData().dealershipId is string
-        ? userData().dealershipId
-        : (userTenantId() == 'nissan-mazda'
-            ? 'nissan'
-            : (userTenantId() == 'ford-lincoln' ? 'ford' : 'hyundai'));
     }
 
     // Docs written before multi-tenant support carry no dealershipId and belonged to
@@ -297,13 +320,23 @@ service cloud.firestore {
 
     // --- Audit Logs (Import History) ---
     match /artifacts/hyundai-sales-to-service/public/audit/imports/{docId} {
-      allow read: if isApproved() || isAdmin();
-      allow write: if isAdmin();
+      allow read: if isAdmin() ||
+        (isApproved() && resource.data.dealershipId == userDealershipId());
+      // Month-end "Archive & Reset" is run by managers, not only admins. They may
+      // write import-audit records for their own store, and nothing else.
+      allow create: if isAdmin() ||
+        (isApproved() && incoming().dealershipId == userDealershipId());
+      allow update: if isAdmin() ||
+        (isApproved() &&
+         resource.data.dealershipId == userDealershipId() &&
+         incoming().dealershipId == userDealershipId());
+      allow delete: if isAdmin();
     }
 
     // --- System Activity Logs ---
     match /artifacts/hyundai-sales-to-service/public/audit/systemLogs/{logId} {
-      allow read: if isApproved() || isAdmin() || (isTenantManager() && resource.data.dealershipId == userData().dealershipId);
+      allow read: if isAdmin() ||
+        (isApproved() && resource.data.dealershipId == userDealershipId());
       // Was `isSignedIn()` — let any pending/unapproved account write audit-log
       // entries. Approved staff, admins, and the internal sync worker only.
       allow write: if isApproved() || isAdmin() || isSystemWorker();

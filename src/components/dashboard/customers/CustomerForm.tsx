@@ -236,7 +236,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
       onSuccess("Customer successfully registered & enrolled in retention cycles!");
       setFormData({
         firstName: '', lastName: '', phone: '', email: '',
-        make: 'Hyundai', model: '', vinLast8: '', soldDate: '',
+        make: 'Hyundai', model: '', vin: '', vinLast8: '', soldDate: '',
         language: 'English', enableServiceAlert: true, soldByUserId: '', notes: ''
       });
     } catch (err: any) {

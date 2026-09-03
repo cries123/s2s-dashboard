@@ -50,6 +50,24 @@ function handlePbsError(res: Response, err: unknown) {
   return res.status(500).json({ error: err instanceof Error ? err.message : 'PBS request failed' });
 }
 
+/**
+ * Guard for the raw PBS passthrough lookups. These hit PartnerHUB with the server's
+ * own credentials and return unfiltered customer PII, so they require an approved
+ * caller who belongs to the PBS-synced store (or an admin).
+ */
+async function requirePbsLookupCaller(req: Request, res: Response) {
+  const user = await resolveApprovedUser(req);
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized PBS lookup request.' });
+    return null;
+  }
+  if (!user.isAdmin && user.dealershipId !== PBS_AUTOMATED_SYNC_DEALERSHIP_ID) {
+    res.status(403).json({ error: 'PBS lookups are not available for your store.' });
+    return null;
+  }
+  return user;
+}
+
 /** Public config check — same pattern as /api/ai-config (no secrets). */
 export function registerPbsRoutes(app: Express) {
   app.get('/api/pbs/config', (_req, res) => {
@@ -57,7 +75,10 @@ export function registerPbsRoutes(app: Express) {
   });
 
   /** Lightweight connectivity test — returns small sample counts only. */
-  app.post('/api/pbs/test-connection', async (_req, res) => {
+  app.post('/api/pbs/test-connection', async (req: Request, res: Response) => {
+    const caller = await requirePbsLookupCaller(req, res);
+    if (!caller) return;
+
     if (!isPbsPartnerHubConfigured()) {
       return res.status(503).json({
         ok: false,
@@ -91,6 +112,9 @@ export function registerPbsRoutes(app: Express) {
 
   /** Lookup helpers for debugging / future sync jobs. */
   app.post('/api/pbs/contact-get', async (req: Request, res: Response) => {
+    const caller = await requirePbsLookupCaller(req, res);
+    if (!caller) return;
+
     try {
       const data = await pbsContactGet(req.body ?? {});
       res.json(data);
@@ -100,6 +124,9 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/contact-vehicle-get', async (req: Request, res: Response) => {
+    const caller = await requirePbsLookupCaller(req, res);
+    if (!caller) return;
+
     try {
       const data = await pbsContactVehicleGet(req.body ?? {});
       res.json(data);
@@ -109,6 +136,9 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/repair-order-get', async (req: Request, res: Response) => {
+    const caller = await requirePbsLookupCaller(req, res);
+    if (!caller) return;
+
     try {
       const data = await pbsRepairOrderGet(req.body ?? {});
       res.json(data);
@@ -118,6 +148,9 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/appointment-get', async (req: Request, res: Response) => {
+    const caller = await requirePbsLookupCaller(req, res);
+    if (!caller) return;
+
     try {
       const data = await pbsAppointmentGet(req.body ?? {});
       res.json(data);
@@ -127,6 +160,9 @@ export function registerPbsRoutes(app: Express) {
   });
 
   app.post('/api/pbs/parts-invoice-get', async (req: Request, res: Response) => {
+    const caller = await requirePbsLookupCaller(req, res);
+    if (!caller) return;
+
     try {
       const data = await pbsPartsInvoiceGet(req.body ?? {});
       res.json(data);
@@ -327,6 +363,9 @@ export function registerPbsRoutes(app: Express) {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized open repair orders request.' });
     }
+    if (!user.isAdmin && user.dealershipId !== PBS_AUTOMATED_SYNC_DEALERSHIP_ID) {
+      return res.status(403).json({ error: 'Open repair orders are not available for your store.' });
+    }
 
     if (!isPbsPartnerHubConfigured()) {
       return res.status(503).json({
@@ -353,6 +392,9 @@ export function registerPbsRoutes(app: Express) {
     const user = await resolveApprovedUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized open repair order detail request.' });
+    }
+    if (!user.isAdmin && user.dealershipId !== PBS_AUTOMATED_SYNC_DEALERSHIP_ID) {
+      return res.status(403).json({ error: 'Open repair orders are not available for your store.' });
     }
 
     const repairOrderId = String(req.params.repairOrderId || '').trim();
@@ -385,6 +427,9 @@ export function registerPbsRoutes(app: Express) {
     const user = await resolveApprovedUser(req);
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized appointment schedule request.' });
+    }
+    if (!user.isAdmin && user.dealershipId !== PBS_AUTOMATED_SYNC_DEALERSHIP_ID) {
+      return res.status(403).json({ error: 'The appointment schedule is not available for your store.' });
     }
 
     const date = String(req.params.date || '').trim();
