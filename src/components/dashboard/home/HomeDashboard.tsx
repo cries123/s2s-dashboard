@@ -10,6 +10,7 @@ import { normalizeDispatchOrder } from '../../../lib/dispatchTransitions';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
 import { isPreviewMode } from '../../../lib/previewMode';
 import { getDispatchDatePst } from '../../../lib/dispatchPst';
+import { appointmentTrackerDoc, toLocalDateString } from '../../../lib/appointmentTracker';
 import { buildPreviewDispatchOrders } from '../../../lib/previewFixtures';
 import { KpiStrip, type KpiTile } from '../../ui/KpiStrip';
 import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
@@ -97,6 +98,26 @@ export function HomeDashboard({
     [activeOrders, now]
   );
 
+  // Appointments booked for today, from the same tracker the Operations tab uses.
+  const [todayAppointments, setTodayAppointments] = useState<number | null>(null);
+  useEffect(() => {
+    if (isPreviewMode || !currentDealershipId) {
+      setTodayAppointments(isPreviewMode ? 0 : null);
+      return;
+    }
+    const today = toLocalDateString(new Date());
+    const ref = appointmentTrackerDoc(db, currentDealershipId, today);
+    const unsub = onSnapshot(
+      ref,
+      (snap) => setTodayAppointments(snap.exists() ? Number(snap.data()?.count) || 0 : 0),
+      (err) => {
+        console.error('[Home] today appointments', err);
+        setTodayAppointments(null);
+      }
+    );
+    return () => unsub();
+  }, [currentDealershipId]);
+
   const alertRows = useMemo(() => {
     const rows = customers
       .filter(serviceAlerts.isServiceAlertActive)
@@ -137,10 +158,10 @@ export function HomeDashboard({
       tone: 'info',
     },
     {
-      label: 'Past promise time',
-      value: String(pastPromise.length),
-      sublabel: pastPromise.length ? 'need attention' : 'all on time',
-      tone: pastPromise.length ? 'warning' : 'success',
+      label: 'Appointments today',
+      value: todayAppointments === null ? '—' : todayAppointments.toLocaleString(),
+      sublabel: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      tone: 'info',
     },
     {
       label: 'Calls due this week',

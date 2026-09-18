@@ -790,17 +790,17 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card-base px-5 py-4">
-          <p className="crm-label">Appt forecast</p>
-          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{Math.round(metrics.forecast).toLocaleString()}</p>
+          <p className="crm-label">Appointments {periodLabel}</p>
+          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{metrics.monthTotal.toLocaleString()}</p>
           <p className="crm-label mt-1.5">
-            {metrics.monthTotal.toLocaleString()} {periodLabel} · {metrics.daysRemaining} working days left
+            Trending {Math.round(metrics.forecast).toLocaleString()} · {metrics.daysRemaining} working days left
           </p>
         </div>
         <div className="card-base px-5 py-4">
-          <p className="crm-label">Labor pace</p>
-          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">${Math.round(metrics.laborDailyAvg).toLocaleString()}<span className="text-lg text-slate-400 font-medium">/day</span></p>
+          <p className="crm-label">Labor gross {periodLabel}</p>
+          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">${Math.round(metrics.mtdGross).toLocaleString()}</p>
           <p className="crm-label mt-1.5">
-            ${Math.round(metrics.mtdGross).toLocaleString()} {periodLabel} · goal ${Math.round(metrics.laborTarget).toLocaleString()}
+            ${Math.round(metrics.laborDailyAvg).toLocaleString()}/day · goal ${Math.round(metrics.laborTarget).toLocaleString()}
           </p>
         </div>
       </div>
@@ -824,15 +824,18 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                 <div key={kpi.label} className="rounded-lg border p-4" style={{ borderColor: 'var(--color-surface-border)' }}>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="crm-label">{kpi.label}</span>
-                    <span className={cn('badge text-[10px] shrink-0', onTrack ? 'badge-success' : 'badge-error')}>
+                    <span
+                      className={cn('badge text-[10px] shrink-0', onTrack ? 'badge-success' : 'badge-error')}
+                      title={`Projected month-end: ${formatProjectionValue(kpi.forecast, kpi.isCurrency)} against a ${formatProjectionValue(kpi.target, kpi.isCurrency)} goal`}
+                    >
                       {onTrack ? 'On track' : 'Shortfall'}
                     </span>
                   </div>
-                  <p className="text-xl font-semibold tabular-nums mb-3">{formatProjectionValue(kpi.forecast, kpi.isCurrency)}</p>
+                  <p className="text-xl font-semibold tabular-nums mb-3">{formatProjectionValue(kpi.current, kpi.isCurrency)}</p>
                   <div className="grid grid-cols-3 gap-2 text-xs mb-3">
                     <div>
-                      <p className="crm-label">{periodLabel}</p>
-                      <p className="font-medium tabular-nums">{formatProjectionValue(kpi.current, kpi.isCurrency)}</p>
+                      <p className="crm-label">Trending</p>
+                      <p className="font-medium tabular-nums">{formatProjectionValue(kpi.forecast, kpi.isCurrency)}</p>
                     </div>
                     <div>
                       <p className="crm-label">Pace</p>

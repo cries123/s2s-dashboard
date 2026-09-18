@@ -23,7 +23,6 @@ import { CustomerDirectory } from './components/dashboard/customers/CustomerDire
 const AdminPanel = React.lazy(() => import('./components/dashboard/admin/AdminPanel'));
 const ManagerDashboard = React.lazy(() => import('./components/dashboard/admin/ManagerDashboard'));
 const VinLookup = React.lazy(() => import('./components/dashboard/vin/VinLookup').then(m => ({ default: m.VinLookup })));
-import { WeatherWidget } from './components/dashboard/appointments/WeatherWidget';
 const PotOfGold = React.lazy(() => import('./components/dashboard/analytics/PotOfGold').then(m => ({ default: m.PotOfGold })));
 const FixedOpsForecast = React.lazy(() => import('./components/dashboard/admin/FixedOpsForecast'));
 const DispatchBoard = React.lazy(() => import('./components/dashboard/appointments/DispatchBoard').then(m => ({ default: m.DispatchBoard })));
@@ -627,8 +626,7 @@ function DashboardShell({ user }: { user: User }) {
 
           {activeTab === 'appointments' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              {modules.showWeatherWidget && <WeatherWidget lat={mergedDealershipSettings.weatherLat} lon={mergedDealershipSettings.weatherLon} displayCity={mergedDealershipSettings.weatherDisplayCity} />}
-              <Appointments
+                <Appointments
                 customers={customers}
                 currentUser={currentUser}
                 currentDealershipId={currentDealershipId || 'hyundai'}
