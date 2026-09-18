@@ -1,28 +1,49 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-export type ThemeMode = 'dark';
+export type ThemeMode = 'dark' | 'light';
 
 interface ThemeContextValue {
   theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
 }
 
+const STORAGE_KEY = 's2s-theme';
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
+function readStored(): ThemeMode {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY);
+    if (v === 'light' || v === 'dark') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'dark';
+}
+
+function applyTheme(theme: ThemeMode) {
+  const root = document.documentElement;
+  root.classList.toggle('dark', theme === 'dark');
+  root.setAttribute('data-theme', theme);
+  root.style.colorScheme = theme;
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<ThemeMode>(() => readStored());
+
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.add('dark');
-    root.setAttribute('data-theme', 'dark');
-    root.style.colorScheme = 'dark';
+    applyTheme(theme);
+  }, [theme]);
+
+  const setTheme = useCallback((next: ThemeMode) => {
+    setThemeState(next);
     try {
-      localStorage.removeItem('s2s-theme');
+      localStorage.setItem(STORAGE_KEY, next);
     } catch {
       /* ignore */
     }
   }, []);
 
-  const value = useMemo(() => ({ theme: 'dark' as const }), []);
-
+  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 

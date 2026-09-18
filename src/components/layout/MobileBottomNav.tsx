@@ -15,11 +15,12 @@ import {
   Users,
   ClipboardList,
   FileText,
+  LayoutDashboard,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
-export type MobileNavSectionId = 'sales' | 'service' | 'competitions' | 'reports' | 'manager';
+export type MobileNavSectionId = 'home' | 'sales' | 'service' | 'competitions' | 'reports' | 'manager';
 
 export interface MobileNavSubItem {
   tabId: string;
@@ -49,6 +50,7 @@ interface MobileBottomNavProps {
 }
 
 const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
+  home: ['home'],
   sales: ['add', 'vin-search'],
   service: ['search', 'alerts', 'dispatch', 'open-ros'],
   competitions: ['pot-of-gold'],
@@ -69,6 +71,7 @@ function resolveActiveSection(
 }
 
 const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
+  home: LayoutDashboard,
   add: UserPlus,
   'vin-search': Car,
   search: Search,

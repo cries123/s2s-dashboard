@@ -14,6 +14,18 @@
       onload="this.media=&quot;all&quot;"
     />
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" /></noscript>
+    <script>
+      // Apply a saved light/dark choice before first paint so there is no flash.
+      try {
+        var t = localStorage.getItem('s2s-theme');
+        if (t === 'light' || t === 'dark') {
+          var r = document.documentElement;
+          r.classList.toggle('dark', t === 'dark');
+          r.setAttribute('data-theme', t);
+          r.style.colorScheme = t;
+        }
+      } catch (e) {}
+    </script>
     <title>S2S Dashboard</title>
     <link
       rel="icon"
@@ -44,13 +56,14 @@
         border-radius: 50%;
         animation: boot-spin 0.8s linear infinite;
       }
+      :root[data-theme="light"] #boot { background: #f4f5f7; color: #475569; }
       @keyframes boot-spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) {
         #boot .ring { animation-duration: 2.4s; }
       }
     </style>
   </head>
-  <body style="margin: 0; background: #0f172a">
+  <body style="margin: 0">
     <div id="root"></div>
     <div id="boot">
       <div class="ring"></div>

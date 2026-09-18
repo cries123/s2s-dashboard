@@ -24,6 +24,16 @@ await esbuild.build({
 });
 const { evaluateSmartAlert, DEFAULT_SMART_ALERT_CONFIG } = await import(pathToFileURL(entry).href);
 
+const houseEntry = join(outDir, 'house.mjs');
+await esbuild.build({
+  entryPoints: ['src/lib/houseAccounts.ts'],
+  bundle: true,
+  format: 'esm',
+  outfile: houseEntry,
+  logLevel: 'error',
+});
+const { isHouseAccountCustomer } = await import(pathToFileURL(houseEntry).href);
+
 const TODAY = new Date('2026-09-03T00:00:00');
 let passed = 0;
 let failed = 0;
@@ -124,6 +134,16 @@ const pbsCustomer = {
 };
 check('detects oil change from job lines, not just the summary',
   run(pbsCustomer).shouldAlert, true);
+
+console.log('\nHouse accounts never enter the call list');
+check('"Hyundai of Santa Maria" is a house account',
+  isHouseAccountCustomer({ firstName: 'HYUNDAI OF', lastName: 'SANTA MARIA', phone: '(805) 349-8500' }), true);
+check('the store main line alone flags it',
+  isHouseAccountCustomer({ firstName: 'Parts', lastName: 'Counter', phone: '805-349-8500' }), true);
+check('explicit isHouseAccount:false overrides the heuristic',
+  isHouseAccountCustomer({ firstName: 'HYUNDAI OF', lastName: 'SANTA MARIA', phone: '', isHouseAccount: false }), false);
+check('a normal customer is not flagged',
+  isHouseAccountCustomer({ firstName: 'Guadalupe', lastName: 'Jaime', phone: '(805) 631-1706' }), false);
 
 rmSync(outDir, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed\n`);

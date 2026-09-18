@@ -4,6 +4,7 @@ import type { LandingTab, CrmDensity } from '../../../types';
 import { clampFollowUpDays } from '../../../lib/userPreferencesDefaults';
 
 const LANDING_OPTIONS: { value: LandingTab; label: string }[] = [
+  { value: 'home', label: 'Home' },
   { value: 'dispatch', label: 'Dispatch' },
   { value: 'appointments', label: 'Operations' },
   { value: 'alerts', label: 'Service alerts' },

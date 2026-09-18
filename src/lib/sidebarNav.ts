@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ClipboardList,
   Database,
+  LayoutDashboard,
   Layers,
   Search,
   Settings,
@@ -60,6 +61,12 @@ export function buildSidebarNav({
   activeAlertsCount,
 }: BuildSidebarNavArgs): SidebarNavSection[] {
   const sections: SidebarNavSection[] = [];
+
+  sections.push({
+    id: 'overview',
+    label: 'Overview',
+    items: [{ id: 'home', label: 'Home', href: '/home', icon: LayoutDashboard, tab: 'home' }],
+  });
 
   const salesItems: SidebarNavItem[] = [
     { id: 'onboard', label: 'Onboard customer', href: '/sales/onboard', icon: UserPlus, tab: 'add' },

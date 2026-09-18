@@ -465,6 +465,34 @@ export function ManagerOperationsConfig({
             );
           })}
         </div>
+        {serviceAlertMode === 'smart' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mt-4">
+            {(
+              [
+                { key: 'serviceAlertActiveWithinDays', label: 'Active within (days)', hint: 'Must have visited this recently', def: 365, min: 30, max: 1095 },
+                { key: 'serviceAlertLeadTimeDays', label: 'Alert this early (days)', hint: 'Before the predicted date', def: 21, min: 0, max: 90 },
+                { key: 'serviceAlertStaleAfterDays', label: 'Drop after (days overdue)', hint: 'They did not come in', def: 60, min: 0, max: 365 },
+              ] as const
+            ).map((f) => (
+              <label key={f.key} className="block">
+                <span className="input-label">{f.label}</span>
+                <input
+                  type="number"
+                  min={f.min}
+                  max={f.max}
+                  defaultValue={(settings as Record<string, unknown>)?.[f.key] as number | undefined ?? f.def}
+                  onBlur={(e) => {
+                    const v = Math.max(f.min, Math.min(f.max, parseInt(e.target.value, 10) || f.def));
+                    e.target.value = String(v);
+                    onUpdate({ [f.key]: v });
+                  }}
+                  className="input-field"
+                />
+                <span className="crm-label mt-1 block">{f.hint}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
       </Section>
 
       {dmsProvider === 'pbs' ? (

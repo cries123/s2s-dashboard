@@ -11,7 +11,7 @@ import {
 export const DEFAULT_PREFERENCES: UserPreferences = {
   serviceDrive: {
     openOnLogin: false,
-    defaultLandingTab: 'appointments',
+    defaultLandingTab: 'home',
     defaultFilter: 'all',
     queuePriority: 'balanced',
   },
@@ -125,6 +125,7 @@ export function isValidDensity(value: string): value is CrmDensity {
 
 export function isValidLandingTab(value: string): value is LandingTab {
   return [
+    'home',
     'service-drive',
     'appointments',
     'alerts',

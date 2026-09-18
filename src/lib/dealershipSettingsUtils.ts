@@ -27,9 +27,15 @@ export function mergeDealershipSettings(
     enableForecastTab: raw?.enableForecastTab !== false,
     enableSalesPerformanceTab: raw?.enableSalesPerformanceTab !== false,
     enableVinSearchTab: raw?.enableVinSearchTab !== false,
-    serviceAlertMode: raw?.serviceAlertMode === 'optimized' ? 'optimized' : DEFAULT_SERVICE_ALERT_MODE,
+    // Was a hardcoded 'optimized'-or-standard check, which silently coerced 'smart'
+    // back to 'standard' — the settings screen showed Smart as active while the alert
+    // logic kept running the 6-month rule.
+    serviceAlertMode: resolveServiceAlertMode(raw),
     serviceAlertIntervalDays: raw?.serviceAlertIntervalDays ?? DEFAULT_SERVICE_ALERT_INTERVAL_DAYS,
     serviceAlertBufferDays: raw?.serviceAlertBufferDays ?? DEFAULT_SERVICE_ALERT_BUFFER_DAYS,
+    serviceAlertActiveWithinDays: raw?.serviceAlertActiveWithinDays,
+    serviceAlertLeadTimeDays: raw?.serviceAlertLeadTimeDays,
+    serviceAlertStaleAfterDays: raw?.serviceAlertStaleAfterDays,
     enrollmentJoinCode: raw?.enrollmentJoinCode ?? staticRow?.code ?? '',
     weatherLat: raw?.weatherLat ?? DEFAULT_WEATHER.lat,
     weatherLon: raw?.weatherLon ?? DEFAULT_WEATHER.lon,

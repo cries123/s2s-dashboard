@@ -33,6 +33,7 @@ const defaultServiceAlertHelpers: ServiceAlertHelpers = {
   getNextServiceMilestone: (customerOrSoldDate) => getNextServiceMilestone(customerOrSoldDate, defaultConfig),
   computeContactClearDueDate: (customer, from) => computeContactClearDueDate(customer, defaultConfig, from),
   isStandardMode: isStandardServiceAlertMode(defaultConfig),
+  isSmartMode: defaultConfig.mode === 'smart',
 };
 
 const ServiceAlertContext = createContext<ServiceAlertHelpers>(defaultServiceAlertHelpers);

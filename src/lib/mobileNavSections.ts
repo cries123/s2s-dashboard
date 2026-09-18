@@ -1,6 +1,7 @@
 import {
   BarChart2,
   Calendar,
+  LayoutDashboard,
   ClipboardList,
   Shield,
   Trophy,
@@ -35,6 +36,13 @@ export function buildMobileNavSections({
   activeAlertsCount,
 }: BuildMobileNavSectionsArgs): MobileNavSection[] {
   const sections: MobileNavSection[] = [];
+
+  sections.push({
+    id: 'home',
+    label: 'Home',
+    icon: LayoutDashboard,
+    items: [{ tabId: 'home', label: 'Home', href: '/home' }],
+  });
 
   const salesItems: MobileNavSection['items'] = [
     { tabId: 'add', label: 'Onboard', href: '/sales/onboard' },

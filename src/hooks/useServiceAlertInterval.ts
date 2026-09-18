@@ -26,6 +26,7 @@ export interface ServiceAlertHelpers {
   getNextServiceMilestone: (customerOrSoldDate: Customer | string) => string;
   computeContactClearDueDate: (customer: Customer, from?: Date) => string;
   isStandardMode: boolean;
+  isSmartMode: boolean;
 }
 
 export function useServiceAlertInterval(
@@ -39,6 +40,9 @@ export function useServiceAlertInterval(
       rawSettings?.serviceAlertMode,
       rawSettings?.serviceAlertIntervalDays,
       rawSettings?.serviceAlertBufferDays,
+      rawSettings?.serviceAlertActiveWithinDays,
+      rawSettings?.serviceAlertLeadTimeDays,
+      rawSettings?.serviceAlertStaleAfterDays,
     ]
   );
 
@@ -60,7 +64,8 @@ export function useServiceAlertInterval(
       computeContactClearDueDate: (customer: Customer, from?: Date) =>
         computeContactClearDueDate(customer, config, from),
       isStandardMode: isStandardServiceAlertMode(config),
+      isSmartMode: config.mode === 'smart',
     }),
-    [config.mode, config.intervalDays, config.bufferDays]
+    [config]
   );
 }

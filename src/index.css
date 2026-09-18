@@ -41,9 +41,25 @@
   color-scheme: dark;
 }
 
+/* Light theme — overrides the same tokens, so anything styled through them flips.
+   Screens still using hardcoded slate-* classes are not yet converted. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --color-surface-base: #f4f5f7;
+  --color-surface-card: #ffffff;
+  --color-surface-border: rgba(15, 23, 42, 0.10);
+  --color-surface-muted: #eef1f5;
+  --color-surface-hover: rgba(15, 23, 42, 0.05);
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-tertiary: #64748b;
+  --color-sidebar: #ffffff;
+  --color-sidebar-border: rgba(15, 23, 42, 0.08);
+}
+
 @layer base {
   body {
-    @apply font-sans antialiased selection:bg-brand-primary selection:text-white text-slate-200;
+    @apply font-sans antialiased selection:bg-brand-primary selection:text-white;
     background-color: var(--color-surface-base);
     color: var(--color-text-primary);
   }

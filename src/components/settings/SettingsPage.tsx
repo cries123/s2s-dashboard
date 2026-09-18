@@ -16,6 +16,7 @@ import {
 } from '../../types';
 import { CONTACT_OUTCOMES } from '../../lib/contactOutcomes';
 import { clampFollowUpDays, DEFAULT_FOLLOW_UP_DAYS } from '../../lib/userPreferencesDefaults';
+import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../hooks/useAuth';
 import { DealershipProfileField } from '../ui/DealershipProfileField';
@@ -217,6 +218,13 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
         saveToolbar
       )}
 
+      <Section
+        title="Display"
+        description="Light mode is a preview: the home screen, service alerts and settings are converted; some older screens still use dark-only colors."
+        icon={Monitor}
+      >
+        <ThemeToggle />
+      </Section>
       <Section
         title="Organization profile"
         description="Your enrolled dealership group is locked unless you are a system administrator."

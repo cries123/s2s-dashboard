@@ -9,6 +9,7 @@ import {
   SERVICE_REMINDER_MONTHS,
 } from './serviceReminder';
 import { analyzeOilChangeInterval } from './serviceIntervalAnalytics';
+import { isHouseAccountCustomer } from './houseAccounts';
 import {
   DEFAULT_ACTIVE_WITHIN_DAYS,
   DEFAULT_LEAD_TIME_DAYS,
@@ -87,6 +88,10 @@ export function getCustomerAlertDueDate(
   customer: Customer,
   config: ServiceAlertConfig = resolveServiceAlertConfig()
 ): string | null {
+  if (config.mode === 'smart') {
+    // The predicted date from the customer's own cadence — not the 6-month rule.
+    return evaluateSmartAlert(customer, config.smart).dueDateIso ?? null;
+  }
   if (config.mode === 'optimized') {
     return getOptimizedServiceReminderDueDate(customer);
   }
@@ -152,6 +157,8 @@ export function isServiceAlertActive(
 ): boolean {
   if (!customer.enableServiceAlert) return false;
   if (customer.stopAlertInfo) return false;
+  // The store itself, loaners and demos are contacts in the DMS, not people to call.
+  if (isHouseAccountCustomer(customer)) return false;
 
   // Smart mode answers a different question from the other two: not 'are they past
   // due' but 'are they an active customer coming up for service soon'.
@@ -191,6 +198,12 @@ export function getServiceAlertModeLabel(mode: ServiceAlertMode = DEFAULT_SERVIC
   if (mode === 'optimized') return 'Optimized';
   if (mode === 'smart') return 'Smart (upcoming only)';
   return 'Standard (6 mo)';
+}
+
+export function isSmartServiceAlertMode(
+  config: ServiceAlertConfig = resolveServiceAlertConfig()
+): boolean {
+  return config.mode === 'smart';
 }
 
 export function isStandardServiceAlertMode(

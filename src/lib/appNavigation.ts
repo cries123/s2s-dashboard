@@ -1,4 +1,5 @@
 export type AppTab =
+  | 'home'
   | 'add'
   | 'search'
   | 'alerts'
@@ -32,6 +33,7 @@ export interface AppRouteState {
 }
 
 const PATH_TO_ROUTE: Record<string, AppRouteState> = {
+  '/home': { activeTab: 'home' },
   '/sales/onboard': { activeTab: 'add' },
   '/sales/vin-search': { activeTab: 'vin-search' },
   '/service/directory': { activeTab: 'search' },
@@ -64,7 +66,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/admin/suggestions': { activeTab: 'admin', adminSubTab: 'suggestions' },
 };
 
-const DEFAULT_ROUTE: AppRouteState = { activeTab: 'add' };
+const DEFAULT_ROUTE: AppRouteState = { activeTab: 'home' };
 
 function normalizePathname(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, '');
@@ -115,6 +117,8 @@ export function buildAppPath(state: AppRouteState): string {
   }
 
   switch (state.activeTab) {
+    case 'home':
+      return '/home';
     case 'add':
       return '/sales/onboard';
     case 'vin-search':

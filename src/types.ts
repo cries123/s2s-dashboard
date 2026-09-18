@@ -23,6 +23,7 @@ export type UserRole = 'admin' | 'manager' | 'advisor' | 'pending';
 export type UserDepartment = 'sales' | 'service';
 
 export type LandingTab =
+  | 'home'
   | 'service-drive'
   | 'appointments'
   | 'alerts'
@@ -479,6 +480,8 @@ export interface Customer {
   dealershipId?: string;
   notes?: string;
   salesman?: string;
+  /** Internal / house account (the store itself, loaners, demos). Never alerted. */
+  isHouseAccount?: boolean;
   /** PBS PartnerHUB contact id — used for automated sync matching. */
   pbsContactId?: string;
   /** PBS PartnerHUB vehicle id — used for automated sync matching. */

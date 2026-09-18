@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import { Customer, User } from '../../../types';
 import { Phone, Mail, Car, Calendar, History, Trash2, Edit2, Loader2, FastForward, Database, CheckCircle2, ChevronDown, ChevronUp, Wrench } from 'lucide-react';
-import { Timestamp, addDoc, collection, deleteField, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../../firebase';
+
 import { cn } from '../../../lib/utils';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { handleFirestoreError, OperationType } from '../../../lib/firebaseUtils';
 import { getRecommendedServices, getMonthsOwned } from '../../../lib/maintenance';
 import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
-import { computeContactClearDueDate } from '../../../lib/alerts';
+import { logCustomerContact } from '../../../lib/contactLog';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
 
 interface CustomerCardProps {
@@ -38,29 +37,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const handleLogCall = async ({ outcome, notes, appointmentSet }: { outcome: string; notes: string; appointmentSet: boolean }) => {
     const path = `customers/${customer.id}/contactLog`;
     try {
-      // Log to subcollection
-      await addDoc(collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id, 'contactLog'), {
-        timestamp: serverTimestamp(),
-        userId: currentUser.uid,
-        username: currentUser.username,
-        outcome,
-        notes,
-        appointmentSet
-      });
-
-      const nextDue = serviceAlerts.computeContactClearDueDate(customer);
-
-      await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id), {
-        lastServiceContact: serverTimestamp(),
-        lastContactOutcome: outcome,
-        lastContactUserId: currentUser.uid,
-        lastContactUsername: currentUser.username,
-        lastAcknowledgedCycle: serviceAlerts.calculateServiceCycle(customer.soldDate),
-        serviceAlertTriggered: false,
-        serviceReminderDueDate: nextDue,
-        serviceAlertOverrideDate: deleteField(),
-        serviceAlertHoldUntil: deleteField(),
-      });
+      await logCustomerContact(customer, currentUser, { outcome, notes, appointmentSet }, serviceAlerts.config);
 
       if (onRefresh) onRefresh(`Logged ${outcome} and cleared alert for ${customer.firstName}.`);
     } catch (err) {

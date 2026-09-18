@@ -31,6 +31,7 @@ const OpenRepairOrders = React.lazy(() => import('./components/dashboard/service
 import ProfileModal from './components/modals/ProfileModal';
 import { SuggestionModal } from './components/modals/SuggestionModal';
 import LoginView from './components/auth/LoginView';
+const HomeDashboard = React.lazy(() => import('./components/dashboard/home/HomeDashboard'));
 const SettingsPage = React.lazy(() => import('./components/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
 
 import { useServiceAlertInterval } from './hooks/useServiceAlertInterval';
@@ -175,7 +176,10 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
 function DashboardShell({ user }: { user: User }) {
   const initialRoute = React.useMemo(() => {
     const route = readInitialAppRoute();
-    if (isPreviewMode) {
+    // Preview mode used to force Dispatch on every URL, which broke deep links. Only
+    // default to it when no route was asked for.
+    const bare = typeof window === 'undefined' || window.location.pathname.replace(/\/+$/, '') === '';
+    if (isPreviewMode && bare) {
       return { ...route, activeTab: 'dispatch' as AppTab };
     }
     return route;
@@ -312,6 +316,7 @@ function DashboardShell({ user }: { user: User }) {
   const modules = preferences.dashboardModules;
 
   const availableTabs = [
+    { id: 'home', label: 'Home', icon: LayoutDashboard },
     { id: 'add', label: 'Onboard', icon: UserPlus },
     { id: 'search', label: 'Directory', icon: Search },
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
@@ -566,6 +571,18 @@ function DashboardShell({ user }: { user: User }) {
         <ErrorBoundary inline area="this view">
         <React.Suspense fallback={<PageSkeleton />}>
         <div className="space-y-10">
+          {activeTab === 'home' && (
+            <HomeDashboard
+              customers={customers}
+              customersLoading={customersLoading}
+              currentDealershipId={currentDealershipId || 'hyundai'}
+              dealershipName={currentDealership.name}
+              currentUser={currentUser}
+              onNavigate={(tab) => setActiveTab(tab)}
+              onViewProfile={setSelectedProfile}
+            />
+          )}
+
           {activeTab === 'add' && (
             <CustomerForm
               currentUser={currentUser}
@@ -588,6 +605,7 @@ function DashboardShell({ user }: { user: User }) {
           {activeTab === 'alerts' && (
             <ServiceAlerts
               customers={customers}
+              loading={customersLoading}
               currentUser={currentUser}
               onViewProfile={setSelectedProfile}
               onViewLog={(c) => setSelectedProfile(c)}
