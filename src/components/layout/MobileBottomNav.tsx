@@ -20,7 +20,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 
-export type MobileNavSectionId = 'home' | 'sales' | 'service' | 'competitions' | 'reports' | 'manager';
+export type MobileNavSectionId = 'home' | 'sales' | 'service' | 'competitions' | 'reports' | 'manager' | 'admin';
 
 export interface MobileNavSubItem {
   tabId: string;
@@ -28,6 +28,7 @@ export interface MobileNavSubItem {
   href: string;
   badge?: number;
   managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
+  adminSubTab?: string;
 }
 
 export interface MobileNavSection {
@@ -40,11 +41,13 @@ export interface MobileNavSection {
 export interface MobileNavSelection {
   tab: string;
   managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
+  adminSubTab?: string;
 }
 
 interface MobileBottomNavProps {
   activeTab: string;
   managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
+  adminSubTab?: string;
   sections: MobileNavSection[];
   onNavigate: (selection: MobileNavSelection) => void;
 }
@@ -55,7 +58,8 @@ const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
   service: ['search', 'alerts', 'dispatch', 'open-ros'],
   competitions: ['pot-of-gold'],
   reports: ['appointments', 'forecast', 'sales-performance', 'schedule'],
-  manager: ['manager', 'admin'],
+  manager: ['manager'],
+  admin: ['admin'],
 };
 
 function resolveActiveSection(
@@ -98,18 +102,20 @@ function subItemIcon(item: MobileNavSubItem): LucideIcon {
 function isSubItemActive(
   item: MobileNavSubItem,
   activeTab: string,
-  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs'
+  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs',
+  adminSubTab?: string
 ): boolean {
   if (item.tabId !== activeTab) return false;
   if (item.tabId === 'manager' && item.managerSubTab) {
     return managerSubTab === item.managerSubTab;
   }
+  if (item.tabId === 'admin' && item.adminSubTab) {
+    return adminSubTab === item.adminSubTab;
+  }
   return true;
 }
 
-export function MobileBottomNav({
-  activeTab,
-  managerSubTab,
+export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
   sections,
   onNavigate,
 }: MobileBottomNavProps) {
@@ -125,7 +131,7 @@ export function MobileBottomNav({
 
     if (section.items.length === 1) {
       const only = section.items[0];
-      onNavigate({ tab: only.tabId, managerSubTab: only.managerSubTab });
+      onNavigate({ tab: only.tabId, managerSubTab: only.managerSubTab, adminSubTab: only.adminSubTab });
       setExpandedSection(null);
       return;
     }
@@ -134,7 +140,7 @@ export function MobileBottomNav({
   };
 
   const handleSelect = (item: MobileNavSubItem) => {
-    onNavigate({ tab: item.tabId, managerSubTab: item.managerSubTab });
+    onNavigate({ tab: item.tabId, managerSubTab: item.managerSubTab, adminSubTab: item.adminSubTab });
     setExpandedSection(null);
   };
 
@@ -178,7 +184,7 @@ export function MobileBottomNav({
                 <div className="p-2 max-h-[min(50vh,360px)] overflow-y-auto no-scrollbar">
                   {expanded.items.map((item) => {
                     const Icon = subItemIcon(item);
-                    const isActive = isSubItemActive(item, activeTab, managerSubTab);
+                    const isActive = isSubItemActive(item, activeTab, managerSubTab, adminSubTab);
 
                     return (
                       <button

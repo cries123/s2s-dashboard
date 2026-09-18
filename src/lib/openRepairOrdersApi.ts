@@ -28,6 +28,8 @@ export interface OpenRepairOrdersResponse {
   dealershipId: string;
   orders: OpenRepairOrderRow[];
   fetchedAt: string;
+  /** True when served from the last saved snapshot while PBS refreshes behind it. */
+  stale?: boolean;
   error?: string;
 }
 
@@ -94,7 +96,20 @@ export async function fetchOpenRepairOrders(
 ): Promise<OpenRepairOrdersResponse> {
   const headers = await bearerHeaders();
   const url = opts.forceRefresh ? '/api/pbs/open-repair-orders?refresh=1' : '/api/pbs/open-repair-orders';
-  const res = await fetch(url, { headers });
+  // A cold PBS chain can take 10–30s; never leave the user on a spinner forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
+  let res: Response;
+  try {
+    res = await fetch(url, { headers, signal: controller.signal });
+  } catch (err) {
+    if ((err as { name?: string })?.name === 'AbortError') {
+      throw new Error('PBS is taking longer than usual. Showing the last saved list — try Refresh in a moment.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   const data = (await res.json()) as OpenRepairOrdersResponse;
   if (!res.ok) {
     throw new Error(data.error || 'Failed to load open repair orders from PBS.');

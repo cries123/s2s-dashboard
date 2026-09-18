@@ -170,6 +170,12 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     });
   }, [currentDealershipId]);
 
+  // Latest onError without making it an effect dependency (see note in the effect).
+  const onErrorRef = React.useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
   useEffect(() => {
     if (!currentDealershipId) return;
 
@@ -203,12 +209,16 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       setLoading(false);
     }, (err) => {
       console.error("[TechnicianEfficiency] Sync error:", err);
-      onError?.("Failed to sync technician efficiency data.");
+      onErrorRef.current?.("Failed to sync technician efficiency data.");
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [currentDealershipId, onError, selectedMonth]);
+    // onError is read through a ref on purpose: the parent passes a new arrow on every
+    // render, and having it in the deps made each error re-subscribe -> error -> toast
+    // -> re-render -> re-subscribe, an endless toast storm.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDealershipId, selectedMonth]);
 
   // Save changes back to Firestore helper
   const saveToFirestore = async (

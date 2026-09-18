@@ -48,8 +48,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const lastToast = useRef<{ text: string; variant: ToastVariant; at: number } | null>(null);
+
   const showToast = useCallback(
     (text: string, variant: ToastVariant = 'success') => {
+      // A failing listener can report the same error many times a second. Show it
+      // once; stacking ten identical toasts tells the user nothing more.
+      const now = Date.now();
+      const last = lastToast.current;
+      if (last && last.text === text && last.variant === variant && now - last.at < 2500) return;
+      lastToast.current = { text, variant, at: now };
+
       const id = nextId.current++;
       setToasts((prev) => [...prev, { id, text, variant }]);
       const timer = window.setTimeout(() => dismiss(id), AUTO_DISMISS_MS);

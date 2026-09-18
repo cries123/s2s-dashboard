@@ -629,6 +629,7 @@ function DashboardShell({ user }: { user: User }) {
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
               {modules.showWeatherWidget && <WeatherWidget lat={mergedDealershipSettings.weatherLat} lon={mergedDealershipSettings.weatherLon} displayCity={mergedDealershipSettings.weatherDisplayCity} />}
               <Appointments
+                customers={customers}
                 currentUser={currentUser}
                 currentDealershipId={currentDealershipId || 'hyundai'}
                 modulePrefs={modules}
@@ -780,14 +781,18 @@ function DashboardShell({ user }: { user: User }) {
       <MobileBottomNav
         activeTab={activeTab}
         managerSubTab={managerSubTab}
+        adminSubTab={adminSubTab}
         sections={mobileNavSections}
-        onNavigate={({ tab, managerSubTab: nextManagerSubTab }) => {
+        onNavigate={({ tab, managerSubTab: nextManagerSubTab, adminSubTab: nextAdminSubTab }) => {
           setActiveTab(tab as typeof activeTab);
           if (nextManagerSubTab) {
             setManagerSubTab(nextManagerSubTab);
             if (nextManagerSubTab === 'team') {
               setManagerDashboardSubTab('users');
             }
+          }
+          if (nextAdminSubTab) {
+            setAdminSubTab(nextAdminSubTab as AdminSubTab);
           }
         }}
       />

@@ -10,6 +10,8 @@ import type {
 } from './pbsPerformanceTypes.js';
 
 interface AdvisorBucket {
+  /** Configured upsell op codes sold, keyed by code. */
+  upsells: Map<string, { description: string; count: number; revenue: number }>;
   soNumbers: Set<string>;
   hrsSold: number;
   laborSold: number;
@@ -268,6 +270,7 @@ function getBucket(buckets: Map<string, AdvisorBucket>, advisor: string): Adviso
   if (!bucket) {
     bucket = {
       soNumbers: new Set(),
+      upsells: new Map(),
       hrsSold: 0,
       laborSold: 0,
       laborCost: 0,
@@ -304,10 +307,38 @@ function addToBucket(
   bucket.partsCost += amounts.partsCost;
 }
 
+/**
+ * Count configured upsell op codes on a request's labour lines against the advisor.
+ * An "upsell" here is simply a sold line whose op code is on the store's incentive
+ * list (Pot of Gold pricing) — the same list the competition payouts use.
+ */
+function recordUpsells(
+  buckets: Map<string, AdvisorBucket>,
+  advisorRaw: string,
+  req: { LabourLines?: Array<{ OpCode?: string; OpDescription?: string; Price?: number }> },
+  upsellCodes: Set<string> | undefined,
+  aliases?: Map<string, string>
+): void {
+  if (!upsellCodes || upsellCodes.size === 0) return;
+  const advisor = cleanPbsCsrName(advisorRaw, aliases);
+  if (!advisor || !isRealPbsAdvisorName(advisor)) return;
+  for (const line of req.LabourLines || []) {
+    const code = String(line.OpCode || '').trim().toUpperCase();
+    if (!code || !upsellCodes.has(code)) continue;
+    const bucket = getBucket(buckets, advisor);
+    const entry = bucket.upsells.get(code) || { description: String(line.OpDescription || '').trim(), count: 0, revenue: 0 };
+    entry.count += 1;
+    entry.revenue += num(line.Price);
+    if (!entry.description && line.OpDescription) entry.description = String(line.OpDescription).trim();
+    bucket.upsells.set(code, entry);
+  }
+}
+
 function attributeRepairOrder(
   buckets: Map<string, AdvisorBucket>,
   ro: PbsRepairOrderFull,
-  aliases?: Map<string, string>
+  aliases?: Map<string, string>,
+  upsellCodes?: Set<string>
 ): void {
   const soNumber = repairOrderSoNumber(ro);
   const defaultAdvisor = ro.CSR || '';
@@ -322,6 +353,7 @@ function attributeRepairOrder(
 
   for (const req of requests) {
     const advisor = resolvePbsAdvisorCsr(req.CSR, defaultAdvisor, aliases);
+    recordUpsells(buckets, advisor, req, upsellCodes, aliases);
     const amounts = sumRequestLines(req);
     if (
       amounts.laborSold === 0 &&
@@ -397,7 +429,9 @@ function finalizeAdvisors(buckets: Map<string, AdvisorBucket>): PbsAdvisorPerfor
         totalSales: Math.round(totalSales * 100) / 100,
         gpPercent,
         elr,
-        upsells: [],
+        upsells: Array.from(bucket.upsells.entries())
+          .map(([code, u]) => ({ code, description: u.description, count: u.count, revenue: Math.round(u.revenue * 100) / 100 }))
+          .sort((a, b) => b.count - a.count || b.revenue - a.revenue),
       };
     })
     .filter((row) => row.totalSales > 0 || row.soCount > 0)
@@ -444,7 +478,8 @@ export function aggregatePbsAdvisorPerformance(
   partsInvoices: PbsPartsInvoiceFull[],
   monthStart: string,
   monthEnd: string,
-  aliases?: Map<string, string>
+  aliases?: Map<string, string>,
+  upsellCodes?: Set<string>
 ): PbsPerformanceAggregate {
   const buckets = new Map<string, AdvisorBucket>();
   let repairOrdersProcessed = 0;
@@ -463,7 +498,7 @@ export function aggregatePbsAdvisorPerformance(
     shopLaborGross += shopLabor.laborGross;
     shopHrsSold += shopLabor.hrsSold;
 
-    attributeRepairOrder(buckets, ro, aliases);
+    attributeRepairOrder(buckets, ro, aliases, upsellCodes);
     repairOrdersProcessed += 1;
   }
 

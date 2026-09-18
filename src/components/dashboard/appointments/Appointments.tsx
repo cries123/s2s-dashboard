@@ -3,7 +3,8 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc, query, where
 } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
-import { User, DailyStat, UserPreferences } from '../../../types';
+import { Customer, User, DailyStat, UserPreferences } from '../../../types';
+import { TopMovingPartsCard } from './TopMovingPartsCard';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
@@ -38,6 +39,8 @@ import {
   buildOperationsViewPeriodOptions,
   formatArchiveMonthLabel,
   getActiveMonthDateRange,
+  performanceDocId,
+  resolveOperationsViewPeriod,
 } from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
 import { PageSkeleton } from '../../ui/Skeleton';
@@ -135,6 +138,8 @@ interface AppointmentsProps {
   currentDealershipId: string;
   /** Dashboard module toggles from Settings. Omitted means "show everything". */
   modulePrefs?: Partial<UserPreferences['dashboardModules']>;
+  /** Customer list, used for the top-moving-parts breakdown. */
+  customers?: Customer[];
   onSuccess?: (msg: string) => void;
   onError?: (msg: string) => void;
 }
@@ -160,7 +165,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-export default function Appointments({ currentUser, currentDealershipId, modulePrefs, onSuccess, onError }: AppointmentsProps) {
+export default function Appointments({ currentUser, currentDealershipId, modulePrefs, customers, onSuccess, onError }: AppointmentsProps) {
   // Absent flags mean 'show it' — a user with no saved preferences sees everything.
   const showProjections = modulePrefs?.showOperationsProjections !== false;
   const showAdvisorPerformance = modulePrefs?.showAdvisorPerformance !== false;
@@ -192,6 +197,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   });
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>('active');
+  // Historical months are evaluated as of their last day, so MTD figures, pace and
+  // projections read as that month's final numbers rather than "today".
+  const viewPeriod = resolveOperationsViewPeriod(selectedMonth);
+  const viewReferenceDate = React.useMemo(
+    () => (viewPeriod.isHistorical ? new Date(viewPeriod.year, viewPeriod.month + 1, 0, 12) : new Date()),
+    [viewPeriod.isHistorical, viewPeriod.year, viewPeriod.month]
+  );
+  const periodLabel = viewPeriod.isHistorical ? 'Month' : 'MTD';
   const [allowArchiveEditing, setAllowArchiveEditing] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveSuccess, setArchiveSuccess] = useState<string | null>(null);
@@ -377,7 +390,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     });
 
     // Fetch Performance for Gross Tracking
-    const docId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
+    // Follows the view period: the live doc for the active month, the archived
+    // doc for a saved one — so every number on this tab moves with the dropdown.
+    const docId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
     const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
     const unsubPerf = onSnapshot(perfRef, (snap) => {
       if (snap.exists) {
@@ -388,7 +403,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     });
 
     // Fetch Technician Reports for dynamic active tracking snapshots
-    const activeTechId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
+    const activeTechId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
     const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', activeTechId);
     const unsubTech = onSnapshot(techRef, (snap) => {
       if (snap.exists) {
@@ -401,7 +416,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       unsubPerf();
       unsubTech();
     };
-  }, [currentDealershipId]);
+  }, [currentDealershipId, selectedMonth]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -676,8 +691,8 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   }, [activePerformanceData]);
 
   const effectiveStats = React.useMemo(
-    () => buildEffectiveAppointmentStats(allStats, selectedDate, dailyCount),
-    [allStats, selectedDate, dailyCount]
+    () => buildEffectiveAppointmentStats(allStats, selectedDate, viewPeriod.isHistorical ? '' : dailyCount),
+    [allStats, selectedDate, dailyCount, viewPeriod.isHistorical]
   );
 
   const calculateMetrics = () => {
@@ -690,6 +705,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       mtdLaborSales: resolvedPerformance?.totalLabor ?? 0,
       mtdPartsGross: resolvedPerformance?.totalGrossParts ?? 0,
       performanceReportEndDate: resolvedPerformance?.reportEndDate,
+      referenceDate: viewReferenceDate,
     });
   };
 
@@ -704,10 +720,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   }, [targetValue, loading, onSuccess]);
 
   const appointmentPaceSeries = React.useMemo(
-    () => buildAppointmentPaceSeries(effectiveStats, targetValue, new Date()),
-    [effectiveStats, targetValue]
+    () => buildAppointmentPaceSeries(effectiveStats, targetValue, viewReferenceDate),
+    [effectiveStats, targetValue, viewReferenceDate]
   );
-  const todayDayNum = new Date().getDate();
+  const todayDayNum = viewReferenceDate.getDate();
 
   const projectionRows = [
     { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
@@ -777,14 +793,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           <p className="crm-label">Appt forecast</p>
           <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{Math.round(metrics.forecast).toLocaleString()}</p>
           <p className="crm-label mt-1.5">
-            {metrics.monthTotal.toLocaleString()} MTD · {metrics.daysRemaining} working days left
+            {metrics.monthTotal.toLocaleString()} {periodLabel} · {metrics.daysRemaining} working days left
           </p>
         </div>
         <div className="card-base px-5 py-4">
           <p className="crm-label">Labor pace</p>
           <p className="crm-kpi-value text-3xl mt-1 tabular-nums">${Math.round(metrics.laborDailyAvg).toLocaleString()}<span className="text-lg text-slate-400 font-medium">/day</span></p>
           <p className="crm-label mt-1.5">
-            ${Math.round(metrics.mtdGross).toLocaleString()} MTD · goal ${Math.round(metrics.laborTarget).toLocaleString()}
+            ${Math.round(metrics.mtdGross).toLocaleString()} {periodLabel} · goal ${Math.round(metrics.laborTarget).toLocaleString()}
           </p>
         </div>
       </div>
@@ -815,7 +831,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   <p className="text-xl font-semibold tabular-nums mb-3">{formatProjectionValue(kpi.forecast, kpi.isCurrency)}</p>
                   <div className="grid grid-cols-3 gap-2 text-xs mb-3">
                     <div>
-                      <p className="crm-label">MTD</p>
+                      <p className="crm-label">{periodLabel}</p>
                       <p className="font-medium tabular-nums">{formatProjectionValue(kpi.current, kpi.isCurrency)}</p>
                     </div>
                     <div>
@@ -837,7 +853,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
 
           <div className="mt-5 pt-4 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="crm-label">Appointment pace — cumulative MTD vs. goal</span>
+              <span className="crm-label">Appointment pace — cumulative {periodLabel} vs. goal</span>
             </div>
             <ResponsiveContainer width="100%" height={200}>
               <ComposedChart data={appointmentPaceSeries} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
@@ -1199,6 +1215,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           </motion.div>
         )}
       </AnimatePresence>
+
+      {customers && customers.length > 0 && (
+        <TopMovingPartsCard customers={customers} selectedMonth={selectedMonth} />
+      )}
 
       {showAdvisorPerformance && (
       <div className="card-base p-5">

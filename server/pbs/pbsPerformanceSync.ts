@@ -1,4 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import { POT_OF_GOLD_OP_CODES } from '../../src/lib/potOfGoldData.js';
 import {
   pbsAppointmentGet,
   pbsPartsInvoiceGet,
@@ -102,6 +103,30 @@ interface AdvisorRosterSlot {
   label: string;
 }
 
+/**
+ * Upsell op codes to count per advisor: the store's Pot of Gold incentive list when
+ * one is saved, otherwise the built-in default list.
+ */
+async function loadUpsellCodes(db: Firestore, dealershipId: string): Promise<Set<string>> {
+  const codes = new Set<string>();
+  try {
+    const snap = await dealershipSettingsDoc(db, dealershipId).get();
+    const raw = snap.data()?.potOfGoldUpsellPrices;
+    if (Array.isArray(raw)) {
+      for (const row of raw as Array<{ code?: string }>) {
+        const code = String(row?.code || '').trim().toUpperCase();
+        if (code) codes.add(code);
+      }
+    }
+  } catch (err) {
+    console.warn('[PBS Sync] Could not read upsell codes from settings:', err);
+  }
+  if (codes.size === 0) {
+    for (const row of POT_OF_GOLD_OP_CODES) codes.add(String(row.code).trim().toUpperCase());
+  }
+  return codes;
+}
+
 /** Load roster + manual code map from dealership settings for alias/unmatched checks. */
 async function loadAdvisorSettings(
   db: Firestore,
@@ -176,13 +201,16 @@ export async function syncPbsAdvisorPerformance(
   }
   console.log(`[PBS Sync] Advisor code aliases resolved: ${aliases.size}`);
 
+  const upsellCodes = await loadUpsellCodes(db, dealershipId);
   const aggregate = aggregatePbsAdvisorPerformance(
     repairOrders,
     partsInvoices,
     monthStart,
     monthEnd,
-    aliases
+    aliases,
+    upsellCodes
   );
+  console.log(`[PBS Sync] Upsell codes tracked: ${upsellCodes.size}`);
   const reportEndDate = performanceReportEndDate(monthEnd);
 
   const defaultRoster = [{ label: 'Frank' }, { label: 'Lemmy' }, { label: 'Jaryn' }];

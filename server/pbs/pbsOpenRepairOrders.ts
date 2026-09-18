@@ -1,3 +1,10 @@
+import {
+  OPEN_RO_SNAPSHOT_FRESH_MS,
+  OPEN_RO_SNAPSHOT_STALE_MS,
+  readOpenRoSnapshot,
+  snapshotAgeMs,
+  writeOpenRoSnapshot,
+} from './pbsOpenRoSnapshot.js';
 import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
 import { pbsRepairOrderGet } from './partnerHubClient.js';
 import { customersCollection } from './pbsFirestore.js';
@@ -139,7 +146,9 @@ async function loadCustomerIndexForOpenRos(
   };
   if (!db) return index;
 
-  const snap = await customersCollection(db).get();
+  // Scoped at the database. This used to read every store's customers on every
+  // cold load and filter in memory.
+  const snap = await customersCollection(db).where('dealershipId', '==', dealershipId).get();
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
     if (!customerBelongsToPbsSyncDealership(data, dealershipId)) continue;
@@ -509,20 +518,10 @@ export async function getOpenRepairOrderDetail(
 const OPEN_RO_CACHE_TTL_MS = 60_000;
 let openRoCache: { dealershipId: string; expiresAt: number; result: { orders: OpenRepairOrderRow[]; fetchedAt: string } } | null = null;
 
-export async function listOpenRepairOrdersForDealership(
-  dealershipId: string = PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
-  opts: { forceRefresh?: boolean } = {}
+/** The full PBS chain. Slow (10–30s cold); only called when no usable snapshot exists. */
+async function fetchOpenRepairOrdersLive(
+  dealershipId: string
 ): Promise<{ orders: OpenRepairOrderRow[]; fetchedAt: string }> {
-  const now = Date.now();
-  if (
-    !opts.forceRefresh &&
-    openRoCache &&
-    openRoCache.dealershipId === dealershipId &&
-    openRoCache.expiresAt > now
-  ) {
-    return openRoCache.result;
-  }
-
   const [repairOrders, index] = await Promise.all([
     fetchOpenRepairOrdersFromPbs(),
     loadCustomerIndexForOpenRos(dealershipId),
@@ -541,6 +540,45 @@ export async function listOpenRepairOrdersForDealership(
     });
 
   const result = { orders, fetchedAt: new Date().toISOString() };
-  openRoCache = { dealershipId, expiresAt: now + OPEN_RO_CACHE_TTL_MS, result };
+  openRoCache = { dealershipId, expiresAt: Date.now() + OPEN_RO_CACHE_TTL_MS, result };
+  const db = getAdminFirestore();
+  if (db) void writeOpenRoSnapshot(db, { dealershipId, ...result });
   return result;
+}
+
+let backgroundRefresh: Promise<unknown> | null = null;
+
+export async function listOpenRepairOrdersForDealership(
+  dealershipId: string = PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+  opts: { forceRefresh?: boolean } = {}
+): Promise<{ orders: OpenRepairOrderRow[]; fetchedAt: string; stale?: boolean }> {
+  const now = Date.now();
+
+  if (!opts.forceRefresh && openRoCache && openRoCache.dealershipId === dealershipId && openRoCache.expiresAt > now) {
+    return openRoCache.result;
+  }
+
+  // Serverless instances rarely live long enough for the in-memory cache to matter,
+  // so consult the durable snapshot before paying for the live chain.
+  const db = getAdminFirestore();
+  if (!opts.forceRefresh && db) {
+    const snapshot = await readOpenRoSnapshot(db, dealershipId);
+    if (snapshot) {
+      const age = snapshotAgeMs(snapshot, now);
+      if (age <= OPEN_RO_SNAPSHOT_FRESH_MS) {
+        return { orders: snapshot.orders, fetchedAt: snapshot.fetchedAt };
+      }
+      if (age <= OPEN_RO_SNAPSHOT_STALE_MS) {
+        // Serve now, refresh behind the response. One refresh at a time.
+        if (!backgroundRefresh) {
+          backgroundRefresh = fetchOpenRepairOrdersLive(dealershipId)
+            .catch((err) => console.warn('[Open ROs] background refresh failed:', err))
+            .finally(() => { backgroundRefresh = null; });
+        }
+        return { orders: snapshot.orders, fetchedAt: snapshot.fetchedAt, stale: true };
+      }
+    }
+  }
+
+  return fetchOpenRepairOrdersLive(dealershipId);
 }

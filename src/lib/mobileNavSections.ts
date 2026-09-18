@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { MobileNavSection } from '../components/layout/MobileBottomNav';
 import type { User } from '../types';
-import { canSeeManagerPanel } from './rbac';
+import { canAccessPrimaryAdminSettings, canSeeManagerPanel } from './rbac';
 
 interface DashboardModules {
   showVinSearchTab: boolean;
@@ -119,6 +119,22 @@ export function buildMobileNavSections({
           href: '/manager/logs',
           managerSubTab: 'logs',
         },
+      ],
+    });
+  }
+
+  // Admin was only ever reachable from the desktop sidebar.
+  if (canAccessPrimaryAdminSettings(user)) {
+    sections.push({
+      id: 'admin',
+      label: 'Admin',
+      icon: Shield,
+      items: [
+        { tabId: 'admin', label: 'Master users', href: '/admin/master-users', adminSubTab: 'master-users' },
+        { tabId: 'admin', label: 'Audit logs', href: '/admin/logs', adminSubTab: 'logs' },
+        { tabId: 'admin', label: 'Suggestions', href: '/admin/suggestions', adminSubTab: 'suggestions' },
+        { tabId: 'admin', label: 'Import health', href: '/admin/import-health', adminSubTab: 'import-health' },
+        { tabId: 'admin', label: 'PBS sync', href: '/admin/pbs-sync', adminSubTab: 'pbs-sync' },
       ],
     });
   }
