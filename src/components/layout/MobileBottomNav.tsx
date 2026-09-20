@@ -1,21 +1,28 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Activity,
   BarChart2,
   Bell,
   Calendar,
+  CalendarClock,
   Car,
+  Circle,
   Layers,
+  Lightbulb,
   LucideIcon,
+  RefreshCw,
+  ScrollText,
   Search,
-  Shield,
+  SlidersHorizontal,
   TrendingUp,
   Trophy,
+  UserCog,
   UserPlus,
   Settings,
   Users,
-  ClipboardList,
   FileText,
   LayoutDashboard,
+  Wrench,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -74,29 +81,44 @@ function resolveActiveSection(
   return sections[0]?.id ?? null;
 }
 
+/**
+ * One icon per destination. Every item in the menu must be listed here — the
+ * Manager and Admin entries all share a tabId ('manager' / 'admin') and are told
+ * apart by their sub-tab, so they are keyed by that instead.
+ *
+ * Icons have to differ from each other to be worth drawing at all: the whole
+ * Admin list, plus Open ROs and Schedule, used to miss the lookup and fall back
+ * to one shared magnifying glass.
+ */
 const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   home: LayoutDashboard,
   add: UserPlus,
   'vin-search': Car,
   search: Search,
   alerts: Bell,
+  'open-ros': Wrench,
   dispatch: Layers,
   'pot-of-gold': Trophy,
   appointments: Calendar,
+  schedule: CalendarClock,
   'sales-performance': BarChart2,
   forecast: TrendingUp,
-  'manager-operations': Settings,
-  'manager-preferences': ClipboardList,
-  'manager-team': Users,
-  'manager-logs': FileText,
+  'manager:operations': Settings,
+  'manager:preferences': SlidersHorizontal,
+  'manager:team': Users,
+  'manager:logs': FileText,
+  'admin:master-users': UserCog,
+  'admin:logs': ScrollText,
+  'admin:suggestions': Lightbulb,
+  'admin:import-health': Activity,
+  'admin:pbs-sync': RefreshCw,
 };
 
 function subItemIcon(item: MobileNavSubItem): LucideIcon {
-  if (item.managerSubTab === 'operations') return SUB_ITEM_ICONS['manager-operations'];
-  if (item.managerSubTab === 'preferences') return SUB_ITEM_ICONS['manager-preferences'];
-  if (item.managerSubTab === 'team') return SUB_ITEM_ICONS['manager-team'];
-  if (item.managerSubTab === 'logs') return SUB_ITEM_ICONS['manager-logs'];
-  return SUB_ITEM_ICONS[item.tabId] ?? Search;
+  const subTab = item.managerSubTab ?? item.adminSubTab;
+  // A neutral dot, not a magnifying glass — an unmapped item should look like
+  // nothing in particular rather than claim to be a search.
+  return SUB_ITEM_ICONS[subTab ? `${item.tabId}:${subTab}` : item.tabId] ?? Circle;
 }
 
 function isSubItemActive(
