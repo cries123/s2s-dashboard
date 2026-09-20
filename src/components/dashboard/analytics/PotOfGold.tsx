@@ -14,6 +14,7 @@ import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
 import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
+import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
 import { PageSkeleton } from '../../ui/Skeleton';
 import { buildOperationsViewPeriodOptions, formatArchiveDisplayLabel } from '../../../lib/operationsViewPeriod';
 
@@ -192,6 +193,17 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
   const advTotals = calculateAdvisorTotals();
   const advEarnings = calculateAdvisorEarnings();
+
+  /**
+   * Every op code starts at $0 and earnings are `count × price`, so an upsell on
+   * a code nobody has priced pays nothing and says nothing about it. On the live
+   * Hyundai board that silently swallowed 51 of 114 upsells — including the
+   * single biggest category — so the totals looked low for no visible reason.
+   */
+  const unpricedCodes = advData.filter(
+    (row) => row.frank + row.lemmy > 0 && !(prices[row.code] > 0)
+  );
+  const unpricedUpsells = unpricedCodes.reduce((n, row) => n + row.frank + row.lemmy, 0);
   const techTotals = calculateTechTotals();
   const techEarnings = calculateTechEarnings();
 
@@ -351,7 +363,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                   </button>
                   <button
                     onClick={handleClearData}
-                    className="flex-1 px-6 py-4 bg-rose-500 text-white rounded-2xl text-xs font-semibold shadow-xl shadow-rose-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                    className="flex-1 px-6 py-4 bg-rose-500 text-white rounded-2xl text-xs font-semibold shadow-xl shadow-rose-500/202] transition-all"
                   >
                     Clear Now
                   </button>
@@ -385,7 +397,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-[2.5rem] card-base p-5 md:p-12">
-        <div className="absolute top-0 right-0 p-8 opacity-10">
+        {/* Decorative only, and at phone width it sat on top of the notices. */}
+        <div className="hidden md:block absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
           <Trophy size={120} className="text-brand-primary" />
         </div>
         
@@ -415,12 +428,28 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             </div>
           </div>
           
-          <h2 className="text-4xl md:text-5xl font-semibold tracking-tighter mb-4 " style={{ color: 'var(--color-text-primary)' }}>
-             POT OF <span className="text-brand-primary">GOLD</span>
-          </h2>
-          <p className="crm-label max-w-xl text-sm leading-relaxed mb-6">
-            Intelligent AI tracking for your sales competition. Upload Op Code Frequency reports to automatically audit advisor payouts and technician contributions with Gemini AI.
-          </p>
+          {/* The page title is already in the PageHeader above — a second giant
+              one plus a paragraph of product copy just pushed the numbers down. */}
+          <CardNoticeRow className="mb-5">
+            {unpricedUpsells > 0 ? (
+              <CardNotice
+                tone="warn"
+                summary={`${unpricedUpsells} upsell${unpricedUpsells === 1 ? '' : 's'} paying $0`}
+              >
+                {unpricedCodes.map((r) => r.code).join(', ')}{' '}
+                {unpricedCodes.length === 1 ? 'has' : 'have'} no payout set, so those{' '}
+                {unpricedUpsells} of {advTotals.grand} upsells add nothing to the pot. Set a value
+                under <strong className="text-amber-200">Incentive payouts</strong>, or leave them
+                at $0 if they are deliberately excluded.
+              </CardNotice>
+            ) : (
+              <CardNotice tone="good" summary="Every op code with activity is priced" />
+            )}
+            <CardNotice tone="info" summary="Where these numbers come from">
+              Counts are entered by hand, or read out of an Op Code Frequency report you upload.
+              Earnings are each code's count multiplied by its payout value.
+            </CardNotice>
+          </CardNoticeRow>
 
           <input 
             type="file" 
@@ -435,7 +464,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isAiProcessing}
-                className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-xs font-semibold shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group"
+                className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-xs font-semibold shadow-xl shadow-brand-primary/20 disabled:opacity-50 disabled:0 transition-all group"
               >
                 {isAiProcessing ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -474,7 +503,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           <div className="relative">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="w-full card-base rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-semibold focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
+              className="w-full card-base rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-semibold focus:border-brand-primary outline-none shadow-xl transition-all"
               style={{ color: 'var(--color-text-primary)' }}
             >
               <div className="flex items-center gap-3">
@@ -575,7 +604,67 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         >
           {activeSubTab === 'advisors' && (
             <div className="space-y-6">
-              <div className="overflow-x-auto rounded-3xl card-base">
+              {/*
+                Phones get a stacked list. The table below is five columns with
+                px-6 padding and two 64px inputs — roughly 500px before the
+                description has any room — so at 375px it scrolled sideways and
+                the Total column sat off screen.
+              */}
+              <ul className="md:hidden card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
+                {advData.map((row, i) => {
+                  const price = prices[row.code] || 0;
+                  const total = row.frank + row.lemmy;
+                  return (
+                    <li key={row.code} className="p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded text-xs font-semibold">
+                            {row.code}
+                          </span>
+                          <p className="crm-label mt-1">{row.desc}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-lg font-semibold tabular-nums leading-none">{total}</p>
+                          <p className="crm-label mt-1 whitespace-nowrap">
+                            {price > 0 ? `$${price} each` : 'No payout set'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        {(['frank', 'lemmy'] as const).map((who) => (
+                          <label key={who} className="flex items-center gap-2">
+                            <span className="crm-label w-12 shrink-0 capitalize">{who}</span>
+                            <input
+                              type="number"
+                              value={row[who]}
+                              disabled={selectedMonth !== 'active'}
+                              onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
+                                const newData = advData.map((d, index) =>
+                                  index === i ? { ...d, [who]: val } : d
+                                );
+                                setAdvData(newData);
+                                saveToFirestore({ advData: newData });
+                              }}
+                              className="input-field min-w-0 flex-1 px-2 py-1.5 text-center text-sm tabular-nums"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
+                <li className="p-3 flex items-center justify-between gap-3" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+                  <span className="text-xs font-semibold">Grand totals</span>
+                  <span className="flex items-baseline gap-3 tabular-nums text-sm">
+                    <span><span className="crm-label">Frank</span> {advTotals.frank}</span>
+                    <span><span className="crm-label">Lemmy</span> {advTotals.lemmy}</span>
+                    <span className="text-brand-primary font-semibold">{advTotals.grand}</span>
+                  </span>
+                </li>
+              </ul>
+
+              <div className="hidden md:block overflow-x-auto rounded-lg card-base">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
@@ -812,9 +901,14 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     <Info className="text-emerald-500" size={16} />
                  </div>
                  <div className="flex-1">
-                    <h5 className="text-xs font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>Local Storage Active</h5>
+                    {/* This used to claim the data lived in this browser. It does
+                        not — it is in Firestore, shared with the whole store. */}
+                    <h5 className="text-xs font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>Saved for the whole store</h5>
                     <p className="crm-label text-xs leading-relaxed">
-                      Your competition data is saved directly in this browser. You can export the state as a file to move it between devices, or clear it when a new month starts.
+                      Counts and payout values save as you type and are shared with everyone at{' '}
+                      {currentDealershipId === 'hyundai' ? 'Hyundai of Santa Maria' : 'this store'}.
+                      They are not kept in this browser, so clearing your history changes nothing —
+                      and switching the view period above opens a separate archived month.
                     </p>
                  </div>
               </div>
