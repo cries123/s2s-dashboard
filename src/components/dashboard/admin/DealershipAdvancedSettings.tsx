@@ -61,8 +61,8 @@ function FeatureToggle({
   return (
     <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
       <div className="pr-2">
-        <span className="text-xs font-black text-white uppercase tracking-wide block">{label}</span>
-        <span className="text-[10px] text-slate-500">{description}</span>
+        <span className="text-xs font-semibold text-white tracking-wide block">{label}</span>
+        <span className="text-xs text-slate-500">{description}</span>
       </div>
       <button
         type="button"
@@ -120,7 +120,7 @@ export function DealershipAdvancedSettings({
   return (
     <div className="space-y-6 pt-4 border-t border-white/5">
       <div className="space-y-3">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <KeyRound size={12} /> Enrollment join code — {dealershipName}
         </label>
         <input
@@ -130,12 +130,12 @@ export function DealershipAdvancedSettings({
           onChange={(e) =>
             onUpdateSetting(dealershipId, { enrollmentJoinCode: e.target.value.trim().toUpperCase() })
           }
-          className="max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white uppercase"
+          className="max-w-xs bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white "
         />
       </div>
 
       <div className="space-y-3">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Cloud size={12} /> Weather widget location
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-xl">
@@ -166,7 +166,7 @@ export function DealershipAdvancedSettings({
       </div>
 
       <div className="space-y-2">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Monitor size={12} /> Navigation feature toggles (dealership)
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -218,7 +218,7 @@ export function DealershipAdvancedSettings({
       />
 
       <div className="space-y-2 pt-3 border-t border-white/5">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">
+        <label className="text-xs font-semibold text-slate-400 ">
           Hidden dispatch lanes
         </label>
         <div className="flex flex-wrap gap-2">
@@ -234,7 +234,7 @@ export function DealershipAdvancedSettings({
                   onUpdateSetting(dealershipId, { hiddenDispatchLanes: next });
                 }}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border',
+                  'px-3 py-1.5 rounded-lg text-xs font-semibold border',
                   hidden
                     ? 'border-rose-500/40 bg-rose-500/10 text-rose-400'
                     : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
@@ -269,7 +269,7 @@ function RosterEditor({
 }) {
   return (
     <div className="space-y-3 pt-3 border-t border-white/5">
-      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+      <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
         <Icon size={12} className="text-brand-primary" />
         {title}
       </label>
@@ -290,17 +290,17 @@ function RosterEditor({
               placeholder="Key"
               className="w-full sm:w-32 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300"
             />
-            <button type="button" onClick={() => onRemove(idx)} className="text-[10px] font-black uppercase text-rose-400">
+            <button type="button" onClick={() => onRemove(idx)} className="text-xs font-semibold text-rose-400">
               Remove
             </button>
           </div>
         ))}
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={onAdd} className="px-4 py-2 bg-slate-800 text-[10px] font-black uppercase rounded-xl text-white">
+        <button type="button" onClick={onAdd} className="px-4 py-2 bg-slate-800 text-xs font-semibold rounded-xl text-white">
           Add row
         </button>
-        <button type="button" onClick={onSave} className="px-4 py-2 bg-brand-primary/20 text-brand-primary text-[10px] font-black uppercase rounded-xl border border-brand-primary/30">
+        <button type="button" onClick={onSave} className="px-4 py-2 bg-brand-primary/20 text-brand-primary text-xs font-semibold rounded-xl border border-brand-primary/30">
           Save roster
         </button>
       </div>

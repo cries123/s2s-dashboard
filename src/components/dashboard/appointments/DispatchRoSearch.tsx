@@ -126,19 +126,19 @@ export function DispatchRoSearch({
                     )}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-black text-white tabular-nums">{ro.roNumber}</span>
-                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                      <span className="text-sm font-semibold text-white tabular-nums">{ro.roNumber}</span>
+                      <span className="text-xs font-semibold text-slate-500">
                         {dispatchLaneLabel(ro.department)}
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-3 text-[10px]">
+                    <div className="mt-1 flex items-center justify-between gap-3 text-xs">
                       <span className="text-slate-400 truncate">
                         {ro.customerName || ro.customerLastName || 'Guest'}
                         {ro.tagNumber ? ` · TAG ${ro.tagNumber}` : ''}
                       </span>
                       <span
                         className={cn(
-                          'inline-flex items-center gap-1 shrink-0 font-black uppercase tracking-wider',
+                          'inline-flex items-center gap-1 shrink-0 font-semibold ',
                           ro.isCompleted ? 'text-emerald-400' : 'text-amber-300'
                         )}
                       >
@@ -161,7 +161,7 @@ export function DispatchRoSearch({
             </ul>
           )}
           {matches.length > 12 ? (
-            <p className="px-4 py-2 text-[10px] text-slate-600 border-t border-slate-800">
+            <p className="px-4 py-2 text-xs text-slate-600 border-t border-slate-800">
               Showing first 12 of {matches.length} matches — refine your search.
             </p>
           ) : null}

@@ -21,7 +21,7 @@ export function TelemetryCard({ roData }: TelemetryCardProps) {
           {isInternalAsset ? (
             /* Internal Asset Top View */
             <>
-              <span className="bg-amber-950/80 text-amber-400 border border-amber-900/50 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md block w-fit mb-1">
+              <span className="bg-amber-950/80 text-amber-400 border border-amber-900/50 text-xs font-bold px-2 py-0.5 rounded-md block w-fit mb-1">
                 Store Inventory / Recon
               </span>
               <h3 className="text-lg font-semibold tracking-tight text-white">
@@ -31,7 +31,7 @@ export function TelemetryCard({ roData }: TelemetryCardProps) {
           ) : (
             /* Retail Customer Top View */
             <>
-              <h3 className="text-lg font-bold tracking-tight text-white uppercase">
+              <h3 className="text-lg font-bold tracking-tight text-white ">
                 {roData.customerName || `RO #${roData.roNumber} Guest`}
               </h3>
               {(roData.year || roData.model) && (
@@ -58,7 +58,7 @@ export function TelemetryCard({ roData }: TelemetryCardProps) {
       {/* 3. CORE TECHNICAL METADATA (VEHICLE SPECIFICS) */}
       <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
         <div className="bg-slate-950/30 p-2 rounded border border-slate-800/40">
-          <span className="text-slate-500 block text-[10px] uppercase tracking-wider">Identifiers</span>
+          <span className="text-slate-500 block text-xs ">Identifiers</span>
           <span className="font-mono text-slate-200 block mt-0.5">
             {isInternalAsset ? `STOCK: ${roData.stockNumber || 'N/A'}` : `TAG: ${roData.tagNumber || 'N/A'}`}
           </span>
@@ -68,7 +68,7 @@ export function TelemetryCard({ roData }: TelemetryCardProps) {
         </div>
 
         <div className="bg-slate-950/30 p-2 rounded border border-slate-800/40">
-          <span className="text-slate-500 block text-[10px] uppercase tracking-wider">Assigned Tech</span>
+          <span className="text-slate-500 block text-xs ">Assigned Tech</span>
           <span className="text-slate-200 font-medium block mt-0.5">
             Tech #{roData.techNumber}
           </span>

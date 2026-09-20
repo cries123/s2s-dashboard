@@ -76,11 +76,11 @@ export function DealershipChatNotifications({
                 onClick={() => handleOpen(message)}
                 className="flex-1 min-w-0 text-left"
               >
-                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-300">
+                <p className="text-xs font-semibold text-indigo-300">
                   Message from {message.fromName}
                 </p>
                 <p className="text-sm text-white mt-1 leading-snug break-words">{message.body}</p>
-                <p className="text-[10px] text-slate-500 mt-2 font-medium">Click to reply</p>
+                <p className="text-xs text-slate-500 mt-2 font-medium">Click to reply</p>
               </button>
               <button
                 type="button"
@@ -284,8 +284,8 @@ export function DealershipChatPanel({
       <div className="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden flex flex-col max-h-[min(720px,calc(100vh-2rem))]">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
           <div>
-            <h2 className="text-sm font-black text-white uppercase tracking-wider">Team chat</h2>
-            <p className="text-[10px] text-slate-500 mt-0.5">Messages stay within your dealership</p>
+            <h2 className="text-sm font-semibold text-white ">Team chat</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Messages stay within your dealership</p>
           </div>
           <button
             type="button"
@@ -300,14 +300,14 @@ export function DealershipChatPanel({
         <div className="flex min-h-0 flex-1">
           <aside className="w-28 sm:w-56 shrink-0 border-r border-slate-800 flex flex-col bg-slate-950/80">
             <div className="px-3 py-2 border-b border-slate-800">
-              <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+              <p className="text-xs font-semibold text-slate-500">
                 Open chats
               </p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {threads.length === 0 ? (
-                <p className="text-[10px] text-slate-600 px-2 py-4 leading-relaxed">
+                <p className="text-xs text-slate-600 px-2 py-4 leading-relaxed">
                   No conversations yet. Start a new message to reach dispatch or an advisor.
                 </p>
               ) : (
@@ -337,12 +337,12 @@ export function DealershipChatPanel({
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-bold text-white truncate">{thread.otherName}</p>
                         {thread.unreadCount > 0 ? (
-                          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-[9px] font-black text-white flex items-center justify-center">
+                          <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-xs font-semibold text-white flex items-center justify-center">
                             {thread.unreadCount > 9 ? '9+' : thread.unreadCount}
                           </span>
                         ) : null}
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-snug">
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-snug">
                         {preview}
                       </p>
                     </button>
@@ -360,7 +360,7 @@ export function DealershipChatPanel({
                   setError(null);
                 }}
                 className={cn(
-                  'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors',
+                  'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-colors',
                   view === 'new'
                     ? 'bg-indigo-500 text-white'
                     : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800'
@@ -375,7 +375,7 @@ export function DealershipChatPanel({
           <div className="flex-1 min-w-0 flex flex-col">
             {view === 'new' ? (
               <div className="px-4 py-3 border-b border-slate-800">
-                <p className="text-[9px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                <p className="text-xs font-semibold text-slate-500 mb-1.5">
                   Send to
                 </p>
                 <select
@@ -392,7 +392,7 @@ export function DealershipChatPanel({
                   ))}
                 </select>
                 {recipients.length === 0 ? (
-                  <p className="text-[10px] text-amber-400/90 leading-relaxed mt-2">
+                  <p className="text-xs text-amber-400/90 leading-relaxed mt-2">
                     No teammates found yet. Approved staff at your dealership appear here once
                     Firestore rules are deployed.
                   </p>
@@ -400,7 +400,7 @@ export function DealershipChatPanel({
               </div>
             ) : (
               <div className="px-4 py-3 border-b border-slate-800">
-                <p className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                <p className="text-xs font-semibold text-slate-500">
                   Conversation
                 </p>
                 <p className="text-sm font-bold text-white mt-0.5">{activeThreadName}</p>
@@ -412,7 +412,7 @@ export function DealershipChatPanel({
                 {threadError ? (
                   <p className="text-xs text-rose-400 text-center py-6">{threadError}</p>
                 ) : threadMessages.length === 0 ? (
-                  <p className="text-[10px] text-slate-600 text-center py-10 uppercase tracking-wider font-bold">
+                  <p className="text-xs text-slate-600 text-center py-10 font-bold">
                     No messages yet
                   </p>
                 ) : (
@@ -429,12 +429,12 @@ export function DealershipChatPanel({
                         )}
                       >
                         {!mine ? (
-                          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                          <p className="text-xs font-semibold text-slate-400 mb-1">
                             {msg.fromName}
                           </p>
                         ) : null}
                         <p className="leading-snug break-words">{msg.body}</p>
-                        <p className="text-[9px] text-slate-500 mt-1">{formatMessageTime(msg.createdAt)}</p>
+                        <p className="text-xs text-slate-500 mt-1">{formatMessageTime(msg.createdAt)}</p>
                       </div>
                     );
                   })
@@ -443,7 +443,7 @@ export function DealershipChatPanel({
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center p-6">
-                <p className="text-[10px] text-slate-600 uppercase tracking-wider font-bold text-center leading-relaxed">
+                <p className="text-xs text-slate-600 font-bold text-center leading-relaxed">
                   Pick a teammate above, then type your message below
                 </p>
               </div>
@@ -468,7 +468,7 @@ export function DealershipChatPanel({
               <button
                 type="submit"
                 disabled={!composeRecipientUid || !draft.trim() || sending}
-                className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-slate-800 disabled:text-slate-600 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+                className="w-full py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-slate-800 disabled:text-slate-600 text-white text-xs font-semibold transition-colors"
               >
                 {sending ? 'Sending…' : 'Send message'}
               </button>

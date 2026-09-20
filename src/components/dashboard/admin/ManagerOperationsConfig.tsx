@@ -68,11 +68,11 @@ function Section({
   return (
     <div className="space-y-3 pt-4 border-t border-white/5 first:pt-0 first:border-t-0">
       <div>
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Icon size={12} className="text-brand-primary" />
           {title}
         </label>
-        <p className="text-[10px] text-slate-500 mt-1 max-w-xl">{description}</p>
+        <p className="text-xs text-slate-500 mt-1 max-w-xl">{description}</p>
       </div>
       {children}
     </div>
@@ -93,8 +93,8 @@ function Toggle({
   return (
     <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
       <div className="pr-2">
-        <span className="text-xs font-black text-white uppercase tracking-wide block">{label}</span>
-        {description ? <span className="text-[10px] text-slate-500">{description}</span> : null}
+        <span className="text-xs font-semibold text-white tracking-wide block">{label}</span>
+        {description ? <span className="text-xs text-slate-500">{description}</span> : null}
       </div>
       <button
         type="button"
@@ -293,7 +293,7 @@ export function ManagerOperationsConfig({
 
   return (
     <div className="space-y-2">
-      <p className="text-[10px] text-slate-500 mb-2">
+      <p className="text-xs text-slate-500 mb-2">
         Configure {dealershipName} operations. Defaults match current app behavior until you change and save.
       </p>
 
@@ -313,8 +313,8 @@ export function ManagerOperationsConfig({
             { label: 'Business date', value: businessDatePst },
           ].map((tile) => (
             <div key={tile.label} className="rounded-xl border border-white/5 bg-slate-950/60 p-3">
-              <p className="text-[9px] font-black uppercase text-slate-500">{tile.label}</p>
-              <p className="text-lg font-black text-white tabular-nums mt-1">{tile.value}</p>
+              <p className="text-xs font-semibold text-slate-500">{tile.label}</p>
+              <p className="text-lg font-semibold text-white tabular-nums mt-1">{tile.value}</p>
             </div>
           ))}
         </div>
@@ -327,7 +327,7 @@ export function ManagerOperationsConfig({
               return (
                 <span
                   key={lane.id}
-                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300"
+                  className="text-xs font-bold px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300"
                 >
                   {label}: {avg}m avg
                 </span>
@@ -344,35 +344,35 @@ export function ManagerOperationsConfig({
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Daily appointments</label>
+            <label className="text-xs font-semibold text-slate-500">Daily appointments</label>
             <input
               type="number"
               min={1}
               value={apptTarget}
               onChange={(e) => setApptTarget(parseInt(e.target.value, 10) || 20)}
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Labor gross target</label>
+            <label className="text-xs font-semibold text-slate-500">Labor gross target</label>
             <input
               type="number"
               min={0}
               step={1000}
               value={laborTarget}
               onChange={(e) => setLaborTarget(parseInt(e.target.value, 10) || 0)}
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Parts sales target</label>
+            <label className="text-xs font-semibold text-slate-500">Parts sales target</label>
             <input
               type="number"
               min={0}
               step={1000}
               value={partsTarget}
               onChange={(e) => setPartsTarget(parseInt(e.target.value, 10) || 0)}
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
             />
           </div>
         </div>
@@ -380,7 +380,7 @@ export function ManagerOperationsConfig({
           <button
             type="button"
             onClick={saveGoals}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30 text-[10px] font-black uppercase"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30 text-xs font-semibold "
           >
             <Save size={12} />
             Save goals
@@ -388,7 +388,7 @@ export function ManagerOperationsConfig({
           <button
             type="button"
             onClick={savePriorMonthSnapshot}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-white border border-slate-700 text-[10px] font-black uppercase"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-white border border-slate-700 text-xs font-semibold "
           >
             Save as prior-month reference
           </button>
@@ -396,14 +396,14 @@ export function ManagerOperationsConfig({
             type="button"
             disabled={!settings.operationsGoalsPriorMonth}
             onClick={restorePriorMonth}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-black uppercase disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-xs font-semibold disabled:opacity-40"
           >
             <RotateCcw size={12} />
             Reset to saved reference
           </button>
         </div>
         {settings.operationsGoalsPriorMonth ? (
-          <p className="text-[10px] text-slate-600">
+          <p className="text-xs text-slate-600">
             Reference saved {settings.operationsGoalsPriorMonth.savedAt
               ? new Date(settings.operationsGoalsPriorMonth.savedAt).toLocaleDateString()
               : settings.operationsGoalsPriorMonth.month}
@@ -452,12 +452,12 @@ export function ManagerOperationsConfig({
                     : 'border-white/5 bg-slate-950/80 hover:border-slate-700'
                 )}
               >
-                <span className="text-xs font-black text-white uppercase tracking-wide block">
+                <span className="text-xs font-semibold text-white tracking-wide block">
                   {option.title}
                 </span>
-                <span className="text-[10px] text-slate-500 mt-1 block">{option.description}</span>
+                <span className="text-xs text-slate-500 mt-1 block">{option.description}</span>
                 {selected ? (
-                  <span className="text-[9px] font-black uppercase text-brand-primary mt-2 inline-block">
+                  <span className="text-xs font-semibold text-brand-primary mt-2 inline-block">
                     Active
                   </span>
                 ) : null}
@@ -510,7 +510,7 @@ export function ManagerOperationsConfig({
         icon={BarChart3}
       >
         <div className="max-w-xs">
-          <label className="text-[9px] font-black uppercase text-slate-500">Report period</label>
+          <label className="text-xs font-semibold text-slate-500">Report period</label>
           <select
             value={forecast.reportPeriod ?? DEFAULT_FORECAST_REPORT_PERIOD}
             onChange={(e) =>
@@ -537,7 +537,7 @@ export function ManagerOperationsConfig({
                   type="button"
                   onClick={() => toggleAdvisorInForecast(a.id)}
                   className={cn(
-                    'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border',
+                    'px-3 py-1.5 rounded-lg text-xs font-semibold border',
                     on
                       ? 'border-brand-primary/40 bg-brand-primary/15 text-brand-primary'
                       : 'border-slate-700 bg-slate-900 text-slate-500'
@@ -549,9 +549,9 @@ export function ManagerOperationsConfig({
             })}
           </div>
         ) : (
-          <p className="text-[10px] text-slate-600">Add advisors under Pot of Gold roster to filter forecast rollup.</p>
+          <p className="text-xs text-slate-600">Add advisors under Pot of Gold roster to filter forecast rollup.</p>
         )}
-        <p className="text-[10px] text-slate-600">
+        <p className="text-xs text-slate-600">
           Empty selection = all advisors (current behavior).
         </p>
       </Section>
@@ -563,7 +563,7 @@ export function ManagerOperationsConfig({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Grace minutes</label>
+            <label className="text-xs font-semibold text-slate-500">Grace minutes</label>
             <input
               type="number"
               min={0}
@@ -577,11 +577,11 @@ export function ManagerOperationsConfig({
                   },
                 })
               }
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Alert display</label>
+            <label className="text-xs font-semibold text-slate-500">Alert display</label>
             <select
               value={overdue.alertDisplay ?? DEFAULT_OVERDUE_ALERT_DISPLAY}
               onChange={(e) =>
@@ -610,7 +610,7 @@ export function ManagerOperationsConfig({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">
+            <label className="text-xs font-semibold text-slate-500">
               Default hours from now (0 = manual)
             </label>
             <input
@@ -626,11 +626,11 @@ export function ManagerOperationsConfig({
                   },
                 })
               }
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Business hours label</label>
+            <label className="text-xs font-semibold text-slate-500">Business hours label</label>
             <input
               type="text"
               value={promise.businessHoursLabel ?? '7:30 AM – 5:00 PM'}
@@ -646,7 +646,7 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Open (HH:MM)</label>
+            <label className="text-xs font-semibold text-slate-500">Open (HH:MM)</label>
             <input
               type="text"
               placeholder="07:30"
@@ -663,7 +663,7 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-[9px] font-black uppercase text-slate-500">Close (HH:MM)</label>
+            <label className="text-xs font-semibold text-slate-500">Close (HH:MM)</label>
             <input
               type="text"
               placeholder="17:00"
@@ -701,7 +701,7 @@ export function ManagerOperationsConfig({
           }
         />
         <div className="max-w-xs mt-2">
-          <label className="text-[9px] font-black uppercase text-slate-500">Refresh interval (seconds)</label>
+          <label className="text-xs font-semibold text-slate-500">Refresh interval (seconds)</label>
           <input
             type="number"
             min={10}
@@ -715,7 +715,7 @@ export function ManagerOperationsConfig({
                 },
               })
             }
-            className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+            className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
           />
         </div>
         <div className="flex flex-wrap gap-2 mt-3">
@@ -725,7 +725,7 @@ export function ManagerOperationsConfig({
               type="button"
               onClick={() => toggleStatusOnDisplay(opt.id)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border',
+                'px-3 py-1.5 rounded-lg text-xs font-semibold border',
                 visibleStatuses.includes(opt.id)
                   ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
                   : 'border-slate-700 text-slate-500'
@@ -792,7 +792,7 @@ export function ManagerOperationsConfig({
                   type="button"
                   disabled={idx === 0}
                   onClick={() => moveLane(lane.id, -1)}
-                  className="text-[9px] text-slate-500 disabled:opacity-30 px-1"
+                  className="text-xs text-slate-500 disabled:opacity-30 px-1"
                 >
                   ▲
                 </button>
@@ -800,12 +800,12 @@ export function ManagerOperationsConfig({
                   type="button"
                   disabled={idx === orderedLanes.length - 1}
                   onClick={() => moveLane(lane.id, 1)}
-                  className="text-[9px] text-slate-500 disabled:opacity-30 px-1"
+                  className="text-xs text-slate-500 disabled:opacity-30 px-1"
                 >
                   ▼
                 </button>
               </div>
-              <span className="text-[9px] font-mono text-slate-600 w-24 shrink-0">{lane.id}</span>
+              <span className="text-xs font-mono text-slate-600 w-24 shrink-0">{lane.id}</span>
               <input
                 type="text"
                 placeholder={lane.label}
@@ -849,7 +849,7 @@ export function ManagerOperationsConfig({
           </select>
         </div>
         {settings.lastDispatchOvernightSweepDate ? (
-          <p className="text-[10px] text-slate-600 mt-2">
+          <p className="text-xs text-slate-600 mt-2">
             Last sweep recorded: {settings.lastDispatchOvernightSweepDate}
           </p>
         ) : null}

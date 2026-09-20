@@ -64,19 +64,13 @@ export function buildMobileNavSections({
   }
   sections.push({ id: 'service', label: 'Service', icon: Calendar, items: serviceItems });
 
-  if (currentDealershipId === 'hyundai' && modules.showPotOfGoldTab) {
-    sections.push({
-      id: 'competitions',
-      label: 'Competition',
-      icon: Trophy,
-      items: [{ tabId: 'pot-of-gold', label: 'Pot of Gold', href: '/competitions/pot-of-gold' }],
-    });
-  }
-
   const reportItems: MobileNavSection['items'] = [
     { tabId: 'appointments', label: 'Operations', href: '/reports/operations' },
     { tabId: 'schedule', label: 'Schedule', href: '/reports/schedule' },
   ];
+  if (currentDealershipId === 'hyundai' && modules.showPotOfGoldTab) {
+    reportItems.push({ tabId: 'pot-of-gold', label: 'Pot of Gold', href: '/competitions/pot-of-gold' });
+  }
   if (modules.showSalesPerformanceTab) {
     reportItems.push({
       tabId: 'sales-performance',
@@ -89,10 +83,20 @@ export function buildMobileNavSections({
   }
   sections.push({ id: 'reports', label: 'Reports', icon: BarChart2, items: reportItems });
 
+  const adminItems: MobileNavSection['items'] = canAccessPrimaryAdminSettings(user)
+    ? [
+        { tabId: 'admin', label: 'Master users', href: '/admin/master-users', adminSubTab: 'master-users' },
+        { tabId: 'admin', label: 'Audit logs', href: '/admin/logs', adminSubTab: 'logs' },
+        { tabId: 'admin', label: 'Suggestions', href: '/admin/suggestions', adminSubTab: 'suggestions' },
+        { tabId: 'admin', label: 'Import health', href: '/admin/import-health', adminSubTab: 'import-health' },
+        { tabId: 'admin', label: 'PBS sync', href: '/admin/pbs-sync', adminSubTab: 'pbs-sync' },
+      ]
+    : [];
+
   if (canSeeManagerPanel(user)) {
     sections.push({
       id: 'manager',
-      label: 'Manager',
+      label: 'Manage',
       icon: Shield,
       items: [
         {
@@ -119,24 +123,11 @@ export function buildMobileNavSections({
           href: '/manager/logs',
           managerSubTab: 'logs',
         },
+        ...adminItems,
       ],
     });
-  }
-
-  // Admin was only ever reachable from the desktop sidebar.
-  if (canAccessPrimaryAdminSettings(user)) {
-    sections.push({
-      id: 'admin',
-      label: 'Admin',
-      icon: Shield,
-      items: [
-        { tabId: 'admin', label: 'Master users', href: '/admin/master-users', adminSubTab: 'master-users' },
-        { tabId: 'admin', label: 'Audit logs', href: '/admin/logs', adminSubTab: 'logs' },
-        { tabId: 'admin', label: 'Suggestions', href: '/admin/suggestions', adminSubTab: 'suggestions' },
-        { tabId: 'admin', label: 'Import health', href: '/admin/import-health', adminSubTab: 'import-health' },
-        { tabId: 'admin', label: 'PBS sync', href: '/admin/pbs-sync', adminSubTab: 'pbs-sync' },
-      ],
-    });
+  } else if (adminItems.length) {
+    sections.push({ id: 'admin', label: 'Admin', icon: Shield, items: adminItems });
   }
 
   return sections;

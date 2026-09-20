@@ -51,7 +51,7 @@ function statusBadgeClass(status?: string): string {
 function InfoCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+      <p className="text-xs font-bold text-slate-500">{label}</p>
       <p className="text-sm font-semibold text-slate-100 mt-0.5 truncate">{value || '—'}</p>
     </div>
   );
@@ -63,7 +63,7 @@ function CccBlock({ label, value, accent }: { label: string; value?: string; acc
     <div className="flex gap-3">
       <div className={cn('w-1 rounded-full shrink-0', accent)} />
       <div className="min-w-0">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
+        <p className="text-xs font-bold text-slate-500">{label}</p>
         <p className="text-sm leading-relaxed text-slate-200 whitespace-pre-wrap mt-0.5">{value}</p>
       </div>
     </div>
@@ -133,10 +133,10 @@ export function ServiceVisitDetailModal({
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                  <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
                     REPAIR ORDER <span className="text-brand-primary">#{visit.soNumber}</span>
                   </h2>
-                  <span className={cn('badge text-[10px] uppercase', statusBadgeClass(visit.status))}>
+                  <span className={cn('badge text-xs ', statusBadgeClass(visit.status))}>
                     {visit.status || 'Completed'}
                   </span>
                 </div>
@@ -166,7 +166,7 @@ export function ServiceVisitDetailModal({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
             {customerName && onOpenCustomer ? (
               <div className="min-w-0">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Customer</p>
+                <p className="text-xs font-bold text-slate-500">Customer</p>
                 <button
                   type="button"
                   onClick={onOpenCustomer}
@@ -203,10 +203,10 @@ export function ServiceVisitDetailModal({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3 bg-white/[0.03] border-b border-slate-700/50">
                   <div className="flex items-center gap-3">
-                    <span className="w-7 h-7 rounded-lg bg-brand-primary/15 border border-brand-primary/30 text-brand-primary text-xs font-black flex items-center justify-center">
+                    <span className="w-7 h-7 rounded-lg bg-brand-primary/15 border border-brand-primary/30 text-brand-primary text-xs font-semibold flex items-center justify-center">
                       {line.lineNumber}
                     </span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+                    <span className="text-xs font-semibold text-slate-300">
                       Job line {line.lineNumber}
                       {line.requestCode ? (
                         <span className="ml-2 font-mono text-slate-500">{line.requestCode}</span>
@@ -215,10 +215,10 @@ export function ServiceVisitDetailModal({
                   </div>
                   <div className="flex items-center gap-3">
                     {line.tech && (
-                      <span className="badge badge-info text-[10px]">Tech {line.tech}</span>
+                      <span className="badge badge-info text-xs">Tech {line.tech}</span>
                     )}
                     {line.status && (
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                      <span className="text-xs font-bold text-slate-500">
                         {line.status}
                       </span>
                     )}
@@ -241,12 +241,12 @@ export function ServiceVisitDetailModal({
 
                   {line.labourLines && line.labourLines.length > 0 && (
                     <div className="rounded-lg border border-slate-700/50 overflow-hidden">
-                      <p className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white/[0.03] border-b border-slate-700/50">
+                      <p className="px-3 py-2 text-xs font-semibold text-slate-400 bg-white/[0.03] border-b border-slate-700/50">
                         Labor operations
                       </p>
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="text-[9px] uppercase tracking-widest text-slate-500">
+                          <tr className="text-xs text-slate-500">
                             <th className="text-left px-3 py-2 font-bold">Op code</th>
                             <th className="text-left px-3 py-2 font-bold">Description</th>
                             <th className="text-right px-3 py-2 font-bold">Hours</th>
@@ -273,12 +273,12 @@ export function ServiceVisitDetailModal({
 
                   {line.partLines && line.partLines.length > 0 && (
                     <div className="rounded-lg border border-slate-700/50 overflow-hidden">
-                      <p className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 bg-white/[0.03] border-b border-slate-700/50">
+                      <p className="px-3 py-2 text-xs font-semibold text-slate-400 bg-white/[0.03] border-b border-slate-700/50">
                         Parts
                       </p>
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="text-[9px] uppercase tracking-widest text-slate-500">
+                          <tr className="text-xs text-slate-500">
                             <th className="text-left px-3 py-2 font-bold">Part #</th>
                             <th className="text-left px-3 py-2 font-bold">Description</th>
                             <th className="text-right px-3 py-2 font-bold">Qty</th>
@@ -307,19 +307,19 @@ export function ServiceVisitDetailModal({
         {/* Footer summary + totals */}
         <div className="shrink-0 border-t border-slate-700/60 bg-slate-950/60 px-5 sm:px-8 py-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
+            <p className="text-xs font-bold text-slate-500">
               {lines.length} job line{lines.length === 1 ? '' : 's'}
               {totalLaborHours > 0 ? ` · ${totalLaborHours.toFixed(1)} hrs sold` : ''}
               {totalParts > 0 ? ` · ${totalParts} part${totalParts === 1 ? '' : 's'}` : ''}
             </p>
-            <p className="text-[10px] text-slate-600">Data from PBS PartnerHUB</p>
+            <p className="text-xs text-slate-600">Data from PBS PartnerHUB</p>
           </div>
 
           {(allLinesTotal > 0 || payTotals) && (
             <div className="rounded-xl border border-slate-700/50 bg-white/[0.02] px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                  <p className="text-xs font-bold text-slate-500">
                     Job lines total (parts + labor)
                   </p>
                   <p className="text-sm font-semibold text-slate-200 mt-0.5 tabular-nums">
@@ -330,7 +330,7 @@ export function ServiceVisitDetailModal({
                 {payTotals && (
                   <>
                     <div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                      <p className="text-xs font-bold text-slate-500">
                         Customer pay
                       </p>
                       <p className="text-sm font-semibold text-slate-200 mt-0.5 tabular-nums">
@@ -339,7 +339,7 @@ export function ServiceVisitDetailModal({
                     </div>
                     {warrantyTotal! > 0 && (
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        <p className="text-xs font-bold text-slate-500">
                           Warranty
                         </p>
                         <p className="text-sm font-semibold text-amber-400 mt-0.5 tabular-nums">
@@ -349,7 +349,7 @@ export function ServiceVisitDetailModal({
                     )}
                     {internalTotal! > 0 && (
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        <p className="text-xs font-bold text-slate-500">
                           Internal
                         </p>
                         <p className="text-sm font-semibold text-sky-400 mt-0.5 tabular-nums">
@@ -358,10 +358,10 @@ export function ServiceVisitDetailModal({
                       </div>
                     )}
                     <div className="ml-auto">
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                      <p className="text-xs font-bold text-slate-500">
                         Finish total
                       </p>
-                      <p className="text-base font-black text-brand-primary mt-0.5 tabular-nums">
+                      <p className="text-base font-semibold text-brand-primary mt-0.5 tabular-nums">
                         {formatCurrency(finishTotal)}
                       </p>
                     </div>
@@ -369,7 +369,7 @@ export function ServiceVisitDetailModal({
                 )}
               </div>
               {payTotals && (customerPayTotal !== allLinesTotal) && (
-                <p className="text-[9px] text-slate-600 mt-2">
+                <p className="text-xs text-slate-600 mt-2">
                   Customer / warranty / internal totals come from PBS's own repair-order summary and
                   may not exactly match the sum of job lines shown above.
                 </p>

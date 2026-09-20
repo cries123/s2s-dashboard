@@ -213,7 +213,7 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
       <div className="modal-content !max-w-2xl bg-slate-900 border-surface-border">
         <div className="p-6 sm:p-8 border-b border-surface-border bg-slate-900/50 flex justify-between items-center">
           <div>
-            <h3 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-3">
+            <h3 className="text-2xl font-semibold text-white tracking-tight flex items-center gap-3">
               <div className="p-2 bg-brand-primary/10 rounded-xl text-brand-primary">
                 <Upload size={20} />
               </div>
@@ -309,7 +309,7 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
         </div>
         
         <div className="px-6 py-4 bg-slate-950/80 border-t border-surface-border text-center">
-           <p className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">
+           <p className="text-xs font-bold text-slate-700 ">
              Advanced Telemetry Integration • Hyundai Group
            </p>
         </div>

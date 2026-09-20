@@ -20,15 +20,15 @@ function FailureRow({ entry }: { entry: DmsImportFailureEntry }) {
   return (
     <li className="py-2.5 border-b border-white/5 last:border-0">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-[10px] font-black uppercase text-rose-400">
+        <span className="text-xs font-semibold text-rose-400">
           {dmsImportKindLabel(entry.importKind)}
         </span>
-        <span className="text-[10px] text-slate-600 font-mono">{formatWhen(entry.at)}</span>
+        <span className="text-xs text-slate-600 font-mono">{formatWhen(entry.at)}</span>
       </div>
       <p className="text-xs text-white font-medium truncate mt-0.5">{entry.filename}</p>
       <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{entry.error}</p>
       {entry.userEmail ? (
-        <p className="text-[10px] text-slate-600 mt-1">{entry.userEmail}</p>
+        <p className="text-xs text-slate-600 mt-1">{entry.userEmail}</p>
       ) : null}
     </li>
   );
@@ -51,22 +51,22 @@ export function DmsImportHealthPanel({ dealershipSettings }: DmsImportHealthPane
             <div key={d.id} className="card-base rounded-2xl border border-white/5 p-5">
               <div className="flex items-center gap-2 mb-4">
                 <FileText size={16} className="text-brand-primary" />
-                <h3 className="text-sm font-black text-white uppercase tracking-wider">{d.name}</h3>
+                <h3 className="text-sm font-semibold text-white ">{d.name}</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 size={14} className="text-emerald-400" />
-                    <span className="text-[10px] font-black uppercase text-emerald-300">Last success</span>
+                    <span className="text-xs font-semibold text-emerald-300">Last success</span>
                   </div>
                   {last ? (
                     <>
                       <p className="text-xs font-bold text-white">{dmsImportKindLabel(last.importKind)}</p>
                       <p className="text-[11px] text-slate-400 truncate mt-1">{last.filename}</p>
-                      <p className="text-[10px] text-slate-600 mt-2">{formatWhen(last.at)}</p>
+                      <p className="text-xs text-slate-600 mt-2">{formatWhen(last.at)}</p>
                       {last.userEmail ? (
-                        <p className="text-[10px] text-slate-600">{last.userEmail}</p>
+                        <p className="text-xs text-slate-600">{last.userEmail}</p>
                       ) : null}
                     </>
                   ) : (
@@ -82,7 +82,7 @@ export function DmsImportHealthPanel({ dealershipSettings }: DmsImportHealthPane
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle size={14} className="text-rose-400" />
-                    <span className="text-[10px] font-black uppercase text-rose-300">
+                    <span className="text-xs font-semibold text-rose-300">
                       Recent failures ({failures.length})
                     </span>
                   </div>

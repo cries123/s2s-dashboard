@@ -413,11 +413,11 @@ export function MasterUserSettings({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="border-b border-white/5 pb-4">
-        <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em] mb-1.5">
+        <div className="flex items-center gap-2 text-brand-primary text-xs font-semibold mb-1.5">
           <Shield size={12} />
           {managerMode ? 'Dealership team' : scopeTenantId ? 'User administration' : 'Platform administration'}
         </div>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">
+        <h2 className="text-2xl font-semibold text-white tracking-tight">
           {managerMode
             ? scopedTenantName
               ? `${scopedTenantName} users`
@@ -460,7 +460,7 @@ export function MasterUserSettings({
             ))}
           </select>
         ) : null}
-        <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center px-2">
+        <div className="text-xs font-semibold text-slate-500 flex items-center px-2">
           {filteredUsers.length} users
         </div>
       </div>
@@ -480,12 +480,12 @@ export function MasterUserSettings({
               >
                 <div className="flex justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-white truncate">{u.username}</p>
-                    <p className="text-[10px] text-slate-500 truncate">{u.email}</p>
+                    <p className="text-sm font-semibold text-white truncate">{u.username}</p>
+                    <p className="text-xs text-slate-500 truncate">{u.email}</p>
                   </div>
                   <span
                     className={cn(
-                      'text-[8px] font-black uppercase px-2 py-0.5 rounded shrink-0 h-fit',
+                      'text-xs font-semibold px-2 py-0.5 rounded shrink-0 h-fit',
                       isPendingUser(u) ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
                     )}
                   >
@@ -493,10 +493,10 @@ export function MasterUserSettings({
                   </span>
                 </div>
                 <div className="flex gap-2 mt-2 flex-wrap">
-                  <span className="text-[8px] font-black uppercase text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded">
+                  <span className="text-xs font-semibold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded">
                     {masterPermissionFromUser(u).replace('-', ' ')}
                   </span>
-                  <span className="text-[8px] font-black uppercase text-slate-500">
+                  <span className="text-xs font-semibold text-slate-500">
                     {DEALERSHIPS.find((d) => d.id === u.dealershipId)?.name.split(' ')[0] || u.tenantId}
                   </span>
                 </div>
@@ -515,11 +515,11 @@ export function MasterUserSettings({
             <>
               <div className="flex items-start justify-between gap-4 border-b border-white/5 pb-4">
                 <div>
-                  <h3 className="text-lg font-black text-white uppercase">{selectedUser.username}</h3>
-                  <p className="text-[10px] text-slate-500 font-mono mt-1">{selectedUser.uid}</p>
+                  <h3 className="text-lg font-semibold text-white ">{selectedUser.username}</h3>
+                  <p className="text-xs text-slate-500 font-mono mt-1">{selectedUser.uid}</p>
                 </div>
                 {isProtectedUser(selectedUser) && (
-                  <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+                  <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
                     Protected
                   </span>
                 )}
@@ -618,7 +618,7 @@ export function MasterUserSettings({
                   type="button"
                   disabled={saving || !canEditTarget(selectedUser)}
                   onClick={saveProfile}
-                  className="btn-primary px-4 py-2 text-[10px] font-black uppercase flex items-center gap-2"
+                  className="btn-primary px-4 py-2 text-xs font-semibold flex items-center gap-2"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   Save profile
@@ -628,7 +628,7 @@ export function MasterUserSettings({
                     type="button"
                     disabled={saving}
                     onClick={() => approveUser(selectedUser)}
-                    className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    className="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                   >
                     Approve enrollment
                   </button>
@@ -638,7 +638,7 @@ export function MasterUserSettings({
                     type="button"
                     disabled={saving || !canEditTarget(selectedUser)}
                     onClick={() => sendPasswordReset(selectedUser)}
-                    className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-slate-800 text-white border border-slate-700 flex items-center gap-2"
+                    className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 text-white border border-slate-700 flex items-center gap-2"
                   >
                     <RefreshCw size={14} />
                     Send reset email
@@ -664,7 +664,7 @@ export function MasterUserSettings({
                       type="button"
                       disabled={saving || !canEditTarget(selectedUser) || passwordDraft.length < 8}
                       onClick={applyNewPassword}
-                      className="px-4 py-2 text-[10px] font-black uppercase rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30"
+                      className="px-4 py-2 text-xs font-semibold rounded-xl bg-brand-primary/20 text-brand-primary border border-brand-primary/30"
                     >
                       Apply
                     </button>
@@ -680,7 +680,7 @@ export function MasterUserSettings({
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteUid(null)}
-                        className="text-[10px] font-black uppercase text-slate-500"
+                        className="text-xs font-semibold text-slate-500"
                       >
                         Cancel
                       </button>
@@ -688,7 +688,7 @@ export function MasterUserSettings({
                         type="button"
                         disabled={saving}
                         onClick={() => deleteUserCompletely(selectedUser)}
-                        className="px-3 py-1.5 bg-rose-500 text-white text-[10px] font-black uppercase rounded-lg"
+                        className="px-3 py-1.5 bg-rose-500 text-white text-xs font-semibold rounded-lg"
                       >
                         Confirm delete
                       </button>
@@ -698,7 +698,7 @@ export function MasterUserSettings({
                       type="button"
                       disabled={isProtectedUser(selectedUser)}
                       onClick={() => setConfirmDeleteUid(selectedUser.uid)}
-                      className="text-[10px] font-black uppercase text-rose-400 hover:text-rose-300 flex items-center gap-2"
+                      className="text-xs font-semibold text-rose-400 hover:text-rose-300 flex items-center gap-2"
                     >
                       <Trash2 size={14} />
                       Delete user (auth + profile)

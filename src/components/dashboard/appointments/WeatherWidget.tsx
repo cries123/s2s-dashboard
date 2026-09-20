@@ -73,9 +73,9 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">{displayCity}</span>
+            <span className="text-xs font-semibold text-slate-500 leading-none">{displayCity}</span>
           </div>
-          <h3 className="text-4xl font-black text-white tracking-tighter">
+          <h3 className="text-4xl font-semibold text-white tracking-tighter">
             {Math.round(weather.temperature_2m)}°F
           </h3>
           <p className="text-slate-400 text-xs font-bold mt-1">{getWeatherString(weather.weather_code)}</p>
@@ -86,19 +86,19 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           <div className="flex items-center gap-4 text-slate-500">
             <div className="flex items-center gap-1">
               <Wind size={12} />
-              <span className="text-[10px] font-bold">{Math.round(weather.wind_speed_10m)} mph</span>
+              <span className="text-xs font-bold">{Math.round(weather.wind_speed_10m)} mph</span>
             </div>
             <div className="flex items-center gap-1">
               <Thermometer size={12} />
-              <span className="text-[10px] font-bold">{Math.round(weather.apparent_temperature)}° (Feels)</span>
+              <span className="text-xs font-bold">{Math.round(weather.apparent_temperature)}° (Feels)</span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mt-4 pt-4 border-t border-slate-800/50 flex items-center justify-between">
-        <p className="text-[9px] font-black text-brand-secondary uppercase tracking-widest">Service Desk Priority</p>
-        <span className="text-[10px] font-bold text-slate-200">
+        <p className="text-xs font-semibold text-brand-secondary ">Service Desk Priority</p>
+        <span className="text-xs font-bold text-slate-200">
           {weather.weather_code >= 51 ? "High (Rainy Day Protocol)" : "Standard Operations"}
         </span>
       </div>

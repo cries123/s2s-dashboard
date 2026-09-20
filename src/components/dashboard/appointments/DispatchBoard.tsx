@@ -137,8 +137,8 @@ function renderIntakeFlagBadge(ro: DispatchRepairOrder, compact = false) {
     return (
       <span
         className={cn(
-          'font-black uppercase rounded shrink-0',
-          compact ? 'text-[8px] px-1 py-0.5' : 'text-[9px] px-1.5 py-0.5'
+          'font-semibold rounded shrink-0',
+          compact ? 'text-xs px-1 py-0.5' : 'text-xs px-1.5 py-0.5'
         )}
         style={{ backgroundColor: style.bg, color: style.text }}
       >
@@ -151,8 +151,8 @@ function renderIntakeFlagBadge(ro: DispatchRepairOrder, compact = false) {
     return (
       <span
         className={cn(
-          'font-black uppercase rounded shrink-0',
-          compact ? 'text-[8px] px-1 py-0.5' : 'text-[9px] px-1.5 py-0.5'
+          'font-semibold rounded shrink-0',
+          compact ? 'text-xs px-1 py-0.5' : 'text-xs px-1.5 py-0.5'
         )}
         style={{ backgroundColor: style.bg, color: style.text }}
       >
@@ -1310,7 +1310,7 @@ export function DispatchBoard({
         onPointerDown={(e) => e.stopPropagation()}
         role="menu"
       >
-        <p className="px-3 py-2 text-[8px] font-black uppercase tracking-widest text-slate-500 border-b border-white/5">
+        <p className="px-3 py-2 text-xs font-semibold text-slate-500 border-b border-white/5">
           Route #{ro.roNumber}
         </p>
         <div className="max-h-52 overflow-y-auto py-1">
@@ -1324,7 +1324,7 @@ export function DispatchBoard({
                 e.stopPropagation();
                 handleMoveRo(ro, target);
               }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-200 hover:bg-indigo-500/15 hover:text-white transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-xs font-bold tracking-wide text-slate-200 hover:bg-indigo-500/15 hover:text-white transition-colors cursor-pointer"
             >
               <span className="text-indigo-400 shrink-0">{icon}</span>
               {label}
@@ -1353,11 +1353,11 @@ export function DispatchBoard({
         )}
       >
         <div className="flex items-center justify-between gap-1">
-          <span className="text-[11px] font-black text-white tabular-nums leading-none">
+          <span className="text-[11px] font-semibold text-white tabular-nums leading-none">
             {ro.roNumber}
           </span>
           <span
-            className="text-[7px] font-black uppercase px-1 py-0.5 rounded shrink-0 border"
+            className="text-[7px] font-semibold px-1 py-0.5 rounded shrink-0 border"
             style={{
               color: statusInfo.hex,
               borderColor: `${statusInfo.hex}66`,
@@ -1368,14 +1368,14 @@ export function DispatchBoard({
             {ro.status}
           </span>
         </div>
-        <p className="text-[10px] font-bold text-slate-200 uppercase truncate leading-tight">
+        <p className="text-xs font-bold text-slate-200 truncate leading-tight">
           {lastName}
         </p>
         {(ro.isWaiting || ro.isPdl) && (
           <div className="flex flex-wrap gap-1">
             {ro.isWaiting ? (
               <span
-                className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded"
+                className="text-xs font-semibold px-1.5 py-0.5 rounded"
                 style={{
                   backgroundColor: DISPATCH_INTAKE_FLAG_STYLES.waiting.bg,
                   color: DISPATCH_INTAKE_FLAG_STYLES.waiting.text,
@@ -1386,7 +1386,7 @@ export function DispatchBoard({
             ) : null}
             {ro.isPdl ? (
               <span
-                className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded"
+                className="text-xs font-semibold px-1.5 py-0.5 rounded"
                 style={{
                   backgroundColor: DISPATCH_INTAKE_FLAG_STYLES.pdl.bg,
                   color: DISPATCH_INTAKE_FLAG_STYLES.pdl.text,
@@ -1398,14 +1398,14 @@ export function DispatchBoard({
           </div>
         )}
         {ro.tagNumber ? (
-          <p className="text-[9px] font-semibold text-slate-400 uppercase tabular-nums leading-tight">
+          <p className="text-xs font-semibold text-slate-400 tabular-nums leading-tight">
             Tag {ro.tagNumber}
           </p>
         ) : null}
         {promiseClock ? (
           <p
             className={cn(
-              'text-[9px] font-bold leading-tight',
+              'text-xs font-bold leading-tight',
               promiseState?.urgency === 'overdue' && 'text-rose-400',
               promiseState?.urgency === 'urgent' && 'text-orange-400',
               promiseState?.urgency === 'soon' && 'text-amber-400',
@@ -1441,14 +1441,14 @@ export function DispatchBoard({
         )}
       >
         <div className="flex items-center justify-between gap-1">
-          <span className="text-[11px] font-black text-white tabular-nums truncate">{ro.roNumber}</span>
+          <span className="text-[11px] font-semibold text-white tabular-nums truncate">{ro.roNumber}</span>
           {renderIntakeFlagBadge(ro, true)}
         </div>
-        <p className="text-[9px] font-bold text-slate-300 truncate uppercase">
+        <p className="text-xs font-bold text-slate-300 truncate ">
           {ro.customerName || ro.model || 'Guest'}
         </p>
         {ro.concern ? (
-          <p className="text-[8px] text-slate-400 line-clamp-2 leading-snug" title={ro.concern}>
+          <p className="text-xs text-slate-400 line-clamp-2 leading-snug" title={ro.concern}>
             {ro.concern}
           </p>
         ) : null}
@@ -1459,7 +1459,7 @@ export function DispatchBoard({
             compact
           />
         )}
-        <div className="flex items-center justify-between text-[8px] font-mono text-slate-500">
+        <div className="flex items-center justify-between text-xs font-mono text-slate-500">
           <span className="truncate">{techLabel}</span>
           <span>…{ro.vinLastEight}</span>
         </div>
@@ -1524,11 +1524,11 @@ export function DispatchBoard({
             title="Click to edit RO details"
           >
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xl font-black text-white tabular-nums tracking-tight leading-none">
+              <span className="text-xl font-semibold text-white tabular-nums tracking-tight leading-none">
                 {ro.roNumber}
               </span>
               <span
-                className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded border"
+                className="text-xs font-semibold px-2 py-0.5 rounded border"
                 style={{
                   color: statusInfo.hex,
                   borderColor: `${statusInfo.hex}55`,
@@ -1538,7 +1538,7 @@ export function DispatchBoard({
                 {statusInfo.label}
               </span>
               {isOvernight ? (
-                <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider">
+                <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1.5 py-0.5 rounded text-xs font-semibold ">
                   Overnight
                 </span>
               ) : null}
@@ -1546,7 +1546,7 @@ export function DispatchBoard({
             </div>
 
             {isInternalAsset ? (
-              <span className="inline-flex bg-amber-950/80 text-amber-400 border border-amber-900/50 text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md">
+              <span className="inline-flex bg-amber-950/80 text-amber-400 border border-amber-900/50 text-xs font-bold px-2 py-0.5 rounded-md">
                 Store inventory / recon
               </span>
             ) : null}
@@ -1556,7 +1556,7 @@ export function DispatchBoard({
               {vehicleLabel ? (
                 <p className="text-xs text-slate-400 truncate">{vehicleLabel}</p>
               ) : null}
-              <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 group-hover:text-indigo-400/80 mt-1">
+              <p className="text-xs font-bold text-slate-600 group-hover:text-indigo-400/80 mt-1">
                 Tap to edit
               </p>
             </div>
@@ -1569,7 +1569,7 @@ export function DispatchBoard({
                 e.stopPropagation();
                 setEditingRo(ro);
               }}
-              className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-slate-400 bg-slate-950/50 border border-slate-800 px-1.5 py-0.5 rounded hover:bg-indigo-950/40 hover:text-indigo-300 hover:border-indigo-900/40"
+              className="flex items-center gap-1 text-xs font-semibold text-slate-400 bg-slate-950/50 border border-slate-800 px-1.5 py-0.5 rounded hover:bg-indigo-950/40 hover:text-indigo-300 hover:border-indigo-900/40"
               title="Edit RO"
             >
               <Pencil size={11} /> Edit
@@ -1580,7 +1580,7 @@ export function DispatchBoard({
                 const card = e.currentTarget.closest('[data-dispatch-card]') as HTMLElement | null;
                 toggleMoveMenu(ro.id, card ?? e.currentTarget, e);
               }}
-              className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-400 bg-indigo-950/50 border border-indigo-900/40 px-1.5 py-0.5 rounded hover:bg-indigo-900/40"
+              className="flex items-center gap-1 text-xs font-semibold text-indigo-400 bg-indigo-950/50 border border-indigo-900/40 px-1.5 py-0.5 rounded hover:bg-indigo-900/40"
             >
               <MapPin size={11} /> Move
             </button>
@@ -1596,7 +1596,7 @@ export function DispatchBoard({
                     setConfirmDeleteId(null);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="text-[9px] font-black uppercase text-rose-400 bg-rose-950/80 border border-rose-900/40 px-1 py-0.5 rounded hover:bg-rose-900/80 transition-all cursor-pointer relative z-20 animate-pulse"
+                  className="text-xs font-semibold text-rose-400 bg-rose-950/80 border border-rose-900/40 px-1 py-0.5 rounded hover:bg-rose-900/80 transition-all cursor-pointer relative z-20 animate-pulse"
                 >
                   Delete?
                 </button>
@@ -1608,7 +1608,7 @@ export function DispatchBoard({
                     setConfirmDeleteId(null);
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="text-[9px] font-black uppercase text-slate-400 bg-slate-950 border border-slate-805 px-1 py-0.5 rounded hover:bg-slate-800 transition-all cursor-pointer relative z-20"
+                  className="text-xs font-semibold text-slate-400 bg-slate-950 border border-slate-805 px-1 py-0.5 rounded hover:bg-slate-800 transition-all cursor-pointer relative z-20"
                 >
                   No
                 </button>
@@ -1633,7 +1633,7 @@ export function DispatchBoard({
 
         {ro.concern ? (
           <div className="rounded-lg border border-sky-500/25 bg-sky-950/25 px-3 py-2">
-            <p className="text-[9px] font-black uppercase tracking-wider text-sky-300/90 mb-1">
+            <p className="text-xs font-semibold text-sky-300/90 mb-1">
               Concern
             </p>
             <p className="text-xs font-medium text-slate-100 leading-relaxed break-words">
@@ -1647,9 +1647,9 @@ export function DispatchBoard({
             {factChips.map((chip) => (
               <span
                 key={`${chip.label}-${chip.value}`}
-                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-950/70 border border-slate-800 text-[10px]"
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-950/70 border border-slate-800 text-xs"
               >
-                <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">
+                <span className="text-xs font-semibold text-slate-500">
                   {chip.label}
                 </span>
                 <span className="font-mono text-slate-200 truncate max-w-[120px]">{chip.value}</span>
@@ -1675,14 +1675,14 @@ export function DispatchBoard({
               />
             </div>
             <div className="shrink-0 flex items-center justify-center px-2 py-1 rounded-lg border border-slate-800/40 bg-slate-950/30 max-w-[5.5rem]">
-              <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight line-clamp-2">
+              <span className="text-xs font-bold text-slate-400 text-center leading-tight line-clamp-2">
                 {laneLabel(ro.department)}
               </span>
             </div>
           </div>
 
           <div className="rounded-lg border border-slate-800/40 bg-slate-950/30 p-2.5 space-y-2">
-            <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">
+            <span className="text-slate-500 block text-xs font-bold">
               Promise time
             </span>
             {ro.promiseTimeAt ? (
@@ -1712,7 +1712,7 @@ export function DispatchBoard({
               onChange={(e) => handleUpdateStatus(ro.id, e.target.value as typeof ro.status)}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-[10px] font-black uppercase tracking-wider w-full px-2 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 outline-none cursor-pointer focus:border-indigo-500 transition-all appearance-none text-left"
+              className="text-xs font-semibold w-full px-2 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 outline-none cursor-pointer focus:border-indigo-500 transition-all appearance-none text-left"
               style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '3px' }}
             >
               {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
@@ -1738,7 +1738,7 @@ export function DispatchBoard({
               e.stopPropagation();
               handleToggleComplete(ro, true);
             }}
-            className="flex items-center gap-1 bg-slate-950 hover:bg-emerald-950/60 hover:text-emerald-400 border border-slate-800 hover:border-emerald-900/60 px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all duration-300 select-none cursor-pointer"
+            className="flex items-center gap-1 bg-slate-950 hover:bg-emerald-950/60 hover:text-emerald-400 border border-slate-800 hover:border-emerald-900/60 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 select-none cursor-pointer"
           >
             <Check size={11} className="text-emerald-500" />
             <span>Done</span>
@@ -1808,7 +1808,7 @@ export function DispatchBoard({
       ) : null}
       {isPreviewMode && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-[11px] text-amber-100">
-          <span className="font-black uppercase tracking-wider text-amber-300">Preview mode</span>
+          <span className="font-semibold text-amber-300">Preview mode</span>
           <span className="text-amber-200/80">
             {' '}
             — sample data only, no login required. Use{' '}
@@ -1824,9 +1824,9 @@ export function DispatchBoard({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.25em] block">Automated Dispatch System</span>
+            <span className="text-xs font-semibold text-indigo-400 block">Automated Dispatch System</span>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight uppercase">Departmental Dispatch Board</h1>
+          <h1 className="text-3xl font-semibold text-white tracking-tight ">Departmental Dispatch Board</h1>
           <p className="text-slate-400 text-xs font-medium">
             Streamlining shop capacity by routing tickets structurally across production department bays.
           </p>
@@ -1842,7 +1842,7 @@ export function DispatchBoard({
             onClear={() => setLookupRoId(null)}
           />
           {showTodayLoad && (
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-black uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold ">
               <Calendar size={13} className="text-indigo-400 shrink-0" />
               <span className="text-slate-400">Today</span>
               <span className="text-white tabular-nums">{activeTickets.filter((o) => o.dateCreated === businessDatePst).length}</span>
@@ -1858,7 +1858,7 @@ export function DispatchBoard({
             type="button"
             onClick={openDisplayMode}
             disabled={loading || showCompleted || isTechDisplayMode}
-            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
+            className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
           >
             <Monitor size={13} />
             <span>Display Preview</span>
@@ -1867,7 +1867,7 @@ export function DispatchBoard({
             type="button"
             onClick={openTechDisplayMode}
             disabled={loading || showCompleted || isDisplayMode}
-            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-violet-500/40 disabled:opacity-40"
+            className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-violet-500/40 disabled:opacity-40"
           >
             <Users size={13} />
             <span>Tech Display</span>
@@ -1877,7 +1877,7 @@ export function DispatchBoard({
             type="button"
             onClick={() => setShowEndOfDayReport(true)}
             disabled={loading}
-            className="btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/40 disabled:opacity-40"
+            className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/40 disabled:opacity-40"
           >
             <FileText size={13} />
             <span>End of day</span>
@@ -1886,7 +1886,7 @@ export function DispatchBoard({
           <button 
             onClick={() => setShowCompleted(!showCompleted)}
             className={cn(
-              "btn-secondary border text-xs gap-1.5 font-bold uppercase tracking-wider py-2 px-4 rounded-xl transition-all",
+              "btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all",
               showCompleted 
                 ? "bg-emerald-950/20 text-emerald-400 border-emerald-500/30" 
                 : "bg-slate-900 border-slate-800 text-slate-300 hover:text-white"
@@ -1909,8 +1909,8 @@ export function DispatchBoard({
         <div className="rounded-2xl border border-sky-500/30 bg-sky-950/15 p-4 sm:p-5 space-y-4 shadow-lg shadow-sky-950/10">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-300">RO lookup</p>
-              <h2 className="text-lg font-black text-white uppercase tracking-tight">
+              <p className="text-xs font-semibold text-sky-300">RO lookup</p>
+              <h2 className="text-lg font-semibold text-white tracking-tight">
                 {lookupRo.roNumber}
                 <span className="text-slate-500 font-bold normal-case tracking-normal text-sm ml-2">
                   {laneLabel(lookupRo.department)}
@@ -1920,7 +1920,7 @@ export function DispatchBoard({
             <button
               type="button"
               onClick={() => setLookupRoId(null)}
-              className="text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white px-3 py-2 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors"
+              className="text-xs font-semibold text-slate-400 hover:text-white px-3 py-2 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors"
             >
               Close lookup
             </button>
@@ -1932,11 +1932,11 @@ export function DispatchBoard({
               </p>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">Customer</span>
+                  <span className="text-xs font-semibold text-slate-500 block">Customer</span>
                   <span className="text-white font-bold">{lookupRo.customerName || displayCustomerLastName(lookupRo)}</span>
                 </div>
                 <div>
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">Tech</span>
+                  <span className="text-xs font-semibold text-slate-500 block">Tech</span>
                   <span className="text-white font-mono">{lookupRo.techNumber}</span>
                 </div>
               </div>
@@ -1946,7 +1946,7 @@ export function DispatchBoard({
                   handleToggleComplete(lookupRo, false);
                   setShowCompleted(false);
                 }}
-                className="bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-900/40 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                className="bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-900/40 px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
                 Restore to active board
               </button>
@@ -1986,12 +1986,12 @@ export function DispatchBoard({
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <RefreshCw className="animate-spin text-indigo-500" size={32} />
-          <p className="text-slate-500 text-xs font-black uppercase tracking-wider">Synchronizing Department Lanes...</p>
+          <p className="text-slate-500 text-xs font-semibold ">Synchronizing Department Lanes...</p>
         </div>
       ) : showCompleted ? (
         /* Completed Tickets Log view */
         <div className="bg-slate-900 border border-slate-850 p-6 rounded-2xl space-y-4">
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+          <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
             <CheckCircle2 className="text-emerald-500" size={16} />
             Completed Dispatch History
           </h2>
@@ -2003,7 +2003,7 @@ export function DispatchBoard({
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-400">
                 <thead>
-                  <tr className="border-b border-slate-810 text-[9.5px] font-black uppercase text-slate-500 tracking-wider">
+                  <tr className="border-b border-slate-810 text-xs font-semibold text-slate-500 ">
                     <th className="py-2.5 px-3">#</th>
                     <th className="py-2.5 px-3">Tech #</th>
                     <th className="py-2.5 px-3">Last Name</th>
@@ -2019,9 +2019,9 @@ export function DispatchBoard({
                       <tr key={ro.id} className="hover:bg-slate-850/30 transition-colors">
                         <td className="py-3 px-3 font-bold text-slate-200 tabular-nums">{ro.roNumber}</td>
                         <td className="py-3 px-3 font-mono font-bold text-slate-300">{ro.techNumber}</td>
-                        <td className="py-3 px-3 font-bold text-slate-300 uppercase">{displayCustomerLastName(ro)}</td>
+                        <td className="py-3 px-3 font-bold text-slate-300 ">{displayCustomerLastName(ro)}</td>
                         <td className="py-3 px-3">
-                          <span className="bg-slate-950 text-slate-400 px-2 py-1 rounded-md text-[10px] font-bold uppercase border border-slate-800">
+                          <span className="bg-slate-950 text-slate-400 px-2 py-1 rounded-md text-xs font-bold border border-slate-800">
                             {deptLabel}
                           </span>
                         </td>
@@ -2029,7 +2029,7 @@ export function DispatchBoard({
                         <td className="py-3 px-3 text-right">
                           <button
                             onClick={() => handleToggleComplete(ro, false)}
-                            className="bg-indigo-950 text-indigo-400 hover:bg-indigo-900 border border-indigo-900/40 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors"
+                            className="bg-indigo-950 text-indigo-400 hover:bg-indigo-900 border border-indigo-900/40 px-2.5 py-1 rounded text-xs font-bold transition-colors"
                           >
                             Restore Card
                           </button>
@@ -2078,17 +2078,17 @@ export function DispatchBoard({
                       <Inbox size={16} className={ticketsByColumn.unassigned.length > 0 ? 'text-amber-300' : 'text-slate-500'} />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="text-[11px] font-black text-white uppercase tracking-[0.2em] truncate">Waiting Queue</h2>
-                      <p className="text-[10px] text-slate-500 font-medium mt-0.5">Tap a card → Move to route into a production lane</p>
+                      <h2 className="text-[11px] font-semibold text-white truncate">Waiting Queue</h2>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">Tap a card → Move to route into a production lane</p>
                     </div>
                   </div>
                   <div className={cn(
-                    'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-black tabular-nums',
+                    'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold tabular-nums',
                     ticketsByColumn.unassigned.length > 0
                       ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
                       : 'bg-slate-950/80 border-slate-800 text-slate-500'
                   )}>
-                    <span className="text-[8px] uppercase tracking-widest opacity-70">Queue</span>
+                    <span className="text-xs opacity-70">Queue</span>
                     <span className="text-sm leading-none">{ticketsByColumn.unassigned.length}</span>
                   </div>
                 </div>
@@ -2105,8 +2105,8 @@ export function DispatchBoard({
                         <CheckCircle2 size={22} className="text-emerald-500/70" />
                       </div>
                       <div>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Queue is clear</p>
-                        <p className="text-[10px] text-slate-600 mt-1 max-w-[220px]">All tickets are routed to production lanes.</p>
+                        <p className="text-[11px] font-semibold text-slate-400 ">Queue is clear</p>
+                        <p className="text-xs text-slate-600 mt-1 max-w-[220px]">All tickets are routed to production lanes.</p>
                       </div>
                     </div>
                   ) : (
@@ -2142,7 +2142,7 @@ export function DispatchBoard({
                       <div className="p-1.5 bg-slate-950 border border-slate-800/85 rounded-lg text-indigo-400">
                         <dept.icon size={13} />
                       </div>
-                      <h3 className="text-xs font-black text-slate-100 uppercase tracking-widest font-sans">
+                      <h3 className="text-xs font-semibold text-slate-100 font-sans">
                         {dept.label}
                       </h3>
                     </div>
@@ -2151,7 +2151,7 @@ export function DispatchBoard({
                       const atCap = cap > 0 && list.length >= cap;
                       return (
                         <span className={cn(
-                          'border px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider tabular-nums',
+                          'border px-2.5 py-0.5 rounded-full text-xs font-semibold tabular-nums',
                           atCap ? 'bg-rose-950/50 text-rose-400 border-rose-900/50' : 'bg-slate-950 text-slate-400 border-slate-800'
                         )}>
                           {cap > 0 ? `${list.length}/${cap}` : list.length} {list.length === 1 ? 'ticket' : 'tickets'}
@@ -2166,7 +2166,7 @@ export function DispatchBoard({
                     {list.length === 0 ? (
                       <div className="flex items-center gap-2 text-slate-600 py-6 px-3 border border-dashed border-slate-950/60 rounded-xl w-full">
                         <HelpCircle size={14} className="text-slate-700" />
-                        <p className="text-[10px] font-black uppercase tracking-wider">Vacant lane — tap a queue card and Move to schedule</p>
+                        <p className="text-xs font-semibold ">Vacant lane — tap a queue card and Move to schedule</p>
                       </div>
                     ) : (
                       list.map((ro) => (
@@ -2184,18 +2184,18 @@ export function DispatchBoard({
           {/* QUICK LEGEND & COLOR CODE */}
           <div className="bg-slate-900 border border-slate-850 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 select-none">
             <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status Color Codes</span>
-              <p className="text-[9px] text-slate-600 font-medium">Desktop: drag cards between lanes · Mobile: tap card → Move</p>
+              <span className="text-xs font-semibold text-slate-400">Status Color Codes</span>
+              <p className="text-xs text-slate-600 font-medium">Desktop: drag cards between lanes · Mobile: tap card → Move</p>
             </div>
-            <div className="flex flex-wrap gap-4 text-[10px] font-bold">
+            <div className="flex flex-wrap gap-4 text-xs font-bold">
               {Object.entries(DISPATCH_STATUS_COLORS).map(([code, info]) => (
                 <div key={code} className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: info.hex }}></span>
-                  <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">{info.label}</span>
+                  <span className="text-slate-400 font-bold text-xs ">{info.label}</span>
                 </div>
               ))}
               <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-850">
-                <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Promise: {PROMISE_BUSINESS_HOURS_LABEL} · green &gt;1h · amber &lt;1h · orange &lt;15m · red overdue</span>
+                <span className="text-slate-400 font-bold text-xs ">Promise: {PROMISE_BUSINESS_HOURS_LABEL} · green &gt;1h · amber &lt;1h · orange &lt;15m · red overdue</span>
               </div>
             </div>
           </div>
@@ -2217,7 +2217,7 @@ export function DispatchBoard({
       {sweepConfirmOpen && pendingSweepCount > 0 ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
           <div className="card-base max-w-md w-full rounded-2xl border border-amber-500/30 p-6 space-y-4">
-            <h2 className="text-sm font-black text-white uppercase tracking-wider">Confirm end-of-day sweep</h2>
+            <h2 className="text-sm font-semibold text-white ">Confirm end-of-day sweep</h2>
             <p className="text-sm text-slate-400">
               Move {pendingSweepCount} active ticket(s) from production lanes to Down in Shop?
             </p>
@@ -2225,14 +2225,14 @@ export function DispatchBoard({
               <button
                 type="button"
                 onClick={() => setSweepConfirmOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-[10px] font-black uppercase text-slate-300"
+                className="px-4 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => void executeMidnightSweep()}
-                className="px-4 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black uppercase"
+                className="px-4 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold "
               >
                 Run sweep
               </button>
@@ -2263,7 +2263,7 @@ export function DispatchBoard({
               type="button"
               onClick={closeDisplayMode}
               className={cn(
-                'absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:border-slate-500 transition-opacity duration-500',
+                'absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-xs font-semibold text-slate-400 hover:text-white hover:border-slate-500 transition-opacity duration-500',
                 showTvExit ? 'opacity-100' : 'opacity-0 pointer-events-none'
               )}
               title="Exit display preview (Esc)"
@@ -2299,13 +2299,13 @@ export function DispatchBoard({
                     <div className="shrink-0 px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/80 flex items-center justify-between gap-1">
                       <div className="flex items-center gap-1 min-w-0">
                         <col.icon size={11} className="text-indigo-400 shrink-0" />
-                        <span className="text-[9px] font-black uppercase tracking-wide truncate leading-tight">
+                        <span className="text-xs font-semibold tracking-wide truncate leading-tight">
                           {col.shortLabel}
                         </span>
                       </div>
                       <span
                         className={cn(
-                          'text-[8px] font-black tabular-nums px-1.5 py-0.5 rounded shrink-0',
+                          'text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded shrink-0',
                           atCap ? 'bg-rose-950 text-rose-400' : 'bg-slate-800 text-slate-400'
                         )}
                       >
@@ -2314,7 +2314,7 @@ export function DispatchBoard({
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-1.5 space-y-1.5">
                       {list.length === 0 ? (
-                        <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-4 px-1">
+                        <p className="text-xs font-bold text-slate-600 text-center py-4 px-1">
                           —
                         </p>
                       ) : (

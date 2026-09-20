@@ -248,9 +248,9 @@ function PbsSyncPanelInner({
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Database size={16} className="text-brand-primary" />
-              <h3 className="text-sm font-black text-white uppercase tracking-wider">{dealershipName}</h3>
+              <h3 className="text-sm font-semibold text-white ">{dealershipName}</h3>
             </div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+            <p className="text-xs text-slate-500 font-bold">
               PBS PartnerHUB · Serial 8200
             </p>
           </div>
@@ -261,7 +261,7 @@ function PbsSyncPanelInner({
               onClick={() => handleSync(false)}
               disabled={syncing || fullRefreshing || !canPullFromPbs}
               className={cn(
-                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all',
+                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all',
                 canPullFromPbs
                   ? 'bg-brand-primary text-slate-950 hover:brightness-110 disabled:opacity-60'
                   : 'bg-slate-800 text-slate-500 cursor-not-allowed'
@@ -275,7 +275,7 @@ function PbsSyncPanelInner({
               onClick={() => handleSync(true)}
               disabled={syncing || fullRefreshing || !canPullFromPbs}
               className={cn(
-                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all border',
+                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all border',
                 canPullFromPbs
                   ? 'border-white/10 text-slate-200 hover:bg-white/5 disabled:opacity-60'
                   : 'border-slate-800 text-slate-500 cursor-not-allowed'
@@ -309,13 +309,13 @@ function PbsSyncPanelInner({
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
-            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">PBS credentials</p>
+            <p className="text-xs font-semibold text-slate-500 ">PBS credentials</p>
             <p className={cn('text-xs font-bold mt-1', configured ? 'text-emerald-300' : 'text-rose-300')}>
               {configured ? 'Configured' : 'Not configured'}
             </p>
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
-            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Server writes</p>
+            <p className="text-xs font-semibold text-slate-500 ">Server writes</p>
             <p
               className={cn(
                 'text-xs font-bold mt-1',
@@ -333,11 +333,11 @@ function PbsSyncPanelInner({
                   : 'Service account missing'}
             </p>
             {firestoreError ? (
-              <p className="text-[10px] text-amber-400/90 mt-1 line-clamp-3">{firestoreError}</p>
+              <p className="text-xs text-amber-400/90 mt-1 line-clamp-3">{firestoreError}</p>
             ) : null}
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
-            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Morning auto-sync</p>
+            <p className="text-xs font-semibold text-slate-500 ">Morning auto-sync</p>
             <p
               className={cn(
                 'text-xs font-bold mt-1',
@@ -347,37 +347,37 @@ function PbsSyncPanelInner({
               {cronStatus?.cronReady ? 'Scheduled (6 AM Pacific)' : 'Not ready'}
             </p>
             {cronStatus?.lastRunAt ? (
-              <p className="text-[10px] text-slate-600 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 Last scheduled run {formatWhen(cronStatus.lastRunAt)}
                 {cronStatus.lastRunOk === false ? ' · failed' : ''}
               </p>
             ) : cronStatus?.cronReady ? (
-              <p className="text-[10px] text-slate-600 mt-1">No scheduled run logged yet</p>
+              <p className="text-xs text-slate-600 mt-1">No scheduled run logged yet</p>
             ) : cronStatus?.missingForCron?.length ? (
-              <p className="text-[10px] text-amber-400/90 mt-1 line-clamp-3">
+              <p className="text-xs text-amber-400/90 mt-1 line-clamp-3">
                 Missing: {cronStatus.missingForCron.join(', ')}
               </p>
             ) : null}
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
-            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Last sync</p>
+            <p className="text-xs font-semibold text-slate-500 ">Last sync</p>
             <p className="text-xs font-bold text-slate-200 mt-1">
               {lastState?.lastSyncAt ? formatWhen(lastState.lastSyncAt) : 'Never'}
             </p>
             {lastState?.lastSuccessfulSyncAt ? (
-              <p className="text-[10px] text-slate-600 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 Pull changes since {formatWhen(lastState.lastSuccessfulSyncAt)}
               </p>
             ) : null}
             {lastState?.syncInProgress ? (
-              <p className="text-[10px] text-brand-primary mt-1 flex items-center gap-1">
+              <p className="text-xs text-brand-primary mt-1 flex items-center gap-1">
                 <Loader2 size={10} className="animate-spin" />
                 Sync in progress…
               </p>
             ) : lastState?.lastSyncOk === false ? (
-              <p className="text-[10px] text-rose-400 mt-1 line-clamp-2">{cleanErrorText(lastState.lastError)}</p>
+              <p className="text-xs text-rose-400 mt-1 line-clamp-2">{cleanErrorText(lastState.lastError)}</p>
             ) : lastState?.summary ? (
-              <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">{lastState.summary}</p>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2">{lastState.summary}</p>
             ) : null}
           </div>
         </div>
@@ -449,7 +449,7 @@ function PbsSyncPanelInner({
         ) : null}
       </div>
 
-      <p className="text-[10px] text-slate-600 leading-relaxed">
+      <p className="text-xs text-slate-600 leading-relaxed">
         Sync history is under <strong className="text-slate-400">Admin → Logs → PBS sync log</strong>.
       </p>
     </div>

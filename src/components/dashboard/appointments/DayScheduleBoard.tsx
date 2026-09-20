@@ -112,8 +112,8 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
         )}
       >
         <div>
-          <p className="text-[10px] uppercase tracking-wider font-bold opacity-80">Appointment</p>
-          <p className="text-lg font-black mt-1 tracking-tight">{displayCustomerName(appt)}</p>
+          <p className="text-xs font-bold opacity-80">Appointment</p>
+          <p className="text-lg font-semibold mt-1 tracking-tight">{displayCustomerName(appt)}</p>
           <p className="text-sm opacity-95 mt-0.5 font-semibold">
             {formatScheduleTimeDetail(appt.startMinutes)}
             {appt.isWaiter ? ' · Waiter' : ''}
@@ -123,7 +123,7 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {rows.map((row) => (
             <div key={row.label} className="min-w-0">
-              <dt className="text-[10px] uppercase tracking-wider font-bold opacity-70">{row.label}</dt>
+              <dt className="text-xs font-bold opacity-70">{row.label}</dt>
               <dd className="text-sm mt-0.5 break-words">{row.value}</dd>
             </div>
           ))}
@@ -226,7 +226,7 @@ export function DayScheduleBoard({
               {item.label}
             </span>
           ))}
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+          <span className="text-xs text-slate-500 font-bold">
             {appointments.length} appts
           </span>
         </div>
@@ -250,7 +250,7 @@ export function DayScheduleBoard({
                   className="flex-1 min-w-[132px] px-2 py-2 border-r last:border-r-0 text-center"
                   style={{ borderColor: '#1e293b' }}
                 >
-                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-100 truncate">
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-100 truncate">
                     {column.id ? `Tech ${column.label}` : column.label}
                     <span className="text-slate-500 font-bold"> ({column.count})</span>
                   </p>
@@ -267,7 +267,7 @@ export function DayScheduleBoard({
                 {hourLabels.map((hour) => (
                   <span
                     key={hour.minutes}
-                    className="absolute right-1.5 -translate-y-1/2 text-[10px] font-bold text-slate-500 tabular-nums leading-none"
+                    className="absolute right-1.5 -translate-y-1/2 text-xs font-bold text-slate-500 tabular-nums leading-none"
                     style={{ top: minutesToSchedulePx(hour.minutes, bounds.startMinutes) }}
                   >
                     {hour.label}
@@ -331,15 +331,15 @@ export function DayScheduleBoard({
                             }}
                             title={`${formatScheduleTimeDetail(appt.startMinutes)} · ${displayCustomerName(appt)}`}
                           >
-                            <p className="text-[10px] font-black leading-tight truncate">
+                            <p className="text-xs font-semibold leading-tight truncate">
                               {formatScheduleTimeDetail(appt.startMinutes)}
                               {appt.isWaiter ? ' (W)' : ''}
                             </p>
-                            <p className="text-[10px] font-black leading-tight truncate tracking-tight">
+                            <p className="text-xs font-semibold leading-tight truncate tracking-tight">
                               {displayCustomerName(appt)}
                             </p>
                             {appt.height >= 44 && detail ? (
-                              <p className="text-[9px] leading-tight opacity-90 truncate mt-0.5 font-medium">
+                              <p className="text-xs leading-tight opacity-90 truncate mt-0.5 font-medium">
                                 {detail}
                               </p>
                             ) : null}
@@ -361,7 +361,7 @@ export function DayScheduleBoard({
                         'repeating-linear-gradient(-45deg, rgba(15,23,42,0.92) 0, rgba(15,23,42,0.92) 8px, rgba(30,41,59,0.75) 8px, rgba(30,41,59,0.75) 16px)',
                     }}
                   >
-                    <span className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-500/70 bg-[#0b1018]/80 px-3 py-1 rounded border border-amber-900/30">
+                    <span className="text-xs font-semibold text-amber-500/70 bg-[#0b1018]/80 px-3 py-1 rounded border border-amber-900/30">
                       Lunch
                     </span>
                   </div>
@@ -372,7 +372,7 @@ export function DayScheduleBoard({
         </div>
       </div>
 
-      <p className="text-[10px] text-slate-600 px-1">
+      <p className="text-xs text-slate-600 px-1">
         Shop lunch blocked 12:00 PM – 1:00 PM · Tap an appointment for full details
       </p>
     </div>

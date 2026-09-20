@@ -68,7 +68,7 @@ export function DispatchTechDisplay({
           type="button"
           onClick={onClose}
           className={cn(
-            'absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-[9px] font-black uppercase tracking-wider text-slate-400 hover:text-white hover:border-slate-500 transition-opacity duration-500',
+            'absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-xs font-semibold text-slate-400 hover:text-white hover:border-slate-500 transition-opacity duration-500',
             showExit ? 'opacity-100' : 'opacity-0 pointer-events-none'
           )}
           title="Exit tech display (Esc)"
@@ -78,10 +78,10 @@ export function DispatchTechDisplay({
         </button>
 
         <div className="shrink-0 px-2 pt-1">
-          <p className="text-[9px] font-black uppercase tracking-[0.25em] text-indigo-400">
+          <p className="text-xs font-semibold text-indigo-400">
             Tech dispatch view
           </p>
-          <h2 className="text-sm font-black text-white uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-white tracking-wide">
             Repair orders by technician
           </h2>
         </div>
@@ -101,21 +101,21 @@ export function DispatchTechDisplay({
                     className="flex flex-col min-w-0 min-h-0 rounded-xl border border-slate-800/80 bg-slate-900/50 overflow-hidden"
                   >
                     <div className="shrink-0 px-2 py-1.5 border-b border-slate-800/80 bg-slate-950/80">
-                      <p className="text-[8px] font-black uppercase tracking-wider text-indigo-400 truncate">
+                      <p className="text-xs font-semibold text-indigo-400 truncate">
                         #{tech.id}
                       </p>
                       <div className="flex items-center justify-between gap-1 mt-0.5">
-                        <span className="text-[9px] font-bold text-white truncate leading-tight">
+                        <span className="text-xs font-bold text-white truncate leading-tight">
                           {resolveTechDisplayName(tech.id, [tech])}
                         </span>
-                        <span className="text-[8px] font-black tabular-nums px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">
+                        <span className="text-xs font-semibold tabular-nums px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">
                           {list.length}
                         </span>
                       </div>
                     </div>
                     <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar p-1 space-y-1">
                       {list.length === 0 ? (
-                        <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-3">
+                        <p className="text-xs font-bold text-slate-600 text-center py-3">
                           —
                         </p>
                       ) : (
@@ -141,17 +141,17 @@ export function DispatchTechDisplay({
           <div className="shrink-0 px-3 py-2 border-b border-amber-500/20 bg-amber-950/30 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <Moon size={12} className="text-amber-400 shrink-0" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-amber-200">
+              <span className="text-xs font-semibold text-amber-200">
                 Down in Shop
               </span>
             </div>
-            <span className="text-[8px] font-black tabular-nums px-2 py-0.5 rounded bg-amber-950/50 text-amber-300">
+            <span className="text-xs font-semibold tabular-nums px-2 py-0.5 rounded bg-amber-950/50 text-amber-300">
               {downInShopOrders.length}
             </span>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-2">
             {downInShopOrders.length === 0 ? (
-              <p className="text-[8px] font-bold uppercase tracking-wider text-slate-600 text-center py-4">
+              <p className="text-xs font-bold text-slate-600 text-center py-4">
                 No vehicles down in shop
               </p>
             ) : (

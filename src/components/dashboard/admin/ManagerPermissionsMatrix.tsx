@@ -27,11 +27,11 @@ export function ManagerPermissionsMatrix() {
   return (
     <div className="space-y-3 pt-4 border-t border-white/5">
       <div>
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Shield size={12} className="text-violet-400" />
           Manager permissions matrix
         </label>
-        <p className="text-[10px] text-slate-500 mt-1 max-w-2xl">
+        <p className="text-xs text-slate-500 mt-1 max-w-2xl">
           Who can change operational settings vs personal preferences. System admin = primary platform admin account.
         </p>
       </div>
@@ -64,10 +64,10 @@ export function ManagerPermissionsMatrix() {
         <table className="w-full text-left text-[11px]">
           <thead>
             <tr className="border-b border-white/5 bg-slate-950/80">
-              <th className="px-3 py-2 font-black uppercase text-slate-500 text-[9px]">Action</th>
-              <th className="px-3 py-2 font-black uppercase text-slate-500 text-[9px]">Manager</th>
-              <th className="px-3 py-2 font-black uppercase text-slate-500 text-[9px]">System admin</th>
-              <th className="px-3 py-2 font-black uppercase text-slate-500 text-[9px]">Staff</th>
+              <th className="px-3 py-2 font-semibold text-slate-500 text-xs">Action</th>
+              <th className="px-3 py-2 font-semibold text-slate-500 text-xs">Manager</th>
+              <th className="px-3 py-2 font-semibold text-slate-500 text-xs">System admin</th>
+              <th className="px-3 py-2 font-semibold text-slate-500 text-xs">Staff</th>
             </tr>
           </thead>
           <tbody>

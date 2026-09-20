@@ -24,23 +24,23 @@ function TierBlock({ tier, compact }: { tier: BundleTier; compact?: boolean }) {
   return (
     <div className="rounded-xl border border-white/8 bg-[#141617]/90 p-3 flex flex-col min-h-0 overflow-hidden h-full">
       <div className="flex items-center justify-between gap-2 mb-2 border-b border-white/5 pb-2">
-        <h3 className={cn('font-black text-white uppercase tracking-wide', compact ? 'text-sm' : 'text-base')}>
+        <h3 className={cn('font-semibold text-white tracking-wide', compact ? 'text-sm' : 'text-base')}>
           {tier.name}
         </h3>
         {save > 0 && (
-          <span className="text-[9px] font-black uppercase tracking-wider text-[#2dd46a] bg-[#2dd46a]/10 px-2 py-0.5 rounded-full border border-[#2dd46a]/25">
+          <span className="text-xs font-semibold text-[#2dd46a] bg-[#2dd46a]/10 px-2 py-0.5 rounded-full border border-[#2dd46a]/25">
             -{save}%
           </span>
         )}
       </div>
 
-      <ul className={cn('flex-1 space-y-0.5 mb-2 overflow-hidden', compact ? 'text-[10px]' : 'text-xs')}>
+      <ul className={cn('flex-1 space-y-0.5 mb-2 overflow-hidden', compact ? 'text-xs' : 'text-xs')}>
         {tier.items.map((item, idx) => (
           <li
             key={`${tier.id}-${idx}`}
             className={cn(
               'leading-snug',
-              item.isNote ? 'text-[#00c7dd] font-bold italic text-[10px] pt-0.5' : 'text-slate-300'
+              item.isNote ? 'text-[#00c7dd] font-bold text-xs pt-0.5' : 'text-slate-300'
             )}
           >
             {item.label}
@@ -49,13 +49,13 @@ function TierBlock({ tier, compact }: { tier: BundleTier; compact?: boolean }) {
       </ul>
 
       <div className="mt-auto flex items-end justify-between gap-2 pt-2 border-t border-white/5">
-        <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+        <div className="text-xs text-slate-500 font-bold">
           Valued{' '}
           <span className="line-through text-slate-600 font-mono">{formatMoney(tier.valuedAt)}</span>
         </div>
         <div className="text-right">
-          <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Package</p>
-          <p className="font-mono font-black text-[#2dd46a] tabular-nums text-lg leading-none">
+          <p className="text-xs text-slate-500 font-bold">Package</p>
+          <p className="font-mono font-semibold text-[#2dd46a] tabular-nums text-lg leading-none">
             {formatMoney(tier.packageTotal)}
           </p>
         </div>
@@ -68,8 +68,8 @@ function MileageColumn({ menu, compact }: { menu: MileageBundleMenu; compact?: b
   return (
     <section className="flex flex-col min-h-0 h-full rounded-2xl border border-[#00c7dd]/30 bg-[#0e1011]/80 overflow-hidden">
       <header className="shrink-0 bg-gradient-to-r from-[#07282f] to-[#0f3b44] px-3 py-2.5 border-b border-[#00c7dd]/25">
-        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[#00c7dd]">Essential Bundle</p>
-        <h2 className={cn('font-black text-white tracking-tight leading-tight', compact ? 'text-sm' : 'text-base')}>
+        <p className="text-xs font-semibold text-[#00c7dd]">Essential Bundle</p>
+        <h2 className={cn('font-semibold text-white tracking-tight leading-tight', compact ? 'text-sm' : 'text-base')}>
           {menu.mileageLabel}
         </h2>
       </header>
@@ -81,7 +81,7 @@ function MileageColumn({ menu, compact }: { menu: MileageBundleMenu; compact?: b
       </div>
 
       <footer className="shrink-0 mx-2 mb-2 rounded-lg border border-[#00c7dd]/15 bg-[#00c7dd]/8 px-2 py-1.5 text-center">
-        <p className="text-[9px] font-bold text-[#00c7dd] leading-snug">
+        <p className="text-xs font-bold text-[#00c7dd] leading-snug">
           <Sparkles className="inline w-3 h-3 mr-1 -mt-0.5" />
           Includes: {menu.bonus}
         </p>
@@ -118,13 +118,13 @@ export function ServiceBundleMenuBoard({
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-lg">
-              <span className="text-[9px] font-black text-[#002c5f] leading-tight text-center">HSM</span>
+              <span className="text-xs font-semibold text-[#002c5f] leading-tight text-center">HSM</span>
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-black text-white tracking-wide">
+              <h1 className="text-lg sm:text-xl font-semibold text-white tracking-wide">
                 {DEALER_MENU_BRANDING.dealerName}
               </h1>
-              <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.12em] text-[#00c7dd]">
+              <p className="text-xs sm:text-xs font-bold text-[#00c7dd]">
                 {DEALER_MENU_BRANDING.tagline}
               </p>
             </div>
@@ -172,7 +172,7 @@ export function ServiceBundleMenuBoard({
       </main>
 
       <footer className="shrink-0 border-t border-white/5 py-2 text-center">
-        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-600">
+        <p className="text-xs font-semibold text-slate-600">
           + Tax &amp; Shop Supplies
         </p>
       </footer>
@@ -237,7 +237,7 @@ export function ServiceBundleMenuPreviewButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wider',
+        'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold ',
         'border border-[#00c7dd]/40 bg-[#00c7dd]/10 text-[#00c7dd]',
         'hover:bg-[#00c7dd]/20 hover:border-[#00c7dd]/60 transition-colors',
         className

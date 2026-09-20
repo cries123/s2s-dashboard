@@ -226,25 +226,25 @@ export default function LoginView() {
             {mode === 'login' && (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="input-label">Operator Email</label>
+                  <label className="input-label">Email address</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Security Password</label>
+                  <label className="input-label">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field pl-12" placeholder="••••••••" />
                   </div>
                 </div>
                 <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4">
-                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-2">Authorize System <ArrowRight size={18} /></span>}
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-2">Sign in <ArrowRight size={18} /></span>}
                 </button>
                 <div className="text-center mt-6">
                   <button type="button" onClick={() => setMode('reset')} className="text-xs font-bold text-slate-500 hover:text-brand-primary uppercase tracking-widest transition-colors">
-                    Reset Protocol
+                    Forgot password?
                   </button>
                 </div>
               </form>
@@ -283,7 +283,7 @@ export default function LoginView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Operator Email</label>
+                  <label className="input-label">Email address</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
@@ -374,7 +374,7 @@ export default function LoginView() {
                   </div>
                 </div>
                 <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4">
-                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send Reset Protocol'}
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send Forgot password?'}
                 </button>
                 <div className="text-center mt-6">
                   <button type="button" onClick={() => setMode('login')} className="text-xs font-bold text-slate-500 hover:text-brand-primary uppercase tracking-widest transition-colors">

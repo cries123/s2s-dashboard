@@ -55,7 +55,7 @@ export function ContactLogQuickForm({
     <form onSubmit={handleSubmit} className={cn('space-y-3', className)}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 block">
+          <label className="text-xs font-semibold text-slate-500 mb-1 block">
             Outcome
           </label>
           <select
@@ -77,7 +77,7 @@ export function ContactLogQuickForm({
             onChange={(e) => setAppointmentSet(e.target.checked)}
             className="rounded border-slate-600"
           />
-          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+          <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
             <CalendarCheck size={12} /> Appointment set
           </span>
         </label>
@@ -92,7 +92,7 @@ export function ContactLogQuickForm({
       <button
         type="submit"
         disabled={isLogging}
-        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white text-[10px] font-black uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2"
+        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {isLogging ? <Loader2 size={14} className="animate-spin" /> : null}
         {submitLabel}

@@ -75,11 +75,11 @@ export function PbsAdvisorPerformanceSettings({
   return (
     <div className="space-y-6 pt-4 border-t border-white/5">
       <div className="space-y-3">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Trophy size={12} className="text-brand-primary" />
           Operations advisor roster
         </label>
-        <p className="text-[10px] text-slate-500 max-w-2xl leading-relaxed">
+        <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
           Advisors shown on the Operations performance breakdown. PBS login codes must map to one of
           these names.
         </p>
@@ -107,7 +107,7 @@ export function PbsAdvisorPerformanceSettings({
               <button
                 type="button"
                 onClick={() => setRoster((prev) => prev.filter((_, i) => i !== idx))}
-                className="text-[10px] font-black uppercase text-rose-400 px-2"
+                className="text-xs font-semibold text-rose-400 px-2"
               >
                 Remove
               </button>
@@ -123,7 +123,7 @@ export function PbsAdvisorPerformanceSettings({
                 { id: `advisor_${prev.length + 1}`, label: `Advisor ${prev.length + 1}` },
               ])
             }
-            className="inline-flex items-center gap-1 px-4 py-2 bg-slate-800 text-[10px] font-black uppercase rounded-xl text-white"
+            className="inline-flex items-center gap-1 px-4 py-2 bg-slate-800 text-xs font-semibold rounded-xl text-white"
           >
             <Plus size={12} />
             Add advisor
@@ -131,7 +131,7 @@ export function PbsAdvisorPerformanceSettings({
           <button
             type="button"
             onClick={saveRoster}
-            className="inline-flex items-center gap-1 px-4 py-2 bg-brand-primary/20 text-brand-primary text-[10px] font-black uppercase rounded-xl border border-brand-primary/30"
+            className="inline-flex items-center gap-1 px-4 py-2 bg-brand-primary/20 text-brand-primary text-xs font-semibold rounded-xl border border-brand-primary/30"
           >
             <Save size={12} />
             Save roster
@@ -140,11 +140,11 @@ export function PbsAdvisorPerformanceSettings({
       </div>
 
       <div className="space-y-3 pt-3 border-t border-white/5">
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <KeyRound size={12} className="text-brand-primary" />
           PBS login code map
         </label>
-        <p className="text-[10px] text-slate-500 max-w-2xl leading-relaxed">
+        <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
           When PBS puts a login code in the CSR field (e.g. <strong className="text-slate-300">01</strong> for
           Frank, <strong className="text-slate-300">LV4278</strong> for Lemmy), map it to the advisor name on your
           roster. After saving, run{' '}
@@ -174,7 +174,7 @@ export function PbsAdvisorPerformanceSettings({
                   });
                 }}
                 placeholder="PBS code (01, LV4278)"
-                className="w-full sm:w-36 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 uppercase"
+                className="w-full sm:w-36 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 "
               />
               <input
                 type="text"
@@ -205,7 +205,7 @@ export function PbsAdvisorPerformanceSettings({
           <button
             type="button"
             onClick={() => setCodeRows((prev) => [...prev, { code: '', name: '' }])}
-            className="inline-flex items-center gap-1 px-4 py-2 bg-slate-800 text-[10px] font-black uppercase rounded-xl text-white"
+            className="inline-flex items-center gap-1 px-4 py-2 bg-slate-800 text-xs font-semibold rounded-xl text-white"
           >
             <Plus size={12} />
             Add code
@@ -219,7 +219,7 @@ export function PbsAdvisorPerformanceSettings({
                   ...suggestedCodes.map((code) => ({ code, name: '' })),
                 ])
               }
-              className="px-4 py-2 bg-amber-500/10 text-amber-300 text-[10px] font-black uppercase rounded-xl border border-amber-500/20"
+              className="px-4 py-2 bg-amber-500/10 text-amber-300 text-xs font-semibold rounded-xl border border-amber-500/20"
             >
               Add unmapped codes
             </button>
@@ -227,7 +227,7 @@ export function PbsAdvisorPerformanceSettings({
           <button
             type="button"
             onClick={saveCodeMap}
-            className="inline-flex items-center gap-1 px-4 py-2 bg-brand-primary/20 text-brand-primary text-[10px] font-black uppercase rounded-xl border border-brand-primary/30"
+            className="inline-flex items-center gap-1 px-4 py-2 bg-brand-primary/20 text-brand-primary text-xs font-semibold rounded-xl border border-brand-primary/30"
           >
             <Save size={12} />
             Save code map

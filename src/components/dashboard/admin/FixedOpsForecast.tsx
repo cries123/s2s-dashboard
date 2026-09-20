@@ -1654,7 +1654,7 @@ export default function FixedOpsForecast({
                 setValidationError(null);
                 setIsPdfModalOpen(true);
               }}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/15"
+              className="bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-semibold py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/15"
             >
               <TrendingUp size={14} />
               Forecast Generator
@@ -1662,7 +1662,7 @@ export default function FixedOpsForecast({
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/15"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/15"
             >
               <Printer size={14} />
               Preview & Print
@@ -1676,14 +1676,14 @@ export default function FixedOpsForecast({
           <div className="flex items-start gap-3">
             <Database size={18} className="text-brand-primary shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-black text-white uppercase tracking-widest">
+              <p className="text-xs font-semibold text-white ">
                 {isApplyingOperationsSeed
                   ? 'Loading pay mix from operations archive...'
                   : operationsSeedLabel
                     ? `Pay mix loaded from ${operationsSeedLabel} operations`
                     : 'Operations archive available'}
               </p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+              <p className="text-xs font-bold text-slate-400 mt-1">
                 RO counts, derived mix %, target ELR, and GP % — adjust techs and capacity sliders below
               </p>
             </div>
@@ -1714,7 +1714,7 @@ export default function FixedOpsForecast({
                   setIsApplyingOperationsSeed(false);
                 }
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-[10px] font-black uppercase tracking-widest text-white border border-white/10"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white border border-white/10"
             >
               <RefreshCw size={12} />
               Reload from Operations
@@ -1730,7 +1730,7 @@ export default function FixedOpsForecast({
             eyebrow="Closed Balance Sheets"
             title="Live Telemetry MTD"
             action={
-              <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-[9px] font-black uppercase tracking-wider">
+              <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-xs font-semibold ">
                 Current Month
               </span>
             }
@@ -1762,7 +1762,7 @@ export default function FixedOpsForecast({
                 value={`$${mtdTelemetry.effectiveLaborRate.toFixed(2)}`}
                 accent="text-brand-primary"
               />
-              <span className="px-2.5 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[9px] font-black rounded-lg uppercase tracking-wider">
+              <span className="px-2.5 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold rounded-lg ">
                 Live
               </span>
             </div>
@@ -1781,7 +1781,7 @@ export default function FixedOpsForecast({
                     type="button"
                     onClick={() => applyPreset(p)}
                     className={cn(
-                      'text-[9px] font-black uppercase tracking-wider py-1.5 px-3 rounded-lg transition-all',
+                      'text-xs font-semibold py-1.5 px-3 rounded-lg transition-all',
                       activePreset === p
                         ? 'bg-brand-primary text-white'
                         : 'text-slate-400 hover:text-white'
@@ -1796,7 +1796,7 @@ export default function FixedOpsForecast({
 
           <div className="space-y-6">
             <div className="space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Capacity Constants</p>
+              <p className="text-xs font-semibold text-slate-500">Capacity Constants</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <ForecastSlider
                   label="Billing Days in Month"
@@ -1848,12 +1848,12 @@ export default function FixedOpsForecast({
 
             <div className="space-y-3 pt-2 border-t border-white/5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <p className="text-xs font-semibold text-slate-500">
                   Revenue Mix Strategy Targets
                 </p>
                 <span
                   className={cn(
-                    'px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider w-fit',
+                    'px-2.5 py-1 rounded-lg text-xs font-semibold w-fit',
                     totalMixAllocationValue >= 99.9 && totalMixAllocationValue <= 100.1
                       ? 'bg-emerald-500/10 text-emerald-400'
                       : 'bg-rose-500/10 text-rose-400'
@@ -1866,7 +1866,7 @@ export default function FixedOpsForecast({
               <div className="rounded-xl border border-slate-800/60 overflow-hidden">
                 <div className="hidden md:grid md:grid-cols-[1.1fr_repeat(4,minmax(0,1fr))] gap-3 px-4 py-2.5 bg-slate-950/60 border-b border-slate-800/60">
                   {['Pay Type', 'Count', 'Mix %', 'Target ELR', 'Target GP %'].map((col) => (
-                    <span key={col} className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                    <span key={col} className="text-xs font-semibold text-slate-500">
                       {col}
                     </span>
                   ))}
@@ -1940,7 +1940,7 @@ export default function FixedOpsForecast({
             </div>
 
             <div className="space-y-3 pt-2 border-t border-white/5">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <p className="text-xs font-semibold text-slate-500">
                 Sublet, Misc & Ledger Adjustments
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -2123,8 +2123,8 @@ export default function FixedOpsForecast({
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute flex flex-col items-center text-center pointer-events-none">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Total Projected</span>
-                <span className="text-sm font-black mt-1 tabular-nums text-white">
+                <span className="text-xs font-semibold text-slate-500 ">Total Projected</span>
+                <span className="text-sm font-semibold mt-1 tabular-nums text-white">
                   ${calculations.totalLaborSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
@@ -2144,13 +2144,13 @@ export default function FixedOpsForecast({
                         className="w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
                       />
-                      <span className="text-[10px] font-bold uppercase text-slate-400 truncate">{s.name}</span>
+                      <span className="text-xs font-bold text-slate-400 truncate">{s.name}</span>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-sm font-black text-white tabular-nums">
+                      <span className="text-sm font-semibold text-white tabular-nums">
                         ${s.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-semibold ml-1">
+                      <span className="text-xs text-slate-500 font-semibold ml-1">
                         ({percentVal.toFixed(0)}%)
                       </span>
                     </div>
@@ -2168,11 +2168,11 @@ export default function FixedOpsForecast({
           <div className="bg-[#0a0f1d]/95 ring-1 ring-white/10 border border-white/10 rounded-3xl p-6 md:p-8 max-w-2xl w-full text-slate-200 shadow-2xl relative space-y-5">
             <div className="flex items-center justify-between pb-3.5 border-b border-white/5">
               <div>
-                <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                   <UploadCloud size={16} className="text-indigo-400" />
                   DMS Report Parser & Forecast Generator
                 </h3>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-0.5 font-mono flex items-center gap-2">
+                <p className="text-xs text-slate-400 mt-0.5 font-mono flex items-center gap-2">
                   <span>ChatGPT-4o-mini / Gemini Engine</span>
                   <span className="w-1 h-1 bg-white/30 rounded-full"></span>
                   <span>Auto-Structured DMS Parsing</span>
@@ -2191,7 +2191,7 @@ export default function FixedOpsForecast({
             {validationError && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-xs text-[#fda4af] flex items-center gap-2">
                 <AlertCircle size={14} className="shrink-0" />
-                <span className="font-extrabold">{validationError}</span>
+                <span className="font-semibold">{validationError}</span>
               </div>
             )}
 
@@ -2201,7 +2201,7 @@ export default function FixedOpsForecast({
                 type="button"
                 onClick={() => setPdfActiveTab('sample')}
                 className={cn(
-                  "pb-2 px-3 text-xxs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer",
+                  "pb-2 px-3 text-xxs font-semibold border-b-2 transition-all cursor-pointer",
                   pdfActiveTab === 'sample' 
                     ? "border-indigo-500 text-white" 
                     : "border-transparent text-slate-500 hover:text-white"
@@ -2213,7 +2213,7 @@ export default function FixedOpsForecast({
                 type="button"
                 onClick={() => setPdfActiveTab('upload')}
                 className={cn(
-                  "pb-2 px-3 text-xxs font-black uppercase tracking-widest border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
+                  "pb-2 px-3 text-xxs font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
                   pdfActiveTab === 'upload' 
                     ? "border-indigo-500 text-white" 
                     : "border-transparent text-slate-500 hover:text-white"
@@ -2247,14 +2247,14 @@ export default function FixedOpsForecast({
                 />
                 <UploadCloud size={28} className="text-indigo-400" />
                 <div>
-                  <span className="font-black block text-[11px] uppercase tracking-wider text-slate-300">File drag-and-drop zone</span>
-                  <span className="text-[9px] text-slate-500 uppercase font-mono">Upload Plain Text MTD DMS PDF Report</span>
+                  <span className="font-semibold block text-[11px] text-slate-300">File drag-and-drop zone</span>
+                  <span className="text-xs text-slate-500 font-mono">Upload Plain Text MTD DMS PDF Report</span>
                 </div>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Select Demo DMS Template</label>
+                  <label className="text-xs font-semibold text-slate-400 ">Select Demo DMS Template</label>
                   <select 
                     value={selectedSample}
                     onChange={(e) => handleSampleSelected(e.target.value)}
@@ -2272,18 +2272,18 @@ export default function FixedOpsForecast({
             {reportRawText && (
               <div className="space-y-4 pt-1">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Extracted Source Document Text</label>
+                  <label className="text-xs font-semibold text-slate-400 block">Extracted Source Document Text</label>
                   <textarea
                     readOnly
                     value={reportRawText}
-                    className="w-full h-32 bg-[#050811] text-[9.5px] font-mono p-3 rounded-2xl border border-white/5 text-slate-400 outline-none resize-none leading-relaxed"
+                    className="w-full h-32 bg-[#050811] text-xs font-mono p-3 rounded-2xl border border-white/5 text-slate-400 outline-none resize-none leading-relaxed"
                   />
                 </div>
 
                 {extractedData && (
                   <div className="p-4 bg-emerald-500/5 border border-emerald-500/15 rounded-2xl animate-fade-in relative space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest block flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-emerald-400 block flex items-center gap-1.5">
                         <span className="flex h-2 w-2 relative">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -2291,7 +2291,7 @@ export default function FixedOpsForecast({
                         {parseEngine === 'chatgpt' ? "✔ ChatGPT-4o-mini AI Extraction Successful" : parseEngine === 'gemini' ? "✔ Gemini 2.0 Flash AI Extraction Successful" : "✔ Local Pattern extraction loaded"}
                       </span>
                       <span className={cn(
-                        "text-[8.5px] px-2 py-0.5 rounded font-black uppercase font-mono tracking-wider border",
+                        "text-[8.5px] px-2 py-0.5 rounded font-semibold font-mono border",
                         parseEngine === 'chatgpt' || parseEngine === 'gemini'
                           ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/25" 
                           : "bg-amber-500/10 text-amber-400 border-amber-500/25"
@@ -2301,12 +2301,12 @@ export default function FixedOpsForecast({
                     </div>
 
                     {parserLog && (
-                      <div className="p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-xl text-[9px] text-amber-350 font-mono leading-relaxed">
+                      <div className="p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-xl text-xs text-amber-350 font-mono leading-relaxed">
                         ★ {parserLog}
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] text-slate-400">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs text-slate-400">
                       <div className="flex justify-between"><span>Workforce:</span> <span className="text-white font-bold">{extractedData.techs} Techs</span></div>
                       <div className="flex justify-between"><span>Sublet Sales:</span> <span className="text-white font-bold">${extractedData.subletSales.toLocaleString()}</span></div>
                       <div className="flex justify-between"><span>CP Target:</span> <span className="text-indigo-300 font-bold">${extractedData.cpRate.toFixed(0)} ELR ({extractedData.cpMix}%)</span></div>
@@ -2320,7 +2320,7 @@ export default function FixedOpsForecast({
                     <button
                       type="button"
                       onClick={applyExtractedNumbers}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 transition-all text-white text-xs font-black uppercase py-2.5 rounded-xl tracking-wider cursor-pointer shadow-lg shadow-emerald-505/10 flex items-center justify-center gap-2 mt-2"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 transition-all text-white text-xs font-semibold py-2.5 rounded-xl cursor-pointer shadow-lg shadow-emerald-505/10 flex items-center justify-center gap-2 mt-2"
                     >
                       <Check size={14} /> Pull Extracted Parameters Into Forecaster
                     </button>
@@ -2333,7 +2333,7 @@ export default function FixedOpsForecast({
               <button 
                 type="button" 
                 onClick={() => setIsPdfModalOpen(false)}
-                className="px-4 py-2 text-xs font-black uppercase text-slate-400 hover:text-white bg-transparent hover:bg-white/5 rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white bg-transparent hover:bg-white/5 rounded-xl transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -2350,8 +2350,8 @@ export default function FixedOpsForecast({
           {/* Sticky Toolbar at the top */}
           <div className="bg-slate-900 border border-white/10 p-4 rounded-2xl w-full max-w-4xl flex items-center justify-between gap-4 shadow-2xl mb-6 select-none sticky top-0 z-50">
             <div>
-              <span className="text-xxs font-black text-indigo-400 uppercase tracking-widest block mb-0.5">Report Distribution Preview</span>
-              <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="text-xxs font-semibold text-indigo-400 block mb-0.5">Report Distribution Preview</span>
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                 <Printer size={15} className="text-emerald-450 animate-pulse" />
                 Capacity & Projections Forecast Report Preview
               </h3>
@@ -2361,7 +2361,7 @@ export default function FixedOpsForecast({
               <button 
                 type="button" 
                 onClick={handlePrint}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider py-2 px-4 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/10"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2 px-4 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/10"
               >
                 <Printer size={13} />
                 Send to Printer / PDF
@@ -2369,7 +2369,7 @@ export default function FixedOpsForecast({
               <button 
                 type="button" 
                 onClick={() => setIsPreviewOpen(false)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-black uppercase tracking-wider py-2 px-4 rounded-xl transition-all cursor-pointer border border-white/5"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold py-2 px-4 rounded-xl transition-all cursor-pointer border border-white/5"
               >
                 ✕ Close
               </button>
@@ -2382,13 +2382,13 @@ export default function FixedOpsForecast({
             {/* HEADER BLOCK */}
             <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="space-y-1">
-                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] block">Fixed Operations</span>
-                <h1 className="text-3xl font-extrabold uppercase text-slate-900 leading-none tracking-tight">Capacity & Projections Forecast</h1>
-                <p className="text-xs font-mono text-slate-500 uppercase flex items-center gap-2">
+                <span className="text-xs font-semibold text-indigo-600 block">Fixed Operations</span>
+                <h1 className="text-3xl font-semibold text-slate-900 leading-none tracking-tight">Capacity & Projections Forecast</h1>
+                <p className="text-xs font-mono text-slate-500 flex items-center gap-2">
                   <span className="font-bold text-slate-700">{currentDealershipName}</span>
                 </p>
               </div>
-              <div className="text-right font-mono text-[10px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div className="text-right font-mono text-xs text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <div className="text-slate-400">Generated on {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
               </div>
             </div>
@@ -2396,27 +2396,27 @@ export default function FixedOpsForecast({
             {/* KEY PERFORMANCE INDICATORS (KPIs): Bento Boxes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 py-2">
               <div className="p-5 bg-slate-50/50 border border-slate-200/60 rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-[10px] uppercase text-slate-500 font-extrabold tracking-wider block">Projected Net Hours</span>
-                <div className="mt-2 text-xl font-mono font-black text-slate-900 whitespace-nowrap">{calculations.totalNetProjectedHours.toFixed(1)} <span className="text-xs text-slate-400 font-normal">hrs</span></div>
-                <span className="text-[9px] text-slate-400 font-semibold block mt-1">Derived Capacity Hours</span>
+                <span className="text-xs text-slate-500 font-semibold block">Projected Net Hours</span>
+                <div className="mt-2 text-xl font-mono font-semibold text-slate-900 whitespace-nowrap">{calculations.totalNetProjectedHours.toFixed(1)} <span className="text-xs text-slate-400 font-normal">hrs</span></div>
+                <span className="text-xs text-slate-400 font-semibold block mt-1">Derived Capacity Hours</span>
               </div>
               
               <div className="p-5 bg-indigo-50/20 border border-indigo-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-[10px] uppercase text-indigo-600 font-extrabold tracking-wider block">Projected Labor Sales</span>
-                <div className="mt-2 text-xl font-mono font-black text-indigo-700">${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                <span className="text-[9px] text-indigo-400 font-semibold block mt-1">Projected Service Volume</span>
+                <span className="text-xs text-indigo-600 font-semibold block">Projected Labor Sales</span>
+                <div className="mt-2 text-xl font-mono font-semibold text-indigo-700">${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <span className="text-xs text-indigo-400 font-semibold block mt-1">Projected Service Volume</span>
               </div>
               
               <div className="p-5 bg-emerald-50/20 border border-emerald-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-[10px] uppercase text-emerald-600 font-extrabold tracking-wider block">Adjusted Profit GP</span>
-                <div className="mt-2 text-xl font-mono font-black text-emerald-700">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                <span className="text-[9px] text-emerald-400 font-semibold block mt-1">Net Services GP Yield</span>
+                <span className="text-xs text-emerald-600 font-semibold block">Adjusted Profit GP</span>
+                <div className="mt-2 text-xl font-mono font-semibold text-emerald-700">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <span className="text-xs text-emerald-400 font-semibold block mt-1">Net Services GP Yield</span>
               </div>
 
               <div className="p-5 bg-amber-50/20 border border-amber-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
-                <span className="text-[10px] uppercase text-amber-700 font-extrabold tracking-wider block">Blended ELR Baseline</span>
-                <div className="mt-2 text-xl font-mono font-black text-amber-800">${calculations.totalELR.toFixed(2)}</div>
-                <span className="text-[9px] text-amber-500 font-semibold block mt-1 font-sans">Rate Strategy Objective</span>
+                <span className="text-xs text-amber-700 font-semibold block">Blended ELR Baseline</span>
+                <div className="mt-2 text-xl font-mono font-semibold text-amber-800">${calculations.totalELR.toFixed(2)}</div>
+                <span className="text-xs text-amber-500 font-semibold block mt-1 font-sans">Rate Strategy Objective</span>
               </div>
             </div>
 
@@ -2424,7 +2424,7 @@ export default function FixedOpsForecast({
             <div className="border border-slate-200/80 rounded-2xl overflow-x-auto shadow-sm">
               <table className="w-full min-w-[560px] text-left font-mono text-xs">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase text-[9.5px] tracking-wider">
+                  <tr className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 text-xs ">
                     <th className="py-3.5 px-4 font-bold">Revenue Block</th>
                     <th className="py-3.5 px-4 text-center font-bold">Mix %</th>
                     <th className="py-3.5 px-4 text-right font-bold">Hours</th>
@@ -2462,14 +2462,14 @@ export default function FixedOpsForecast({
                     <td className="py-3.5 px-4 text-center text-slate-600">{inputs.internalGp}%</td>
                     <td className="py-3.5 px-4 text-right font-bold text-emerald-700">${calculations.internalGross.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                   </tr>
-                  <tr className="bg-slate-900 font-black text-white">
-                    <td className="py-4 px-4 uppercase text-[10px]">Totals / Blended</td>
+                  <tr className="bg-slate-900 font-semibold text-white">
+                    <td className="py-4 px-4 text-xs">Totals / Blended</td>
                     <td className="py-4 px-4 text-center">100.0%</td>
                     <td className="py-4 px-4 text-right">{calculations.totalNetProjectedHours.toFixed(1)}</td>
                     <td className="py-4 px-4 text-right">${calculations.totalELR.toFixed(2)}</td>
                     <td className="py-4 px-4 text-right">${calculations.totalLaborSales.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                     <td className="py-4 px-4 text-center">{calculations.blendedGPPercent.toFixed(1)}%</td>
-                    <td className="py-4 px-4 text-right text-emerald-400 font-extrabold">${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-4 px-4 text-right text-emerald-400 font-semibold">${calculations.totalLaborGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
                   </tr>
                 </tbody>
               </table>
@@ -2481,7 +2481,7 @@ export default function FixedOpsForecast({
               {/* Capacity block */}
               <div className="space-y-4">
                 <div className="border-l-3 border-indigo-600 pl-3">
-                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Calendar capacity</span>
+                  <span className="text-xs font-semibold text-slate-800 block">Calendar capacity</span>
                 </div>
                 <div className="space-y-2.5 font-medium text-xs">
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -2498,7 +2498,7 @@ export default function FixedOpsForecast({
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center text-rose-600 font-semibold bg-rose-50/50 px-2 rounded-lg py-1.5">
                     <span>Absenteeism Lost Ratio:</span>
-                    <span className="font-black font-mono">-{calculations.lostHours.toFixed(1)} hrs ({inputs.absenteeismRate}%)</span>
+                    <span className="font-semibold font-mono">-{calculations.lostHours.toFixed(1)} hrs ({inputs.absenteeismRate}%)</span>
                   </div>
                   <div className="flex justify-between py-1.5 items-center">
                     <span className="text-slate-500">Shop Applied Efficiency:</span>
@@ -2510,7 +2510,7 @@ export default function FixedOpsForecast({
               {/* Ledger Consolidated and yield display */}
               <div className="space-y-4">
                 <div className="border-l-3 border-indigo-600 pl-3">
-                  <span className="text-[10px] font-black uppercase text-slate-800 tracking-wider block">Department Consolidation</span>
+                  <span className="text-xs font-semibold text-slate-800 block">Department Consolidation</span>
                 </div>
                 <div className="space-y-2.5 font-medium text-xs font-sans">
                   <div className="flex justify-between py-1.5 border-b border-slate-100 items-center">
@@ -2529,9 +2529,9 @@ export default function FixedOpsForecast({
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 mt-3 flex justify-between items-center text-emerald-950 select-all font-bold transition-all">
                     <div className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      <span className="text-[10px] uppercase tracking-wider text-emerald-800">Adjusted GP Yield:</span>
+                      <span className="text-xs text-emerald-800">Adjusted GP Yield:</span>
                     </div>
-                    <span className="font-mono font-black text-base">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                    <span className="font-mono font-semibold text-base">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                   </div>
                 </div>
               </div>
@@ -2539,7 +2539,7 @@ export default function FixedOpsForecast({
             </div>
 
             {/* FOOTER BRANDING */}
-            <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-[9px] text-slate-400 font-mono select-none">
+            <div className="pt-8 border-t border-slate-200 flex justify-between items-center text-xs text-slate-400 font-mono select-none">
               <div>{currentDealershipName.toUpperCase()} • FINANCIAL REPORTING</div>
               <div>CLASSIFICATION: CONFIDENTIAL</div>
             </div>

@@ -56,8 +56,8 @@ const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
   home: ['home'],
   sales: ['add', 'vin-search'],
   service: ['search', 'alerts', 'dispatch', 'open-ros'],
-  competitions: ['pot-of-gold'],
-  reports: ['appointments', 'forecast', 'sales-performance', 'schedule'],
+  competitions: [],
+  reports: ['appointments', 'forecast', 'sales-performance', 'schedule', 'pot-of-gold'],
   manager: ['manager'],
   admin: ['admin'],
 };
@@ -170,13 +170,13 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
             >
               <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-slate-900/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <span className="text-xs font-semibold text-slate-400 normal-case tracking-normal">
                     {expanded.label}
                   </span>
                   <button
                     type="button"
                     onClick={() => setExpandedSection(null)}
-                    className="text-[9px] font-black uppercase tracking-wider text-slate-500 hover:text-white px-2 py-1"
+                    className="text-xs font-semibold normal-case tracking-normal text-slate-400 hover:text-white px-3 min-h-[44px] inline-flex items-center"
                   >
                     Close
                   </button>
@@ -203,12 +203,12 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
                             size={18}
                             className={cn('shrink-0', isActive ? 'text-brand-primary' : 'text-slate-500')}
                           />
-                          <span className="text-[11px] font-black uppercase tracking-wide truncate">
+                          <span className="text-xs font-semibold normal-case tracking-wide truncate">
                             {item.label}
                           </span>
                         </div>
                         {item.badge !== undefined && item.badge > 0 && (
-                          <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                          <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-xs font-semibold flex items-center justify-center">
                             {item.badge > 99 ? '99+' : item.badge}
                           </span>
                         )}
@@ -228,7 +228,7 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
         aria-label="Primary navigation"
       >
         <div
-          className="grid h-[4.25rem] max-w-lg mx-auto px-0.5"
+          className="grid h-[4.25rem] max-w-lg mx-auto px-0.5 gap-0.5"
           style={{ gridTemplateColumns: `repeat(${Math.max(sections.length, 1)}, minmax(0, 1fr))` }}
         >
           {sections.map(({ id, label, icon: Icon, items }) => {
@@ -251,14 +251,14 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
                 <span className="relative">
                   <Icon size={19} strokeWidth={isSectionActive || isExpanded ? 2.5 : 2} />
                   {alertBadge > 0 && id === 'service' && (
-                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
+                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-xs font-semibold flex items-center justify-center">
                       {alertBadge > 99 ? '99+' : alertBadge}
                     </span>
                   )}
                 </span>
                 <span
                   className={cn(
-                    'text-[10px] font-black uppercase tracking-wide leading-none text-center px-0.5',
+                    'text-xs font-semibold normal-case tracking-wide leading-none text-center px-0.5',
                     (isSectionActive || isExpanded) && 'text-brand-primary'
                   )}
                 >

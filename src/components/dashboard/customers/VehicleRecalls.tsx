@@ -389,7 +389,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
             className={cn(
-              "fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 font-semibold text-xs border uppercase tracking-wider",
+              "fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 font-semibold text-xs border ",
               notification.isError 
                 ? "bg-rose-950/90 text-rose-200 border-rose-500/20" 
                 : "bg-emerald-950/90 text-emerald-200 border-emerald-500/20"
@@ -404,14 +404,14 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-slate-950/40 rounded-2xl border border-white/5 shadow-xl backdrop-blur-md">
         <div>
-          <span className="text-[8px] font-black tracking-widest text-brand-primary uppercase bg-brand-primary/10 px-2 py-0.5 rounded-full">Automotive Safety</span>
-          <h1 className="text-xl font-black text-white tracking-wide uppercase mt-1">NHTSA Repair Campaign Center</h1>
+          <span className="text-xs font-semibold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-full">Automotive Safety</span>
+          <h1 className="text-xl font-semibold text-white tracking-wide mt-1">NHTSA Repair Campaign Center</h1>
           <p className="text-slate-400 text-xs mt-1">Sequential caching of pending safety alerts to circumvent API rate constraints.</p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           {remedyNotAvailableCount > 0 && (
-            <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider">
+            <div className="flex items-center gap-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 px-3 py-1.5 rounded-xl text-xs font-semibold ">
               <ShieldAlert size={14} />
               <span>{remedyNotAvailableCount} Extreme Hazard Threats</span>
             </div>
@@ -421,7 +421,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
             onClick={triggerSync}
             disabled={syncLoading || syncStatus?.isRecallWorkerRunning}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 disabled:opacity-50",
+              "flex items-center gap-2 px-4 py-2 border rounded-xl text-xs font-semibold transition-all shadow-md active:scale-95 disabled:opacity-50",
               syncStatus?.isRecallWorkerRunning
                 ? "bg-amber-500/10 border-amber-500/20 text-amber-500 font-bold"
                 : "bg-brand-primary/20 border-brand-primary/10 hover:border-brand-primary hover:bg-brand-primary/30 text-brand-primary shadow-brand-primary/5 active:scale-95 animate-pulse"
@@ -446,7 +446,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
               syncStatus.isRecallWorkerRunning ? "bg-amber-500 animate-ping" : "bg-emerald-500"
             )} />
             <div className="space-y-0.5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-300">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
                 <span>Crawler Status:</span>
                 <span className={cn(
                   syncStatus.isRecallWorkerRunning ? "text-amber-500" : "text-emerald-400"
@@ -454,7 +454,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                   {syncStatus.isRecallWorkerRunning ? "Scanning..." : "Sync Idle"}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-500 font-medium">
+              <p className="text-xs text-slate-500 font-medium">
                 {syncStatus.isRecallWorkerRunning 
                   ? `Processed ${syncStatus.status.processedCount} of ${syncStatus.status.totalToProcess} directory vehicles sequentially.`
                   : syncStatus.status.lastRun 
@@ -490,12 +490,12 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
 
         <div className="flex flex-col sm:flex-row gap-2">
           {/* Advisor SELECT */}
-          <div className="bg-slate-950/20 border border-white/5 p-1.5 rounded-xl flex items-center gap-2 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <div className="bg-slate-950/20 border border-white/5 p-1.5 rounded-xl flex items-center gap-2 px-3 text-xs font-semibold text-slate-400">
             <User size={13} className="text-slate-500" />
             <select
               value={selectedAdvisor}
               onChange={(e) => setSelectedAdvisor(e.target.value)}
-              className="bg-transparent border-none text-slate-200 text-[10px] font-black uppercase tracking-wider focus:outline-none cursor-pointer pr-4"
+              className="bg-transparent border-none text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer pr-4"
             >
               <option value="ALL" className="bg-slate-900 text-slate-300">All Advisors</option>
               {advisors.filter(a => a !== 'ALL').map(adv => (
@@ -505,12 +505,12 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
           </div>
 
           {/* Status SELECT */}
-          <div className="bg-slate-950/20 border border-white/5 p-1.5 rounded-xl flex items-center gap-2 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <div className="bg-slate-950/20 border border-white/5 p-1.5 rounded-xl flex items-center gap-2 px-3 text-xs font-semibold text-slate-400">
             <Filter size={13} className="text-slate-500" />
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-transparent border-none text-slate-200 text-[10px] font-black uppercase tracking-wider focus:outline-none cursor-pointer pr-4"
+              className="bg-transparent border-none text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer pr-4"
             >
               <option value="ALL" className="bg-slate-900 text-slate-300">All Threats</option>
               <option value="Remedy Available" className="bg-slate-900 text-slate-300">Remedy Ready</option>
@@ -519,12 +519,12 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
           </div>
 
           {/* Match Type SELECT */}
-          <div className="bg-slate-950/20 border border-white/5 p-1.5 rounded-xl flex items-center gap-2 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <div className="bg-slate-950/20 border border-white/5 p-1.5 rounded-xl flex items-center gap-2 px-3 text-xs font-semibold text-slate-400">
             <Shield size={13} className="text-slate-500" />
             <select
               value={selectedMatchType}
               onChange={(e) => setSelectedMatchType(e.target.value)}
-              className="bg-transparent border-none text-slate-200 text-[10px] font-black uppercase tracking-wider focus:outline-none cursor-pointer pr-4"
+              className="bg-transparent border-none text-slate-200 text-xs font-semibold focus:outline-none cursor-pointer pr-4"
             >
               <option value="ALL" className="bg-slate-900 text-slate-300">All Campaigns</option>
               <option value="vin" className="bg-slate-900 text-slate-300">Verified VIN Match</option>
@@ -538,26 +538,26 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
       {loading ? (
         <div className="h-44 bg-slate-950/10 border border-white/5 rounded-2xl flex flex-col items-center justify-center gap-3 text-slate-500">
           <RefreshCw className="animate-spin text-brand-primary" size={24} />
-          <span className="text-[10px] uppercase font-black tracking-widest leading-none">Connecting database cache...</span>
+          <span className="text-xs font-semibold leading-none">Connecting database cache...</span>
         </div>
       ) : groupedVehicles.length === 0 ? (
         <div className="h-44 bg-slate-950/10 border border-white/5 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500">
           <Shield className="text-slate-600 mb-1" size={28} />
-          <span className="text-[10px] uppercase font-black tracking-widest leading-none">No active recalls matched</span>
-          <span className="text-[9px] text-slate-600 font-medium">Verify your filter overrides or execute an off-peak scan.</span>
+          <span className="text-xs font-semibold leading-none">No active recalls matched</span>
+          <span className="text-xs text-slate-600 font-medium">Verify your filter overrides or execute an off-peak scan.</span>
         </div>
       ) : (
         <div className="bg-slate-950/20 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-[10px]">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-900/60 border-b border-white/5 text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="py-3.5 px-4 font-black">Customer / Vehicle</th>
-                  <th className="py-3.5 px-4 font-black">Advisor</th>
-                  <th className="py-3.5 px-4 font-black">Outstanding Campaigns</th>
-                  <th className="py-3.5 px-4 font-black">Targeted Components</th>
-                  <th className="py-3.5 px-4 font-black text-center">Threat Class</th>
-                  <th className="py-3.5 px-4 font-black text-right">Details</th>
+                <tr className="bg-slate-900/60 border-b border-white/5 text-slate-400 font-bold ">
+                  <th className="py-3.5 px-4 font-semibold">Customer / Vehicle</th>
+                  <th className="py-3.5 px-4 font-semibold">Advisor</th>
+                  <th className="py-3.5 px-4 font-semibold">Outstanding Campaigns</th>
+                  <th className="py-3.5 px-4 font-semibold">Targeted Components</th>
+                  <th className="py-3.5 px-4 font-semibold text-center">Threat Class</th>
+                  <th className="py-3.5 px-4 font-semibold text-right">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -584,7 +584,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                           <div 
                             onClick={() => handleViewCustomerProfile(group.customerId)}
                             className={cn(
-                              "font-extrabold text-[11px] leading-tight uppercase transition-colors flex items-center gap-1.5",
+                              "font-semibold text-[11px] leading-tight transition-colors flex items-center gap-1.5",
                               onViewProfile 
                                 ? "text-brand-primary hover:text-brand-primary/80 hover:underline cursor-pointer" 
                                 : "text-white"
@@ -599,19 +599,19 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                             {group.customerName}
                           </div>
                           <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                            <span className="text-slate-400 font-black tracking-wider uppercase text-[9px]">
+                            <span className="text-slate-400 font-semibold text-xs">
                               {group.year} {group.make} {group.model}
                             </span>
-                            <span className="text-[8px] font-mono text-slate-600 bg-slate-900 px-1 border border-white/5 rounded">
+                            <span className="text-xs font-mono text-slate-600 bg-slate-900 px-1 border border-white/5 rounded">
                               VIN: {group.vin}
                             </span>
                             {group.recalls.some(r => r.matchType === 'vin') ? (
-                              <span className="text-[8px] font-black text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/20 rounded inline-flex items-center gap-1 uppercase tracking-wider" title="Matched directly via 17-character NHTSA VIN recall status check.">
+                              <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 border border-emerald-500/20 rounded inline-flex items-center gap-1 " title="Matched directly via 17-character NHTSA VIN recall status check.">
                                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
                                 <span>Verified VIN Match</span>
                               </span>
                             ) : (
-                              <span className="text-[8px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 border border-amber-500/20 rounded inline-flex items-center gap-1 uppercase tracking-wider" title="General safety bulletin matched via Year/Make/Model line fallback. Safe to check on official portal using complete VIN.">
+                              <span className="text-xs font-semibold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 border border-amber-500/20 rounded inline-flex items-center gap-1 " title="General safety bulletin matched via Year/Make/Model line fallback. Safe to check on official portal using complete VIN.">
                                 <Info className="w-2.5 h-2.5 text-amber-500" />
                                 <span>Unverified Bulletin</span>
                               </span>
@@ -620,14 +620,14 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                         </td>
 
                         {/* Advisor */}
-                        <td className="py-4 px-4 font-extrabold text-slate-300 uppercase tracking-widest text-[9.5px]">
+                        <td className="py-4 px-4 font-semibold text-slate-300 text-xs">
                           {group.advisorName}
                         </td>
 
                         {/* Campaign Badges count */}
                         <td className="py-4 px-4">
                           <span className={cn(
-                            "font-mono font-black border rounded-lg text-[9px] px-2.5 py-1 uppercase tracking-wider",
+                            "font-mono font-semibold border rounded-lg text-xs px-2.5 py-1 ",
                             hasRemedyNotAvailable 
                               ? "bg-rose-950/20 border-rose-500/20 text-rose-400" 
                               : "bg-slate-900 border-white/10 text-slate-200"
@@ -637,14 +637,14 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                         </td>
 
                         {/* Components */}
-                        <td className="py-4 px-4 font-bold text-slate-200 uppercase max-w-[150px] truncate" title={componentsText}>
+                        <td className="py-4 px-4 font-bold text-slate-200 max-w-[150px] truncate" title={componentsText}>
                           {componentsText}
                         </td>
 
                         {/* Unified Threat Indicator */}
                         <td className="py-4 px-4 text-center">
                           <span className={cn(
-                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[8.5px] font-black uppercase tracking-wider leading-none",
+                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[8.5px] font-semibold leading-none",
                             overallStatus === 'Remedy Available'
                               ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                               : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
@@ -667,7 +667,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                         <td className="py-4 px-4 text-right">
                           <button
                             onClick={() => toggleRow(vehicleKey)}
-                            className="bg-white/5 border border-white/5 hover:border-slate-500 hover:bg-white/10 text-slate-300 font-bold px-2 py-1.5 rounded-lg active:scale-95 transition-all text-[9px] uppercase tracking-widest cursor-pointer"
+                            className="bg-white/5 border border-white/5 hover:border-slate-500 hover:bg-white/10 text-slate-300 font-bold px-2 py-1.5 rounded-lg active:scale-95 transition-all text-xs cursor-pointer"
                           >
                             <span className="flex items-center gap-1.5">
                               {isExpanded ? (
@@ -698,7 +698,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                               className="overflow-hidden"
                             >
                               <div className="p-6 space-y-5">
-                                <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
+                                <div className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-2">
                                   <Shield size={14} className="text-brand-primary" />
                                   <span>Detailed Repair Campaigns Affecting This Vehicle ({group.recalls.length})</span>
                                 </div>
@@ -708,27 +708,27 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                                     <div key={recall.id || index} className="p-5 rounded-xl bg-slate-950/80 border border-white/5 space-y-4">
                                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
                                         <div className="flex flex-wrap items-center gap-2">
-                                          <span className="font-mono font-black text-white px-2.5 py-1 bg-slate-900 border border-white/10 rounded-lg text-[10px] uppercase tracking-wider">
+                                          <span className="font-mono font-semibold text-white px-2.5 py-1 bg-slate-900 border border-white/10 rounded-lg text-xs ">
                                             {recall.campaignNumber}
                                           </span>
                                           {recall.matchType === 'vin' ? (
-                                            <span className="font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider inline-flex items-center gap-1">
+                                            <span className="font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded text-xs inline-flex items-center gap-1">
                                               <CheckCircle2 size={10} />
                                               <span>Verified Specific VIN Match</span>
                                             </span>
                                           ) : (
-                                            <span className="font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded text-[8px] uppercase tracking-wider inline-flex items-center gap-1" title="General safety alert for Year/Make/Model line. Vehicle may not be individually affected.">
+                                            <span className="font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded text-xs inline-flex items-center gap-1" title="General safety alert for Year/Make/Model line. Vehicle may not be individually affected.">
                                               <Info size={10} />
                                               <span>YMM Bulletin (Unverified Match)</span>
                                             </span>
                                           )}
-                                          <span className="text-slate-500 font-extrabold mx-1">|</span>
-                                          <span className="font-bold text-slate-200 uppercase text-[10px]">
+                                          <span className="text-slate-500 font-semibold mx-1">|</span>
+                                          <span className="font-bold text-slate-200 text-xs">
                                             {recall.component}
                                           </span>
                                         </div>
                                         <span className={cn(
-                                          "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider leading-none self-start sm:self-auto",
+                                          "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[8.5px] font-semibold leading-none self-start sm:self-auto",
                                           recall.status === 'Remedy Available'
                                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                                             : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
@@ -750,7 +750,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-300">
                                         {/* Defect Summary */}
                                         <div className="space-y-1">
-                                          <div className="flex items-center gap-2 text-rose-400 text-[10px] uppercase font-bold tracking-wide">
+                                          <div className="flex items-center gap-2 text-rose-400 text-xs font-bold tracking-wide">
                                             <ShieldAlert size={12} />
                                             <span>Official Defect Statement</span>
                                           </div>
@@ -761,7 +761,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
 
                                         {/* Remedy Strategy */}
                                         <div className="space-y-1">
-                                          <div className="flex items-center gap-2 text-emerald-400 text-[10px] uppercase font-bold tracking-wide">
+                                          <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold tracking-wide">
                                             <Wrench size={12} />
                                             <span>Service Remedy & Resolution Strategy</span>
                                           </div>
@@ -774,7 +774,7 @@ export function VehicleRecalls({ onViewProfile }: { onViewProfile?: (customer: C
                                   ))}
                                 </div>
                                 
-                                <div className="text-right text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                                <div className="text-right text-xs font-bold text-slate-500 ">
                                   NHTSA Last Verified Check: {new Date(group.checkedAt).toLocaleString()}
                                 </div>
                               </div>

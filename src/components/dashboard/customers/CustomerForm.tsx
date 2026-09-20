@@ -256,7 +256,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
         <button
           type="button"
           onClick={() => setShowAIScanner(prev => !prev)}
-          className={`w-full sm:w-auto flex items-center justify-center gap-2.5 py-4 px-8 rounded-2xl text-xs font-black uppercase tracking-wider border transition-all duration-200 ${
+          className={`w-full sm:w-auto flex items-center justify-center gap-2.5 py-4 px-8 rounded-2xl text-xs font-semibold border transition-all duration-200 ${
             showAIScanner 
               ? 'bg-brand-primary text-black border-brand-primary shadow-lg shadow-brand-primary/10' 
               : 'bg-white/5 text-slate-300 border-white/5 hover:border-white/10 hover:bg-[#0c1020]'
@@ -293,12 +293,12 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   )}
                 </div>
 
-                <h5 className="text-xs font-black uppercase tracking-widest text-slate-200">Form Scanner</h5>
+                <h5 className="text-xs font-semibold text-slate-200">Form Scanner</h5>
                 <p className="text-[11px] text-slate-400 max-w-md mt-1 leading-relaxed">
                   Drag and drop a written sales memorandum, buyer contract note, or photo ID. The system's Gemini-powered OCR automatically extracts demographics and vehicle specs to fill the questionnaire below.
                 </p>
 
-                <label className="mt-5 py-2.5 px-6 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-[10px] font-black uppercase tracking-widest text-brand-primary cursor-pointer transition-all">
+                <label className="mt-5 py-2.5 px-6 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-xs font-semibold text-brand-primary cursor-pointer transition-all">
                   {isProcessing ? "Processing Document File..." : "Upload Document File"}
                   <input type="file" onChange={handleImageUpload} accept="image/*" className="hidden" />
                 </label>
@@ -316,22 +316,22 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           
           {/* Elegant header segment inside card */}
           <div className="border-b border-white/5 pb-6">
-            <h2 className="text-lg font-black uppercase tracking-wider text-slate-200 flex items-center gap-3">
+            <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-3">
               <UserIcon className="text-brand-secondary" size={18} /> Enroll Customer Profile
             </h2>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">Enter parameters to construct custom service cycle loops</p>
+            <p className="text-[11px] font-bold text-slate-500 mt-1">Enter parameters to construct custom service cycle loops</p>
           </div>
 
           {/* Subsection 1: Demographics */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-brand-primary" size={14} />
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">General Owner Details</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">General Owner Details</h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="firstName">First Name</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="firstName">First Name</label>
                 <input
                   type="text"
                   id="firstName"
@@ -344,7 +344,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="lastName">Last Name</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="lastName">Last Name</label>
                 <input
                   type="text"
                   id="lastName"
@@ -357,7 +357,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="phone">Primary Phone</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="phone">Primary Phone</label>
                 <div className="relative">
                   <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -372,7 +372,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="email">Email Address</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="email">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -387,14 +387,14 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="language">Preferred Contact Language</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="language">Preferred Contact Language</label>
                 <div className="relative">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <select
                     id="language"
                     value={formData.language}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
+                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
                   >
                     <option value="English">English</option>
                     <option value="Spanish">Spanish</option>
@@ -403,7 +403,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     <option value="Korean">Korean</option>
                     <option value="Other">Other</option>
                   </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">▼</div>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">▼</div>
                 </div>
               </div>
             </div>
@@ -413,12 +413,12 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-brand-secondary" size={14} />
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vehicle Details</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">Vehicle Details</h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="vin">Full VIN (17 Characters)</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="vin">Full VIN (17 Characters)</label>
                 <div className="relative">
                   <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -427,7 +427,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     value={formData.vin}
                     onChange={handleVinChange}
                     maxLength={17}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-12 py-3 rounded-xl text-xs font-black uppercase tracking-wider focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
+                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-12 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
                     placeholder="ENTER 17-CHARACTER VIN"
                   />
                   {isDecoding && (
@@ -439,7 +439,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="model">Vehicle Class / Model</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="model">Vehicle Class / Model</label>
                 <div className="relative">
                   <Car className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -454,7 +454,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="vinLast8">VIN (Last 8 Characters)</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="vinLast8">VIN (Last 8 Characters)</label>
                 <div className="relative">
                   <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -463,7 +463,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     value={formData.vinLast8}
                     onChange={handleChange}
                     maxLength={8}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-black uppercase tracking-wider focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
+                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
                     placeholder="e.g. ABC12345"
                   />
                 </div>
@@ -475,12 +475,12 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-emerald-500" size={14} />
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delivery & Care Logistics</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">Delivery & Care Logistics</h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="soldDate">Delivery Date</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="soldDate">Delivery Date</label>
                 <div className="relative">
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -488,27 +488,27 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="soldDate"
                     value={formData.soldDate}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-black uppercase tracking-wider focus:outline-none transition-all duration-150 appearance-none"
+                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="soldByUserId">Attribution Agent</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="soldByUserId">Attribution Agent</label>
                 <div className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <select
                     id="soldByUserId"
                     value={formData.soldByUserId}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
+                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
                   >
                     <option value="">Select Salesperson...</option>
                     {salespeople.map(sp => (
                       <option key={sp.id} value={sp.id}>{sp.firstName} {sp.lastName}</option>
                     ))}
                   </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-[10px]">▼</div>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">▼</div>
                 </div>
               </div>
             </div>
@@ -518,11 +518,11 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-amber-500" size={14} />
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment & Profile Notes</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">Enrollment & Profile Notes</h3>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest" htmlFor="notes">Onboarding Notes</label>
+              <label className="text-xs font-semibold text-slate-400 " htmlFor="notes">Onboarding Notes</label>
               <textarea
                 id="notes"
                 value={formData.notes || ''}
@@ -546,14 +546,14 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                 />
               </div>
               <div className="text-left">
-                <span className="text-xs font-black uppercase text-slate-300 group-hover:text-white transition-colors block">Auto-Enroll Alerts</span>
-                <span className="text-[9px] font-semibold text-slate-500 block">Queue system alarms at calculated averages</span>
+                <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors block">Auto-Enroll Alerts</span>
+                <span className="text-xs font-semibold text-slate-500 block">Queue system alarms at calculated averages</span>
               </div>
             </label>
 
             <button
               type="submit"
-              className="w-full sm:w-auto py-3 px-10 rounded-xl font-black uppercase text-xs tracking-wider text-black bg-brand-primary hover:bg-brand-primary/90 shadow-xl shadow-brand-primary/10 transition-all duration-200 shrink-0"
+              className="w-full sm:w-auto py-3 px-10 rounded-xl font-semibold text-xs text-black bg-brand-primary hover:bg-brand-primary/90 shadow-xl shadow-brand-primary/10 transition-all duration-200 shrink-0"
             >
               Enroll New Driver
             </button>

@@ -15,7 +15,6 @@ import {
   CrmDensity,
 } from '../../types';
 import { CONTACT_OUTCOMES } from '../../lib/contactOutcomes';
-import { clampFollowUpDays, DEFAULT_FOLLOW_UP_DAYS } from '../../lib/userPreferencesDefaults';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../hooks/useAuth';
@@ -42,14 +41,14 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="card-base rounded-3xl border border-white/5 overflow-hidden">
+    <section className="card-base rounded-xl border border-white/5 overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-white/5 bg-slate-950/40">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-brand-primary/15 flex items-center justify-center shrink-0">
             <Icon size={18} className="text-brand-primary" />
           </div>
           <div>
-            <h2 className="text-sm font-black text-white uppercase tracking-wider">{title}</h2>
+            <h2 className="text-sm font-semibold text-white normal-case tracking-normal">{title}</h2>
             <p className="text-xs text-slate-500 mt-1 max-w-xl">{description}</p>
           </div>
         </div>
@@ -75,8 +74,8 @@ function ToggleRow({
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
-        <p className="text-[11px] font-black text-white uppercase tracking-wide">{label}</p>
-        {description && <p className="text-[10px] text-slate-500 mt-0.5">{description}</p>}
+        <p className="text-xs font-semibold text-white normal-case tracking-wide">{label}</p>
+        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
       </div>
       <button
         type="button"
@@ -117,7 +116,7 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1.5 block">
+      <label className="text-xs font-semibold normal-case tracking-normal text-slate-500 mb-1.5 block">
         {label}
       </label>
       <select
@@ -147,7 +146,6 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
     resetPreferences,
   } = usePreferences();
 
-  const [followUpDraft, setFollowUpDraft] = useState(String(preferences.contactWorkflow.followUpDays));
   const [savedFlash, setSavedFlash] = useState(false);
 
   const wrapSave = async (fn: () => Promise<void>) => {
@@ -164,12 +162,12 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
   const saveToolbar = (
     <div className="flex items-center justify-end gap-2 flex-wrap">
       {saving && (
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-400">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold normal-case text-slate-400">
           <Loader2 size={12} className="animate-spin" /> Saving
         </span>
       )}
       {savedFlash && !saving && (
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-400">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold normal-case text-emerald-400">
           <Check size={12} /> Saved
         </span>
       )}
@@ -178,11 +176,10 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
         onClick={() =>
           wrapSave(async () => {
             await resetPreferences();
-            setFollowUpDraft(String(DEFAULT_FOLLOW_UP_DAYS));
           })
         }
         disabled={saving}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-[10px] font-black uppercase tracking-wider text-slate-300 disabled:opacity-50"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-semibold normal-case tracking-normal text-slate-300 disabled:opacity-50"
       >
         <RotateCcw size={12} />
         Reset defaults
@@ -194,17 +191,17 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
     <div className={cn('space-y-6 animate-in fade-in duration-300 w-full pb-8', embedded ? '' : 'max-w-3xl mx-auto slide-in-from-bottom-4')}>
 
       {!embedded ? (
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-brand-primary/10 p-6 sm:p-8 shadow-2xl">
+        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-surface-card p-6 sm:p-8 shadow-sm">
           <div className="absolute top-0 right-0 w-48 h-48 bg-brand-primary/10 blur-[60px] rounded-full pointer-events-none" />
           <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <SlidersHorizontal size={16} className="text-brand-primary" />
-                <span className="text-[9px] font-black uppercase tracking-[0.25em] text-brand-primary">
+                <span className="text-xs font-semibold normal-case tracking-[0.25em] text-brand-primary">
                   Your workspace
                 </span>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white uppercase italic tracking-tight">
+              <h1 className="text-2xl font-semibold text-white tracking-tight">
                 Preferences
               </h1>
               <p className="text-sm text-slate-400 mt-2">
@@ -220,7 +217,7 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
 
       <Section
         title="Display"
-        description="Light mode is a preview: the home screen, service alerts and settings are converted; some older screens still use dark-only colors."
+        description="Choose a light or dark workspace. Your choice is remembered on this device."
         icon={Monitor}
       >
         <ThemeToggle />
@@ -239,37 +236,9 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
 
       <Section
         title="Contact workflow"
-        description="Follow-up SLA and defaults when logging calls from the queue or CRM."
+        description="Choose the defaults used when logging calls from the queue or customer directory."
         icon={Phone}
       >
-        <div>
-          <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1.5 block">
-            Follow-up SLA (days without contact)
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min={1}
-              max={14}
-              value={followUpDraft}
-              onChange={(e) => setFollowUpDraft(e.target.value)}
-              className="w-24 bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
-            />
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => {
-                const days = clampFollowUpDays(Number(followUpDraft) || 3);
-                setFollowUpDraft(String(days));
-                wrapSave(() => updateContactWorkflow({ followUpDays: days }));
-              }}
-              className="px-4 py-2 rounded-xl bg-brand-primary/20 text-brand-primary text-[10px] font-black uppercase border border-brand-primary/30 disabled:opacity-50"
-            >
-              Apply
-            </button>
-          </div>
-          <p className="text-[9px] text-slate-600 mt-1">1–14 days. Applied to new staff workspaces created from this store's defaults.</p>
-        </div>
         <SelectField
           label="Default contact outcome"
           value={preferences.contactWorkflow.defaultOutcome}
@@ -292,12 +261,6 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
         icon={Monitor}
       >
         <div className="space-y-4 divide-y divide-white/5">
-          <ToggleRow
-            label="Weather widget (Operations)"
-            checked={preferences.dashboardModules.showWeatherWidget}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showWeatherWidget: v }))}
-            disabled={saving}
-          />
           <ToggleRow
             label="Operations KPI header"
             checked={preferences.dashboardModules.showOperationsKpis}
@@ -328,7 +291,7 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
             onChange={(v) => wrapSave(() => updateDashboardModules({ showArchiveTools: v }))}
             disabled={saving}
           />
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-600 pt-2">Navigation tabs</p>
+          <p className="text-xs font-semibold normal-case tracking-normal text-slate-600 pt-2">Navigation tabs</p>
           <ToggleRow
             label="Forecast tab"
             checked={preferences.dashboardModules.showForecastTab}
@@ -362,7 +325,7 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
         icon={Users}
       >
         <div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Card density</p>
+          <p className="text-xs font-semibold normal-case tracking-normal text-slate-500 mb-2">Card density</p>
           <div className="flex gap-2">
             {(['standard', 'compact'] as CrmDensity[]).map((d) => (
               <button
@@ -371,7 +334,7 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
                 disabled={saving}
                 onClick={() => wrapSave(() => updateCrmDisplay({ density: d }))}
                 className={cn(
-                  'flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all',
+                  'flex-1 py-2.5 rounded-xl text-xs font-semibold normal-case tracking-normal border transition-all',
                   preferences.crmDisplay.density === d
                     ? 'border-brand-primary/50 bg-brand-primary/10 text-brand-primary'
                     : 'border-white/5 text-slate-400 hover:border-white/15'
@@ -405,13 +368,13 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
         <button
           type="button"
           onClick={() => onNavigate('search')}
-          className="text-[10px] font-black uppercase tracking-wider text-brand-primary hover:underline"
+          className="text-xs font-semibold normal-case tracking-normal text-brand-primary hover:underline"
         >
           Go to Directory →
         </button>
       </Section>
 
-      <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest text-center">
+      <p className="text-xs text-slate-600 font-bold normal-case tracking-normal text-center">
         Preferences sync across devices · CRM search is saved locally on this browser
       </p>
     </div>

@@ -276,7 +276,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
           <div className="flex items-center gap-3 sm:gap-5">
             {/* High-end avatar */}
             <div className={cn(
-              "w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-sans text-lg sm:text-2xl font-black shadow-lg shrink-0",
+              "w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-sans text-lg sm:text-2xl font-semibold shadow-lg shrink-0",
               getAvatarGradient(customer.firstName, customer.lastName)
             )}>
               {initials}
@@ -284,11 +284,11 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
             
             <div className="space-y-1">
               <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
-                <h3 className="text-lg sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight">
+                <h3 className="text-lg sm:text-2xl md:text-3xl font-semibold text-white tracking-tight leading-tight">
                   {displayName}
                 </h3>
                 <span className={cn(
-                  "badge text-[8px] sm:text-[9px] font-black tracking-widest uppercase py-0.5 sm:py-1 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg",
+                  "badge text-xs sm:text-xs font-semibold py-0.5 sm:py-1 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg",
                   customer.serviceAlertTriggered ? "badge-success" : "badge-info"
                 )}>
                   {customer.serviceAlertTriggered
@@ -305,7 +305,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   Acquired {new Date(customer.createdAt.toMillis()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
                 <span className="hidden sm:inline text-slate-700">•</span>
-                <span className="flex items-center gap-1 font-mono text-[10px] sm:text-[11px] bg-slate-900 border border-white/5 px-1.5 sm:px-2 py-0.5 rounded text-brand-secondary" title={customer.vin ? `Full VIN: ${customer.vin}` : `VIN Last 8: ${customer.vinLast8}`}>
+                <span className="flex items-center gap-1 font-mono text-xs sm:text-[11px] bg-slate-900 border border-white/5 px-1.5 sm:px-2 py-0.5 rounded text-brand-secondary" title={customer.vin ? `Full VIN: ${customer.vin}` : `VIN Last 8: ${customer.vinLast8}`}>
                   VIN: {customer.vin || customer.vinLast8}
                 </span>
               </div>
@@ -316,7 +316,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
             {!isEditing ? (
               <button 
                 onClick={() => setIsEditing(true)}
-                className="btn-secondary py-2 px-3.5 sm:py-2.5 sm:px-5 text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-1.5 sm:gap-2"
+                className="btn-secondary py-2 px-3.5 sm:py-2.5 sm:px-5 text-xs sm:text-xs font-semibold flex items-center gap-1.5 sm:gap-2"
               >
                 <Edit2 size={13} /> Edit Profile
               </button>
@@ -324,14 +324,14 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <div className="flex items-center gap-2 flex-1 md:flex-none">
                 <button 
                   onClick={() => setIsEditing(false)}
-                  className="btn-secondary py-2 px-3.5 sm:py-2.5 sm:px-5 text-[10px] sm:text-xs font-black uppercase tracking-widest flex-1 md:flex-none"
+                  className="btn-secondary py-2 px-3.5 sm:py-2.5 sm:px-5 text-xs sm:text-xs font-semibold flex-1 md:flex-none"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="btn-primary py-2 px-3.5 sm:py-2.5 sm:px-5 text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-1.5 sm:gap-2 flex-1 md:flex-none"
+                  className="btn-primary py-2 px-3.5 sm:py-2.5 sm:px-5 text-xs sm:text-xs font-semibold flex items-center gap-1.5 sm:gap-2 flex-1 md:flex-none"
                 >
                   {isSaving ? "Saving..." : <><Save size={13} /> Save Profile</>}
                 </button>
@@ -362,8 +362,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Car size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">Asset</p>
-              <p className="text-[11px] sm:text-xs font-black text-white mt-0.5 truncate max-w-[100px] sm:max-w-[150px]">{customer.year || 'N/A'} {customer.make} {customer.model}</p>
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Asset</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate max-w-[100px] sm:max-w-[150px]">{customer.year || 'N/A'} {customer.make} {customer.model}</p>
             </div>
           </div>
 
@@ -372,8 +372,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Gauge size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest font-sans truncate">Odometer</p>
-              <p className="text-[11px] sm:text-xs font-black text-white mt-0.5 truncate">{customer.mileage ? `${parseInt(customer.mileage).toLocaleString()} mi` : 'Not Logged'}</p>
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 font-sans truncate">Odometer</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">{customer.mileage ? `${parseInt(customer.mileage).toLocaleString()} mi` : 'Not Logged'}</p>
             </div>
           </div>
 
@@ -382,8 +382,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Calendar size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">Ownership</p>
-              <p className="text-[11px] sm:text-xs font-black text-white mt-0.5 truncate">{customer.soldDate ? new Date(customer.soldDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</p>
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Ownership</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">{customer.soldDate ? new Date(customer.soldDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</p>
             </div>
           </div>
 
@@ -392,8 +392,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Activity size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-[8px] sm:text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">Predictive</p>
-              <p className="text-[11px] sm:text-xs font-black text-white mt-0.5 truncate">
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Predictive</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">
                 {serviceAlerts.isStandardMode
                   ? serviceAlerts.isServiceAlertActive(customer)
                     ? 'Due Now'
@@ -415,7 +415,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               id="mobile-tab-select"
               value={activeTab}
               onChange={(e) => setActiveTab(e.target.value as TabType)}
-              className="w-full bg-[#0d1324] border border-white/10 text-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider focus:outline-none focus:border-brand-primary/50 appearance-none cursor-pointer"
+              className="w-full bg-[#0d1324] border border-white/10 text-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:border-brand-primary/50 appearance-none cursor-pointer"
             >
               <option value="overview">General</option>
               <option value="demographics">Information</option>
@@ -423,7 +423,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <option value="campaigns">S2S Care Campaigns</option>
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
-              <span className="text-[10px]">▼</span>
+              <span className="text-xs">▼</span>
             </div>
           </div>
 
@@ -443,7 +443,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     setActiveTab(tab.id as TabType);
                   }}
                   className={cn(
-                    "flex items-center gap-1.5 sm:gap-2.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all duration-200 shrink-0 border",
+                    "flex items-center gap-1.5 sm:gap-2.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-xs font-semibold transition-all duration-200 shrink-0 border",
                     activeTab === tab.id 
                       ? "bg-brand-primary text-white border-brand-primary/20 shadow-md shadow-brand-primary/15" 
                       : "bg-transparent text-slate-400 border-transparent hover:text-white hover:bg-slate-900"
@@ -479,25 +479,25 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         <Car size={96} />
                       </div>
                       
-                      <p className="text-[10px] font-black text-brand-secondary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                      <p className="text-xs font-semibold text-brand-secondary mb-4 flex items-center gap-2">
                         <Car size={13} /> Active Fleet Configuration
                       </p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-2">
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Model Specification</p>
-                          <p className="text-base sm:text-lg font-black text-white mt-1">
+                          <p className="text-xs font-semibold text-slate-500 ">Model Specification</p>
+                          <p className="text-base sm:text-lg font-semibold text-white mt-1">
                             {formData.year || 'Not Specified'} {formData.make} {formData.model}
                           </p>
                         </div>
 
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl col-span-1 sm:col-span-2 relative">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Chassis VIN Profile</p>
+                          <p className="text-xs font-semibold text-slate-500 ">Global Chassis VIN Profile</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                             <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
-                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Full VIN (17 Characters)</p>
+                              <p className="text-xs font-semibold text-slate-500 ">Full VIN (17 Characters)</p>
                               <div className="flex items-center justify-between mt-1 gap-2">
-                                <span className="font-mono text-xs sm:text-sm font-black text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap uppercase">
+                                <span className="font-mono text-xs sm:text-sm font-semibold text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap ">
                                   {formData.vin || 'Not Set'}
                                 </span>
                                 {formData.vin && (
@@ -516,9 +516,9 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                               </div>
                             </div>
                             <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
-                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-wider">VIN Last 8</p>
+                              <p className="text-xs font-semibold text-slate-500 ">VIN Last 8</p>
                               <div className="flex items-center justify-between mt-1 gap-2">
-                                <span className="font-mono text-xs sm:text-sm font-black text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap uppercase">
+                                <span className="font-mono text-xs sm:text-sm font-semibold text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap ">
                                   {formData.vinLast8}
                                 </span>
                                 <button 
@@ -534,15 +534,15 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         </div>
 
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Verified Odometer</p>
-                          <p className="text-base sm:text-lg font-black text-white mt-1">
+                          <p className="text-xs font-semibold text-slate-500 ">Verified Odometer</p>
+                          <p className="text-base sm:text-lg font-semibold text-white mt-1">
                             {formData.mileage ? `${parseInt(formData.mileage).toLocaleString()} miles` : 'N/A'}
                           </p>
                         </div>
 
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Preferred Language</p>
-                          <p className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
+                          <p className="text-xs font-semibold text-slate-500 ">Preferred Language</p>
+                          <p className="text-base sm:text-lg font-semibold text-white mt-1 flex items-center gap-2">
                             <Languages size={15} className="text-brand-secondary" />
                             {formData.language || 'English'}
                           </p>
@@ -552,7 +552,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Oil Analysis Bento Panel */}
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-                      <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                      <p className="text-xs font-semibold text-brand-primary mb-4 flex items-center gap-2">
                         <Droplet size={13} className="text-indigo-400 animate-pulse" /> Precision Service Intelligence
                       </p>
 
@@ -562,24 +562,24 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                               <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl flex items-center justify-between">
                                 <div>
-                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Average Service Calendar</p>
-                                  <p className="text-sm sm:text-base font-black text-white">
+                                  <p className="text-xs font-semibold text-slate-500 mb-1">Average Service Calendar</p>
+                                  <p className="text-sm sm:text-base font-semibold text-white">
                                     {oilAnalysis.avgMonths} Months
                                   </p>
                                 </div>
-                                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded-md border border-white/5 shrink-0">
+                                <span className="text-xs font-mono font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded-md border border-white/5 shrink-0">
                                   {oilAnalysis.avgDays} Days
                                 </span>
                               </div>
 
                               <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl flex items-center justify-between">
                                 <div>
-                                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Average Service Interval</p>
-                                  <p className="text-sm sm:text-base font-black text-white">
+                                  <p className="text-xs font-semibold text-slate-500 mb-1">Average Service Interval</p>
+                                  <p className="text-sm sm:text-base font-semibold text-white">
                                     {oilAnalysis.avgMiles?.toLocaleString()} mi
                                   </p>
                                 </div>
-                                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded-md border border-white/5 shrink-0">
+                                <span className="text-xs font-mono font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded-md border border-white/5 shrink-0">
                                   Avg Range
                                 </span>
                               </div>
@@ -590,18 +590,18 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                 <Sparkles size={48} />
                               </div>
                               
-                              <p className="text-[9px] font-black text-brand-secondary uppercase tracking-[0.2em] mb-3 flex items-center gap-1.5">
+                              <p className="text-xs font-semibold text-brand-secondary mb-3 flex items-center gap-1.5">
                                 <Activity size={12} /> S2S Predictive Next Oil Change
                               </p>
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 <div className="space-y-1">
-                                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Estimated Due Date</span>
-                                  <span className="font-black text-base sm:text-lg text-white">{oilAnalysis.nextDueDateLabel ?? 'N/A'}</span>
+                                  <span className="text-xs text-slate-500 font-bold block">Estimated Due Date</span>
+                                  <span className="font-semibold text-base sm:text-lg text-white">{oilAnalysis.nextDueDateLabel ?? 'N/A'}</span>
                                 </div>
                                 <div className="space-y-1">
-                                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Estimated Due Mileage</span>
-                                  <span className="font-black text-base sm:text-lg text-white">{oilAnalysis.nextMileage?.toLocaleString()} mi</span>
+                                  <span className="text-xs text-slate-500 font-bold block">Estimated Due Mileage</span>
+                                  <span className="font-semibold text-base sm:text-lg text-white">{oilAnalysis.nextMileage?.toLocaleString()} mi</span>
                                 </div>
                               </div>
                             </div>
@@ -609,7 +609,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         ) : (
                           <div className="p-6 bg-slate-950/20 border border-dashed border-white/5 rounded-2xl text-center space-y-2">
                             <Info size={24} className="text-slate-500 mx-auto" />
-                            <p className="text-sm font-black text-slate-300">Statistical Engine Pending</p>
+                            <p className="text-sm font-semibold text-slate-300">Statistical Engine Pending</p>
                             <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
                               {oilAnalysis.message} Add more visits to enable predictive analytics.
                             </p>
@@ -618,7 +618,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       ) : (
                         <div className="p-6 bg-slate-950/20 border border-dashed border-white/5 rounded-2xl text-center space-y-2">
                           <Database size={24} className="text-slate-500 mx-auto" />
-                          <p className="text-sm font-black text-slate-300">History Database Empty</p>
+                          <p className="text-sm font-semibold text-slate-300">History Database Empty</p>
                           <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
                             No service history logs available to compile predictive calendar.
                           </p>
@@ -628,7 +628,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Customer Notes Bento Block */}
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 mt-4 sm:mt-6">
-                      <p className="text-[10px] font-black text-amber-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <p className="text-xs font-semibold text-amber-400 flex items-center gap-2">
                         <MessageSquare size={13} className="text-amber-400" /> Executive Service & Account Notes
                       </p>
                       
@@ -643,7 +643,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           <button
                             onClick={handleSaveNotesInline}
                             disabled={isSavingNotes}
-                            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-black text-[10px] uppercase tracking-widest px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-50"
+                            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-50"
                           >
                             {isSavingNotes ? (
                               <>
@@ -663,7 +663,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   {/* Right side contact pane */}
                   <div className="space-y-4 sm:space-y-6 lg:space-y-8">
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
                         <UserIcon size={14} className="text-brand-secondary" /> Primary Contacts
                       </p>
 
@@ -671,8 +671,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         {/* Mobile Phone Card */}
                         <div className="p-3.5 sm:p-4 bg-slate-950/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between group hover:border-brand-primary/20 transition-all">
                           <div className="space-y-0.5 truncate pr-2">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Mobile Phone</p>
-                            <p className="text-sm font-extrabold text-white truncate font-mono">{formData.phone || 'Unknown'}</p>
+                            <p className="text-xs font-semibold text-slate-500 ">Mobile Phone</p>
+                            <p className="text-sm font-semibold text-white truncate font-mono">{formData.phone || 'Unknown'}</p>
                           </div>
                           {formData.phone && (
                             <a 
@@ -687,8 +687,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         {/* Email Card */}
                         <div className="p-3.5 sm:p-4 bg-slate-950/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between group hover:border-brand-primary/20 transition-all">
                           <div className="space-y-0.5 truncate pr-2">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Email Address</p>
-                            <p className="text-sm font-extrabold text-white truncate font-mono">{formData.email || 'Not Provided'}</p>
+                            <p className="text-xs font-semibold text-slate-500 ">Email Address</p>
+                            <p className="text-sm font-semibold text-white truncate font-mono">{formData.email || 'Not Provided'}</p>
                           </div>
                           {formData.email && (
                             <a 
@@ -703,8 +703,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         {/* Residential Card */}
                         <div className="p-3.5 sm:p-4 bg-slate-950/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between group hover:border-brand-primary/20 transition-all">
                           <div className="space-y-0.5 truncate pr-2">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Primary Address</p>
-                            <p className="text-xs font-black text-slate-200 truncate mt-1">
+                            <p className="text-xs font-semibold text-slate-500 ">Primary Address</p>
+                            <p className="text-xs font-semibold text-slate-200 truncate mt-1">
                               {formData.address ? `${formData.address}, ${formData.city || ''} ${formData.state || ''}` : 'No Address Stored'}
                             </p>
                           </div>
@@ -723,29 +723,29 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     </div>
 
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
                         <Wrench size={14} className="text-brand-primary" /> Customer Value
                       </p>
 
                       {spendSummary.visitsWithData > 0 ? (
                         <div className="space-y-3.5">
                           <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between">
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                            <span className="text-xs font-semibold text-slate-500 ">
                               Customer Pay Spend
                             </span>
-                            <span className="text-sm font-black text-white tabular-nums">
+                            <span className="text-sm font-semibold text-white tabular-nums">
                               {formatMoney(spendSummary.customerTotal)}
                             </span>
                           </div>
                           <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between">
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                            <span className="text-xs font-semibold text-slate-500 ">
                               Warranty Pay Received
                             </span>
-                            <span className="text-sm font-black text-amber-400 tabular-nums">
+                            <span className="text-sm font-semibold text-amber-400 tabular-nums">
                               {formatMoney(spendSummary.warrantyTotal)}
                             </span>
                           </div>
-                          <p className="text-[9px] text-slate-600 leading-relaxed">
+                          <p className="text-xs text-slate-600 leading-relaxed">
                             From {spendSummary.visitsWithData} of {spendSummary.totalVisits} repair order
                             {spendSummary.totalVisits === 1 ? '' : 's'} on file with pay-type data synced from PBS.
                           </p>
@@ -758,22 +758,22 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     </div>
 
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
                         <Shield size={14} className="text-emerald-500" /> Executive Metadata
                       </p>
                       
                       <div className="space-y-3.5 text-xs">
                         <div className="flex justify-between items-center text-slate-400">
                           <span className="font-bold">Original Advisor:</span>
-                          <span className="font-black text-white">{customer.soldByUsername || 'Import Conduit'}</span>
+                          <span className="font-semibold text-white">{customer.soldByUsername || 'Import Conduit'}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-400">
                           <span className="font-bold">Dealership Source:</span>
-                          <span className="font-black text-white font-mono">HY-{customer.dealershipId ? customer.dealershipId.slice(-6).toUpperCase() : 'MAIN'}</span>
+                          <span className="font-semibold text-white font-mono">HY-{customer.dealershipId ? customer.dealershipId.slice(-6).toUpperCase() : 'MAIN'}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-400">
                           <span className="font-bold">Campaign Status:</span>
-                          <span className="flex items-center gap-1.5 font-black text-white">
+                          <span className="flex items-center gap-1.5 font-semibold text-white">
                             <CheckCircle2 size={12} className="text-emerald-400" /> Sync OK
                           </span>
                         </div>
@@ -788,64 +788,64 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
                   {/* Personal Demographics */}
                   <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
-                    <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                    <h4 className="text-xs font-semibold text-slate-300 flex items-center gap-2 border-b border-white/5 pb-3">
                       <UserIcon size={14} className="text-brand-primary" /> Profile Identification
                     </h4>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">First Name</span>
-                        <p className="text-sm font-extrabold mt-1">{formData.firstName || 'Not Recorded'}</p>
+                        <span className="text-xs font-semibold text-slate-500">First Name</span>
+                        <p className="text-sm font-semibold mt-1">{formData.firstName || 'Not Recorded'}</p>
                       </div>
 
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Last Name</span>
-                        <p className="text-sm font-extrabold mt-1">{formData.lastName || 'Not Recorded'}</p>
+                        <span className="text-xs font-semibold text-slate-500">Last Name</span>
+                        <p className="text-sm font-semibold mt-1">{formData.lastName || 'Not Recorded'}</p>
                       </div>
 
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Mobile Phone</span>
-                        <p className="text-sm font-extrabold mt-1 font-mono">{formData.phone || 'Not Recorded'}</p>
+                        <span className="text-xs font-semibold text-slate-500">Mobile Phone</span>
+                        <p className="text-sm font-semibold mt-1 font-mono">{formData.phone || 'Not Recorded'}</p>
                       </div>
 
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Preferred Language</span>
-                        <p className="text-sm font-extrabold mt-1">{formData.language || 'English'}</p>
+                        <span className="text-xs font-semibold text-slate-500">Preferred Language</span>
+                        <p className="text-sm font-semibold mt-1">{formData.language || 'English'}</p>
                       </div>
 
                       <div className="col-span-1 sm:col-span-2 p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Primary Email Address</span>
-                        <p className="text-sm font-extrabold mt-1 break-all font-mono">{formData.email || 'Not Stored'}</p>
+                        <span className="text-xs font-semibold text-slate-500">Primary Email Address</span>
+                        <p className="text-sm font-semibold mt-1 break-all font-mono">{formData.email || 'Not Stored'}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Address Coordinates */}
                   <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
-                    <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                    <h4 className="text-xs font-semibold text-slate-300 flex items-center gap-2 border-b border-white/5 pb-3">
                       <MapPin size={14} className="text-indigo-400" /> Residential Geography
                     </h4>
 
                     <div className="space-y-3 sm:space-y-4">
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Street Address</span>
-                        <p className="text-sm font-extrabold text-white mt-1">{formData.address || 'Not Logged'}</p>
+                        <span className="text-xs font-semibold text-slate-500">Street Address</span>
+                        <p className="text-sm font-semibold text-white mt-1">{formData.address || 'Not Logged'}</p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="p-3 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">City</span>
-                          <p className="text-sm font-extrabold mt-1 truncate">{formData.city || 'N/A'}</p>
+                          <span className="text-xs font-semibold text-slate-500">City</span>
+                          <p className="text-sm font-semibold mt-1 truncate">{formData.city || 'N/A'}</p>
                         </div>
 
                         <div className="p-3 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">State</span>
-                          <p className="text-sm font-extrabold mt-1 truncate">{formData.state || 'N/A'}</p>
+                          <span className="text-xs font-semibold text-slate-500">State</span>
+                          <p className="text-sm font-semibold mt-1 truncate">{formData.state || 'N/A'}</p>
                         </div>
 
                         <div className="p-3 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">ZIP</span>
-                          <p className="text-sm font-extrabold mt-1 truncate font-mono">{formData.zip || 'N/A'}</p>
+                          <span className="text-xs font-semibold text-slate-500">ZIP</span>
+                          <p className="text-sm font-semibold mt-1 truncate font-mono">{formData.zip || 'N/A'}</p>
                         </div>
                       </div>
 
@@ -890,20 +890,20 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   {/* Alert Control panel */}
                   <div className="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
-                      <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                      <h4 className="text-xs font-semibold text-slate-300 flex items-center gap-2 border-b border-white/5 pb-3">
                         <BellAlertIcon size={14} className="text-brand-secondary" /> Automated Communications
                       </h4>
                       
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="space-y-1 pr-4">
-                          <p className="text-xs font-extrabold text-white">Service Alert Triggers</p>
-                          <p className="text-[10px] font-medium text-slate-500 leading-relaxed">
+                          <p className="text-xs font-semibold text-white">Service Alert Triggers</p>
+                          <p className="text-xs font-medium text-slate-500 leading-relaxed">
                             Control when automated service suggestions are computed or sent for this profile.
                           </p>
                         </div>
                         <div className="flex items-center shrink-0">
                           <span className={cn(
-                            "badge py-1 px-2.5 rounded-lg text-[9px] font-black sm:mr-3",
+                            "badge py-1 px-2.5 rounded-lg text-xs font-semibold sm:mr-3",
                             formData.enableServiceAlert ? "badge-success" : "badge-error"
                           )}>
                             {formData.enableServiceAlert ? "ACTIVE" : "STOPPED"}
@@ -918,22 +918,22 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                             <button
                               type="button"
                               onClick={() => setIsSuspendingAlerts(true)}
-                              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider text-rose-300 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 hover:border-rose-500/40 transition-all duration-200"
+                              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 hover:border-rose-500/40 transition-all duration-200"
                             >
                               <X size={14} /> Remove Customer From Service Alerts
                             </button>
                           ) : (
                             <div className="p-4 sm:p-5 bg-rose-500/5 border border-rose-500/10 rounded-xl sm:rounded-2xl space-y-4">
                               <div className="border-b border-rose-500/10 pb-2">
-                                <h5 className="text-[10px] font-black text-rose-400 uppercase tracking-widest flex items-center gap-2">
+                                <h5 className="text-xs font-semibold text-rose-400 flex items-center gap-2">
                                   <AlertTriangle size={13} /> Deactivate Maintenance Reminders
                                 </h5>
-                                <p className="text-[9px] text-rose-300/60 font-medium uppercase tracking-wider mt-0.5">Please file a reason and matching notes for this authorization.</p>
+                                <p className="text-xs text-rose-300/60 font-medium mt-0.5">Please file a reason and matching notes for this authorization.</p>
                               </div>
 
                               <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                  <label htmlFor="suspend-reason" className="text-[9px] font-black text-rose-400 uppercase tracking-wider">Reason for Removal</label>
+                                  <label htmlFor="suspend-reason" className="text-xs font-semibold text-rose-400 ">Reason for Removal</label>
                                   <select
                                     id="suspend-reason"
                                     value={suspendReason}
@@ -951,7 +951,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                 </div>
 
                                 <div className="space-y-1.5">
-                                  <label htmlFor="suspend-notes" className="text-[9px] font-black text-rose-400 uppercase tracking-wider">Internal Authorization Notes</label>
+                                  <label htmlFor="suspend-notes" className="text-xs font-semibold text-rose-400 ">Internal Authorization Notes</label>
                                   <textarea
                                     id="suspend-notes"
                                     value={suspendNotes}
@@ -970,7 +970,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                       setSuspendNotes('');
                                     }}
                                     disabled={isProcessingAction}
-                                    className="py-2.5 text-xs font-black uppercase text-slate-400 bg-slate-800 hover:bg-slate-750 border border-white/5 rounded-lg transition-all"
+                                    className="py-2.5 text-xs font-semibold text-slate-400 bg-slate-800 hover:bg-slate-750 border border-white/5 rounded-lg transition-all"
                                   >
                                     Cancel
                                   </button>
@@ -978,7 +978,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                     type="button"
                                     onClick={handleSuspendAlerts}
                                     disabled={isProcessingAction}
-                                    className="py-2.5 text-xs font-black uppercase text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-lg shadow-rose-950/20 transition-all flex items-center justify-center gap-2"
+                                    className="py-2.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-lg shadow-rose-950/20 transition-all flex items-center justify-center gap-2"
                                   >
                                     {isProcessingAction ? "Processing..." : "Confirm Suspension"}
                                   </button>
@@ -994,7 +994,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     {formData.stopAlertInfo && (
                       <div className="bg-rose-500/5 border border-rose-500/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
                         <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-rose-500/10 pb-3 gap-2">
-                          <h5 className="text-xs font-black text-rose-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <h5 className="text-xs font-semibold text-rose-400 flex items-center gap-2">
                             <AlertTriangle size={14} /> Suspended Campaign Information
                           </h5>
                           
@@ -1002,23 +1002,23 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                             type="button"
                             onClick={handleReinstateAlerts}
                             disabled={isProcessingAction}
-                            className="self-start sm:self-auto py-1 px-3 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 rounded-lg text-[10px] font-black uppercase text-emerald-300 tracking-wider transition-all"
+                            className="self-start sm:self-auto py-1 px-3 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-300 transition-all"
                           >
                             {isProcessingAction ? "Processing..." : "Reinstate Reminders"}
                           </button>
                         </div>
                         <div className="space-y-3 text-xs text-rose-300/80">
                           <p className="leading-relaxed">
-                            <span className="font-extrabold text-white block">Suspended Code / Reason</span>
+                            <span className="font-semibold text-white block">Suspended Code / Reason</span>
                             {formData.stopAlertInfo.reason}
                           </p>
                           {formData.stopAlertInfo.notes && (
                             <p className="leading-relaxed">
-                              <span className="font-extrabold text-white block">Notes / Observations</span>
+                              <span className="font-semibold text-white block">Notes / Observations</span>
                               {formData.stopAlertInfo.notes}
                             </p>
                           )}
-                          <div className="pt-2 flex flex-col sm:flex-row justify-between text-[10px] font-black uppercase text-rose-400/60 font-mono gap-1">
+                          <div className="pt-2 flex flex-col sm:flex-row justify-between text-xs font-semibold text-rose-400/60 font-mono gap-1">
                             <span>Authorizer: {formData.stopAlertInfo.stoppedBy}</span>
                             <span>Date: {formData.stopAlertInfo.stoppedAt ? new Date(formData.stopAlertInfo.stoppedAt.toMillis()).toLocaleDateString() : 'N/A'}</span>
                           </div>
@@ -1029,35 +1029,35 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                   <div className="space-y-4 sm:space-y-6 lg:space-y-8">
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-white/5 pb-3">
+                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
                         <Database size={14} className="text-brand-secondary" /> Service History Summary
                       </p>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
-                          <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Reminder Interval</span>
-                          <span className="text-xs font-black text-emerald-400 mt-1 block">
+                          <span className="text-xs font-semibold text-slate-500 block">Reminder Interval</span>
+                          <span className="text-xs font-semibold text-emerald-400 mt-1 block">
                             6 Months
                           </span>
                         </div>
                         
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
-                          <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Total Visits</span>
-                          <span className="text-xs font-black text-white mt-1 block">
+                          <span className="text-xs font-semibold text-slate-500 block">Total Visits</span>
+                          <span className="text-xs font-semibold text-white mt-1 block">
                             {formData.recentVisits?.length || 0} Logs
                           </span>
                         </div>
 
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
-                          <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Last Service</span>
-                          <span className="text-xs font-black text-slate-300 mt-1 block">
+                          <span className="text-xs font-semibold text-slate-500 block">Last Service</span>
+                          <span className="text-xs font-semibold text-slate-300 mt-1 block">
                             {getLastServiceDate(formData) ? getLastServiceDate(formData)!.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : 'N/A'}
                           </span>
                         </div>
 
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
-                          <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block">Next Due Date</span>
-                          <span className="text-xs font-black text-brand-secondary mt-1 block">
+                          <span className="text-xs font-semibold text-slate-500 block">Next Due Date</span>
+                          <span className="text-xs font-semibold text-brand-secondary mt-1 block">
                             {serviceAlerts.getNextServiceMilestone(formData)}
                           </span>
                         </div>
@@ -1072,17 +1072,17 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                 <div className="bg-slate-900/30 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-6 sm:space-y-8 max-w-4xl mx-auto">
                   <div className="flex items-center justify-between border-b border-white/5 pb-4">
                     <div>
-                      <h4 className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <h4 className="text-xs font-semibold text-slate-300 flex items-center gap-2">
                         <Edit2 size={14} className="text-brand-secondary" /> Modify Customer Coordinates
                       </h4>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">Please ensure all required CRM fields match official records.</p>
+                      <p className="text-xs font-bold text-slate-500 mt-0.5">Please ensure all required CRM fields match official records.</p>
                     </div>
                   </div>
 
                   <div className="space-y-6 sm:space-y-8">
                     {/* Part 1: Personal Specifications */}
                     <div className="space-y-4">
-                      <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.15em]">Part A: Name & Identity</p>
+                      <p className="text-xs font-semibold text-brand-primary ">Part A: Name & Identity</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">First Name</label>
@@ -1097,7 +1097,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 2: Contact Options */}
                     <div className="space-y-4">
-                      <p className="text-[10px] font-black text-brand-primary uppercase tracking-[0.15em]">Part B: Communication Contacts</p>
+                      <p className="text-xs font-semibold text-brand-primary ">Part B: Communication Contacts</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">Phone Connection</label>
@@ -1112,7 +1112,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 3: Vehicle Specs */}
                     <div className="space-y-4">
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.15em]">Part C: Automotive Registry Details</p>
+                      <p className="text-xs font-semibold text-indigo-400 ">Part C: Automotive Registry Details</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">Model Year</label>
@@ -1142,7 +1142,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                 vinLast8: val.length >= 8 ? val.slice(-8) : prev.vinLast8 
                               }));
                             }} 
-                            className="input-field font-mono text-brand-secondary uppercase tracking-widest" 
+                            className="input-field font-mono text-brand-secondary " 
                             placeholder="Full 17-character VIN" 
                             maxLength={17} 
                           />
@@ -1167,7 +1167,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 4: Address Coordinates */}
                     <div className="space-y-4">
-                      <p className="text-[10px] font-black text-rose-400 uppercase tracking-[0.15em]">Part D: Residence Logistics</p>
+                      <p className="text-xs font-semibold text-rose-400 ">Part D: Residence Logistics</p>
                       <div className="space-y-3">
                         <div className="space-y-1.5">
                           <label className="input-label">Street Address Coordinates</label>
@@ -1192,7 +1192,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 5: Campaign & Language preferences */}
                     <div className="space-y-4">
-                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.15em]">Part E: Retention Configurations</p>
+                      <p className="text-xs font-semibold text-emerald-400 ">Part E: Retention Configurations</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">Communication Dialect</label>
@@ -1201,8 +1201,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         
                         <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
                           <div className="space-y-0.5">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">S2S Campaign Subscriptions</span>
-                            <span className="text-[9px] text-slate-500 font-medium">Allow automated retention alerts</span>
+                            <span className="text-xs font-bold text-slate-400 block">S2S Campaign Subscriptions</span>
+                            <span className="text-xs text-slate-500 font-medium">Allow automated retention alerts</span>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1 sm:mt-0">
                             <input 
@@ -1220,7 +1220,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 6: Profile Notes */}
                     <div className="space-y-4">
-                      <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.15em]">Part F: Account Notes</p>
+                      <p className="text-xs font-semibold text-amber-500 ">Part F: Account Notes</p>
                       <div className="space-y-1.5">
                         <label className="input-label">Customer Profile Notes</label>
                         <textarea

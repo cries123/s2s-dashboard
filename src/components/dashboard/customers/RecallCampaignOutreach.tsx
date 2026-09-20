@@ -477,11 +477,11 @@ export function RecallCampaignOutreach({
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-white tracking-tight flex items-center gap-2">
             <ShieldAlert size={18} className="text-amber-400" />
             Pending Recall Outreach
           </h3>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+          <p className="text-xs font-bold text-slate-500 mt-1">
             Import OEM recall lists — text/email via your phone or mail app (no Twilio required)
           </p>
         </div>
@@ -489,7 +489,7 @@ export function RecallCampaignOutreach({
           <button
             type="button"
             onClick={() => setManualFormOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 border border-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-700"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 border border-slate-700 text-white rounded-xl text-xs font-semibold hover:bg-slate-700"
           >
             <Plus size={14} />
             Add Customer
@@ -498,7 +498,7 @@ export function RecallCampaignOutreach({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-semibold disabled:opacity-50"
           >
             {importing ? <Loader2 size={14} className="animate-spin" /> : <FileUp size={14} />}
             Import Recall PDF
@@ -526,17 +526,17 @@ export function RecallCampaignOutreach({
           >
             <div className="flex items-center gap-2 text-slate-500 mb-1">
               <Icon size={12} />
-              <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+              <span className="text-xs font-semibold ">{label}</span>
             </div>
-            <p className="text-2xl font-black text-white">{value}</p>
+            <p className="text-2xl font-semibold text-white">{value}</p>
           </div>
         ))}
       </div>
 
       <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-4">
         <div>
-          <h4 className="text-sm font-black text-white uppercase tracking-widest">Outreach message</h4>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+          <h4 className="text-sm font-semibold text-white ">Outreach message</h4>
+          <p className="text-xs text-slate-500 font-bold mt-1">
             Edit the message opened in your Messages or email app. Use {'{name}'}, {'{year}'}, {'{make}'}, {'{model}'}, {'{campaign}'}.
           </p>
         </div>
@@ -545,7 +545,7 @@ export function RecallCampaignOutreach({
             type="button"
             onClick={() => setOutreachChannel('sms')}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border',
+              'px-3 py-1.5 rounded-lg text-xs font-semibold border',
               outreachChannel === 'sms'
                 ? 'bg-brand-primary/20 border-brand-primary text-brand-primary'
                 : 'border-slate-700 text-slate-400'
@@ -557,7 +557,7 @@ export function RecallCampaignOutreach({
             type="button"
             onClick={() => setOutreachChannel('email')}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border',
+              'px-3 py-1.5 rounded-lg text-xs font-semibold border',
               outreachChannel === 'email'
                 ? 'bg-brand-primary/20 border-brand-primary text-brand-primary'
                 : 'border-slate-700 text-slate-400'
@@ -630,7 +630,7 @@ export function RecallCampaignOutreach({
             type="button"
             onClick={handleBulkSend}
             disabled={sending || selectedIds.size === 0}
-            className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+            className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold disabled:opacity-40"
           >
             {sending ? (
               <Loader2 size={12} className="animate-spin" />
@@ -645,7 +645,7 @@ export function RecallCampaignOutreach({
             type="button"
             onClick={handleDeleteSelected}
             disabled={selectedIds.size === 0}
-            className="flex items-center gap-2 px-3 py-2 bg-rose-950/40 border border-rose-500/30 text-rose-400 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+            className="flex items-center gap-2 px-3 py-2 bg-rose-950/40 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-semibold disabled:opacity-40"
           >
             <Trash2 size={12} />
             Remove
@@ -664,7 +664,7 @@ export function RecallCampaignOutreach({
       </div>
 
       {loading && leads.length === 0 && (
-        <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+        <div className="flex items-center gap-2 text-slate-500 text-xs font-bold ">
           <Loader2 className="animate-spin" size={14} />
           Loading recall list...
         </div>
@@ -673,13 +673,13 @@ export function RecallCampaignOutreach({
       {!loading && leads.length === 0 ? (
         <div className="py-16 text-center border-2 border-dashed border-slate-800 rounded-3xl">
           <ShieldAlert size={40} className="mx-auto text-slate-700 mb-3" />
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+          <p className="text-slate-500 text-xs font-bold ">
             No pending recall list imported yet
           </p>
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-3 text-brand-primary text-[10px] font-black uppercase tracking-widest hover:underline"
+            className="mt-3 text-brand-primary text-xs font-semibold hover:underline"
           >
             Import Recall PDF
           </button>
@@ -688,7 +688,7 @@ export function RecallCampaignOutreach({
         <div className="overflow-x-auto rounded-2xl border border-slate-800">
           <table className="w-full text-left text-xs min-w-[900px]">
             <thead>
-              <tr className="bg-slate-950/80 text-[9px] uppercase text-slate-500">
+              <tr className="bg-slate-950/80 text-xs text-slate-500">
                 <th className="p-3 w-10" />
                 <th className="p-3">Customer</th>
                 <th className="p-3">Phone</th>
@@ -739,7 +739,7 @@ export function RecallCampaignOutreach({
                         '—'
                       )}
                     </td>
-                    <td className="p-3 font-mono text-[10px] text-slate-400">{lead.vin}</td>
+                    <td className="p-3 font-mono text-xs text-slate-400">{lead.vin}</td>
                     <td className="p-3 text-slate-300">
                       {[lead.year, lead.make, lead.model].filter(Boolean).join(' ')}
                     </td>
@@ -747,7 +747,7 @@ export function RecallCampaignOutreach({
                     <td className="p-3">
                       <span
                         className={cn(
-                          'px-2 py-0.5 rounded-full text-[8px] font-black uppercase',
+                          'px-2 py-0.5 rounded-full text-xs font-semibold ',
                           lead.outreachStatus === 'pending' && 'bg-amber-500/10 text-amber-400',
                           lead.outreachStatus === 'text_sent' && 'bg-emerald-500/10 text-emerald-400',
                           lead.outreachStatus === 'email_sent' && 'bg-sky-500/10 text-sky-400',
@@ -796,7 +796,7 @@ export function RecallCampaignOutreach({
             animate={{ opacity: 1, y: 0 }}
             className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl text-[11px] text-slate-400"
           >
-            <p className="text-[9px] font-black uppercase text-slate-500 mb-2">Message preview</p>
+            <p className="text-xs font-semibold text-slate-500 mb-2">Message preview</p>
             {personalizePreview(leads.find((l) => selectedIds.has(l.id))!)}
           </motion.div>
         </AnimatePresence>
@@ -815,7 +815,7 @@ export function RecallCampaignOutreach({
           border-radius: 0.5rem;
           font-size: 10px;
           font-weight: 800;
-          text-transform: uppercase;
+          text-transform: ;
           letter-spacing: 0.05em;
           border: 1px solid rgb(51 65 85);
           color: rgb(148 163 184);

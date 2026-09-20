@@ -33,7 +33,7 @@ export function LoadingScreen() {
             className="absolute inset-0 flex items-center justify-center"
           >
             <div className="flex flex-col items-center">
-              <span className="text-4xl font-black text-white italic tracking-tighter leading-none">S2S</span>
+              <span className="text-4xl font-semibold text-white tracking-tighter leading-none">S2S</span>
               <div className="h-0.5 w-8 bg-brand-primary mt-1 rounded-full shadow-[0_0_10px_rgba(var(--brand-primary-rgb),0.5)]" />
             </div>
           </motion.div>
@@ -59,7 +59,7 @@ export function LoadingScreen() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-base font-black text-white uppercase tracking-[0.4em] italic"
+            className="text-base font-semibold text-white "
           >
             Initializing <span className="text-brand-primary">Systems</span>
           </motion.h2>
@@ -86,7 +86,7 @@ export function LoadingScreen() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             transition={{ delay: 1 }}
-            className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]"
+            className="text-xs font-bold text-slate-500 "
           >
             Connecting securely
           </motion.p>
@@ -95,7 +95,7 @@ export function LoadingScreen() {
 
       {/* Corporate/Tech Accent */}
       <div className="absolute bottom-12 left-0 w-full flex justify-center opacity-20">
-        <div className="flex items-center gap-8 text-[8px] font-black text-slate-500 uppercase tracking-[0.5em]">
+        <div className="flex items-center gap-8 text-xs font-semibold text-slate-500 ">
           <span>Archive Hub</span>
           <div className="w-1.5 h-1.5 rotate-45 border border-slate-500" />
           <span>v2.4.0</span>

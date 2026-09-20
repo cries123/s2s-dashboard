@@ -63,7 +63,7 @@ export function ConfirmModal({
           )}
           <h2
             id="confirm-modal-title"
-            className="text-lg font-black leading-snug"
+            className="text-lg font-semibold leading-snug"
             style={{ color: 'var(--color-text-primary)' }}
           >
             {title}

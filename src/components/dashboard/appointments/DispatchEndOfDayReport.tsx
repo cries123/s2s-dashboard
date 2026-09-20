@@ -86,9 +86,9 @@ export function DispatchEndOfDayReport({
       <div className="card-base max-w-lg w-full rounded-2xl border border-white/10 p-6 space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary">End of day</p>
-            <h2 className="text-lg font-black text-white uppercase">Down in shop</h2>
-            <p className="text-[10px] text-slate-500 mt-1">Overnight carryover snapshot for end-of-day closeout.</p>
+            <p className="text-xs font-semibold text-brand-primary">End of day</p>
+            <h2 className="text-lg font-semibold text-white ">Down in shop</h2>
+            <p className="text-xs text-slate-500 mt-1">Overnight carryover snapshot for end-of-day closeout.</p>
           </div>
           <button type="button" onClick={onClose} className="p-2 text-slate-500 hover:text-white">
             <X size={18} />
@@ -96,7 +96,7 @@ export function DispatchEndOfDayReport({
         </div>
 
         <div className="text-sm text-slate-300 space-y-1">
-          <p className="font-black text-white">{dealershipName}</p>
+          <p className="font-semibold text-white">{dealershipName}</p>
           <p className="text-slate-500">Business date: {businessDate}</p>
           <p className="text-slate-500">Generated: {new Date().toLocaleString()}</p>
         </div>
@@ -107,14 +107,14 @@ export function DispatchEndOfDayReport({
               key={tile.label}
               className="rounded-xl border border-white/10 bg-slate-950/50 p-3"
             >
-              <p className="text-[9px] font-black uppercase text-slate-500">{tile.label}</p>
-              <p className="text-xl font-black text-white tabular-nums mt-1">{tile.value}</p>
+              <p className="text-xs font-semibold text-slate-500">{tile.label}</p>
+              <p className="text-xl font-semibold text-white tabular-nums mt-1">{tile.value}</p>
             </div>
           ))}
         </div>
 
         <div>
-          <p className="text-[9px] font-black uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
             <Moon size={10} className="text-amber-400" />
             Down in shop repair orders
           </p>
@@ -146,7 +146,7 @@ export function DispatchEndOfDayReport({
           <button
             type="button"
             onClick={printReport}
-            className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-primary text-slate-950 text-[10px] font-black uppercase"
+            className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-primary text-slate-950 text-xs font-semibold "
           >
             <Printer size={14} />
             Print / Save PDF
@@ -154,7 +154,7 @@ export function DispatchEndOfDayReport({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-slate-800 text-[10px] font-black uppercase text-slate-300"
+            className="px-4 py-2.5 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300"
           >
             Close
           </button>

@@ -8,7 +8,7 @@ import {
 import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { isPlatformAdmin, resolveUserDealershipId } from '../../../lib/rbac';
-import { OperationType, handleFirestoreError } from '../../../services/loggingService';
+import { isPreviewMode } from '../../../lib/previewMode';
 
 interface LogEntry {
   id: string;
@@ -39,12 +39,19 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
   const { user, loading: authLoading } = useAuth();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadedScope, setLoadedScope] = useState('');
+  const scopedDealershipId = user && isPlatformAdmin(user) ? (dealershipId || resolveUserDealershipId(user)) : user ? resolveUserDealershipId(user) : '';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
+    setLogs([]);
+    setLoadedScope('');
+    setLoading(true);
+    setLoadError(false);
+    if (!user || isPreviewMode) {
       setLoading(false);
       return;
     }
@@ -70,11 +77,14 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
         ...doc.data()
       })) as LogEntry[];
       
+      setLoadedScope(scopedDealershipId);
       setLogs(logsList);
       setLoading(false);
     }, (error) => {
       setLoading(false);
-      handleFirestoreError(error, OperationType.LIST, path);
+      setLogs([]);
+      setLoadError(true);
+      console.error('[SystemLogs] Could not load logs', error);
     });
 
     return () => unsubscribe();
@@ -103,14 +113,14 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
     }[category] || "bg-slate-500/10 text-slate-400 border border-slate-500/15";
 
     return (
-      <span className={cn("px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0", classes)}>
+      <span className={cn("px-2.5 py-1 rounded-md text-xs font-semibold normal-case tracking-normal flex items-center gap-1.5 shrink-0", classes)}>
         {getCategoryIcon(category)}
         {category}
       </span>
     );
   };
 
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = (loadedScope === scopedDealershipId ? logs : []).filter(log => {
     const matchesCategory = selectedCategory === 'all' || log.category === selectedCategory;
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = 
@@ -151,20 +161,21 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
 
   return (
     <div className="space-y-6">
+      {loadError && <p role="alert" className="card-base p-4 text-sm text-text-secondary">Audit logs could not be loaded. Reload to retry.</p>}
       {tenantScope && dealershipId && (
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-1">
+        <p className="text-xs font-semibold normal-case tracking-normal text-slate-500 px-1">
           Showing logs for <span className="text-brand-primary">{dealershipId.toUpperCase()}</span> only
         </p>
       )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
         <div>
-          <h4 className="text-lg font-black uppercase tracking-widest text-white">System Trail Logs</h4>
+          <h4 className="text-lg font-semibold normal-case tracking-normal text-white">Audit logs</h4>
           <p className="text-xs text-slate-400 mt-1 leading-relaxed max-w-xl font-medium">
-            Real-time audit log tracking administrative overrides, demographics data entry, AI scanning, database synchronizations, and system parameters edits.
+            Store activity, recorded with the signed-in user and time. Entries cannot be edited or deleted from the app.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 text-xs font-black uppercase tracking-widest rounded-xl text-slate-300 border border-white/5">
+        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 text-xs font-semibold normal-case tracking-normal rounded-xl text-slate-300 border border-white/5">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
@@ -197,7 +208,7 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all justify-center border whitespace-nowrap",
+                  "flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all justify-center border whitespace-nowrap",
                   isSelected
                     ? "bg-brand-primary text-black border-brand-primary shadow-lg shadow-brand-primary/15"
                     : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
@@ -215,15 +226,15 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4 bg-[#0a0e1a]/40 rounded-3xl border border-white/5">
           <Clock className="animate-spin text-brand-primary" size={32} />
-          <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">Streaming System Audit Logs...</p>
+          <p className="text-slate-500 font-semibold normal-case tracking-normal text-xs">Streaming System Audit Logs...</p>
         </div>
       ) : filteredLogs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 bg-[#0a0e1a]/40 rounded-3xl border border-white/5">
           <div className="p-4 bg-slate-900 rounded-full text-slate-500">
             <FileText size={24} />
           </div>
-          <p className="text-slate-300 font-black uppercase tracking-widest text-xs">No Audit Logs Found</p>
-          <p className="text-[11px] text-slate-500 max-w-sm text-center leading-relaxed">
+          <p className="text-slate-300 font-semibold normal-case tracking-normal text-xs">No Audit Logs Found</p>
+          <p className="text-xs text-slate-500 max-w-sm text-center leading-relaxed">
             No activities matched your filter or search key. Try expanding the query.
           </p>
         </div>
@@ -243,39 +254,39 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
                   
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-black text-slate-200 tracking-wide uppercase">{log.action || "System Trigger"}</span>
+                      <span className="text-xs font-semibold text-slate-200 tracking-wide normal-case">{log.action || "System Trigger"}</span>
                       {getCategoryBadge(log.category)}
                     </div>
                     
                     <p className="text-xs text-slate-400 font-medium leading-relaxed">{log.details}</p>
                     
                     {/* User identifier detail line */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[10px] text-slate-500 font-semibold font-mono">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-slate-500 font-semibold font-mono">
                       <div className="flex items-center gap-1.5">
                         <User size={11} className="text-slate-600" />
                         <span>{log.username || "System"}</span>
-                        <span className="text-slate-700 bg-slate-950/40 px-1.5 py-0.5 rounded border border-white/5 font-sans font-black text-[9px] uppercase tracking-wider">{log.userEmail || "system@active"}</span>
+                        <span className="text-slate-700 bg-slate-950/40 px-1.5 py-0.5 rounded border border-white/5 font-sans font-semibold text-xs normal-case tracking-normal">{log.userEmail || "system@active"}</span>
                       </div>
                       <span className="hidden sm:inline text-slate-700">|</span>
                       <span>ID: {log.id.slice(0, 8)}</span>
                       <span className="hidden sm:inline text-slate-700">|</span>
-                      <span className="text-[9px] text-brand-primary font-sans font-black uppercase tracking-widest">{log.dealershipId ? log.dealershipId.toUpperCase() : "HYUNDAI"}</span>
+                      <span className="text-xs text-brand-primary font-sans font-semibold normal-case tracking-normal">{log.dealershipId ? log.dealershipId.toUpperCase() : "HYUNDAI"}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Date/Time Indicator */}
-                <span className="text-[10px] sm:text-xs font-black text-slate-500 font-mono text-left md:text-right flex items-center gap-1.5 shrink-0 select-none">
+                <span className="text-xs sm:text-xs font-semibold text-slate-500 font-mono text-left md:text-right flex items-center gap-1.5 shrink-0 select-none">
                   {formatTimestamp(log.timestamp)}
                 </span>
               </div>
             ))}
           </div>
           <div className="px-5 py-3 bg-slate-950/60 border-t border-white/5 flex items-center justify-between">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+            <span className="text-xs font-semibold normal-case tracking-normal text-slate-500">
               Live Feed Connected
             </span>
-            <span className="text-[10px] font-mono text-slate-500 font-bold whitespace-nowrap">
+            <span className="text-xs font-mono text-slate-500 font-bold whitespace-nowrap">
               Showing {filteredLogs.length} of {logs.length} tracked items
             </span>
           </div>

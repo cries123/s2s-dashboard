@@ -28,7 +28,7 @@ export function RecallsPage({
           type="button"
           onClick={() => setActiveView('campaign')}
           className={cn(
-            'px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+            'px-4 py-2 rounded-lg text-xs font-semibold transition-all',
             activeView === 'campaign'
               ? 'bg-brand-primary text-white shadow-lg'
               : 'text-slate-400 hover:text-white'
@@ -40,7 +40,7 @@ export function RecallsPage({
           type="button"
           onClick={() => setActiveView('nhtsa')}
           className={cn(
-            'px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+            'px-4 py-2 rounded-lg text-xs font-semibold transition-all',
             activeView === 'nhtsa'
               ? 'bg-brand-primary text-white shadow-lg'
               : 'text-slate-400 hover:text-white'

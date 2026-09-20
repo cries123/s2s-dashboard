@@ -28,7 +28,7 @@ export function DispatchPromiseTimeInput({
     <div className="space-y-1.5">
       <div className={compact ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-2 gap-3'}>
         <div className="space-y-1 min-w-0">
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+          <span className="text-xs font-semibold text-slate-500 block pl-0.5">
             Date
           </span>
           <input
@@ -39,7 +39,7 @@ export function DispatchPromiseTimeInput({
           />
         </div>
         <div className="space-y-1 min-w-0">
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block pl-0.5">
+          <span className="text-xs font-semibold text-slate-500 block pl-0.5">
             Time
           </span>
           <input
@@ -54,12 +54,12 @@ export function DispatchPromiseTimeInput({
         </div>
       </div>
       {showHint && (
-        <p className={`text-slate-600 pl-0.5 ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+        <p className={`text-slate-600 pl-0.5 ${compact ? 'text-xs' : 'text-xs'}`}>
           Promise window: {PROMISE_BUSINESS_HOURS_LABEL}
         </p>
       )}
       {error && (
-        <p className={`text-rose-400 font-medium pl-0.5 ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+        <p className={`text-rose-400 font-medium pl-0.5 ${compact ? 'text-xs' : 'text-xs'}`}>
           {error}
         </p>
       )}

@@ -1,3 +1,5 @@
+import { usePerformanceReport } from '../../../hooks/usePerformanceReport';
+import { isPreviewMode } from '../../../lib/previewMode';
 import React, { useState, useEffect } from 'react';
 import { 
   FileUp, TrendingUp, Users, DollarSign, Clock, Loader2, CheckCircle2, ChevronRight, BarChart3, Target, X, Keyboard, RotateCcw
@@ -81,7 +83,9 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const [reportStartDate, setReportStartDate] = useState<string | undefined>();
   const [reportEndDate, setReportEndDate] = useState<string | undefined>();
   const [advisorMix, setAdvisorMix] = useState<AdvisorMixRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const report = usePerformanceReport('advisorReports', currentDealershipId, selectedMonth);
+  const [savingReport, setSavingReport] = useState(false);
+  const loading = report.status === 'loading' || savingReport;
   const [laborTarget, setLaborTarget] = useState(500000);
   const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(() =>
     defaultDmsProviderForDealership(currentDealershipId)
@@ -99,7 +103,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
 
   // Fetch Dealership Settings (for target)
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (!currentDealershipId || isPreviewMode) return;
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     const unsubscribe = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -127,62 +131,20 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
     setPerformanceAdvisorRoster(defaultPerformanceAdvisorRoster(currentDealershipId) ?? []);
   }, [currentDealershipId]);
 
-  // realtime performance sync
+  // The report hook clears old scope data and distinguishes missing from failed.
   useEffect(() => {
-    if (!user || !currentDealershipId) return;
-
-    const docId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
-    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.advisors) {
-          const hasJay = data.advisors.some((a: any) => a.name.toLowerCase().trim() === 'jay');
-          const filtered = data.advisors.filter((a: any) => a.name.toLowerCase().trim() !== 'jay');
-          setAdvisors(filtered);
-          
-          if (hasJay) {
-            console.log("Automatically purging Jay from advisor records...");
-            saveToFirestore({ advisors: filtered, totals: data.totals }, true);
-          }
-        } else {
-          setAdvisors([]);
-        }
-        if (data.totals) setTotals(data.totals);
-        setReportStartDate(data.reportStartDate);
-        setReportEndDate(data.reportEndDate);
-        setPbsSyncedAt(typeof data.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
-        setPerformanceSource(typeof data.source === 'string' ? data.source : null);
-        setPartsInvoicesSkipped(data.partsInvoicesSkipped === true);
-        setPartsInvoicesSkipReason(
-          typeof data.partsInvoicesSkipReason === 'string' ? data.partsInvoicesSkipReason : null
-        );
-        setUnmatchedAdvisorNames(
-          Array.isArray(data.unmatchedAdvisorNames)
-            ? data.unmatchedAdvisorNames.filter((n: unknown) => typeof n === 'string')
-            : []
-        );
-        if (data.advisorMix?.length) setAdvisorMix(data.advisorMix as AdvisorMixRow[]);
-        else if (data.advisors?.length) setAdvisorMix(computeAdvisorMix(data.advisors));
-        else setAdvisorMix([]);
-      } else {
-        setAdvisors([]);
-        setTotals(null);
-        setReportStartDate(undefined);
-        setReportEndDate(undefined);
-        setPbsSyncedAt(null);
-        setPerformanceSource(null);
-        setPartsInvoicesSkipped(false);
-        setPartsInvoicesSkipReason(null);
-        setAdvisorMix([]);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Firestore sync error:", error);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [user, currentDealershipId, selectedMonth]);
+    const data = report.data;
+    setAdvisors(Array.isArray(data?.advisors) ? data.advisors : []);
+    setTotals(data?.totals ?? null);
+    setReportStartDate(data?.reportStartDate);
+    setReportEndDate(data?.reportEndDate);
+    setPbsSyncedAt(typeof data?.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
+    setPerformanceSource(typeof data?.source === 'string' ? data.source : null);
+    setPartsInvoicesSkipped(data?.partsInvoicesSkipped === true);
+    setPartsInvoicesSkipReason(data?.partsInvoicesSkipReason ?? null);
+    setUnmatchedAdvisorNames(Array.isArray(data?.unmatchedAdvisorNames) ? data.unmatchedAdvisorNames : []);
+    setAdvisorMix(data?.advisorMix?.length ? data.advisorMix : data?.advisors?.length ? computeAdvisorMix(data.advisors) : []);
+  }, [report.data]);
 
   const effectiveDmsProvider: DmsProviderId =
     dmsProvider || defaultDmsProviderForDealership(currentDealershipId);
@@ -330,7 +292,7 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
   const resetPerformanceToDefaults = async () => {
     if (!user || !currentDealershipId) return;
 
-    setLoading(true);
+    setSavingReport(true);
 
     const advisorDocId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
     const techDocId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
@@ -376,14 +338,14 @@ export const AdvisorPerformance: React.FC<AdvisorPerformanceProps> = ({ currentD
         type: 'success',
         message:
           selectedMonth === 'active'
-            ? 'Reset complete. Run Pull changes in Admin → PBS Sync to repopulate July advisor and technician data.'
+            ? 'Reset complete. Run Pull changes in Admin → PBS Sync to repopulate the current month’s advisor and technician data.'
             : `Reset complete for ${formatArchiveMonthLabel(selectedMonth)} archive. PBS pull only repopulates the active month.`,
       });
     } catch (error: any) {
       console.error('Error resetting performance database:', error);
       setImportStatus({ type: 'error', message: 'Failed to reset database.' });
     } finally {
-      setLoading(false);
+      setSavingReport(false);
     }
   };
 
@@ -627,7 +589,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         message += ` (${saved.skippedCount} row(s) skipped — not on roster)`;
       }
       if (hasUpsells && hasTotals) {
-        message = `Productivity + upsell data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
+        message = `Productivity and service sales saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
       } else if (hasTotals) {
         message = `Productivity data saved to ${archiveLabel} (${saved.advisorCount} advisors).`;
       }
@@ -744,18 +706,18 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               : 'Labor, parts, and gross totals from productivity imports.'}
           </p>
           {selectedMonth !== 'active' && (
-            <p className="text-[10px] text-amber-400/90 mt-1 font-medium">
-              Viewing saved archive — PBS pull only updates the active month. Switch View Period to July (Active).
+            <p className="text-xs text-amber-400/90 mt-1 font-medium">
+              Historical view. PBS pulls update the current month; import a historical report to fill a missing archive.
             </p>
           )}
           {selectedMonth === 'active' && reportStartDate && reportEndDate && (
-            <p className="crm-label text-[10px] mt-1">
+            <p className="crm-label text-xs mt-1">
               Active period: {reportStartDate} – {reportEndDate}
               {pbsSyncedAt ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}` : ''}
             </p>
           )}
           {isPbsDealership && partsInvoicesSkipped && selectedMonth === 'active' && (
-            <p className="text-[10px] text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
+            <p className="text-xs text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
               Parts totals are incomplete — PBS denied access to cashiered parts invoices
               {partsInvoicesSkipReason ? ` (${partsInvoicesSkipReason})` : ''}. Counter/walk-in parts
               are not included. Ask PBS/PartnerHUB to enable <strong className="text-amber-200">PartsInvoiceGet</strong> if
@@ -763,7 +725,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </p>
           )}
           {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && unmatchedAdvisorNames.length > 0 && (
-            <p className="text-[10px] text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
+            <p className="text-xs text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
               PBS attributed labor to advisor names not on your performance roster:{' '}
               <strong className="text-amber-200">{unmatchedAdvisorNames.join(', ')}</strong>. Their
               cards are hidden. Map PBS login codes under{' '}
@@ -773,13 +735,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             </p>
           )}
           {isPbsDealership && performanceSource === 'csr-pdf' && selectedMonth === 'active' && (
-            <p className="text-[10px] text-emerald-400/90 mt-2 max-w-2xl leading-relaxed">
+            <p className="text-xs text-emerald-400/90 mt-2 max-w-2xl leading-relaxed">
               Labor gross is from your imported CSR productivity report (matches PBS). Pull changes will
               refresh advisor rows but keep imported labor gross until you import a newer PDF.
             </p>
           )}
           {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && (
-            <p className="crm-label text-[10px] mt-2 max-w-2xl leading-relaxed">
+            <p className="crm-label text-xs mt-2 max-w-2xl leading-relaxed">
               Labor gross is computed from cashiered repair orders via PBS. For an exact match to the CSR
               productivity report, import that PDF here — PBS has no dedicated productivity report API.
             </p>
@@ -789,14 +751,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         {selectedMonth !== 'active' && !allowArchiveEditing ? (
           <div className="card-base flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+            <span className="text-xs font-semibold normal-case tracking-normal text-amber-500">
               🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
             </span>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2 w-full md:flex md:flex-wrap md:items-center md:gap-2.5 md:w-auto">
             {selectedMonth !== 'active' && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse md:flex-initial">
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-xs font-semibold normal-case tracking-normal animate-pulse md:flex-initial">
                 <span>⚠️ ARCHIVE EDIT MODE ({selectedMonth})</span>
               </div>
             )}
@@ -813,7 +775,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                 }
               }}
               className={cn(
-                "w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:px-3 md:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border shadow-lg cursor-pointer touch-manipulation min-h-[44px]",
+                "w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:px-3 md:py-2 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all border shadow-lg cursor-pointer touch-manipulation min-h-[44px]",
                 showResetConfirm
                   ? "bg-rose-950/40 text-rose-400 border-rose-500/30 animate-pulse"
                   : "btn-secondary hover:text-rose-400"
@@ -826,7 +788,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
             <button
               onClick={() => setIsManualEntryOpen(true)}
-              className="btn-secondary w-full md:w-auto px-4 py-3 md:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg cursor-pointer touch-manipulation min-h-[44px] hover:opacity-80"
+              className="btn-secondary w-full md:w-auto px-4 py-3 md:py-2.5 rounded-xl text-xs font-semibold normal-case tracking-normal shadow-lg cursor-pointer touch-manipulation min-h-[44px] hover:opacity-80"
             >
               <Keyboard size={14} className="shrink-0" />
               Manual Entry
@@ -836,7 +798,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isImporting}
-                className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer touch-manipulation min-h-[44px]"
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 bg-brand-primary text-white hover:bg-brand-primary/90 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all shadow-lg shadow-brand-primary/20 disabled:opacity-50 cursor-pointer touch-manipulation min-h-[44px]"
               >
                 {isImporting ? <Loader2 size={14} className="animate-spin shrink-0" /> : <FileUp size={14} className="shrink-0" />}
                 <span className="md:hidden">{isImporting ? "Importing..." : "Import PDF Report"}</span>
@@ -864,7 +826,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-3 bg-sky-500/10 border-sky-500/20 text-sky-300"
+            className="p-3 rounded-xl border text-xs font-semibold normal-case tracking-normal flex items-center gap-3 bg-sky-500/10 border-sky-500/20 text-sky-300"
           >
             <Loader2 size={14} className="animate-spin shrink-0" />
             {importProgress}
@@ -879,7 +841,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className={cn(
-              "p-3 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-3",
+              "p-3 rounded-xl border text-xs font-semibold normal-case tracking-normal flex items-center gap-3",
               importStatus.type === 'success' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-rose-500/10 border-rose-500/20 text-rose-500"
             )}
           >
@@ -892,7 +854,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         )}
       </AnimatePresence>
 
-      {!visibleAdvisors.length && !isImporting && (
+      {report.status !== 'ready' && <p role="status" className="card-base p-4 text-sm text-text-secondary">{report.status === 'error' ? 'Advisor report could not be loaded. Reload to retry.' : 'No advisor report loaded for this month. Import a report or sync the current month to see results.'}</p>}
+      {report.status === 'ready' && !visibleAdvisors.length && !isImporting && (
         <EmptyState
           title={isPbsDealership ? 'No advisor data for this period' : 'No productivity data yet'}
           description={
@@ -901,7 +864,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                 ? 'PBS sync writes to the active month only. Set View Period to the current month, then run Pull changes in Admin → PBS Sync.'
                 : performanceSource === 'pbs-sync' && pbsSyncedAt
                   ? `PBS pulled on ${new Date(pbsSyncedAt).toLocaleString()} but returned 0 advisors for ${reportStartDate || 'this month'}. Check Admin → PBS Sync log for Perf advisors and Cashiered ROs — both should be > 0.`
-                  : 'Run Pull changes in Admin → PBS Sync to load July cashiered RO totals for Frank, Lemmy, and Jaryn.'
+                  : 'Run Pull changes in Admin → PBS Sync to load the current month’s cashiered repair orders.'
               : 'Import a PBS or DealerBuilt productivity PDF to populate advisor labor, parts, and gross totals for this month.'
           }
           action={
@@ -915,7 +878,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
       )}
 
       <AnimatePresence>
-        {visibleAdvisors.length > 0 && (
+        {report.status === 'ready' && visibleAdvisors.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -967,30 +930,31 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             {/* Advisor Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {visibleAdvisors.map((advisor, idx) => (
-                <div key={idx} className="card-base group flex flex-col rounded-3xl overflow-hidden transition-all hover:shadow-2xl hover:shadow-black/50">
-                  <div className="p-6 border-b flex justify-between items-center" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
+                <details key={advisor.name} className="card-base rounded-xl overflow-hidden self-start">
+                  <summary className="p-4 cursor-pointer min-h-11 flex justify-between items-center gap-3" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black border shadow-inner" style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-primary)', borderColor: 'var(--color-surface-border)' }}>
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-semibold border shadow-inner" style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-primary)', borderColor: 'var(--color-surface-border)' }}>
                         {advisor.name[0]}
                       </div>
                       <div>
-                        <h4 className="font-black uppercase tracking-tighter text-lg leading-none" style={{ color: 'var(--color-text-primary)' }}>{advisor.name}</h4>
-                        <p className="crm-label text-[9px] font-bold uppercase mt-1 tracking-widest">Service Advisor</p>
+                        <h4 className="font-semibold normal-case tracking-tighter text-lg leading-none" style={{ color: 'var(--color-text-primary)' }}>{advisor.name}</h4>
+                        <p className="crm-label text-xs font-bold normal-case mt-1 tracking-normal">{advisor.soCount} repair orders · ${advisor.grossLabor.toLocaleString()} labor gross</p>
                       </div>
                     </div>
-                  </div>
+                    <span className="text-sm text-brand-primary">Details</span>
+                  </summary>
 
-                  <div className="p-6 space-y-5 flex-1">
+                  <div className="p-4 space-y-5">
                     <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-6">
                       <div className="p-3 md:p-4 rounded-2xl border relative overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
                         <div className="absolute top-0 right-0 p-2 opacity-10"><DollarSign size={20} /></div>
-                        <p className="crm-label text-[9px] font-black uppercase mb-1">Labor Sales</p>
-                        <p className="text-base md:text-lg font-black leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.laborSold.toLocaleString()}</p>
+                        <p className="crm-label text-xs font-semibold normal-case mb-1">Labor Sales</p>
+                        <p className="text-base md:text-lg font-semibold leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.laborSold.toLocaleString()}</p>
                       </div>
                       <div className="p-3 md:p-4 bg-brand-secondary/5 rounded-2xl border border-brand-secondary/10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 p-2 opacity-10 text-brand-secondary"><TrendingUp size={20} /></div>
-                        <p className="text-[9px] font-black text-brand-secondary uppercase mb-1">Gross Labor</p>
-                        <p className="text-base md:text-lg font-black leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.grossLabor.toLocaleString()}</p>
+                        <p className="text-xs font-semibold text-brand-secondary normal-case mb-1">Gross Labor</p>
+                        <p className="text-base md:text-lg font-semibold leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.grossLabor.toLocaleString()}</p>
                       </div>
                     </div>
 
@@ -998,9 +962,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                        <div className="flex justify-between items-end">
                          <div className="flex items-center gap-1.5">
                             <Target size={12} className="text-slate-600" />
-                            <p className="crm-label text-[10px] font-black uppercase tracking-widest">Labor Gross Profit</p>
+                            <p className="crm-label text-xs font-semibold normal-case tracking-normal">Labor Gross Profit</p>
                          </div>
-                         <p className="text-sm font-black" style={{ color: 'var(--color-text-primary)' }}>{Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}% GP</p>
+                         <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}% GP</p>
                        </div>
                        <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
                          <div className={cn(
@@ -1014,15 +978,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                       <div className="flex items-center gap-3">
                          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-surface-muted)' }}><Clock size={14} className="text-slate-400" /></div>
                          <div>
-                            <p className="crm-label text-[10px] font-bold uppercase">Hours</p>
-                            <p className="text-sm font-black" style={{ color: 'var(--color-text-primary)' }}>{advisor.hrsSold.toFixed(1)}</p>
+                            <p className="crm-label text-xs font-bold normal-case">Hours</p>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{advisor.hrsSold.toFixed(1)}</p>
                          </div>
                       </div>
                       <div className="flex items-center gap-3">
                          <div className="p-2 rounded-lg" style={{ backgroundColor: 'var(--color-surface-muted)' }}><DollarSign size={14} className="text-slate-400" /></div>
                          <div>
-                            <p className="crm-label text-[10px] font-bold uppercase">Avg E.L.R.</p>
-                            <p className="text-sm font-black text-brand-secondary">${advisor.elr}</p>
+                            <p className="crm-label text-xs font-bold normal-case">Avg E.L.R.</p>
+                            <p className="text-sm font-semibold text-brand-secondary">${advisor.elr}</p>
                          </div>
                       </div>
                     </div>
@@ -1030,12 +994,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
                   <div className="px-6 py-4 border-t flex items-center justify-between" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
                     <div className="flex items-center gap-2">
-                      <span className="crm-label text-[10px] font-black uppercase tracking-widest">Repair Orders:</span>
-                      <span className="text-xs font-black" style={{ color: 'var(--color-text-primary)' }}>{advisor.soCount}</span>
+                      <span className="crm-label text-xs font-semibold normal-case tracking-normal">Repair Orders:</span>
+                      <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>{advisor.soCount}</span>
                     </div>
                     <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full">
                        <CheckCircle2 size={10} className="text-emerald-500" />
-                       <span className="text-[9px] font-black text-emerald-500 uppercase">Verified</span>
+                       <span className="text-xs font-semibold text-emerald-500 normal-case">Recorded</span>
                     </div>
                   </div>
 
@@ -1044,43 +1008,44 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                       <div className="p-1.5 bg-brand-primary/10 rounded-lg">
                         <Target size={14} className="text-brand-primary" />
                       </div>
-                      <span className="crm-label text-[10px] font-black uppercase tracking-widest">
-                        Service Frequency / Upsells
+                      <span className="crm-label text-xs font-semibold normal-case tracking-normal">
+                        Service sales
                       </span>
                     </div>
 
+                    <p className="text-sm text-text-secondary mb-3">Sales of tracked service codes. These counts do not establish whether the work was added after the original booking.</p>
                     <div className="space-y-2">
                       {advisor.upsells?.map((item, i) => (
                         <div key={i} className="flex items-center justify-between p-2.5 rounded-xl border transition-colors" style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}>
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[8px] font-black border" style={{ backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-surface-border)' }}>
+                            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold border" style={{ backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-surface-border)' }}>
                               {item.code}
                             </div>
                             <div>
-                              <p className="text-[10px] font-black leading-none mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                              <p className="text-xs font-semibold leading-none mb-1" style={{ color: 'var(--color-text-primary)' }}>
                                 {item.code === 'FB' || (item.description.toUpperCase().includes('FRONT BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
                                   ? 'FB PAD R&R ROTOR RESURFACE'
                                   : item.code === 'RB' || (item.description.toUpperCase().includes('REAR BRAKE') && item.description.toUpperCase().includes('RESURFACE'))
                                   ? 'RB PAD R&R ROTOR RESURFACE'
                                   : item.description}
                               </p>
-                              <p className="text-[8px] font-bold text-brand-secondary uppercase tracking-tighter">Labor: ${item.revenue.toFixed(2)}</p>
+                              <p className="text-xs font-bold text-brand-secondary normal-case tracking-tighter">Labor: ${item.revenue.toFixed(2)}</p>
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0 ml-2">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 whitespace-nowrap">
                               <span className="text-xs">{item.count}</span>
-                              <span className="opacity-70 uppercase text-[8px]">Sold</span>
+                              <span className="opacity-70 normal-case text-xs">Sold</span>
                             </span>
                           </div>
                         </div>
                       ))}
                       {(!advisor.upsells || advisor.upsells.length === 0) && (
-                        <p className="crm-label text-center py-4 text-[10px] font-bold uppercase tracking-widest italic">No upsell data available</p>
+                        <p className="crm-label text-center py-4 text-xs font-bold normal-case tracking-normal italic">No service sales data available</p>
                       )}
                     </div>
                   </div>
-                </div>
+                </details>
               ))}
             </div>
           </motion.div>

@@ -26,7 +26,7 @@ interface ServiceAlertsProps {
 }
 
 type Filter = 'all' | 'soon' | 'today' | 'overdue';
-type SortKey = 'due' | 'name' | 'lastVisit';
+type SortKey = 'due' | 'overdue' | 'name' | 'lastVisit';
 
 interface Row {
   customer: Customer;
@@ -111,8 +111,21 @@ export default function ServiceAlerts({
       if (sortKey === 'lastVisit') {
         return (b.lastVisit?.getTime() ?? 0) - (a.lastVisit?.getTime() ?? 0);
       }
-      // due: most urgent first (largest daysPastDue), unknown last
-      return (b.alert.daysPastDue ?? -Infinity) - (a.alert.daysPastDue ?? -Infinity);
+      if (sortKey === 'overdue') {
+        // Triage view: the ones about to age out of the follow-up window first.
+        return (b.alert.daysPastDue ?? -Infinity) - (a.alert.daysPastDue ?? -Infinity);
+      }
+      // Default — the order the list is actually worth working. Someone due in three
+      // days is still winnable; someone 55 days past due mostly is not. Upcoming and
+      // due-today lead, then overdue from freshest to stalest.
+      const ad = a.alert.daysPastDue;
+      const bd = b.alert.daysPastDue;
+      if (ad === undefined || bd === undefined) {
+        return (ad === undefined ? 1 : 0) - (bd === undefined ? 1 : 0);
+      }
+      const rank = (d: number) => (d <= 0 ? 0 : 1);
+      if (rank(ad) !== rank(bd)) return rank(ad) - rank(bd);
+      return Math.abs(ad) - Math.abs(bd);
     });
     return list;
   }, [allRows, search, filter, sortKey]);
@@ -321,7 +334,8 @@ export default function ServiceAlerts({
             className="input-field w-auto py-2"
             aria-label="Sort"
           >
-            <option value="due">Sort: due date</option>
+            <option value="due">Sort: due soonest</option>
+            <option value="overdue">Sort: most overdue</option>
             <option value="name">Sort: name</option>
             <option value="lastVisit">Sort: last visit</option>
           </select>
@@ -406,7 +420,7 @@ export default function ServiceAlerts({
                             {customer.phone ? (
                               <a href={`tel:${customer.phone}`} className="hover:text-brand-primary">{customer.phone}</a>
                             ) : '—'}
-                            {customer.language === 'Spanish' && <span className="ml-2 badge badge-warning text-[10px]">Spanish</span>}
+                            {customer.language === 'Spanish' && <span className="ml-2 badge badge-warning text-xs">Spanish</span>}
                           </div>
                         </td>
                         <td>

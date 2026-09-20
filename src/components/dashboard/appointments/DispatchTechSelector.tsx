@@ -127,7 +127,7 @@ export function DispatchTechSelector({
                   {resolveTechDisplayName(row.id, roster)}
                   {count > 0 ? ` (${count})` : ''}
                 </span>
-                <span className="text-slate-500 block font-mono text-[10px] mt-0.5">#{row.id}</span>
+                <span className="text-slate-500 block font-mono text-xs mt-0.5">#{row.id}</span>
               </button>
             );
           })}
@@ -157,8 +157,8 @@ export function DispatchTechSelector({
       >
         <span
           className={cn(
-            'text-slate-500 block uppercase tracking-wider font-bold flex items-center gap-1',
-            compact ? 'text-[8px]' : 'text-[9px]'
+            'text-slate-500 block font-bold flex items-center gap-1',
+            compact ? 'text-xs' : 'text-xs'
           )}
         >
           <Wrench size={compact ? 8 : 9} className="text-indigo-400/80 shrink-0" />
@@ -167,7 +167,7 @@ export function DispatchTechSelector({
         <span
           className={cn(
             'text-slate-200 font-medium block truncate flex items-center justify-between gap-0.5',
-            compact ? 'text-[10px] mt-0' : 'text-[11px] mt-0.5'
+            compact ? 'text-xs mt-0' : 'text-[11px] mt-0.5'
           )}
         >
           <span className="truncate">{displayLabel}</span>

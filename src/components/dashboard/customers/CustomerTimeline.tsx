@@ -80,7 +80,7 @@ export function CustomerTimeline({ events, loading, className, onServiceVisitCli
           >
             <div className="absolute -left-[calc(1.25rem+1px)] top-5 w-3 h-3 rounded-full border-2 border-brand-primary bg-slate-950" />
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className={cn('badge text-[10px]', badge)}>{event.type}</span>
+              <span className={cn('badge text-xs', badge)}>{event.type}</span>
               <span className="crm-label flex items-center gap-1">
                 <Icon size={12} />
                 {formatEventDate(event.date)}

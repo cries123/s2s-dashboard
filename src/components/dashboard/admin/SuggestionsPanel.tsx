@@ -31,7 +31,7 @@ function statusBadge(status: SuggestionStatus) {
   return (
     <span
       className={cn(
-        'px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border',
+        'px-2.5 py-1 rounded-md text-xs font-semibold border',
         styles[status]
       )}
     >
@@ -96,7 +96,7 @@ export function SuggestionsPanel() {
     <div className="space-y-4 animate-in fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em]">
+          <div className="flex items-center gap-2 text-brand-primary text-xs font-semibold ">
             <Lightbulb size={12} />
             User suggestions
           </div>
@@ -112,7 +112,7 @@ export function SuggestionsPanel() {
               type="button"
               onClick={() => setFilter(id)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-colors',
+                'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
                 filter === id
                   ? 'bg-brand-primary text-slate-950 border-brand-primary'
                   : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
@@ -144,7 +144,7 @@ export function SuggestionsPanel() {
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       {statusBadge(s.status || 'new')}
-                      <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary">
+                      <span className="text-xs font-semibold text-brand-primary">
                         {store}
                       </span>
                     </div>
@@ -152,7 +152,7 @@ export function SuggestionsPanel() {
                       {s.message}
                     </p>
                   </div>
-                  <p className="text-[10px] font-mono text-slate-500 shrink-0">
+                  <p className="text-xs font-mono text-slate-500 shrink-0">
                     {formatWhen(s.createdAt)}
                   </p>
                 </div>
@@ -167,7 +167,7 @@ export function SuggestionsPanel() {
                       <button
                         type="button"
                         onClick={() => updateStatus(s.id, 'reviewed')}
-                        className="btn-secondary px-3 py-1.5 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"
+                        className="btn-secondary px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5"
                       >
                         <Eye size={12} />
                         Mark reviewed
@@ -177,7 +177,7 @@ export function SuggestionsPanel() {
                       <button
                         type="button"
                         onClick={() => updateStatus(s.id, 'resolved')}
-                        className="btn-primary px-3 py-1.5 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5"
+                        className="btn-primary px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5"
                       >
                         <CheckCircle2 size={12} />
                         Resolved
@@ -186,7 +186,7 @@ export function SuggestionsPanel() {
                     <button
                       type="button"
                       onClick={() => removeSuggestion(s.id)}
-                      className="btn-secondary px-3 py-1.5 text-[10px] text-rose-400 hover:text-rose-300"
+                      className="btn-secondary px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300"
                       title="Delete"
                     >
                       <Trash2 size={12} />

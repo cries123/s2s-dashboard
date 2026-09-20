@@ -1,3 +1,4 @@
+import { usePerformanceReport } from '../../../hooks/usePerformanceReport';
 import React, { useState, useEffect } from 'react';
 import {
   collection, doc, getDoc, setDoc, onSnapshot, serverTimestamp, deleteField, deleteDoc, query, where
@@ -209,8 +210,11 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveSuccess, setArchiveSuccess] = useState<string | null>(null);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
-  const [activePerformanceData, setActivePerformanceData] = useState<any>(null);
-  const [activeTechData, setActiveTechData] = useState<any>(null);
+  const performanceReport = usePerformanceReport('advisorReports', currentDealershipId, selectedMonth);
+  const technicianReport = usePerformanceReport('technicianReports', currentDealershipId, selectedMonth);
+  const activePerformanceData = performanceReport.data;
+  const activeTechData = technicianReport.data;
+  const [trackerError, setTrackerError] = useState(false);
   const [performanceAdvisorRoster, setPerformanceAdvisorRoster] = useState(
     () => defaultPerformanceAdvisorRoster(currentDealershipId) ?? []
   );
@@ -374,6 +378,11 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   useEffect(() => {
     if (!currentDealershipId) return;
 
+    setTargetValue(20);
+    setLaborTarget(500000);
+    setPartsTarget(300000);
+    setPerformanceAdvisorRoster(defaultPerformanceAdvisorRoster(currentDealershipId) ?? []);
+    if (isPreviewMode) return;
     // Fetch Settings
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     const unsubSettings = onSnapshot(settingsRef, (docSnap) => {
@@ -389,34 +398,8 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       }
     });
 
-    // Fetch Performance for Gross Tracking
-    // Follows the view period: the live doc for the active month, the archived
-    // doc for a saved one — so every number on this tab moves with the dropdown.
-    const docId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
-    const perfRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
-    const unsubPerf = onSnapshot(perfRef, (snap) => {
-      if (snap.exists) {
-        setActivePerformanceData(snap.data());
-      } else {
-        setActivePerformanceData(null);
-      }
-    });
-
-    // Fetch Technician Reports for dynamic active tracking snapshots
-    const activeTechId = performanceDocId('technicianReports', currentDealershipId, selectedMonth);
-    const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', activeTechId);
-    const unsubTech = onSnapshot(techRef, (snap) => {
-      if (snap.exists) {
-        setActiveTechData(snap.data());
-      }
-    });
-
-    return () => {
-      unsubSettings();
-      unsubPerf();
-      unsubTech();
-    };
-  }, [currentDealershipId, selectedMonth]);
+    return () => unsubSettings();
+  }, [currentDealershipId]);
 
   const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
     const errInfo: FirestoreErrorInfo = {
@@ -444,6 +427,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       return;
     }
 
+    setAllStats([]);
+    setLoading(true);
+    setTrackerError(false);
     const path = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
     // Firestore security rules require an explicit dealershipId match to list this
     // collection (no more open collection-wide reads across tenants).
@@ -455,29 +441,28 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       const dealershipId = currentDealershipId || 'hyundai';
       rawTrackerStatsRef.current = stats;
 
-      // Remove legacy duplicate docs so MTD matches the weekly grid (e.g. 39 not 87).
-      const duplicateIds = listDuplicateTrackerDocIds(stats, dealershipId);
-      if (duplicateIds.length > 0) {
-        const basePath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data', 'appointmentTracker'] as const;
-        void Promise.all(duplicateIds.map((id) => deleteDoc(doc(db, ...basePath, id)))).catch(
-          (err) => console.warn('[Appointments] Duplicate tracker cleanup failed:', err)
-        );
-      }
-
+      // Deduplicate for display; opening a report must not delete stored records.
       stats = dedupeDailyStatsByDate(stats, dealershipId);
       setAllStats(stats);
 
-      const currentStat = stats.find(s => s.date === selectedDate);
-      setDailyCount(currentStat ? currentStat.count.toString() : '');
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
+      console.error("[Operations] appointment counts unavailable", error);
+      setAllStats([]);
+      setTrackerError(true);
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [selectedDate, currentDealershipId]);
+  }, [currentDealershipId]);
+
+  useEffect(() => {
+    const currentStat = allStats.find(s => s.date === selectedDate);
+    setDailyCount(currentStat ? currentStat.count.toString() : '');
+  }, [allStats, selectedDate]);
 
   const handleSave = async () => {
+    if (viewPeriod.isHistorical && !allowArchiveEditing) return;
     const countNum = parseInt(dailyCount, 10);
     const existing = allStats.find((s) => s.date === selectedDate);
 
@@ -725,6 +710,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   );
   const todayDayNum = viewReferenceDate.getDate();
 
+  const hasAppointmentData = !trackerError && effectiveStats.some(s =>
+    s.date.startsWith(`${viewPeriod.year}-${String(viewPeriod.month + 1).padStart(2, '0')}-`));
+
   const projectionRows = [
     { label: 'Labor gross', current: metrics.mtdGross, daily: metrics.laborDailyAvg, forecast: metrics.grossForecast, target: metrics.laborTarget, isCurrency: true },
     { label: 'Parts gross', current: metrics.mtdPartsGross, daily: metrics.partsDailyAvg, forecast: metrics.partsForecast, target: metrics.partsTarget, isCurrency: true },
@@ -788,36 +776,72 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         }
       />
 
+      <div className="flex flex-wrap items-end gap-4">
+          {/* Month Period Dropdown */}
+          <div className="flex flex-col gap-1 flex-1 sm:flex-initial">
+            <span className="text-xs font-semibold text-slate-500 normal-case tracking-normal leading-none">View Period</span>
+            <select
+              aria-label="View period"
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                setSelectedDate(e.target.value === 'active' ? toLocalDateString(new Date()) : e.target.value + '-01');
+                setDailyCount('');
+                setAllowArchiveEditing(false); // automatically reset to locked on toggle
+              }}
+              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-xs font-semibold normal-case tracking-normal outline-none cursor-pointer transition-all min-w-[150px]"
+            >
+              {viewPeriodOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+
+        <p className="text-sm text-text-secondary pb-2">{viewPeriod.isHistorical ? 'Month-end results' : 'Month to date'} · {viewPeriod.label}</p>
+      </div>
+      {performanceReport.status !== 'ready' && (
+        <p role="status" className="card-base p-4 text-sm text-text-secondary">
+          {performanceReport.status === 'loading' ? 'Loading the selected performance report…' :
+            performanceReport.status === 'error' ? 'Performance report could not be loaded. Figures are unavailable; reload to retry.' :
+              'No performance report loaded for this month. Import a report or sync data to display financial results.'}
+        </p>
+      )}
+      {modulePrefs?.showOperationsKpis !== false && (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card-base px-5 py-4">
           <p className="crm-label">Appointments {periodLabel}</p>
-          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{metrics.monthTotal.toLocaleString()}</p>
+          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{hasAppointmentData ? metrics.monthTotal.toLocaleString() : '—'}</p>
           <p className="crm-label mt-1.5">
-            Trending {Math.round(metrics.forecast).toLocaleString()} · {metrics.daysRemaining} working days left
+            {hasAppointmentData ? (viewPeriod.isHistorical ? 'Final recorded volume' : `Trending ${Math.round(metrics.forecast).toLocaleString()} · ${metrics.daysRemaining} working days left`) : trackerError ? 'Appointment counts could not be loaded' : 'No appointment counts recorded for this month'}
           </p>
         </div>
         <div className="card-base px-5 py-4">
           <p className="crm-label">Labor gross {periodLabel}</p>
-          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">${Math.round(metrics.mtdGross).toLocaleString()}</p>
+          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{performanceReport.status === 'ready' ? `$${Math.round(metrics.mtdGross).toLocaleString()}` : '—'}</p>
           <p className="crm-label mt-1.5">
-            ${Math.round(metrics.laborDailyAvg).toLocaleString()}/day · goal ${Math.round(metrics.laborTarget).toLocaleString()}
+            {performanceReport.status === 'ready' ? `$${Math.round(metrics.laborDailyAvg).toLocaleString()}/day` : 'Financial results unavailable'} · goal ${Math.round(metrics.laborTarget).toLocaleString()}
           </p>
         </div>
       </div>
 
+      )}
+
       {showProjections && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="card-base p-5 col-span-1 lg:col-span-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+        <details className="card-base p-5 col-span-1 lg:col-span-2">
+          <summary className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 min-h-11">
             <h2 className="crm-section-title flex items-center gap-2">
               <TrendingUp size={18} className="text-brand-primary" />
-              Month-end projections
+              {viewPeriod.isHistorical ? 'Month-end results and pace' : 'Forecast and appointment pace'}
             </h2>
-            <span className="crm-label">{metrics.daysRemaining} working days left</span>
-          </div>
+            <span className="crm-label">{viewPeriod.isHistorical ? 'View details' : `${metrics.daysRemaining} working days left · View details`}</span>
+          </summary>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {projectionRows.map((kpi) => {
+            {projectionRows.filter(kpi => kpi.isCurrency ? performanceReport.status === 'ready' : hasAppointmentData).map((kpi) => {
               const completionPercent = forecastGoalPercent(kpi.forecast, kpi.target);
               const onTrack = kpi.forecast >= kpi.target;
               return (
@@ -825,7 +849,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="crm-label">{kpi.label}</span>
                     <span
-                      className={cn('badge text-[10px] shrink-0', onTrack ? 'badge-success' : 'badge-error')}
+                      className={cn('badge text-xs shrink-0', onTrack ? 'badge-success' : 'badge-error')}
                       title={`Projected month-end: ${formatProjectionValue(kpi.forecast, kpi.isCurrency)} against a ${formatProjectionValue(kpi.target, kpi.isCurrency)} goal`}
                     >
                       {onTrack ? 'On track' : 'Shortfall'}
@@ -858,7 +882,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             <div className="flex items-center justify-between gap-2 mb-2">
               <span className="crm-label">Appointment pace — cumulative {periodLabel} vs. goal</span>
             </div>
-            <ResponsiveContainer width="100%" height={200}>
+            {hasAppointmentData ? <ResponsiveContainer width="100%" height={200}>
               <ComposedChart data={appointmentPaceSeries} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" vertical={false} />
                 <XAxis
@@ -910,9 +934,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   isAnimationActive={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer> : <p className="text-sm text-text-secondary">No appointment counts recorded for this month.</p>}
           </div>
-        </div>
+        </details>
 
         <div className="card-base p-4 flex flex-col">
           <h4 className="crm-section-title mb-3 flex items-center gap-2 text-sm">
@@ -960,12 +984,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                 onChange={(e) => setDailyCount(e.target.value)}
                 placeholder="0"
                 aria-label="Scheduled volume"
+                disabled={viewPeriod.isHistorical && !allowArchiveEditing}
                 className="input-field flex-1 text-lg font-semibold text-center tabular-nums py-2 min-w-0"
               />
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving}
+                aria-label="Save appointment count"
+                disabled={saving || (viewPeriod.isHistorical && !allowArchiveEditing)}
                 className="btn-primary px-4 shrink-0"
               >
                 {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
@@ -988,10 +1014,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             >
               <div className="p-8 border-b border-slate-800 flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight">
+                  <h3 className="text-xl font-semibold text-white normal-case tracking-tight">
                     {showManualBreakdownEntry ? 'Manual Entry Breakdown' : 'Appointment Breakdown'}
                   </h3>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                  <p className="text-xs font-semibold text-slate-500 normal-case tracking-normal mt-1">
                     {new Date((showBreakdown?.date || selectedDate) + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
@@ -1013,12 +1039,12 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                     showManualBreakdownEntry ? "bg-slate-950 border-slate-800" : "bg-brand-primary/10 border-brand-primary/20"
                   )}>
                     <p className={cn(
-                      "text-[10px] font-black uppercase tracking-widest mb-1",
+                      "text-xs font-semibold normal-case tracking-normal mb-1",
                       showManualBreakdownEntry ? "text-slate-500" : "text-brand-primary"
                     )}>
                       Total Appointments
                     </p>
-                    <p className="text-4xl font-black text-white">
+                    <p className="text-4xl font-semibold text-white">
                       {showManualBreakdownEntry 
                         ? Object.values(manualBreakdown).reduce((a, b) => (a as number) + (b as number), 0)
                         : (showBreakdown?.count || 0)
@@ -1035,12 +1061,12 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                     { key: 'misc', label: 'Miscellaneous / Other', color: 'bg-slate-700', icon: 'MISC' },
                   ].map((item) => (
                     <div key={item.key} className="flex items-center gap-4 group">
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-[8px] font-black text-white shadow-lg shrink-0", item.color)}>
+                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-xs font-semibold text-white shadow-lg shrink-0", item.color)}>
                         {item.icon}
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1.5">
-                          <span className="text-[10px] font-black text-white uppercase tracking-widest">{item.label}</span>
+                          <span className="text-xs font-semibold text-white normal-case tracking-normal">{item.label}</span>
                           {showManualBreakdownEntry ? (
                             <input 
                               type="number"
@@ -1050,10 +1076,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                                 ...prev,
                                 [item.key]: parseInt(e.target.value) || 0
                               }))}
-                              className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs font-black text-white focus:ring-1 focus:ring-brand-primary outline-none text-right"
+                              className="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs font-semibold text-white focus:ring-1 focus:ring-brand-primary outline-none text-right"
                             />
                           ) : (
-                            <span className="text-xs font-black text-slate-300">{showBreakdown?.breakdown?.[item.key as keyof typeof showBreakdown.breakdown] || 0} Units</span>
+                            <span className="text-xs font-semibold text-slate-300">{showBreakdown?.breakdown?.[item.key as keyof typeof showBreakdown.breakdown] || 0} Units</span>
                           )}
                         </div>
                         {!showManualBreakdownEntry && (
@@ -1079,7 +1105,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                     {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> Confirm & Save Count</>}
                   </button>
                 ) : (
-                  <p className="text-[10px] text-slate-500 italic text-center font-bold uppercase tracking-widest pt-4">
+                  <p className="text-xs text-slate-500 italic text-center font-bold normal-case tracking-normal pt-4">
                     *Categorization based on PDF text analysis logic
                   </p>
                 )}
@@ -1095,21 +1121,21 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               <h4 className="crm-section-title">Performance tools & audit</h4>
               {selectedMonth !== 'active' ? (
                 allowArchiveEditing ? (
-                  <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1 animate-pulse">
-                    <span>🔓 Archive Edit Unlocked</span>
+                  <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold normal-case tracking-normal rounded-full flex items-center gap-1 animate-pulse">
+                    <span>Archive editing enabled</span>
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
-                    <span>🔒 Saved Archive</span>
+                  <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold normal-case tracking-normal rounded-full flex items-center gap-1">
+                    <span>Historical view</span>
                   </span>
                 )
               ) : (
-                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-black uppercase tracking-widest rounded-full flex items-center gap-1">
-                  <span>● Live Tracking</span>
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold normal-case tracking-normal rounded-full flex items-center gap-1">
+                  <span>Current month</span>
                 </span>
               )}
             </div>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wide">
+            <p className="text-xs font-bold text-slate-400 mt-1 normal-case tracking-wide">
               {selectedMonth === 'active' 
                 ? "Active performance workspace for the current month. Save last month's figures first before restarting."
                 : allowArchiveEditing
@@ -1121,32 +1147,13 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
 
         {/* Dynamic Controls Grid */}
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Month Period Dropdown */}
-          <div className="flex flex-col gap-1 flex-1 sm:flex-initial">
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">View Period</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => {
-                setSelectedMonth(e.target.value);
-                setAllowArchiveEditing(false); // automatically reset to locked on toggle
-              }}
-              className="h-11 px-3 bg-slate-900 border border-white/10 hover:border-white/20 text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer transition-all min-w-[150px]"
-            >
-              {viewPeriodOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="flex items-end gap-3 flex-1 sm:flex-initial mt-4 sm:mt-0 pt-1 lg:pt-0">
             {/* Lock / Unlock Archive Editing */}
             {selectedMonth !== 'active' && (
               <button
                 onClick={() => setAllowArchiveEditing(!allowArchiveEditing)}
                 className={cn(
-                  "h-11 px-6 border text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
+                  "h-11 px-6 border text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
                   allowArchiveEditing 
                     ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
                     : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
@@ -1162,7 +1169,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             {selectedMonth === 'active' && showArchiveTools && (
               <button
                 onClick={() => setShowArchiveModal(true)}
-                className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+                className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
                 title="Configure custom destination archive period and restart workspace"
               >
                 <Archive size={13} />
@@ -1172,7 +1179,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
             >
               <Printer size={13} />
               Print Report
@@ -1211,7 +1218,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             initial={{ opacity: 0, height: 0, y: -10 }}
             animate={{ opacity: 1, height: 'auto', y: 0 }}
             exit={{ opacity: 0, height: 0, y: -10 }}
-            className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-3 shadow-lg mb-6"
+            className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs font-semibold text-emerald-500 normal-case tracking-normal flex items-center gap-3 shadow-lg mb-6"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
             <p>{archiveSuccess}</p>
@@ -1226,6 +1233,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       {showAdvisorPerformance && (
       <div className="card-base p-5">
         <AdvisorPerformance
+          key={`advisor:${currentDealershipId}:${selectedMonth}`}
           currentDealershipId={currentDealershipId}
           selectedMonth={selectedMonth}
           allowArchiveEditing={allowArchiveEditing}
@@ -1236,6 +1244,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       {showTechEfficiency && (
       <div className="card-base p-5">
         <TechnicianEfficiency
+          key={`tech:${currentDealershipId}:${selectedMonth}`}
           currentUser={currentUser}
           currentDealershipId={currentDealershipId}
           onSuccess={onSuccess}
@@ -1265,9 +1274,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
               className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
             >
-              <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Confirm PDF Import</h3>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1 truncate">{pdfParsePreview.fileName}</p>
-              <p className="text-[10px] text-brand-primary font-black uppercase tracking-widest mb-6">
+              <h3 className="text-lg font-semibold text-white normal-case tracking-tight mb-1">Confirm PDF Import</h3>
+              <p className="text-xs text-slate-500 font-bold normal-case tracking-normal mb-1 truncate">{pdfParsePreview.fileName}</p>
+              <p className="text-xs text-brand-primary font-semibold normal-case tracking-normal mb-6">
                 Updates {new Date(pdfParsePreview.reportDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} — replaces existing count
               </p>
               <div className="grid grid-cols-2 gap-3 mb-6">
@@ -1278,16 +1287,16 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   { key: 'misc', label: 'Misc', val: pdfParsePreview.breakdown.misc },
                 ].map((row) => (
                   <div key={row.key} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
-                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{row.label}</p>
-                    <p className="text-2xl font-black text-white">{row.val}</p>
+                    <p className="text-xs font-semibold text-slate-500 normal-case tracking-normal">{row.label}</p>
+                    <p className="text-2xl font-semibold text-white">{row.val}</p>
                   </div>
                 ))}
               </div>
-              <p className="text-center text-3xl font-black text-brand-primary mb-2">{pdfParsePreview.total}</p>
-              <p className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest mb-6">Total Appointments</p>
+              <p className="text-center text-3xl font-semibold text-brand-primary mb-2">{pdfParsePreview.total}</p>
+              <p className="text-center text-xs font-semibold text-slate-500 normal-case tracking-normal mb-6">Total Appointments</p>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setPdfParsePreview(null)} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-[10px] font-black uppercase tracking-widest">Cancel</button>
-                <button type="button" onClick={confirmPdfParsePreview} disabled={isUploadingPdf} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2">
+                <button type="button" onClick={() => setPdfParsePreview(null)} className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold normal-case tracking-normal">Cancel</button>
+                <button type="button" onClick={confirmPdfParsePreview} disabled={isUploadingPdf} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white text-xs font-semibold normal-case tracking-normal disabled:opacity-50 flex items-center justify-center gap-2">
                   {isUploadingPdf ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
                   Apply Counts
                 </button>

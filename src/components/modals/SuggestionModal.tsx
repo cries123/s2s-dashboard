@@ -75,7 +75,7 @@ export function SuggestionModal({
               <Lightbulb size={18} className="text-amber-400" />
             </div>
             <div className="min-w-0">
-              <h2 id="suggestion-modal-title" className="text-lg font-black text-white">
+              <h2 id="suggestion-modal-title" className="text-lg font-semibold text-white">
                 Send a suggestion
               </h2>
               <p className="text-xs text-slate-500 mt-1">
@@ -103,7 +103,7 @@ export function SuggestionModal({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="suggestion-message" className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <label htmlFor="suggestion-message" className="text-xs font-semibold text-slate-500">
               Your suggestion
             </label>
             <textarea
@@ -116,7 +116,7 @@ export function SuggestionModal({
               placeholder="Describe what you'd like improved or fixed..."
               className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-primary resize-y min-h-[140px]"
             />
-            <p className="text-[10px] text-slate-600 text-right">{message.length}/2000</p>
+            <p className="text-xs text-slate-600 text-right">{message.length}/2000</p>
           </div>
 
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">

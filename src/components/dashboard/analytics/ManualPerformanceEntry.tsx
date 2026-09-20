@@ -145,8 +145,8 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                 <Users size={24} />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-white uppercase tracking-tight italic">Manual Productivity <span className="text-brand-primary">Input</span></h2>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Direct data entry for advisor performance metrics</p>
+                <h2 className="text-2xl font-semibold text-white tracking-tight ">Manual Productivity <span className="text-brand-primary">Input</span></h2>
+                <p className="text-xs font-semibold text-slate-500 mt-1">Direct data entry for advisor performance metrics</p>
               </div>
             </div>
             <button
@@ -162,7 +162,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
             <form id="manual-entry-form" onSubmit={handleSubmit} className="space-y-6">
               {advisors.map((advisor, index) => (
                 <div key={index} className="p-6 bg-slate-950/50 border border-slate-800 rounded-3xl relative group">
-                  <div className="absolute -top-3 left-6 px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-[9px] font-black text-brand-primary uppercase tracking-widest">
+                  <div className="absolute -top-3 left-6 px-3 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs font-semibold text-brand-primary ">
                     Advisor #{index + 1}
                   </div>
                   
@@ -178,7 +178,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
 
                   <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-6 mt-2">
                     <div className="md:col-span-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Advisor Name</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Advisor Name</label>
                       <input
                         type="text"
                         required
@@ -190,7 +190,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
                     
                     <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">SO Count</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">SO Count</label>
                       <input
                         type="number"
                         value={advisor.soCount}
@@ -200,7 +200,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Hours Sold</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Hours Sold</label>
                       <input
                         type="number"
                         step="0.1"
@@ -211,7 +211,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Labor Sales ($)</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Labor Sales ($)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -222,7 +222,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Gross Labor ($)</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Gross Labor ($)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -233,7 +233,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Part Sales ($)</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Part Sales ($)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -244,7 +244,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 block">Gross Parts ($)</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Gross Parts ($)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -255,18 +255,18 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col justify-center">
-                       <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Total Sales</p>
-                       <p className="text-sm font-black text-white">${advisor.totalSales?.toLocaleString()}</p>
+                       <p className="text-xs font-semibold text-slate-600 mb-1">Total Sales</p>
+                       <p className="text-sm font-semibold text-white">${advisor.totalSales?.toLocaleString()}</p>
                     </div>
 
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col justify-center">
-                       <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">E.L.R.</p>
-                       <p className="text-sm font-black text-brand-secondary">${advisor.elr}</p>
+                       <p className="text-xs font-semibold text-slate-600 mb-1">E.L.R.</p>
+                       <p className="text-sm font-semibold text-brand-secondary">${advisor.elr}</p>
                     </div>
 
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col justify-center">
-                       <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-1">Labor GP%</p>
-                       <p className="text-sm font-black text-emerald-500">{advisor.gpPercent}%</p>
+                       <p className="text-xs font-semibold text-slate-600 mb-1">Labor GP%</p>
+                       <p className="text-sm font-semibold text-emerald-500">{advisor.gpPercent}%</p>
                     </div>
                   </div>
                 </div>
@@ -276,7 +276,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
             <button
               type="button"
               onClick={handleAddAdvisor}
-              className="w-full py-4 border-2 border-dashed border-slate-800 rounded-3xl text-slate-500 hover:text-brand-primary hover:border-brand-primary/50 hover:bg-brand-primary/5 transition-all text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+              className="w-full py-4 border-2 border-dashed border-slate-800 rounded-3xl text-slate-500 hover:text-brand-primary hover:border-brand-primary/50 hover:bg-brand-primary/5 transition-all text-xs font-semibold flex items-center justify-center gap-2"
             >
               <Plus size={16} />
               Add Another Advisor Record
@@ -287,20 +287,20 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
           <div className="p-8 border-t border-slate-800 bg-slate-950/50 flex items-center justify-between">
             <div className="flex items-center gap-4 text-slate-500">
                <Calculator size={16} />
-               <p className="text-[9px] font-bold uppercase tracking-widest italic">Calculated metrics will be updated in realtime upon saving</p>
+               <p className="text-xs font-bold ">Calculated metrics will be updated in realtime upon saving</p>
             </div>
             <div className="flex gap-4">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-8 py-4 bg-slate-800 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-700 transition-colors"
+                className="px-8 py-4 bg-slate-800 text-white rounded-2xl font-semibold text-xs hover:bg-slate-700 transition-colors"
               >
                 Cancel
               </button>
               <button
                 form="manual-entry-form"
                 type="submit"
-                className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                className="px-8 py-4 bg-brand-primary text-white rounded-2xl font-semibold text-xs shadow-lg shadow-brand-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
               >
                 <Save size={16} />
                 Save Productivity Data

@@ -199,11 +199,11 @@ service cloud.firestore {
 
     // --- Tenant-scoped audit logs ---
     match /artifacts/hyundai-sales-to-service/public/data/logs/{logId} {
-      allow create: if isSignedIn() &&
-                       incoming().tenantId is string &&
+      allow create: if isApproved() && validAuditActor() &&
+                       incoming().tenantId in ['hyundai', 'ford-lincoln', 'nissan-mazda'] &&
                        (isAdmin() || incoming().tenantId == userTenantId());
       allow read: if isAdmin() || (isTenantManager() && resource.data.tenantId == userTenantId());
-      allow update, delete: if isAdmin();
+      allow update, delete: if false;
     }
 
     // --- Settings & Metadata ---
@@ -334,12 +334,26 @@ service cloud.firestore {
     }
 
     // --- System Activity Logs ---
+    // Client logs are append-only and bind the actor and time to the signed-in
+    // session. Backend Admin SDK logging remains outside these client rules.
+    function validAuditActor() {
+      return incoming().userId == request.auth.uid &&
+        incoming().userEmail == request.auth.token.email &&
+        incoming().timestamp == request.time &&
+        incoming().action is string && incoming().action.size() > 0 &&
+        incoming().action.size() <= 200 &&
+        incoming().details is string && incoming().details.size() <= 20000;
+    }
+
     match /artifacts/hyundai-sales-to-service/public/audit/systemLogs/{logId} {
       allow read: if isAdmin() ||
         (isApproved() && resource.data.dealershipId == userDealershipId());
-      // Was `isSignedIn()` — let any pending/unapproved account write audit-log
-      // entries. Approved staff, admins, and the internal sync worker only.
-      allow write: if isApproved() || isAdmin() || isSystemWorker();
+      allow create: if isApproved() && validAuditActor() &&
+        incoming().tenantId in ['hyundai', 'ford-lincoln', 'nissan-mazda'] &&
+        incoming().dealershipId == dealershipIdForTenant(incoming().tenantId) &&
+        (isAdmin() || (incoming().dealershipId == userDealershipId() &&
+                      incoming().tenantId == userTenantId()));
+      allow update, delete: if false;
     }
 
     // --- Tenant-scoped dealership chat (dispatch ↔ advisors) ---

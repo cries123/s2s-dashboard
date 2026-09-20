@@ -88,7 +88,7 @@ export function RecallManualAddForm({
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-          <h3 className="text-sm font-black text-white uppercase tracking-widest">Add Recall Customer</h3>
+          <h3 className="text-sm font-semibold text-white ">Add Recall Customer</h3>
           <button type="button" onClick={onClose} className="text-slate-500 hover:text-white">
             <X size={18} />
           </button>
@@ -109,14 +109,14 @@ export function RecallManualAddForm({
           <Field label="Campaign #" value={form.campaignNumber} onChange={(v) => update('campaignNumber', v)} />
 
           {error && (
-            <p className="text-[10px] font-bold text-rose-400 uppercase tracking-wide">{error}</p>
+            <p className="text-xs font-bold text-rose-400 tracking-wide">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={saving}
             className={cn(
-              'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest',
+              'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold ',
               'bg-brand-primary text-white disabled:opacity-50'
             )}
           >
@@ -146,7 +146,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{label}</span>
+      <span className="text-xs font-semibold text-slate-500">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -72,33 +72,33 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
                <span className={cn(
-                 "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                 "text-xs font-semibold px-2 py-0.5 rounded-full border",
                  customer.language === 'Spanish' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" : "bg-slate-800/50 text-slate-500 border-slate-700/50"
                )}>
                  {customer.language || 'English'}
                </span>
                {customer.recentVisits && customer.recentVisits.length > 0 && (
-                 <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
+                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
                     <Database size={8} /> Synced
                  </span>
                )}
             </div>
             <button 
               onClick={() => onViewProfile(customer)}
-              className="text-xl font-black text-white hover:text-brand-primary transition-colors text-left leading-none tracking-tight uppercase italic"
+              className="text-xl font-semibold text-white hover:text-brand-primary transition-colors text-left leading-none tracking-tight "
             >
               {formatCustomerDisplayName(customer.firstName, customer.lastName)}
             </button>
             
             <div className="flex flex-col gap-1.5 mt-3">
-              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-[10px] font-bold text-slate-400 hover:text-brand-secondary transition-colors group/link">
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-brand-secondary transition-colors group/link">
                 <div className="w-6 h-6 rounded-lg bg-slate-950 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors border border-white/5 shadow-inner">
                   <Phone size={11} className="text-slate-600 group-hover/link:text-brand-secondary" />
                 </div>
                 {customer.phone || 'No Phone Entry'}
               </a>
               {lastVisit && (
-                <div className="flex items-center gap-2 text-[10px] font-black text-brand-primary uppercase tracking-widest">
+                <div className="flex items-center gap-2 text-xs font-semibold text-brand-primary ">
                    <div className="w-6 h-6 rounded-lg bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
                      <CheckCircle2 size={11} />
                    </div>
@@ -133,13 +133,13 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
                 <div className="w-2 h-2 rounded-full bg-rose-500"></div>
                 <div className="absolute inset-0 w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
               </div>
-              <span className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em] leading-none">Maintenance Opportunity</span>
+              <span className="text-xs font-semibold text-rose-400 leading-none">Maintenance Opportunity</span>
             </div>
 
             {customer.notes && (
               <div className="px-4 py-3 bg-slate-950/40 border border-slate-800/50 rounded-xl space-y-0.5">
-                <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.15em]">Internal Account Notes</p>
-                <p className="text-[10px] font-medium text-slate-300 italic">"{customer.notes}"</p>
+                <p className="text-xs font-semibold text-slate-500 ">Internal Account Notes</p>
+                <p className="text-xs font-medium text-slate-300 ">"{customer.notes}"</p>
               </div>
             )}
           </div>
@@ -151,30 +151,30 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
               <Car size={14} />
             </div>
             <div>
-              <p className="text-[11px] font-black text-white uppercase italic tracking-tight leading-tight">
+              <p className="text-[11px] font-semibold text-white tracking-tight leading-tight">
                 {customer.year} {customer.model}
               </p>
-              <span className="inline-block text-[8px] font-mono text-brand-secondary font-black tracking-widest mt-0.5">{customer.vinLast8}</span>
+              <span className="inline-block text-xs font-mono text-brand-secondary font-semibold mt-0.5">{customer.vinLast8}</span>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Odometer</p>
-            <p className="text-sm font-black text-white tabular-nums tracking-tighter mt-0.5">
-              {parseInt(customer.mileage || '0').toLocaleString()} <span className="text-[9px] font-normal text-slate-400 font-sans uppercase">M</span>
+            <p className="text-xs font-semibold text-slate-500 leading-none">Odometer</p>
+            <p className="text-sm font-semibold text-white tabular-nums tracking-tighter mt-0.5">
+              {parseInt(customer.mileage || '0').toLocaleString()} <span className="text-xs font-normal text-slate-400 font-sans ">M</span>
             </p>
           </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between text-[11px]">
           <div className="flex flex-col">
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">Contact Records</span>
-            <span className="text-[10px] font-bold text-slate-300">
+            <span className="text-xs font-semibold text-slate-500 ">Contact Records</span>
+            <span className="text-xs font-bold text-slate-300">
               {formatLastContact(customer.lastServiceContact)}
             </span>
           </div>
           <div className="flex flex-col text-right">
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">S2S Alert Range</span>
-            <span className="text-[10px] font-black text-brand-secondary uppercase italic">
+            <span className="text-xs font-semibold text-slate-500 ">S2S Alert Range</span>
+            <span className="text-xs font-semibold text-brand-secondary ">
               {serviceAlerts.getNextServiceMilestone(customer)}
             </span>
           </div>
@@ -183,11 +183,11 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
         <div className="mt-3.5">
           <button 
             onClick={() => setShowMaintenance(!showMaintenance)}
-            className="w-full flex items-center justify-between p-2.5 bg-slate-950/20 hover:bg-slate-950/40 rounded-xl border border-slate-800/30 transition-all text-[10px]"
+            className="w-full flex items-center justify-between p-2.5 bg-slate-950/20 hover:bg-slate-950/40 rounded-xl border border-slate-800/30 transition-all text-xs"
           >
             <div className="flex items-center gap-2">
               <Wrench size={12} className="text-brand-secondary" />
-              <span className="text-[9px] font-black text-white uppercase tracking-widest">View Maintenance Roadmap</span>
+              <span className="text-xs font-semibold text-white ">View Maintenance Roadmap</span>
             </div>
             {showMaintenance ? <ChevronUp size={12} className="text-slate-500" /> : <ChevronDown size={12} className="text-slate-500" />}
           </button>
@@ -195,7 +195,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
           {showMaintenance && (
             <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
               <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/30">
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Recommended Services ({monthsOwned}mo of ownership)</p>
+                <p className="text-xs font-semibold text-slate-500 mb-2">Recommended Services ({monthsOwned}mo of ownership)</p>
                 <div className="space-y-1.5">
                   {maintenanceTasks.map((task, idx) => (
                     <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-slate-900/40 rounded-lg">
@@ -204,9 +204,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
                           "w-1 h-1 rounded-full",
                           task.importance === 'high' ? "bg-rose-500" : task.importance === 'medium' ? "bg-amber-500" : "bg-slate-600"
                         )}></div>
-                        <span className="text-[10px] font-bold text-slate-300">{task.task}</span>
+                        <span className="text-xs font-bold text-slate-300">{task.task}</span>
                       </div>
-                      <span className="text-[8px] font-black text-slate-500 uppercase">{task.interval}</span>
+                      <span className="text-xs font-semibold text-slate-500 ">{task.interval}</span>
                     </div>
                   ))}
                 </div>

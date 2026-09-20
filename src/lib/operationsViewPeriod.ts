@@ -32,7 +32,7 @@ export function getActiveMonthDateRange(referenceDate = new Date()): { start: st
 
 export function buildOperationsViewPeriodOptions(
   referenceDate = new Date(),
-  archiveCount = 3
+  archiveCount = 12
 ): OperationsViewPeriodOption[] {
   const activeLabel = referenceDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const options: OperationsViewPeriodOption[] = [
@@ -44,7 +44,7 @@ export function buildOperationsViewPeriodOptions(
     cursor.setMonth(cursor.getMonth() - 1);
     const key = toYearMonthKey(cursor.getFullYear(), cursor.getMonth());
     const label = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    options.push({ value: key, label: `${label} (Saved)` });
+    options.push({ value: key, label: label });
   }
 
   return options;

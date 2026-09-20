@@ -50,7 +50,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
     );
 
     const unsubscribe = onSnapshot(settingsRef, (snap) => {
-      if (snap.exists) {
+      if (snap.exists()) {
         const data = snap.data();
         setDispatchTechRoster(
           dispatchTechRosterFromSettings(
@@ -172,7 +172,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
       scheduleRef,
       (snap) => {
         if (cancelled) return;
-        const slots = snap.exists
+        const slots = snap.exists()
           ? ((snap.data()?.appointments as ScheduledAppointmentSlot[]) || [])
           : [];
         if (slots.length > 0) {

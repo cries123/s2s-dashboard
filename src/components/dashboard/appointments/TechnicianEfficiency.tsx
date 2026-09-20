@@ -1,3 +1,5 @@
+import { usePerformanceReport } from '../../../hooks/usePerformanceReport';
+import { isPreviewMode } from '../../../lib/previewMode';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   doc, setDoc, onSnapshot, serverTimestamp
@@ -54,7 +56,8 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   embedded = false,
 }) => {
   const [technicians, setTechnicians] = useState<TechnicianData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const report = usePerformanceReport('technicianReports', currentDealershipId, selectedMonth);
+  const loading = report.status === 'loading';
   const [parsing, setParsing] = useState(false);
   const [dmsProvider, setDmsProvider] = useState<DmsProviderId>(DEFAULT_DMS_PROVIDER);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -161,7 +164,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
   // Real-time Firestore sync
 
   useEffect(() => {
-    if (!currentDealershipId) return;
+    if (!currentDealershipId || isPreviewMode) return;
     const settingsRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dealershipSettings', currentDealershipId);
     return onSnapshot(settingsRef, (snap) => {
       if (snap.exists()) {
@@ -170,55 +173,20 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
     });
   }, [currentDealershipId]);
 
-  // Latest onError without making it an effect dependency (see note in the effect).
-  const onErrorRef = React.useRef(onError);
   useEffect(() => {
-    onErrorRef.current = onError;
-  }, [onError]);
-
-  useEffect(() => {
-    if (!currentDealershipId) return;
-
-    const baseId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
-    const docId = selectedMonth === 'active' ? baseId : `${baseId}_archive_${selectedMonth}`;
-    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
-
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.technicians) {
-          setTechnicians(data.technicians);
-        } else {
-          setTechnicians([]);
-        }
-        if (data.reportStartDate) {
-          setReportStartDate(data.reportStartDate);
-        }
-        if (data.reportEndDate) {
-          setReportEndDate(data.reportEndDate);
-        }
-        setPbsSyncedAt(typeof data.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
-        setPerformanceSource(typeof data.source === 'string' ? data.source : null);
-        setClockDataUnavailable(data.clockDataUnavailable === true);
-      } else {
-        setTechnicians([]);
-        setPbsSyncedAt(null);
-        setPerformanceSource(null);
-        setClockDataUnavailable(false);
-      }
-      setLoading(false);
-    }, (err) => {
-      console.error("[TechnicianEfficiency] Sync error:", err);
-      onErrorRef.current?.("Failed to sync technician efficiency data.");
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-    // onError is read through a ref on purpose: the parent passes a new arrow on every
-    // render, and having it in the deps made each error re-subscribe -> error -> toast
-    // -> re-render -> re-subscribe, an endless toast storm.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentDealershipId, selectedMonth]);
+    const data = report.data;
+    setTechnicians(Array.isArray(data?.technicians) ? data.technicians : []);
+    const periodStart = selectedMonth === 'active' ? activeRange.start : selectedMonth + '-01';
+    const periodEnd = selectedMonth === 'active' ? activeRange.end : (() => {
+      const [year, month] = selectedMonth.split('-').map(Number);
+      return selectedMonth + '-' + new Date(year, month, 0).getDate();
+    })();
+    setReportStartDate(data?.reportStartDate ?? periodStart);
+    setReportEndDate(data?.reportEndDate ?? periodEnd);
+    setPbsSyncedAt(typeof data?.pbsSyncedAt === 'string' ? data.pbsSyncedAt : null);
+    setPerformanceSource(typeof data?.source === 'string' ? data.source : null);
+    setClockDataUnavailable(data?.clockDataUnavailable === true);
+  }, [report.data, selectedMonth, activeRange]);
 
   // Save changes back to Firestore helper
   const saveToFirestore = async (
@@ -512,7 +480,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               Technician efficiency
             </h2>
             {reportStartDate && reportEndDate && (
-              <p className={cn('text-[10px] font-bold uppercase tracking-wider mt-0.5', embedded ? 'crm-label' : 'text-slate-400')}>
+              <p className={cn('text-xs font-bold normal-case tracking-normal mt-0.5', embedded ? 'crm-label' : 'text-slate-400')}>
                 {embedded ? `${reportStartDate} – ${reportEndDate}` : `Active report period: ${formatDateRangeShort(reportStartDate, reportEndDate)}`}
                 {selectedMonth === 'active' && pbsSyncedAt && isPbsDealership
                   ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}`
@@ -520,22 +488,22 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               </p>
             )}
             {selectedMonth !== 'active' && (
-              <p className="text-[10px] text-amber-400/90 font-medium mt-1">
+              <p className="text-xs text-amber-400/90 font-medium mt-1">
                 PBS sync writes to the active month only — switch View Period to July (Active).
               </p>
             )}
             {!embedded && selectedMonth === 'active' && pbsSyncedAt && (
-              <p className="text-[10px] text-slate-500 font-medium mt-1">
+              <p className="text-xs text-slate-500 font-medium mt-1">
                 PBS synced {new Date(pbsSyncedAt).toLocaleString()}
               </p>
             )}
             {embedded && isPbsDealership && selectedMonth === 'active' && technicians.length === 0 && (
-              <p className="text-[10px] text-amber-400/90 mt-1">
+              <p className="text-xs text-amber-400/90 mt-1">
                 Run Pull changes in Admin → PBS Sync to load clock and flagged hours from PBS.
               </p>
             )}
             {isPbsDealership && selectedMonth === 'active' && clockDataUnavailable && performanceSource === 'pbs-sync' && (
-              <p className="text-[10px] text-amber-400/90 mt-1">
+              <p className="text-xs text-amber-400/90 mt-1">
                 PBS time clock access is not enabled for these PartnerHUB credentials — showing
                 flagged hours from repair orders only. Ask PBS support to enable
                 TimeClockActivityGet for clocked hours and efficiency.
@@ -554,20 +522,20 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
         {!embedded && selectedMonth !== 'active' && !allowArchiveEditing ? (
           <div className="card-base flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+            <span className="text-xs font-semibold normal-case tracking-normal text-amber-500">
               🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
             </span>
           </div>
         ) : !embedded ? (
           <div className="flex flex-wrap items-center gap-3">
             {selectedMonth !== 'active' && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-[10px] font-black uppercase tracking-widest animate-pulse">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl text-xs font-semibold normal-case tracking-normal animate-pulse">
                 <span>⚠️ ARCHIVE EDIT MODE ({selectedMonth})</span>
               </div>
             )}
             <button
               onClick={() => setShowAddForm(prev => !prev)}
-              className="h-10 px-4 flex items-center gap-2 bg-white/5 hover:bg-white/10 active:scale-95 text-white border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+              className="h-10 px-4 flex items-center gap-2 bg-white/5 hover:bg-white/10 active:scale-95 text-white border border-white/10 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer"
             >
               <UserPlus size={14} className="text-brand-primary" />
               {showAddForm ? "Hide Form" : "Add Technician"}
@@ -577,16 +545,16 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               <div className="relative flex items-center">
                 {showResetConfirm ? (
                   <div className="flex items-center gap-2 bg-rose-950/20 border border-rose-500/30 p-1 rounded-xl">
-                    <span className="text-[9px] text-rose-400 font-bold uppercase px-2">Clear all?</span>
+                    <span className="text-xs text-rose-400 font-bold normal-case px-2">Clear all?</span>
                     <button
                       onClick={handleResetTracks}
-                      className="h-8 px-3 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                      className="h-8 px-3 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer"
                     >
                       Yes
                     </button>
                     <button
                       onClick={() => setShowResetConfirm(false)}
-                      className="h-8 px-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all cursor-pointer"
+                      className="h-8 px-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg text-xs font-bold normal-case tracking-normal transition-all cursor-pointer"
                     >
                       No
                     </button>
@@ -594,7 +562,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                 ) : (
                   <button
                     onClick={() => setShowResetConfirm(true)}
-                    className="h-10 px-4 flex items-center gap-2 bg-rose-500/10 hover:bg-rose-500/15 text-rose-400 border border-rose-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                    className="h-10 px-4 flex items-center gap-2 bg-rose-500/10 hover:bg-rose-500/15 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer"
                   >
                     <RotateCcw size={14} />
                     Reset
@@ -618,7 +586,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Technician Name *</label>
+                <label className="block text-xs font-semibold text-slate-400 normal-case tracking-normal mb-2">Technician Name *</label>
                 <div className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -633,7 +601,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               </div>
 
               <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Clocked Hours *</label>
+                <label className="block text-xs font-semibold text-slate-400 normal-case tracking-normal mb-2">Clocked Hours *</label>
                 <div className="relative">
                   <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -649,7 +617,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               </div>
 
               <div>
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Flagged (Flat Rate) Hours *</label>
+                <label className="block text-xs font-semibold text-slate-400 normal-case tracking-normal mb-2">Flagged (Flat Rate) Hours *</label>
                 <div className="relative">
                   <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -669,14 +637,14 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="px-4 py-2 text-[10px] uppercase font-black tracking-widest text-slate-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-xs normal-case font-semibold tracking-normal text-slate-400 hover:text-white transition-colors"
                 id="tech-add-cancel-btn"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-6 py-2 bg-brand-primary hover:brightness-110 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-brand-primary/15"
+                className="px-6 py-2 bg-brand-primary hover:brightness-110 text-white rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer shadow-lg shadow-brand-primary/15"
                 id="tech-add-submit-btn"
               >
                 Register Technician
@@ -721,14 +689,14 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               )}
             </div>
 
-            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-2">Import Technician Summary PDF</h3>
-            <p className="text-[10px] text-slate-500 max-w-[220px] font-medium leading-relaxed mb-6">
-              Drag-and-drop your DMS technician efficiency report here or <span className="text-brand-primary font-black underline">click to browse</span>.
+            <h3 className="text-sm font-semibold text-white normal-case tracking-normal mb-2">Import Technician Summary PDF</h3>
+            <p className="text-xs text-slate-500 max-w-[220px] font-medium leading-relaxed mb-6">
+              Drag-and-drop your DMS technician efficiency report here or <span className="text-brand-primary font-semibold underline">click to browse</span>.
             </p>
 
             <div className="py-1 px-3 rounded-lg bg-white/5 border border-white/5 inline-flex items-center gap-1.5 shadow-sm">
               <div className="w-1 h-1 rounded-full bg-emerald-500 animate-ping"></div>
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Supports PDF Upload</span>
+              <span className="text-xs font-semibold text-slate-400 normal-case tracking-normal">Supports PDF Upload</span>
             </div>
           </div>
 
@@ -746,10 +714,10 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                 <TrendingUp size={20} />
               </div>
               <div>
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-0.5">Overall Shop Tech Efficiency</span>
+                <span className="text-xs font-semibold text-slate-500 normal-case tracking-normal block mb-0.5">Overall Shop Tech Efficiency</span>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-black text-white leading-none tracking-tight">{averageEfficiency}%</span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Avg ({technicians.length} Techs)</span>
+                  <span className="text-2xl font-semibold text-white leading-none tracking-tight">{averageEfficiency}%</span>
+                  <span className="text-xs font-bold text-slate-400 normal-case tracking-wide">Avg ({technicians.length} Techs)</span>
                 </div>
               </div>
             </div>
@@ -766,9 +734,9 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
             <TableSkeleton rows={5} cols={4} />
           ) : technicians.length === 0 ? (
             <EmptyState
-              title={isPbsDealership ? 'No technician data for this period' : 'No technician data yet'}
+              title={report.status === 'error' ? 'Technician report unavailable' : 'No technician data for this period'}
               description={
-                isPbsDealership
+                report.status === 'error' ? 'The report could not be loaded. Reload to retry.' : isPbsDealership
                   ? selectedMonth !== 'active'
                     ? 'PBS sync writes to the active month only. Set View Period to July (Active), then run Pull changes in Admin → PBS Sync.'
                     : performanceSource === 'pbs-sync' && pbsSyncedAt
@@ -783,7 +751,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               <div className="overflow-x-auto">
                 <table className={embedded ? 'crm-table' : 'w-full text-left border-collapse'} id="technicians-efficiency-table">
                   <thead>
-                    <tr className={embedded ? undefined : 'border-b border-white/5 bg-slate-950/20 text-[9px] font-black uppercase tracking-widest text-slate-400'}>
+                    <tr className={embedded ? undefined : 'border-b border-white/5 bg-slate-950/20 text-xs font-semibold normal-case tracking-normal text-slate-400'}>
                       <th className={embedded ? undefined : 'px-6 py-4'}>Technician</th>
                       <th className={embedded ? 'text-right' : 'px-6 py-4 text-center'}>Clocked Hrs</th>
                       <th className={embedded ? 'text-right' : 'px-6 py-4 text-center'}>Flagged Hrs</th>
@@ -812,7 +780,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                             ) : (
                               <div className="flex items-center gap-3">
                                 <div className={cn(
-                                  "w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black uppercase shadow-sm shrink-0 border",
+                                  "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-semibold normal-case shadow-sm shrink-0 border",
                                   tech.efficiency >= 80
                                     ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10"
                                     : "bg-rose-500/5 text-rose-550 border-rose-500/20"
@@ -866,11 +834,11 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                               </span>
                             ) : (
                               <div className="flex items-center gap-4 min-w-[220px]">
-                                <span className={cn("px-2 py-1 rounded-lg text-[10px] font-mono font-black border text-center min-w-[54px] shadow-sm", performanceColor)}>
+                                <span className={cn("px-2 py-1 rounded-lg text-xs font-mono font-semibold border text-center min-w-[54px] shadow-sm", performanceColor)}>
                                   {tech.efficiency}%
                                 </span>
                                 <span className={cn(
-                                  "inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border whitespace-nowrap",
+                                  "inline-flex px-2 py-0.5 rounded text-xs font-semibold normal-case tracking-normal border whitespace-nowrap",
                                   tech.efficiency >= 80
                                     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                     : "bg-rose-500/10 text-rose-500 border-rose-500/20 text-rose-500 font-bold animate-pulse"
@@ -955,7 +923,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                       <div className="flex items-center justify-between gap-3 mb-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={cn(
-                            "w-9 h-9 rounded-xl flex items-center justify-center text-[10px] font-black uppercase shadow-sm shrink-0 border",
+                            "w-9 h-9 rounded-xl flex items-center justify-center text-xs font-semibold normal-case shadow-sm shrink-0 border",
                             tech.efficiency >= 80
                               ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/10"
                               : "bg-rose-500/5 text-rose-550 border-rose-500/20"
@@ -1012,7 +980,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                       {isEditing ? (
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Clocked Hrs</label>
+                            <label className="block text-xs font-semibold text-slate-400 normal-case tracking-normal mb-1">Clocked Hrs</label>
                             <input
                               type="number"
                               step="0.1"
@@ -1022,7 +990,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                             />
                           </div>
                           <div>
-                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Flagged Hrs</label>
+                            <label className="block text-xs font-semibold text-slate-400 normal-case tracking-normal mb-1">Flagged Hrs</label>
                             <input
                               type="number"
                               step="0.1"
@@ -1035,13 +1003,13 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                       ) : (
                         <div className="flex items-center gap-4 mb-3">
                           <div>
-                            <p className="crm-label text-[9px]">Clocked</p>
+                            <p className="crm-label text-xs">Clocked</p>
                             <p className="text-sm font-mono font-bold text-slate-300">
                               {flaggedOnlyMode ? '—' : tech.clockedHours.toFixed(1)}
                             </p>
                           </div>
                           <div>
-                            <p className="crm-label text-[9px]">Flagged</p>
+                            <p className="crm-label text-xs">Flagged</p>
                             <p className="text-sm font-mono font-bold text-emerald-500">{tech.flaggedHours.toFixed(1)}</p>
                           </div>
                         </div>
@@ -1050,7 +1018,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                       {!flaggedOnlyMode && (
                         <div className="flex items-center gap-3">
                           <span className={cn(
-                            "px-2 py-1 rounded-lg text-[10px] font-mono font-black border text-center min-w-[54px] shadow-sm shrink-0",
+                            "px-2 py-1 rounded-lg text-xs font-mono font-semibold border text-center min-w-[54px] shadow-sm shrink-0",
                             tech.efficiency >= 80
                               ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/10"
                               : "text-rose-500 bg-rose-500/10 border-rose-500/20"
@@ -1058,7 +1026,7 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
                             {tech.efficiency}%
                           </span>
                           <span className={cn(
-                            "inline-flex px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border whitespace-nowrap shrink-0",
+                            "inline-flex px-2 py-0.5 rounded text-xs font-semibold normal-case tracking-normal border whitespace-nowrap shrink-0",
                             tech.efficiency >= 80
                               ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                               : "bg-rose-500/10 text-rose-500 border-rose-500/20 font-bold animate-pulse"

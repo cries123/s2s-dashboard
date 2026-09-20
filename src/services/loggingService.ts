@@ -68,10 +68,11 @@ export const logAuditAction = async (
   user?: Pick<User, 'uid' | 'email' | 'username'> | null
 ) => {
   try {
+    if (!auth.currentUser) return;
     await addDoc(collection(db, ...LOGS_COLLECTION_PATH), {
       tenantId,
-      userId: user?.uid || auth.currentUser?.uid || 'system',
-      userEmail: user?.email || auth.currentUser?.email || 'unknown',
+      userId: auth.currentUser.uid,
+      userEmail: auth.currentUser.email,
       username: user?.username || 'System',
       action,
       details,
@@ -92,7 +93,11 @@ export const logSystemAction = async (
   tenantId?: string
 ) => {
   const path = 'artifacts/hyundai-sales-to-service/public/audit/systemLogs';
-  const resolvedDealership = dealershipId || 'hyundai';
+  if (!auth.currentUser || !dealershipId) {
+    console.warn('[System Logging Service] Missing signed-in actor or dealership; log skipped.');
+    return;
+  }
+  const resolvedDealership = dealershipId;
   const resolvedTenant =
     tenantId ||
     (resolvedDealership === 'nissan'
@@ -106,7 +111,8 @@ export const logSystemAction = async (
       action,
       details,
       category,
-      userEmail: userEmail || auth.currentUser?.email || 'unknown',
+      userId: auth.currentUser.uid,
+      userEmail: auth.currentUser.email,
       username: username || 'System/Guest',
       dealershipId: resolvedDealership,
       tenantId: resolvedTenant,

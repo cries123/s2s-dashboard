@@ -130,7 +130,7 @@ export function AppSidebar({
           <div key={section.id}>
             {!collapsed && (
               <p
-                className="px-2 mb-1.5 text-[11px] font-semibold uppercase tracking-wide"
+                className="px-2 mb-1.5 text-[11px] font-semibold tracking-wide"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
                 {section.label}
@@ -166,7 +166,7 @@ export function AppSidebar({
                         <Icon size={16} />
                         {collapsed && item.badge !== undefined && item.badge > 0 && (
                           <span
-                            className="absolute -top-1.5 -right-1.5 text-[9px] font-semibold bg-rose-500 text-white px-1 py-0 rounded-full min-w-[0.9rem] h-[0.9rem] leading-[0.9rem] text-center"
+                            className="absolute -top-1.5 -right-1.5 text-xs font-semibold bg-rose-500 text-white px-1 py-0 rounded-full min-w-[0.9rem] h-[0.9rem] leading-[0.9rem] text-center"
                           >
                             {item.badge > 9 ? '9+' : item.badge}
                           </span>
@@ -176,7 +176,7 @@ export function AppSidebar({
                         <>
                           <span className="truncate flex-1">{item.label}</span>
                           {item.badge !== undefined && item.badge > 0 && (
-                            <span className="text-[10px] font-semibold bg-rose-500 text-white px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
+                            <span className="text-xs font-semibold bg-rose-500 text-white px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center">
                               {item.badge}
                             </span>
                           )}

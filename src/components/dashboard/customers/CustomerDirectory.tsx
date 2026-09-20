@@ -210,7 +210,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                  key={cat} 
                  onClick={() => setFilterCategory(cat as any)}
                  className={cn(
-                   "px-4 py-2.5 rounded-[1rem] text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                   "px-4 py-2.5 rounded-[1rem] text-xs font-semibold transition-all whitespace-nowrap",
                    filterCategory === cat 
                      ? "bg-brand-primary text-white shadow-xl shadow-brand-primary/20" 
                      : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
@@ -233,7 +233,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                  key={sort.id} 
                  onClick={() => setSortBy(sort.id as any)}
                  className={cn(
-                   "px-4 py-2.5 rounded-[1rem] text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                   "px-4 py-2.5 rounded-[1rem] text-xs font-semibold transition-all whitespace-nowrap",
                    sortBy === sort.id 
                      ? "bg-brand-secondary text-white shadow-xl shadow-brand-secondary/20" 
                      : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
@@ -297,7 +297,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
                   className="group relative px-12 py-5 bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-2xl hover:border-brand-primary/50 transition-all"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-brand-primary/0 via-brand-primary/5 to-brand-primary/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                  <span className="relative z-10 flex items-center gap-3 text-[11px] font-black text-white uppercase tracking-[0.2em]">
+                  <span className="relative z-10 flex items-center gap-3 text-[11px] font-semibold text-white ">
                     Expand Database <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                   </span>
                 </button>

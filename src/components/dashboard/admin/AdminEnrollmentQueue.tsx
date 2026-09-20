@@ -117,8 +117,8 @@ export function AdminEnrollmentQueue({
       <div className="p-5 border-b border-white/5 bg-violet-950/20">
         <div className="flex items-center gap-2 mb-1">
           <Shield size={16} className="text-violet-400" />
-          <h2 className="text-sm font-black text-white uppercase tracking-wider">Pending manager enrollments</h2>
-          <span className="ml-auto text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300">
+          <h2 className="text-sm font-semibold text-white ">Pending manager enrollments</h2>
+          <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300">
             {pendingManagers.length} pending
           </span>
         </div>
@@ -130,9 +130,9 @@ export function AdminEnrollmentQueue({
         {pendingManagers.map((u) => (
           <li key={u.uid} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-white truncate">{u.username || u.email}</p>
+              <p className="text-sm font-semibold text-white truncate">{u.username || u.email}</p>
               <p className="text-xs text-slate-500 truncate">{u.email}</p>
-              <p className="text-[10px] text-slate-600 mt-1 uppercase tracking-wider">
+              <p className="text-xs text-slate-600 mt-1 ">
                 {dealershipName(u.dealershipId)} · Manager enrollment
               </p>
             </div>
@@ -141,7 +141,7 @@ export function AdminEnrollmentQueue({
                 type="button"
                 disabled={actingUid === u.uid}
                 onClick={() => approveUser(u)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold "
               >
                 {actingUid === u.uid ? <Loader2 size={12} className="animate-spin" /> : <UserCheck size={12} />}
                 Approve manager
@@ -150,7 +150,7 @@ export function AdminEnrollmentQueue({
                 type="button"
                 disabled={actingUid === u.uid}
                 onClick={() => revokeUser(u)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px] font-black uppercase"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/30 text-xs font-semibold "
               >
                 <UserX size={12} />
                 Remove

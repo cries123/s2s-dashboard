@@ -12,7 +12,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, query, where, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const ROOT = 'artifacts/hyundai-sales-to-service/public/data';
 const userPath = (uid) => `${ROOT}/users/${uid}`;
@@ -160,6 +160,46 @@ await check('Hyundai advisor CAN read their own dealershipSettings',
   assertSucceeds(getDoc(doc(advisor, `${ROOT}/dealershipSettings/hyundai`))));
 await check('Hyundai advisor CAN read their own store system log',
   assertSucceeds(getDoc(doc(advisor, 'artifacts/hyundai-sales-to-service/public/audit/systemLogs/log1'))));
+
+console.log('\nAppend-only audit logs');
+const SYSTEM_LOGS = 'artifacts/hyundai-sales-to-service/public/audit/systemLogs';
+const TENANT_LOGS = `${ROOT}/logs`;
+const logPayload = (overrides = {}) => ({
+  dealershipId: 'hyundai', tenantId: 'hyundai', userId: 'hyundai-advisor',
+  userEmail: 'advisor@hyundai.test', action: 'Settings changed', details: 'Test entry',
+  timestamp: serverTimestamp(), ...overrides,
+});
+for (const path of [SYSTEM_LOGS, TENANT_LOGS]) {
+  await check(`${path}: own-store append succeeds`,
+    assertSucceeds(setDoc(doc(advisor, `${path}/new-log`), logPayload())));
+  await check(`${path}: staff cannot edit their own log`,
+    assertFails(updateDoc(doc(advisor, `${path}/new-log`), { details: 'Tampered' })));
+  await check(`${path}: staff cannot delete their own log`,
+    assertFails(deleteDoc(doc(advisor, `${path}/new-log`))));
+  await check(`${path}: another store cannot delete a known log`,
+    assertFails(deleteDoc(doc(nissanMgr, `${path}/new-log`))));
+  await check(`${path}: another store cannot overwrite a known log`,
+    assertFails(setDoc(doc(nissanMgr, `${path}/new-log`), logPayload())));
+  await check(`${path}: cannot create for another store`,
+    assertFails(setDoc(doc(advisor, `${path}/foreign`), logPayload({ tenantId: 'nissan-mazda', dealershipId: 'nissan' }))));
+  await check(`${path}: cannot impersonate another actor`,
+    assertFails(setDoc(doc(advisor, `${path}/spoof`), logPayload({ userId: 'nissan-manager' }))));
+  await check(`${path}: cannot spoof actor email`,
+    assertFails(setDoc(doc(advisor, `${path}/spoof-email`), logPayload({ userEmail: 'mgr@nissan.test' }))));
+  await check(`${path}: cannot backdate events`,
+    assertFails(setDoc(doc(advisor, `${path}/backdated`), logPayload({ timestamp: new Date('2020-01-01') }))));
+  await check(`${path}: pending account cannot append`,
+    assertFails(setDoc(doc(pending, `${path}/pending`), logPayload({ userId: 'pending-user', userEmail: 'pending@x.test' }))));
+  const admin = testEnv.authenticatedContext('admin', { email: 'admin@hyundai.com', email_verified: true }).firestore();
+  await check(`${path}: administrator can append in selected store`,
+    assertSucceeds(setDoc(doc(admin, `${path}/admin-event`), logPayload({
+      tenantId: 'ford-lincoln', dealershipId: 'ford', userId: 'admin', userEmail: 'admin@hyundai.com',
+    }))));
+  await check(`${path}: administrator cannot rewrite audit history`,
+    assertFails(deleteDoc(doc(admin, `${path}/new-log`))));
+}
+await check('System logs: reject mismatched dealership and tenant',
+  assertFails(setDoc(doc(advisor, `${SYSTEM_LOGS}/mismatch`), logPayload({ dealershipId: 'ford' }))));
 
 await testEnv.cleanup();
 console.log(`\n${passed} passed, ${failed} failed\n`);

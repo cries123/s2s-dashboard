@@ -335,23 +335,23 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 <div className="w-20 h-20 rounded-3xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 mb-6">
                   <Trash2 className="text-rose-500" size={32} />
                 </div>
-                <h3 className="text-2xl font-black tracking-tighter mb-4 uppercase" style={{ color: 'var(--color-text-primary)' }}>Clear All Data?</h3>
+                <h3 className="text-2xl font-semibold tracking-tighter mb-4 " style={{ color: 'var(--color-text-primary)' }}>Clear All Data?</h3>
                 <p className="crm-label text-sm leading-relaxed mb-8">
                   Are you sure you want to clear all current advisor and technician statistics?
-                  <span className="block mt-2 text-rose-400/80 font-bold uppercase text-[10px] tracking-widest">
+                  <span className="block mt-2 text-rose-400/80 font-bold text-xs ">
                     This action cannot be undone, but payout settings will be preserved.
                   </span>
                 </p>
                 <div className="flex items-center gap-4 w-full">
                   <button
                     onClick={() => setShowClearConfirm(false)}
-                    className="btn-secondary flex-1 py-4 text-[10px] font-black uppercase tracking-widest"
+                    className="btn-secondary flex-1 py-4 text-xs font-semibold "
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleClearData}
-                    className="flex-1 px-6 py-4 bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-rose-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                    className="flex-1 px-6 py-4 bg-rose-500 text-white rounded-2xl text-xs font-semibold shadow-xl shadow-rose-500/20 hover:scale-[1.02] active:scale-95 transition-all"
                   >
                     Clear Now
                   </button>
@@ -378,7 +378,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             className="fixed top-24 left-1/2 z-[100] bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-2xl shadow-emerald-500/20 border border-emerald-400/30 flex items-center gap-3 min-w-[300px] justify-center"
           >
             <Zap size={18} fill="currentColor" />
-            <span className="text-[11px] font-black uppercase tracking-widest">{successMessage}</span>
+            <span className="text-[11px] font-semibold ">{successMessage}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -395,16 +395,16 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center border border-brand-primary/30">
                 <Trophy className="text-brand-primary" size={24} />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary italic">Incentive Program</span>
+              <span className="text-xs font-semibold text-brand-primary ">Incentive Program</span>
             </div>
 
             {/* Local Month/Archive Switcher */}
             <div className="flex items-center gap-2">
-              <span className="crm-label text-[8px] uppercase tracking-widest leading-none">View Period:</span>
+              <span className="crm-label text-xs leading-none">View Period:</span>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-9 px-3 input-field w-auto text-[9px] font-black uppercase tracking-widest py-0 cursor-pointer"
+                className="h-9 px-3 input-field w-auto text-xs font-semibold py-0 cursor-pointer"
               >
                 {viewPeriodOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -415,7 +415,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             </div>
           </div>
           
-          <h2 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 uppercase" style={{ color: 'var(--color-text-primary)' }}>
+          <h2 className="text-4xl md:text-5xl font-semibold tracking-tighter mb-4 " style={{ color: 'var(--color-text-primary)' }}>
              POT OF <span className="text-brand-primary">GOLD</span>
           </h2>
           <p className="crm-label max-w-xl text-sm leading-relaxed mb-6">
@@ -435,7 +435,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isAiProcessing}
-                className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group"
+                className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-xs font-semibold shadow-xl shadow-brand-primary/20 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all group"
               >
                 {isAiProcessing ? (
                   <Loader2 size={16} className="animate-spin" />
@@ -449,7 +449,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           ) : (
             <div className="flex items-center gap-2.5 px-5 py-3.5 card-base rounded-2xl shadow-xl">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+              <span className="text-xs font-semibold text-amber-500">
                 🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
               </span>
             </div>
@@ -474,7 +474,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           <div className="relative">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="w-full card-base rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
+              className="w-full card-base rounded-2xl px-6 py-4 flex items-center justify-between text-[11px] font-semibold focus:border-brand-primary outline-none shadow-xl transition-all active:scale-[0.98]"
               style={{ color: 'var(--color-text-primary)' }}
             >
               <div className="flex items-center gap-3">
@@ -508,7 +508,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     className="absolute top-full left-0 right-0 mt-2 z-50 card-base rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
                   >
                     <div className="px-6 py-3 border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
-                      <span className="crm-label text-[8px] uppercase tracking-widest">Switch View</span>
+                      <span className="crm-label text-xs ">Switch View</span>
                     </div>
                     {[
                       { id: 'advisors', label: 'Advisors View', icon: Users },
@@ -523,7 +523,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           setIsMobileMenuOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center gap-4 px-6 py-4.5 text-[10px] font-black uppercase tracking-widest text-left transition-colors border-b last:border-0",
+                          "w-full flex items-center gap-4 px-6 py-4.5 text-xs font-semibold text-left transition-colors border-b last:border-0",
                           activeSubTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "hover:bg-slate-800/50"
                         )}
                         style={activeSubTab === tab.id ? { borderColor: 'var(--color-surface-border)' } : { borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}
@@ -551,7 +551,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
               className={cn(
-                "flex items-center gap-2 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                "flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-semibold transition-all",
                 activeSubTab === tab.id
                   ? "bg-brand-primary text-white shadow-lg"
                   : "hover:bg-slate-800/50"
@@ -579,18 +579,18 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
-                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest w-24">Code</th>
-                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest">Description</th>
-                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest text-center">Frank</th>
-                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest text-center">Lemmy</th>
-                      <th className="crm-label px-6 py-4 text-[10px] uppercase tracking-widest text-center">Total</th>
+                      <th className="crm-label px-6 py-4 text-xs w-24">Code</th>
+                      <th className="crm-label px-6 py-4 text-xs ">Description</th>
+                      <th className="crm-label px-6 py-4 text-xs text-center">Frank</th>
+                      <th className="crm-label px-6 py-4 text-xs text-center">Lemmy</th>
+                      <th className="crm-label px-6 py-4 text-xs text-center">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
                     {advData.map((row, i) => (
                       <tr key={row.code} className="hover:bg-slate-800/20 transition-colors group">
                         <td className="px-6 py-4">
-                          <span className="px-2 py-1 bg-brand-primary/10 text-brand-primary rounded text-[10px] font-black">{row.code}</span>
+                          <span className="px-2 py-1 bg-brand-primary/10 text-brand-primary rounded text-xs font-semibold">{row.code}</span>
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-xs font-bold" style={{ color: 'var(--color-text-secondary)' }}>{row.desc}</p>
@@ -608,7 +608,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setAdvData(newData);
                               saveToFirestore({ advData: newData });
                             }}
-                            className="w-16 input-field px-2 py-1.5 text-center text-xs font-black"
+                            className="w-16 input-field px-2 py-1.5 text-center text-xs font-semibold"
                           />
                         </td>
                         <td className="px-6 py-2 text-center">
@@ -624,21 +624,21 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setAdvData(newData);
                               saveToFirestore({ advData: newData });
                             }}
-                            className="w-16 input-field px-2 py-1.5 text-center text-xs font-black"
+                            className="w-16 input-field px-2 py-1.5 text-center text-xs font-semibold"
                           />
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className="text-sm font-black text-brand-secondary">{row.frank + row.lemmy}</span>
+                          <span className="text-sm font-semibold text-brand-secondary">{row.frank + row.lemmy}</span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
-                      <td colSpan={2} className="px-6 py-6 text-[10px] font-black uppercase tracking-widest italic" style={{ color: 'var(--color-text-primary)' }}>Advisor Grand Totals</td>
-                      <td className="px-6 py-6 text-center text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>{advTotals.frank}</td>
-                      <td className="px-6 py-6 text-center text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>{advTotals.lemmy}</td>
-                      <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{advTotals.grand}</td>
+                      <td colSpan={2} className="px-6 py-6 text-xs font-semibold " style={{ color: 'var(--color-text-primary)' }}>Advisor Grand Totals</td>
+                      <td className="px-6 py-6 text-center text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{advTotals.frank}</td>
+                      <td className="px-6 py-6 text-center text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{advTotals.lemmy}</td>
+                      <td className="px-6 py-6 text-center text-lg font-semibold text-brand-primary">{advTotals.grand}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -655,8 +655,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                      "p-6 rounded-3xl border flex flex-col items-center text-center",
                      earn.primary ? "bg-brand-primary/10 border-brand-primary" : "card-base"
                    )}>
-                      <p className="crm-label text-[10px] uppercase tracking-widest mb-2 leading-none">{earn.name} Earnings</p>
-                      <p className={cn("text-3xl font-black", earn.primary ? "text-brand-primary" : "")} style={!earn.primary ? { color: 'var(--color-text-primary)' } : undefined}>
+                      <p className="crm-label text-xs mb-2 leading-none">{earn.name} Earnings</p>
+                      <p className={cn("text-3xl font-semibold", earn.primary ? "text-brand-primary" : "")} style={!earn.primary ? { color: 'var(--color-text-primary)' } : undefined}>
                         ${earn.val.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
                    </div>
@@ -671,11 +671,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 <table className="w-full min-w-[560px] text-left border-collapse">
                   <thead>
                     <tr className="border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
-                      <th className="crm-label sticky left-0 z-10 px-3 md:px-6 py-3 md:py-4 text-[10px] uppercase tracking-widest min-w-[100px]" style={{ backgroundColor: 'var(--color-surface-muted)' }}>Service Code</th>
+                      <th className="crm-label sticky left-0 z-10 px-3 md:px-6 py-3 md:py-4 text-xs min-w-[100px]" style={{ backgroundColor: 'var(--color-surface-muted)' }}>Service Code</th>
                       {TECHNICIANS.map(t => (
-                        <th key={t} className="crm-label px-2 md:px-4 py-3 md:py-4 text-[9px] md:text-[10px] uppercase tracking-widest text-center min-w-[52px] max-w-[64px] truncate">{t}</th>
+                        <th key={t} className="crm-label px-2 md:px-4 py-3 md:py-4 text-xs md:text-xs text-center min-w-[52px] max-w-[64px] truncate">{t}</th>
                       ))}
-                      <th className="crm-label px-3 md:px-6 py-3 md:py-4 text-[10px] uppercase tracking-widest text-center min-w-[56px]">Total</th>
+                      <th className="crm-label px-3 md:px-6 py-3 md:py-4 text-xs text-center min-w-[56px]">Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
@@ -683,8 +683,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                       <tr key={row.code} className="hover:bg-slate-800/20 transition-colors">
                         <td className="sticky left-0 z-[1] px-3 md:px-6 py-3 md:py-4 min-w-[100px]" style={{ backgroundColor: 'var(--color-surface-card)' }}>
                           <div className="flex flex-col">
-                            <span className="text-[10px] md:text-xs font-black" style={{ color: 'var(--color-text-primary)' }}>{row.code}</span>
-                            <span className="crm-label text-[8px] md:text-[9px] uppercase leading-snug">{row.desc}</span>
+                            <span className="text-xs md:text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>{row.code}</span>
+                            <span className="crm-label text-xs md:text-xs leading-snug">{row.desc}</span>
                           </div>
                         </td>
                          {TECHNICIANS.map(t => (
@@ -701,12 +701,12 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                                 setTechData(newData);
                                 saveToFirestore({ techData: newData });
                               }}
-                              className="w-12 md:w-16 input-field px-1 py-1 text-center text-xs font-black"
+                              className="w-12 md:w-16 input-field px-1 py-1 text-center text-xs font-semibold"
                             />
                           </td>
                         ))}
                         <td className="px-6 py-4 text-center">
-                          <span className="text-xs font-black text-brand-secondary">
+                          <span className="text-xs font-semibold text-brand-secondary">
                             {TECHNICIANS.reduce((sum, t) => sum + (Number(row[t]) || 0), 0)}
                           </span>
                         </td>
@@ -715,11 +715,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
-                      <td className="px-6 py-6 text-[10px] font-black uppercase tracking-widest italic" style={{ color: 'var(--color-text-primary)' }}>Tech Grand Totals</td>
+                      <td className="px-6 py-6 text-xs font-semibold " style={{ color: 'var(--color-text-primary)' }}>Tech Grand Totals</td>
                       {TECHNICIANS.map(t => (
-                        <td key={t} className="px-4 py-6 text-center text-base font-black" style={{ color: 'var(--color-text-primary)' }}>{techTotals.totals[t]}</td>
+                        <td key={t} className="px-4 py-6 text-center text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{techTotals.totals[t]}</td>
                       ))}
-                      <td className="px-6 py-6 text-center text-lg font-black text-brand-primary">{techTotals.grand}</td>
+                      <td className="px-6 py-6 text-center text-lg font-semibold text-brand-primary">{techTotals.grand}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -729,8 +729,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                   {TECHNICIANS.map(t => (
                     <div key={t} className="p-4 card-base rounded-2xl flex flex-col items-center">
-                      <p className="crm-label text-[9px] uppercase mb-2">{t}</p>
-                      <p className="text-lg font-black text-emerald-400">
+                      <p className="crm-label text-xs mb-2">{t}</p>
+                      <p className="text-lg font-semibold text-emerald-400">
                         ${techEarnings.earnings[t].toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </p>
                     </div>
@@ -747,8 +747,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     <Settings className="text-brand-primary" />
                   </div>
                   <div>
-                    <h4 className="text-xl font-black tracking-tighter uppercase" style={{ color: 'var(--color-text-primary)' }}>Incentive Pricing</h4>
-                    <p className="crm-label text-xs uppercase tracking-widest mt-1">Configure payout values per Operation Code</p>
+                    <h4 className="text-xl font-semibold tracking-tighter " style={{ color: 'var(--color-text-primary)' }}>Incentive Pricing</h4>
+                    <p className="crm-label text-xs mt-1">Configure payout values per Operation Code</p>
                   </div>
                 </div>
 
@@ -756,11 +756,11 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                   {INITIAL_PERFORMANCE_DATA.map(d => (
                     <div key={d.code} className="flex items-center justify-between p-4 card-base rounded-2xl hover:border-slate-700 transition-colors">
                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[10px] font-black border" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xs font-semibold border" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>
                             {d.code}
                           </div>
                           <div>
-                            <p className="text-[10px] font-black uppercase leading-none mb-1" style={{ color: 'var(--color-text-primary)' }}>{d.desc}</p>
+                            <p className="text-xs font-semibold leading-none mb-1" style={{ color: 'var(--color-text-primary)' }}>{d.desc}</p>
                           </div>
                        </div>
                        <div className="relative">
@@ -778,7 +778,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                               setPrices(newPrices);
                               saveToFirestore({ prices: newPrices });
                             }}
-                            className="input-field pl-8 pr-4 py-2.5 text-sm font-black w-32"
+                            className="input-field pl-8 pr-4 py-2.5 text-sm font-semibold w-32"
                           />
                        </div>
                     </div>
@@ -792,13 +792,13 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           <Trash2 className="text-rose-500" size={20} />
                         </div>
                         <div>
-                          <p className="text-xs font-black text-rose-500 uppercase">Reset Competition</p>
-                          <p className="crm-label text-[10px] uppercase tracking-widest">This will clear all current entry data</p>
+                          <p className="text-xs font-semibold text-rose-500 ">Reset Competition</p>
+                          <p className="crm-label text-xs ">This will clear all current entry data</p>
                         </div>
                      </div>
                      <button
                       onClick={() => setShowClearConfirm(true)}
-                      className="px-8 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      className="px-8 py-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-2xl text-xs font-semibold transition-all"
                      >
                        Reset All Statistics
                      </button>
@@ -812,7 +812,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     <Info className="text-emerald-500" size={16} />
                  </div>
                  <div className="flex-1">
-                    <h5 className="text-[10px] font-black uppercase tracking-[0.2em] mb-1" style={{ color: 'var(--color-text-primary)' }}>Local Storage Active</h5>
+                    <h5 className="text-xs font-semibold mb-1" style={{ color: 'var(--color-text-primary)' }}>Local Storage Active</h5>
                     <p className="crm-label text-xs leading-relaxed">
                       Your competition data is saved directly in this browser. You can export the state as a file to move it between devices, or clear it when a new month starts.
                     </p>
@@ -831,7 +831,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                         <div className="p-2.5 bg-brand-primary/10 rounded-xl">
                           <BarChart3 className="text-brand-primary" size={20} />
                         </div>
-                        <h4 className="text-lg font-black uppercase tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>Advisor Distribution</h4>
+                        <h4 className="text-lg font-semibold tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>Advisor Distribution</h4>
                      </div>
                   </div>
                   <div className="flex-1">
@@ -871,7 +871,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                       <div className="p-2.5 bg-brand-secondary/10 rounded-xl">
                         <Target className="text-brand-secondary" size={20} />
                       </div>
-                      <h4 className="text-lg font-black uppercase tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>Technician Leaderboard</h4>
+                      <h4 className="text-lg font-semibold tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>Technician Leaderboard</h4>
                    </div>
 
                    <div className="space-y-4 flex-1">
@@ -886,19 +886,19 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                                <div className="flex items-center justify-between gap-4 mb-3">
                                   <div className="flex items-center gap-4 min-w-0">
                                      <div className={cn(
-                                       "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-black border",
+                                       "w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-xs font-semibold border",
                                        i === 0 ? "bg-amber-500/10 text-amber-500 border-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"
                                      )}>
                                        {i + 1}
                                      </div>
                                      <div className="min-w-0">
-                                       <p className="text-sm font-black uppercase tracking-tight truncate" style={{ color: 'var(--color-text-primary)' }}>{tech.name}</p>
-                                       <p className="crm-label text-[9px] uppercase tracking-widest mt-0.5">Service Technician</p>
+                                       <p className="text-sm font-semibold tracking-tight truncate" style={{ color: 'var(--color-text-primary)' }}>{tech.name}</p>
+                                       <p className="crm-label text-xs mt-0.5">Service Technician</p>
                                      </div>
                                   </div>
                                   <div className="text-right shrink-0">
-                                    <p className="text-lg font-black" style={{ color: 'var(--color-text-primary)' }}>{tech.total}</p>
-                                    <p className="text-[9px] font-bold text-emerald-500 uppercase">Upsells Logged</p>
+                                    <p className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{tech.total}</p>
+                                    <p className="text-xs font-bold text-emerald-500 ">Upsells Logged</p>
                                   </div>
                                </div>
                                {/* Meter bar — same color family & weight as the Advisor Distribution chart beside it */}

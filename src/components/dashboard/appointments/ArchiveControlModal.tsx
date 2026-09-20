@@ -58,7 +58,7 @@ export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArc
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
         
         <div>
-          <h3 className="text-sm font-bold uppercase tracking-wider text-amber-400">
+          <h3 className="text-sm font-bold text-amber-400">
             ⚠️ Confirm Historical Metric Archive
           </h3>
           <p className="text-xs text-slate-400 mt-1">
@@ -67,7 +67,7 @@ export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArc
         </div>
 
         <div className="space-y-1.5 bg-slate-950 p-3 rounded-lg border border-slate-800">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+          <label className="text-xs font-bold text-slate-500 tracking-wide block">
             Target Archive Period
           </label>
           <select 
@@ -97,13 +97,13 @@ export function ArchiveControlModal({ isOpen, onClose, currentData, onConfirmArc
         <div className="flex gap-2 pt-2">
           <button 
             onClick={onClose}
-            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2.5 rounded-xl uppercase transition-all"
+            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2.5 rounded-xl transition-all"
           >
             Cancel
           </button>
           <button 
             onClick={handleCommitArchive}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-indigo-950/40"
+            className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-lg shadow-indigo-950/40"
           >
             Confirm & Push to Archive
           </button>

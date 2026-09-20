@@ -292,7 +292,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                               <div className="flex items-center gap-3">
                                 <span
                                   className={cn(
-                                    "w-6 h-6 rounded-lg flex items-center justify-center font-black text-[10px] border shrink-0",
+                                    "w-6 h-6 rounded-lg flex items-center justify-center font-semibold text-xs border shrink-0",
                                     isTopRank
                                       ? "bg-brand-primary/10 text-brand-primary border-brand-primary/30 animate-pulse"
                                       : "border-transparent"
@@ -303,12 +303,12 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                                 </span>
                                 <div className="flex flex-col">
                                   <span className={cn(
-                                    "text-xs font-black uppercase tracking-wide",
+                                    "text-xs font-semibold tracking-wide",
                                     isSelected ? "text-brand-primary" : "group-hover/row:text-brand-primary transition-colors"
                                   )}>
                                     {rep.name}
                                   </span>
-                                  <span className="text-[8px] font-black uppercase tracking-widest mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+                                  <span className="text-xs font-semibold mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
                                     {rep.customers.length} Accounts Monitored
                                   </span>
                                 </div>
@@ -319,7 +319,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                             </td>
                             <td className="text-xs font-bold">
                               <span
-                                className="px-2.5 py-1 rounded-lg border font-mono text-[9px] uppercase tracking-wide"
+                                className="px-2.5 py-1 rounded-lg border font-mono text-xs tracking-wide"
                                 style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}
                               >
                                 {rep.favModel}
@@ -328,7 +328,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                             <td className="text-center">
                               <div className="flex flex-col items-center gap-1">
                                 <span className={cn(
-                                  "text-xs font-black font-mono",
+                                  "text-xs font-semibold font-mono",
                                   rep.serviceMatchingRate >= 80 ? "text-emerald-500" : rep.serviceMatchingRate >= 50 ? "text-amber-500" : "text-rose-500"
                                 )}>
                                   {rep.serviceMatchingRate}%
@@ -347,7 +347,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                             <td className="text-center">
                               <span
                                 className={cn(
-                                  "text-[10px] font-black font-mono px-2 py-0.5 rounded-md border",
+                                  "text-xs font-semibold font-mono px-2 py-0.5 rounded-md border",
                                   rep.activeAlerts > 0
                                     ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
                                     : "border-transparent"
@@ -391,7 +391,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                     >
                       <span
                         className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs border shrink-0",
+                          "w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-xs border shrink-0",
                           isTopRank
                             ? "bg-brand-primary/10 text-brand-primary border-brand-primary/30"
                             : "border-transparent"
@@ -409,13 +409,13 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold tabular-nums">{Math.round(rep.totalSales)}</p>
                         <p className={cn(
-                          "text-[10px] font-semibold tabular-nums",
+                          "text-xs font-semibold tabular-nums",
                           rep.serviceMatchingRate >= 80 ? "text-emerald-500" : rep.serviceMatchingRate >= 50 ? "text-amber-500" : "text-rose-500"
                         )}>
                           {rep.serviceMatchingRate}% retention
                         </p>
                         {rep.activeAlerts > 0 && (
-                          <p className="text-[10px] font-semibold text-rose-500">{rep.activeAlerts} alert{rep.activeAlerts === 1 ? '' : 's'}</p>
+                          <p className="text-xs font-semibold text-rose-500">{rep.activeAlerts} alert{rep.activeAlerts === 1 ? '' : 's'}</p>
                         )}
                       </div>
                       <ChevronRight size={16} className="shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
@@ -449,7 +449,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                   <UserIcon size={32} />
                 </div>
                 <h4 className="crm-section-title">Salesperson drilldown portal</h4>
-                <p className="crm-label text-[10px] mt-2 max-w-xs mx-auto leading-relaxed">
+                <p className="crm-label text-xs mt-2 max-w-xs mx-auto leading-relaxed">
                   Select a registered sales representative from the leaderboard on the left to inspect their managed accounts, check alert statuses, and read customer notes.
                 </p>
               </motion.div>
@@ -469,21 +469,21 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                       <Award size={24} />
                     </div>
                     <div>
-                      <span className="text-[8px] font-black text-brand-primary uppercase tracking-[0.25em]">Automotive advisor profile</span>
-                      <h4 className="text-lg font-black uppercase mt-0.5" style={{ color: 'var(--color-text-primary)' }}>{selectedSalesman}</h4>
+                      <span className="text-xs font-semibold text-brand-primary ">Automotive advisor profile</span>
+                      <h4 className="text-lg font-semibold mt-0.5" style={{ color: 'var(--color-text-primary)' }}>{selectedSalesman}</h4>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t text-center" style={{ borderColor: 'var(--color-surface-border)' }}>
                     <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}>
-                      <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>Deliveries</p>
-                      <p className="text-xl font-mono font-black mt-1" style={{ color: 'var(--color-text-primary)' }}>
+                      <p className="text-xs font-semibold " style={{ color: 'var(--color-text-tertiary)' }}>Deliveries</p>
+                      <p className="text-xl font-mono font-semibold mt-1" style={{ color: 'var(--color-text-primary)' }}>
                         {Math.round(activeSalesmanDetails?.totalSales || 0)}
                       </p>
                     </div>
                     <div className="p-3 rounded-xl border" style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}>
-                      <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: 'var(--color-text-tertiary)' }}>S2S retention</p>
-                      <p className="text-xl font-mono font-black text-brand-secondary mt-1">
+                      <p className="text-xs font-semibold " style={{ color: 'var(--color-text-tertiary)' }}>S2S retention</p>
+                      <p className="text-xl font-mono font-semibold text-brand-secondary mt-1">
                         {activeSalesmanDetails?.serviceMatchingRate}%
                       </p>
                     </div>
@@ -492,7 +492,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
 
                 {/*Managed Customers List */}
                 <div className="space-y-3">
-                  <span className="crm-label text-[9px] uppercase tracking-widest">Managed account directory</span>
+                  <span className="crm-label text-xs ">Managed account directory</span>
 
                   <div className="space-y-2.5 max-h-[28rem] overflow-y-auto pr-1">
                     {activeSalesmanDetails?.customers.map(c => {
@@ -507,31 +507,31 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                           style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: alertActive ? undefined : 'var(--color-surface-border)' }}
                         >
                           {alertActive && (
-                            <div className="absolute top-0 right-0 p-1.5 bg-rose-500 text-slate-950 font-black text-[7px] uppercase tracking-wider rounded-bl-xl select-none leading-none">
+                            <div className="absolute top-0 right-0 p-1.5 bg-rose-500 text-slate-950 font-semibold text-[7px] rounded-bl-xl select-none leading-none">
                               Alert
                             </div>
                           )}
 
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-xs font-black group-hover/cust:text-brand-primary transition-colors uppercase italic" style={{ color: 'var(--color-text-primary)' }}>{formatCustomerDisplayName(c.firstName, c.lastName)}</p>
-                              <span className="inline-block text-[8px] font-mono font-bold uppercase mt-1 leading-none" style={{ color: 'var(--color-text-tertiary)' }}>{c.year} {c.model} &bull; <span className="text-brand-secondary">{c.vinLast8}</span></span>
+                              <p className="text-xs font-semibold group-hover/cust:text-brand-primary transition-colors " style={{ color: 'var(--color-text-primary)' }}>{formatCustomerDisplayName(c.firstName, c.lastName)}</p>
+                              <span className="inline-block text-xs font-mono font-bold mt-1 leading-none" style={{ color: 'var(--color-text-tertiary)' }}>{c.year} {c.model} &bull; <span className="text-brand-secondary">{c.vinLast8}</span></span>
                             </div>
                           </div>
 
                           {/* Customer note popup inline display */}
                           {c.notes && (
                             <div className="p-3 rounded-xl border space-y-1" style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}>
-                              <span className="text-[8px] font-black text-brand-secondary uppercase tracking-widest block select-none">Sales representative customer note</span>
-                              <p className="text-[10px] font-medium italic leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+                              <span className="text-xs font-semibold text-brand-secondary block select-none">Sales representative customer note</span>
+                              <p className="text-xs font-medium leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
                                 "{c.notes}"
                               </p>
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between text-[9px] font-bold pt-2 border-t" style={{ color: 'var(--color-text-tertiary)', borderColor: 'var(--color-surface-border)' }}>
+                          <div className="flex items-center justify-between text-xs font-bold pt-2 border-t" style={{ color: 'var(--color-text-tertiary)', borderColor: 'var(--color-surface-border)' }}>
                             <span>Phone: {c.phone || "No Phone"}</span>
-                            <span>Alert: <span className={alertActive ? "text-rose-400 font-black" : "text-emerald-400 font-bold"}>{alertActive ? "TRIGGERED" : "HEALTHY"}</span></span>
+                            <span>Alert: <span className={alertActive ? "text-rose-400 font-semibold" : "text-emerald-400 font-bold"}>{alertActive ? "TRIGGERED" : "HEALTHY"}</span></span>
                           </div>
                         </div>
                       );

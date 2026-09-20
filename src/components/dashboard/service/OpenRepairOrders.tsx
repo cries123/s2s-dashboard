@@ -306,7 +306,7 @@ export default function OpenRepairOrders({
                         {row.roNumber}
                         {isLoadingRow ? <Loader2 size={12} className="animate-spin text-brand-primary" /> : null}
                         {row.tag ? (
-                          <span className="text-[10px] font-sans font-normal text-slate-500">· {row.tag}</span>
+                          <span className="text-xs font-sans font-normal text-slate-500">· {row.tag}</span>
                         ) : null}
                       </div>
                       <div className="mt-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -327,7 +327,7 @@ export default function OpenRepairOrders({
                               </span>
                             )}
                             {row.isWaiting ? (
-                              <span className="shrink-0 text-[9px] font-bold uppercase bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
+                              <span className="shrink-0 text-xs font-bold bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
                                 Wait
                               </span>
                             ) : null}
@@ -338,7 +338,7 @@ export default function OpenRepairOrders({
                             ) : null}
                           </>
                         ) : (
-                          <span className="text-slate-500 italic">—</span>
+                          <span className="text-slate-500 ">—</span>
                         )}
                       </div>
                     </div>
@@ -359,7 +359,7 @@ export default function OpenRepairOrders({
                       <p className="crm-label">Vehicle</p>
                       <p className="text-slate-200 truncate">{row.vehicleLabel || '—'}</p>
                       {row.vinLast8 ? (
-                        <p className="text-[10px] text-slate-500 font-mono">…{row.vinLast8}</p>
+                        <p className="text-xs text-slate-500 font-mono">…{row.vinLast8}</p>
                       ) : null}
                     </div>
                     <div>
@@ -387,7 +387,7 @@ export default function OpenRepairOrders({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
-                <tr className="border-b border-white/5 bg-slate-900/50 text-[10px] uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-white/5 bg-slate-900/50 text-xs text-slate-500">
                   <th className="px-4 py-3 font-semibold">
                     <button
                       type="button"
@@ -464,7 +464,7 @@ export default function OpenRepairOrders({
                                 </span>
                               )}
                               {row.isWaiting ? (
-                                <span className="shrink-0 text-[9px] font-bold uppercase bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
+                                <span className="shrink-0 text-xs font-bold bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
                                   Wait
                                 </span>
                               ) : null}
@@ -473,17 +473,17 @@ export default function OpenRepairOrders({
                               ) : null}
                             </>
                           ) : (
-                            <span className="text-slate-500 italic">—</span>
+                            <span className="text-slate-500 ">—</span>
                           )}
                         </div>
-                        <p className="md:hidden text-[10px] text-slate-500 mt-0.5 truncate max-w-[12rem]">
+                        <p className="md:hidden text-xs text-slate-500 mt-0.5 truncate max-w-[12rem]">
                           {row.vehicleLabel || row.vinLast8 || ''}
                         </p>
                       </td>
                       <td className="px-4 py-3 text-slate-300 hidden md:table-cell">
                         <div className="truncate max-w-[10rem]">{row.vehicleLabel || '—'}</div>
                         {row.vinLast8 ? (
-                          <div className="text-[10px] text-slate-500 font-mono">…{row.vinLast8}</div>
+                          <div className="text-xs text-slate-500 font-mono">…{row.vinLast8}</div>
                         ) : null}
                       </td>
                       <td className="px-4 py-3 text-slate-300 hidden lg:table-cell whitespace-nowrap">

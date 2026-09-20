@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { AlertTriangle, ArrowRight, Bell, Layers, Search, UserPlus, Users, Wrench } from 'lucide-react';
+import { ArrowRight, Bell, CalendarDays, Search, UserPlus, Users } from 'lucide-react';
 import { db } from '../../../firebase';
 import type { Customer, DispatchRepairOrder, User } from '../../../types';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
@@ -10,7 +10,8 @@ import { normalizeDispatchOrder } from '../../../lib/dispatchTransitions';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
 import { isPreviewMode } from '../../../lib/previewMode';
 import { getDispatchDatePst } from '../../../lib/dispatchPst';
-import { appointmentTrackerDoc, toLocalDateString } from '../../../lib/appointmentTracker';
+import { useTodayAppointments } from '../../../hooks/useTodayAppointments';
+import { formatScheduleTimeDetail } from '../../../lib/appointmentSchedule';
 import { buildPreviewDispatchOrders } from '../../../lib/previewFixtures';
 import { KpiStrip, type KpiTile } from '../../ui/KpiStrip';
 import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
@@ -22,8 +23,10 @@ interface HomeDashboardProps {
   customersLoading: boolean;
   currentDealershipId: string;
   dealershipName: string;
+  /** When the dispatch board is off, its counts are meaningless — nobody works it. */
+  dispatchEnabled?: boolean;
   currentUser: User;
-  onNavigate: (tab: 'alerts' | 'dispatch' | 'search' | 'add' | 'open-ros') => void;
+  onNavigate: (tab: 'alerts' | 'dispatch' | 'search' | 'add' | 'open-ros' | 'schedule') => void;
   onViewProfile: (customer: Customer) => void;
 }
 
@@ -44,13 +47,14 @@ function greeting(now = new Date()): string {
 /**
  * The first screen after sign-in: today's numbers, then the shortest path into the
  * work. Everything here is derived from data other screens already load, so it adds
- * one listener (dispatch orders) and nothing else.
+ * store-scoped dispatch and appointment listeners.
  */
 export function HomeDashboard({
   customers,
   customersLoading,
   currentDealershipId,
   dealershipName,
+  dispatchEnabled = true,
   currentUser,
   onNavigate,
   onViewProfile,
@@ -66,6 +70,7 @@ export function HomeDashboard({
       return;
     }
     if (!currentDealershipId) return;
+    setOrders([]);
     setOrdersLoading(true);
     const q = query(
       collection(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'dispatchOrders'),
@@ -87,36 +92,14 @@ export function HomeDashboard({
     return () => unsub();
   }, [currentDealershipId]);
 
-  const now = useMemo(() => new Date(), []);
+  const appointments = useTodayAppointments(currentDealershipId);
+  const now = useMemo(() => new Date(), [appointments.date]);
 
   const activeOrders = useMemo(
     () => orders.filter((o) => !o.isCompleted && (o.lifecycleStatus ?? 'active') === 'active'),
     [orders]
   );
-  const pastPromise = useMemo(
-    () => activeOrders.filter((o) => o.promiseTimeAt && new Date(o.promiseTimeAt).getTime() < now.getTime()),
-    [activeOrders, now]
-  );
-
-  // Appointments booked for today, from the same tracker the Operations tab uses.
-  const [todayAppointments, setTodayAppointments] = useState<number | null>(null);
-  useEffect(() => {
-    if (isPreviewMode || !currentDealershipId) {
-      setTodayAppointments(isPreviewMode ? 0 : null);
-      return;
-    }
-    const today = toLocalDateString(new Date());
-    const ref = appointmentTrackerDoc(db, currentDealershipId, today);
-    const unsub = onSnapshot(
-      ref,
-      (snap) => setTodayAppointments(snap.exists() ? Number(snap.data()?.count) || 0 : 0),
-      (err) => {
-        console.error('[Home] today appointments', err);
-        setTodayAppointments(null);
-      }
-    );
-    return () => unsub();
-  }, [currentDealershipId]);
+  const todayAppointments = appointments.count;
 
   const alertRows = useMemo(() => {
     const rows = customers
@@ -141,22 +124,19 @@ export function HomeDashboard({
     return n;
   }, [customers, now]);
 
-  const byDepartment = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const o of activeOrders) {
-      const key = o.departmentName || String(o.department || 'unassigned');
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [activeOrders]);
-
   const tiles: KpiTile[] = [
-    {
-      label: 'On the board',
-      value: String(activeOrders.length),
-      sublabel: 'active repair orders',
-      tone: 'info',
-    },
+    // PBS keeps syncing dispatch orders even when the board is switched off for the
+    // store. Counting them then puts a number nobody acts on in the most prominent
+    // slot in the app — and it reads as "101 past promise" precisely because a board
+    // nobody opens never gets closed out.
+    ...(dispatchEnabled
+      ? [{
+          label: 'On the board',
+          value: String(activeOrders.length),
+          sublabel: 'active repair orders',
+          tone: 'info' as const,
+        }]
+      : []),
     {
       label: 'Appointments today',
       value: todayAppointments === null ? '—' : todayAppointments.toLocaleString(),
@@ -260,45 +240,39 @@ export function HomeDashboard({
         </section>
 
         <section className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="crm-section-title flex items-center gap-2">
-              <Wrench size={15} className="text-brand-primary" /> Shop right now
+              <CalendarDays size={16} className="text-brand-primary" /> Appointments today
             </h2>
-            <button type="button" onClick={() => onNavigate('dispatch')} className="crm-label hover:text-brand-primary inline-flex items-center gap-1">
-              Dispatch board <ArrowRight size={13} />
+            <button type="button" onClick={() => onNavigate('schedule')} className="btn-secondary text-sm">
+              Full schedule <ArrowRight size={14} />
             </button>
           </div>
-
-          {ordersLoading ? (
-            <TableSkeleton rows={4} cols={2} />
-          ) : activeOrders.length === 0 ? (
-            <EmptyState
-              title="Board is clear"
-              description="No active repair orders. New ROs appear here as they are dispatched."
-              action={
-                <button type="button" onClick={() => onNavigate('dispatch')} className="btn-secondary text-sm">
-                  <Layers size={15} /> Open dispatch
-                </button>
-              }
-            />
-          ) : (
-            <div className="card-base p-4 space-y-3">
-              {pastPromise.length > 0 && (
-                <div className="flex items-center gap-2 rounded-md px-3 py-2 badge-error text-sm">
-                  <AlertTriangle size={15} />
-                  {pastPromise.length} past promise time
-                </div>
-              )}
-              <ul className="space-y-2">
-                {byDepartment.map(([dept, count]) => (
-                  <li key={dept} className="flex items-center justify-between text-sm">
-                    <span className="capitalize">{dept.replace(/_/g, ' ')}</span>
-                    <span className="font-semibold tabular-nums">{count}</span>
+          <div className="card-base p-4 space-y-4">
+            <p className="text-sm text-text-secondary">
+              {appointments.date} · {todayAppointments === null ? 'Count unavailable' : todayAppointments.toLocaleString() + ' appointments'}
+            </p>
+            {appointments.loading ? <TableSkeleton rows={3} cols={2} /> : appointments.error ? (
+              <p role="status" className="text-sm text-text-secondary">Appointments could not be loaded. Open the schedule to retry.</p>
+            ) : appointments.slots.length ? (
+              <ul className="divide-y divide-surface-border max-h-80 overflow-y-auto">
+                {appointments.slots.map(slot => (
+                  <li key={slot.id} className="py-3 flex gap-3 text-sm">
+                    <span className="font-semibold tabular-nums shrink-0 w-20">{formatScheduleTimeDetail(slot.startMinutes)}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium break-words">{slot.customerName}</p>
+                      <p className="text-text-secondary break-words">{slot.vehicleLabel}</p>
+                      <p className="text-text-secondary break-words">{slot.concern || slot.status}</p>
+                    </div>
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-text-secondary">{todayAppointments === 0
+                ? 'No appointments scheduled for today.'
+                : 'Appointment details have not been loaded yet. Open the full schedule to check availability.'}</p>
+            )}
+          </div>
 
           <div className="card-base p-4">
             <p className="crm-label mb-2 flex items-center gap-2"><Users size={13} /> Quick links</p>

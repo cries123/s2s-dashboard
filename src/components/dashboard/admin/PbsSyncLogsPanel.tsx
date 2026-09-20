@@ -48,16 +48,16 @@ export function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
           )}
           <span
             className={cn(
-              'text-[10px] font-black uppercase tracking-wider',
+              'text-xs font-semibold ',
               entry.ok ? 'text-emerald-300' : 'text-rose-300'
             )}
           >
             {entry.ok ? 'Success' : 'Failed'}
           </span>
-          <span className="text-[10px] text-slate-600">·</span>
-          <span className="text-[10px] text-slate-500 font-medium">{triggerLabel(entry)}</span>
+          <span className="text-xs text-slate-600">·</span>
+          <span className="text-xs text-slate-500 font-medium">{triggerLabel(entry)}</span>
         </div>
-        <span className="text-[10px] text-slate-600 font-mono shrink-0">{formatWhen(entry.finishedAt)}</span>
+        <span className="text-xs text-slate-600 font-mono shrink-0">{formatWhen(entry.finishedAt)}</span>
       </div>
 
       <p className="text-xs text-slate-300 mt-2 leading-relaxed">{entry.summary}</p>
@@ -82,9 +82,9 @@ export function LogRow({ entry }: { entry: PbsSyncLogEntry }) {
         ].map((chip) => (
           <span
             key={chip.label}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/5 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-400"
+            className="inline-flex items-center gap-1 rounded-lg border border-white/5 bg-slate-950/60 px-2 py-1 text-xs text-slate-400"
           >
-            <span className="font-black uppercase tracking-wider text-slate-500">{chip.label}</span>
+            <span className="font-semibold text-slate-500">{chip.label}</span>
             <span className="font-mono text-slate-200">{chip.value}</span>
           </span>
         ))}
@@ -146,13 +146,13 @@ export function PbsSyncLogsPanel({ dealershipId, settings }: PbsSyncLogsPanelPro
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <Clock size={15} className="text-brand-primary" />
-          <h4 className="text-sm font-black text-white uppercase tracking-wider">PBS sync log</h4>
+          <h4 className="text-sm font-semibold text-white ">PBS sync log</h4>
         </div>
         <button
           type="button"
           onClick={refreshStatus}
           disabled={statusLoading}
-          className="text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-white transition-colors"
+          className="text-xs font-semibold text-slate-500 hover:text-white transition-colors"
         >
           Refresh
         </button>
@@ -167,7 +167,7 @@ export function PbsSyncLogsPanel({ dealershipId, settings }: PbsSyncLogsPanelPro
         <div className="text-center py-8">
           <Users size={24} className="mx-auto text-slate-600 mb-2" />
           <p className="text-xs text-slate-500">No PBS syncs recorded yet.</p>
-          <p className="text-[10px] text-slate-600 mt-1">Use Admin → PBS Sync → Pull changes to import data.</p>
+          <p className="text-xs text-slate-600 mt-1">Use Admin → PBS Sync → Pull changes to import data.</p>
         </div>
       ) : (
         <ul className="max-h-[32rem] overflow-y-auto pr-1">

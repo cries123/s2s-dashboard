@@ -62,11 +62,11 @@ export function DealershipAnnouncementSettings({
     <div className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-950/10 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <label className="text-[9px] font-black text-amber-300/90 uppercase tracking-widest italic flex items-center gap-2">
+          <label className="text-xs font-semibold text-amber-300/90 flex items-center gap-2">
             <Megaphone size={12} />
             Live announcement — {dealershipName}
           </label>
-          <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-1 max-w-xl">
+          <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1 max-w-xl">
             Publishes a banner at the top of the app for all logged-in users at this store. Updates
             appear instantly without a refresh.
           </p>
@@ -99,7 +99,7 @@ export function DealershipAnnouncementSettings({
       />
 
       {announcement?.updatedAt ? (
-        <p className="text-[9px] text-slate-600">
+        <p className="text-xs text-slate-600">
           Last published{' '}
           {new Date(announcement.updatedAt).toLocaleString()}
           {announcement.updatedBy ? ` · ${announcement.updatedBy}` : ''}
@@ -111,7 +111,7 @@ export function DealershipAnnouncementSettings({
           type="button"
           onClick={publish}
           disabled={saving || !draft.trim()}
-          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-[10px] font-black uppercase tracking-wider text-slate-950 transition-colors"
+          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-xs font-semibold text-slate-950 transition-colors"
         >
           Publish announcement
         </button>
@@ -119,7 +119,7 @@ export function DealershipAnnouncementSettings({
           type="button"
           onClick={clear}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-700 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-rose-300 hover:border-rose-900/40 transition-colors"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-700 text-xs font-semibold text-slate-400 hover:text-rose-300 hover:border-rose-900/40 transition-colors"
         >
           <Trash2 size={12} />
           Clear

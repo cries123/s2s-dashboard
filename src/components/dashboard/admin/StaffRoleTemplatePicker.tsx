@@ -13,7 +13,7 @@ interface StaffRoleTemplatePickerProps {
 export function StaffRoleTemplatePicker({ value, onChange, disabled }: StaffRoleTemplatePickerProps) {
   return (
     <div className="space-y-2">
-      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+      <label className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
         <Users size={11} className="text-brand-primary" />
         Role template on approval
       </label>
@@ -33,8 +33,8 @@ export function StaffRoleTemplatePicker({ value, onChange, disabled }: StaffRole
                   : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'
               )}
             >
-              <p className="text-[10px] font-black uppercase text-white">{template.label}</p>
-              <p className="text-[10px] text-slate-500 mt-1 leading-snug">{template.description}</p>
+              <p className="text-xs font-semibold text-white">{template.label}</p>
+              <p className="text-xs text-slate-500 mt-1 leading-snug">{template.description}</p>
             </button>
           );
         })}

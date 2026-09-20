@@ -39,7 +39,7 @@ export function AiUsageLogsPanel() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em]">
+        <div className="flex items-center gap-2 text-brand-primary text-xs font-semibold ">
           <Cpu size={12} />
           Platform AI telemetry
         </div>
@@ -50,7 +50,7 @@ export function AiUsageLogsPanel() {
 
   return (
     <div className="space-y-4 animate-in fade-in">
-      <div className="flex items-center gap-2 text-brand-primary text-[9px] font-black uppercase tracking-[0.25em]">
+      <div className="flex items-center gap-2 text-brand-primary text-xs font-semibold ">
         <Cpu size={12} />
         Platform AI telemetry
       </div>
@@ -80,12 +80,12 @@ export function AiUsageLogsPanel() {
                     {log.usage?.totalTokenCount?.toLocaleString() ?? '—'} tok
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 font-mono">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-mono">
                   <span>{log.timestamp?.toDate?.()?.toLocaleString?.() || '—'}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-slate-400">{log.userEmail || '—'}</span>
-                  <span className="text-brand-primary uppercase font-black">
+                  <span className="text-brand-primary font-semibold">
                     {log.dealershipId || '—'}
                   </span>
                 </div>
@@ -98,7 +98,7 @@ export function AiUsageLogsPanel() {
             <div className="overflow-x-auto max-h-[560px]">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-900/80 sticky top-0">
-                  <tr className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                  <tr className="text-xs font-semibold text-slate-500">
                     <th className="px-4 py-3">When</th>
                     <th className="px-4 py-3">Action</th>
                     <th className="px-4 py-3">User</th>
@@ -109,12 +109,12 @@ export function AiUsageLogsPanel() {
                 <tbody className="divide-y divide-slate-800">
                   {logs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-900/40">
-                      <td className="px-4 py-3 text-slate-400 font-mono text-[10px]">
+                      <td className="px-4 py-3 text-slate-400 font-mono text-xs">
                         {log.timestamp?.toDate?.()?.toLocaleString?.() || '—'}
                       </td>
                       <td className="px-4 py-3 font-bold text-white">{log.action || '—'}</td>
                       <td className="px-4 py-3 text-slate-400">{log.userEmail || '—'}</td>
-                      <td className="px-4 py-3 text-brand-primary uppercase text-[10px] font-black">
+                      <td className="px-4 py-3 text-brand-primary text-xs font-semibold">
                         {log.dealershipId || '—'}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-emerald-400">

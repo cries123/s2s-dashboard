@@ -27,7 +27,7 @@ export function DispatchOverdueAlert({
         className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-500/50 bg-rose-950/50 text-rose-200"
       >
         <AlertTriangle size={14} className="text-rose-400 shrink-0 animate-pulse" />
-        <span className="text-[10px] font-black uppercase tracking-wider">
+        <span className="text-xs font-semibold ">
           {countLabel} overdue
         </span>
       </div>
@@ -49,14 +49,14 @@ export function DispatchOverdueAlert({
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-300">
+              <p className="text-xs font-semibold text-rose-300">
                 Promise time alert
               </p>
-              <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-tight mt-0.5">
+              <h2 className="text-sm sm:text-base font-semibold text-white tracking-tight mt-0.5">
                 {countLabel} past promise
               </h2>
             </div>
-            <p className="text-[10px] font-bold text-rose-300/90 shrink-0 tabular-nums">
+            <p className="text-xs font-bold text-rose-300/90 shrink-0 tabular-nums">
               Scroll →
             </p>
           </div>
@@ -78,17 +78,17 @@ export function DispatchOverdueAlert({
                     )}
                   >
                     <div className="flex items-center justify-between gap-1.5">
-                      <span className="text-xs font-black text-white tabular-nums truncate">
+                      <span className="text-xs font-semibold text-white tabular-nums truncate">
                         {ro.roNumber}
                       </span>
-                      <span className="text-[8px] font-black uppercase tracking-wider text-rose-300 shrink-0">
+                      <span className="text-xs font-semibold text-rose-300 shrink-0">
                         {state.countdownLabel}
                       </span>
                     </div>
-                    <p className="text-[9px] text-rose-100/90 truncate mt-0.5 leading-snug">
+                    <p className="text-xs text-rose-100/90 truncate mt-0.5 leading-snug">
                       {ro.customerName || ro.customerLastName || 'Guest'}
                     </p>
-                    <p className="text-[8px] font-bold uppercase tracking-wider text-rose-400/80 truncate mt-0.5">
+                    <p className="text-xs font-bold text-rose-400/80 truncate mt-0.5">
                       {dispatchLaneLabel(ro.department)}
                     </p>
                   </button>

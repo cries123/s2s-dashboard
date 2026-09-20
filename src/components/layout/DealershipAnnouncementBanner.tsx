@@ -47,7 +47,7 @@ export function DealershipAnnouncementBanner({
           <Megaphone size={14} className="text-amber-300" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-300/90 mb-0.5">
+          <p className="text-xs font-semibold text-amber-300/90 mb-0.5">
             Team announcement
           </p>
           <p className="text-sm font-medium text-amber-50 leading-relaxed whitespace-pre-wrap break-words">

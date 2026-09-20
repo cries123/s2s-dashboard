@@ -31,7 +31,7 @@ export function DealershipProfileField({
 
   return (
     <div className={cn('space-y-1.5', className)}>
-      <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+      <label className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
         <Building2 size={12} className="text-brand-primary" />
         {label}
         {!isAdmin && <Lock size={10} className="text-amber-500/80" aria-hidden />}
@@ -56,11 +56,11 @@ export function DealershipProfileField({
           aria-readonly
         >
           <span className="font-semibold truncate">{lockedDealership?.name ?? tenantProfile?.name ?? 'Assigned profile'}</span>
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-600 shrink-0">Locked</span>
+          <span className="text-xs font-semibold text-slate-600 shrink-0">Locked</span>
         </div>
       )}
 
-      <p className="text-[10px] text-slate-600 font-medium">
+      <p className="text-xs text-slate-600 font-medium">
         {isAdmin
           ? 'System admins may switch dashboard context. Changes apply to the active session view.'
           : `Your tenant (${tenantProfile?.name ?? tenantId}) is fixed from enrollment and cannot be changed.`}

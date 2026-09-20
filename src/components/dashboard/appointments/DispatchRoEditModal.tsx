@@ -124,11 +124,11 @@ export function DispatchRoEditModal({
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-800 bg-slate-950/95 px-5 py-4 backdrop-blur">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center gap-1.5">
+            <p className="text-xs font-semibold text-indigo-400 flex items-center gap-1.5">
               <Pencil size={12} />
               Edit repair order
             </p>
-            <h2 id="dispatch-ro-edit-title" className="text-lg font-black text-white uppercase tracking-tight mt-0.5">
+            <h2 id="dispatch-ro-edit-title" className="text-lg font-semibold text-white tracking-tight mt-0.5">
               {ro.roNumber}
             </h2>
           </div>
@@ -145,7 +145,7 @@ export function DispatchRoEditModal({
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              <label className="text-xs font-semibold text-slate-500 block">
                 First name
               </label>
               <input
@@ -158,7 +158,7 @@ export function DispatchRoEditModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              <label className="text-xs font-semibold text-slate-500 block">
                 Last name <span className="text-rose-400">*</span>
               </label>
               <input
@@ -175,7 +175,7 @@ export function DispatchRoEditModal({
 
           {matchCandidates.length > 0 ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-2 space-y-1 max-h-28 overflow-y-auto">
-              <p className="text-[8px] font-black uppercase tracking-widest text-slate-500 px-1">
+              <p className="text-xs font-semibold text-slate-500 px-1">
                 CRM matches
               </p>
               {matchCandidates.slice(0, 5).map((cust) => (
@@ -192,7 +192,7 @@ export function DispatchRoEditModal({
                       customerId: cust.id,
                     }))
                   }
-                  className="w-full text-left px-2 py-1.5 rounded-lg text-[10px] text-slate-300 hover:bg-indigo-950/40"
+                  className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-slate-300 hover:bg-indigo-950/40"
                 >
                   {cust.firstName} {cust.lastName}
                 </button>
@@ -201,7 +201,7 @@ export function DispatchRoEditModal({
           ) : null}
 
           <div className="space-y-1.5">
-            <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+            <label className="text-xs font-semibold text-slate-500 block">
               Customer concern
             </label>
             <textarea
@@ -214,7 +214,7 @@ export function DispatchRoEditModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+            <label className="text-xs font-semibold text-slate-500 block">
               Phone
             </label>
             <input
@@ -230,7 +230,7 @@ export function DispatchRoEditModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              <label className="text-xs font-semibold text-slate-500 block">
                 RO number <span className="text-rose-400">*</span>
               </label>
               <input
@@ -242,7 +242,7 @@ export function DispatchRoEditModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              <label className="text-xs font-semibold text-slate-500 block">
                 Tag <span className="text-rose-400">*</span>
               </label>
               <input
@@ -257,7 +257,7 @@ export function DispatchRoEditModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              <label className="text-xs font-semibold text-slate-500 block">
                 VIN last 8
               </label>
               <input
@@ -267,11 +267,11 @@ export function DispatchRoEditModal({
                 onChange={(e) =>
                   setValues((prev) => ({ ...prev, vinLastEight: e.target.value.toUpperCase() }))
                 }
-                className="input-field w-full font-mono uppercase"
+                className="input-field w-full font-mono "
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+              <label className="text-xs font-semibold text-slate-500 block">
                 Technician <span className="text-rose-400">*</span>
               </label>
               <select
@@ -329,7 +329,7 @@ export function DispatchRoEditModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
+            <label className="text-xs font-semibold text-slate-500 block">
               Status
             </label>
             <select

@@ -67,7 +67,7 @@ export function DispatchMobileBoard({
               type="button"
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'shrink-0 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider border transition-colors',
+                'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors',
                 activeTab === tab.id
                   ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-200'
                   : 'bg-slate-950 border-slate-800 text-slate-500'
@@ -98,12 +98,12 @@ export function DispatchMobileBoard({
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Inbox size={14} className="text-amber-300" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-white">Waiting Queue</span>
+                <span className="text-xs font-semibold text-white">Waiting Queue</span>
               </div>
-              <span className="text-[9px] font-black tabular-nums text-amber-200">{queueTickets.length}</span>
+              <span className="text-xs font-semibold tabular-nums text-amber-200">{queueTickets.length}</span>
             </div>
             {queueTickets.length === 0 ? (
-              <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-600 py-8 border border-dashed border-slate-800 rounded-xl">
+              <p className="text-center text-xs font-bold text-slate-600 py-8 border border-dashed border-slate-800 rounded-xl">
                 Queue is clear
               </p>
             ) : (
@@ -120,16 +120,16 @@ export function DispatchMobileBoard({
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <Inbox size={14} className="text-indigo-400" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
+              <span className="text-xs font-semibold text-slate-300">
                 {displayColumns.find((c) => c.id === activeTab)?.label || activeTab}
               </span>
             </div>
-            <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 tabular-nums">
+            <span className="text-xs font-semibold text-slate-500 tabular-nums">
               {cap && cap > 0 ? `${activeList.length}/${cap}` : activeList.length} tickets
             </span>
           </div>
           {activeList.length === 0 ? (
-            <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-600 py-12 border border-dashed border-slate-800 rounded-2xl">
+            <p className="text-center text-xs font-bold text-slate-600 py-12 border border-dashed border-slate-800 rounded-2xl">
               No tickets in this lane
             </p>
           ) : (

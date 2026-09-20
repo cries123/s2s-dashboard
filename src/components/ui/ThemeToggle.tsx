@@ -3,10 +3,7 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { cn } from '../../lib/utils';
 
-/**
- * Light / dark switch. Lives in Settings rather than the top bar until every screen
- * has been converted to theme tokens — see the "preview" note in SettingsPage.
- */
+/** Personal appearance control, shared by all workspace views. */
 export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
 

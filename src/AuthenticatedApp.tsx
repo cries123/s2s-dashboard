@@ -102,7 +102,7 @@ function NavDropdown({ label, isActive, children }: NavDropdownProps) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 rounded-xl text-[9.5px] font-black uppercase tracking-wider transition-all relative border shrink-0",
+          "flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 rounded-xl text-[9.5px] font-semibold normal-case tracking-normal transition-all relative border shrink-0",
           isActive
             ? "bg-white/10 text-white shadow-inner border-white/10"
             : "text-slate-400 hover:text-slate-200 border-transparent hover:bg-white/5"
@@ -156,7 +156,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
         onClick();
       }}
       className={cn(
-        "flex items-center justify-between px-3 py-2 text-[9.5px] font-black uppercase tracking-wider rounded-xl transition-all",
+        "flex items-center justify-between px-3 py-2 text-[9.5px] font-semibold normal-case tracking-normal rounded-xl transition-all",
         isActive
           ? "bg-brand-primary/20 text-brand-primary"
           : "text-slate-300 hover:bg-white/5 hover:text-white"
@@ -164,7 +164,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
     >
       <span>{children}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded-full ring-2 ring-slate-950 ml-2">
+        <span className="text-xs font-semibold bg-rose-500 text-white px-1.5 py-0.5 rounded-full ring-2 ring-slate-950 ml-2">
           {badge}
         </span>
       )}
@@ -503,9 +503,9 @@ function DashboardShell({ user }: { user: User }) {
             <Shield className="text-amber-500" size={40} />
           </div>
           <div className="space-y-3">
-            <h1 className="text-3xl font-black text-white tracking-tight">Access Restricted</h1>
+            <h1 className="text-3xl font-semibold text-white tracking-tight">Access Restricted</h1>
             <p className="text-slate-400 font-medium leading-relaxed">
-              Your account enrollment is currently <span className="text-amber-500 font-black">PENDING APPROVAL</span>.
+              Your account enrollment is currently <span className="text-amber-500 font-semibold">PENDING APPROVAL</span>.
             </p>
           </div>
           <button onClick={handleSignOut} className="btn-primary bg-slate-800 hover:bg-slate-700 w-full">Exit System</button>
@@ -572,10 +572,12 @@ function DashboardShell({ user }: { user: User }) {
         <div className="space-y-10">
           {activeTab === 'home' && (
             <HomeDashboard
+              key={currentDealershipId}
               customers={customers}
               customersLoading={customersLoading}
               currentDealershipId={currentDealershipId || 'hyundai'}
               dealershipName={currentDealership.name}
+              dispatchEnabled={dealershipSettings?.enableDispatchTab !== false}
               currentUser={currentUser}
               onNavigate={(tab) => setActiveTab(tab)}
               onViewProfile={setSelectedProfile}
@@ -627,6 +629,7 @@ function DashboardShell({ user }: { user: User }) {
           {activeTab === 'appointments' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <Appointments
+                key={currentDealershipId}
                 customers={customers}
                 currentUser={currentUser}
                 currentDealershipId={currentDealershipId || 'hyundai'}
@@ -639,6 +642,7 @@ function DashboardShell({ user }: { user: User }) {
 
           {activeTab === 'schedule' && (
             <DaySchedule
+              key={currentDealershipId}
               currentDealershipId={currentDealershipId || 'hyundai'}
               onError={(msg) => showNotification(msg, true)}
             />

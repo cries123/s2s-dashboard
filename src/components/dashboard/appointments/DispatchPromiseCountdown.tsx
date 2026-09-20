@@ -47,13 +47,13 @@ export function DispatchPromiseCountdown({
         )}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[8px] font-black uppercase tracking-wider text-slate-500">Promise</span>
+          <span className="text-xs font-semibold text-slate-500">Promise</span>
           <Clock size={10} className={cn('shrink-0', styles.text)} />
         </div>
         <p className={cn('text-[11px] font-bold tabular-nums leading-tight', styles.text)}>
           {state.countdownLabel}
         </p>
-        <p className={cn('text-[10px] font-medium tabular-nums leading-tight', styles.text, 'opacity-90')}>
+        <p className={cn('text-xs font-medium tabular-nums leading-tight', styles.text, 'opacity-90')}>
           {state.scheduledLabel}
         </p>
       </div>
@@ -71,11 +71,11 @@ export function DispatchPromiseCountdown({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Promise</span>
+        <span className="text-xs font-semibold text-slate-500">Promise</span>
         <Clock size={11} className={cn('shrink-0', styles.text)} />
       </div>
       <p className={cn('text-[11px] font-bold tabular-nums', styles.text)}>{state.countdownLabel}</p>
-      <p className="text-[9px] text-slate-500 font-medium truncate">{state.scheduledLabel}</p>
+      <p className="text-xs text-slate-500 font-medium truncate">{state.scheduledLabel}</p>
     </div>
   );
 }

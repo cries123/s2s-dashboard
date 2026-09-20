@@ -43,17 +43,17 @@ export function StoreWorkspaceDefaultsSettings({
   return (
     <div className="space-y-4 pt-4 border-t border-white/5">
       <div>
-        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+        <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Shield size={12} className="text-brand-primary" />
           New staff workspace defaults
         </label>
-        <p className="text-[10px] text-slate-500 mt-1 max-w-xl">
+        <p className="text-xs text-slate-500 mt-1 max-w-xl">
           Merged with the role template when a manager approves enrollment. Personal prefs can still be changed later.
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
         <div>
-          <label className="text-[9px] font-black uppercase text-slate-500">Follow-up SLA (days)</label>
+          <label className="text-xs font-semibold text-slate-500">Follow-up SLA (days)</label>
           <input
             type="number"
             min={1}
@@ -64,11 +64,11 @@ export function StoreWorkspaceDefaultsSettings({
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur();
             }}
-            className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-white"
+            className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-white"
           />
         </div>
         <div>
-          <label className="text-[9px] font-black uppercase text-slate-500">CRM density</label>
+          <label className="text-xs font-semibold text-slate-500">CRM density</label>
           <select
             value={defaults.crmDensity ?? 'standard'}
             onChange={(e) =>
@@ -86,7 +86,7 @@ export function StoreWorkspaceDefaultsSettings({
           </select>
         </div>
         <div>
-          <label className="text-[9px] font-black uppercase text-slate-500">Default landing tab</label>
+          <label className="text-xs font-semibold text-slate-500">Default landing tab</label>
           <select
             value={defaults.defaultLandingTab ?? ''}
             onChange={(e) =>

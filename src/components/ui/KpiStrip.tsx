@@ -41,7 +41,7 @@ export function KpiStrip({ tiles, columns = 4, className }: KpiStripProps) {
           <p className="crm-kpi-value mt-1">{tile.value}</p>
           {(tile.sublabel || tile.subvalue) && (
             <div className="mt-2 pt-2 border-t flex items-center justify-between gap-2" style={{ borderColor: 'var(--color-surface-border)' }}>
-              {tile.sublabel && <span className="crm-label text-[10px]">{tile.sublabel}</span>}
+              {tile.sublabel && <span className="crm-label text-xs">{tile.sublabel}</span>}
               {tile.subvalue && <span className="text-xs font-medium tabular-nums">{tile.subvalue}</span>}
             </div>
           )}

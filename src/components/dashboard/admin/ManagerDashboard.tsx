@@ -178,8 +178,8 @@ export default function ManagerDashboard({
     <div className="space-y-8 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-[10px] font-black text-brand-primary uppercase tracking-widest block mb-1">Manager Control Panel</span>
-          <h1 className="text-2xl font-black text-white uppercase tracking-wider">{tenantProfile?.name || tenantId}</h1>
+          <span className="text-xs font-semibold text-brand-primary block mb-1">Manager Control Panel</span>
+          <h1 className="text-2xl font-semibold text-white ">{tenantProfile?.name || tenantId}</h1>
           <p className="text-slate-500 text-sm mt-1">Dealership user administration, enrollments, and audit trail</p>
         </div>
         <div className="flex gap-2 p-1 bg-slate-900/80 border border-white/5 rounded-xl">
@@ -193,7 +193,7 @@ export default function ManagerDashboard({
               type="button"
               onClick={() => handleSubTabChange(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all',
                 subTab === tab.id ? 'bg-brand-primary text-white' : 'text-slate-400 hover:text-white'
               )}
             >
@@ -222,7 +222,7 @@ export default function ManagerDashboard({
 
       {subTab === 'settings' && (
         <div className="card-base p-8 max-w-lg">
-          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6">DMS Configuration</h3>
+          <h3 className="text-sm font-semibold text-white mb-6">DMS Configuration</h3>
           <p className="text-xs text-slate-500 mb-4">
             Saved automatically for <span className="text-white font-bold">{tenantProfile?.name}</span>. Report PDF
             imports use this to pick the PBS or DealerBuilt parser.
@@ -244,7 +244,7 @@ export default function ManagerDashboard({
               </option>
             ))}
           </select>
-          <p className="text-[10px] text-slate-500 leading-relaxed flex items-center gap-2">
+          <p className="text-xs text-slate-500 leading-relaxed flex items-center gap-2">
             {savingDms ? <Loader2 className="animate-spin shrink-0" size={14} /> : null}
             {DMS_PROVIDERS.find((p) => p.id === dmsProvider)?.description}
           </p>
@@ -254,8 +254,8 @@ export default function ManagerDashboard({
       {subTab === 'logs' && (
         <div className="card-base overflow-hidden">
           <div className="p-4 border-b border-white/5">
-            <h3 className="text-sm font-black text-white uppercase tracking-widest">Audit Logs — {tenantId}</h3>
-            <p className="text-[10px] text-slate-500 mt-1">Isolated to your tenant only</p>
+            <h3 className="text-sm font-semibold text-white ">Audit Logs — {tenantId}</h3>
+            <p className="text-xs text-slate-500 mt-1">Isolated to your tenant only</p>
           </div>
           {loadingLogs ? (
             <div className="p-12 flex justify-center"><Loader2 className="animate-spin text-brand-primary" /></div>
@@ -266,13 +266,13 @@ export default function ManagerDashboard({
               {logs.map((log) => (
                 <div key={log.id} className="p-4 hover:bg-white/[0.02]">
                   <div className="flex justify-between gap-4 mb-1">
-                    <span className="text-xs font-black text-brand-primary uppercase">{log.action}</span>
-                    <span className="text-[10px] text-slate-600 font-mono">
+                    <span className="text-xs font-semibold text-brand-primary ">{log.action}</span>
+                    <span className="text-xs text-slate-600 font-mono">
                       {log.timestamp?.toDate?.()?.toLocaleString?.() || '—'}
                     </span>
                   </div>
                   <p className="text-sm text-slate-300">{log.details}</p>
-                  <p className="text-[10px] text-slate-600 mt-1">{log.username || log.userEmail} · {log.userId?.slice(0, 8)}</p>
+                  <p className="text-xs text-slate-600 mt-1">{log.username || log.userEmail} · {log.userId?.slice(0, 8)}</p>
                 </div>
               ))}
             </div>

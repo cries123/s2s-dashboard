@@ -49,7 +49,7 @@ export function DispatchMetricsBar({
   if (compact) {
     return (
       <div className="space-y-2">
-        <div className="grid grid-cols-2 gap-2 text-[9px] font-black uppercase tracking-wider">
+        <div className="grid grid-cols-2 gap-2 text-xs font-semibold ">
           <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
             <span className="text-slate-500 block">Queue</span>
             <span className="text-white tabular-nums text-sm">{metrics.queueCount}</span>
@@ -93,7 +93,7 @@ export function DispatchMetricsBar({
     <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4 space-y-4">
       <div className="flex items-center gap-2">
         <Activity size={14} className="text-indigo-400" />
-        <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
+        <h2 className="text-xs font-semibold text-slate-300">
           Shop Metrics
         </h2>
       </div>
@@ -134,7 +134,7 @@ export function DispatchMetricsBar({
         {Object.entries(DISPATCH_STATUS_COLORS).map(([code, info]) => (
           <span
             key={code}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-950/80 text-[9px] font-black uppercase tracking-wider text-slate-400"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-800 bg-slate-950/80 text-xs font-semibold text-slate-400"
           >
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: info.hex }} />
             {info.label}
@@ -145,7 +145,7 @@ export function DispatchMetricsBar({
 
       {techWorkload.length > 0 && (
         <div className="pt-2 border-t border-slate-800/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
             <Wrench size={10} className="text-indigo-400" />
             Tech workload
           </p>
@@ -159,7 +159,7 @@ export function DispatchMetricsBar({
 
       {Object.keys(metrics.avgLaneWaitMinutes).length > 0 && (
         <div className="pt-2 border-t border-slate-800/60">
-          <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+          <p className="text-xs font-semibold text-slate-500 mb-2">
             Avg time in lane
           </p>
           <div className="flex flex-wrap gap-2">
@@ -167,7 +167,7 @@ export function DispatchMetricsBar({
               (lane) => (
                 <span
                   key={lane.id}
-                  className="text-[9px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-400"
+                  className="text-xs font-bold tracking-wide px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-400"
                 >
                   {lane.label.split(' ')[0]}{' '}
                   <span className="text-indigo-300 tabular-nums">
@@ -187,7 +187,7 @@ function TechWorkloadChip({ label, count }: { label: string; count: number }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider',
+        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold ',
         count > 0
           ? 'border-indigo-500/30 bg-indigo-950/40 text-slate-200'
           : 'border-slate-800 bg-slate-950/80 text-slate-500'
@@ -225,9 +225,9 @@ function MetricTile({
     >
       <div className="flex items-center gap-1.5 text-slate-500 mb-1">
         <Icon size={11} />
-        <span className="text-[8px] font-black uppercase tracking-wider truncate">{label}</span>
+        <span className="text-xs font-semibold truncate">{label}</span>
       </div>
-      <span className={cn('text-lg font-black tabular-nums leading-none', accent)}>{value}</span>
+      <span className={cn('text-lg font-semibold tabular-nums leading-none', accent)}>{value}</span>
     </div>
   );
 }

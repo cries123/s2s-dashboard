@@ -745,10 +745,10 @@ export default function AdminPanel({
                 >
                   <div className="flex items-center gap-2">
                     <Icon size={13} className={isSelected ? "text-slate-950" : "text-brand-primary group-hover:scale-110 transition-transform"} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
+                    <span className="text-xs font-semibold ">{tab.label}</span>
                   </div>
                   <span className={cn(
-                    "text-[8px] font-bold uppercase tracking-widest leading-none mt-1",
+                    "text-xs font-bold leading-none mt-1",
                     isSelected ? "text-slate-950/70" : "text-slate-500 group-hover:text-slate-400"
                   )}>
                     {tab.desc}
@@ -798,7 +798,7 @@ export default function AdminPanel({
                   "card-base rounded-3xl border border-white/5 overflow-hidden p-6 col-span-full"
                 )}>
                   <div className="flex flex-col gap-6">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{d.name}</span>
+                    <span className="text-xs font-semibold text-slate-500 ">{d.name}</span>
 
                     <div className="space-y-8">
                         <DealershipAnnouncementSettings
@@ -825,11 +825,11 @@ export default function AdminPanel({
 
                         {/* DMS Configuration */}
                         <div className="space-y-3">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                          <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
                             <Database size={12} className="text-brand-primary" />
                             DMS Configuration
                           </label>
-                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed max-w-xl">
+                          <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-xl">
                             Choose your dealership management system. Report PDF imports (appointments, advisor performance, technician productivity) will route to the matching layout parser.
                           </p>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
@@ -853,22 +853,22 @@ export default function AdminPanel({
                                 </option>
                               ))}
                             </select>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 shrink-0">
+                            <span className="text-xs font-semibold text-slate-600 shrink-0">
                               Active parser
                             </span>
                           </div>
-                          <p className="text-[9px] text-slate-600 leading-relaxed max-w-xl">
+                          <p className="text-xs text-slate-600 leading-relaxed max-w-xl">
                             {DMS_PROVIDERS.find((provider) => provider.id === (normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)))?.description}
                           </p>
                         </div>
 
                         {/* Pot of Gold competition roster */}
                         <div className="space-y-3 pt-3 border-t border-white/5">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                          <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
                             <Trophy size={12} className="text-brand-primary" />
                             Pot of Gold Competition Advisors
                           </label>
-                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed max-w-xl">
+                          <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-xl">
                             Configure the advisor columns used in the Pot of Gold competition tracker and PDF imports for this store.
                           </p>
                           <div className="space-y-2 max-w-lg">
@@ -891,7 +891,7 @@ export default function AdminPanel({
                                 <button
                                   type="button"
                                   onClick={() => removeCompetitionAdvisor(d.id, idx)}
-                                  className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300"
+                                  className="px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300"
                                 >
                                   Remove
                                 </button>
@@ -902,14 +902,14 @@ export default function AdminPanel({
                             <button
                               type="button"
                               onClick={() => addCompetitionAdvisor(d.id)}
-                              className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-[10px] font-black uppercase tracking-widest text-white rounded-xl border border-slate-700"
+                              className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-xs font-semibold text-white rounded-xl border border-slate-700"
                             >
                               Add Advisor
                             </button>
                             <button
                               type="button"
                               onClick={() => commitCompetitionAdvisors(d.id)}
-                              className="px-4 py-2 bg-brand-primary/20 hover:bg-brand-primary/30 text-[10px] font-black uppercase tracking-widest text-brand-primary rounded-xl border border-brand-primary/30"
+                              className="px-4 py-2 bg-brand-primary/20 hover:bg-brand-primary/30 text-xs font-semibold text-brand-primary rounded-xl border border-brand-primary/30"
                             >
                               Save Roster
                             </button>
@@ -918,7 +918,7 @@ export default function AdminPanel({
 
                         {(dealershipSettings[d.id]?.performanceAdvisorRoster?.length ?? 0) > 0 && (
                           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                            <p className="text-xs font-semibold text-slate-500 mb-2">
                               Productivity advisors
                             </p>
                             <div className="flex flex-wrap gap-1.5">
@@ -926,7 +926,7 @@ export default function AdminPanel({
                                 (slot: { id: string; label: string }) => (
                                   <span
                                     key={slot.id}
-                                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40"
+                                    className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40"
                                   >
                                     {slot.label}
                                   </span>
@@ -938,11 +938,11 @@ export default function AdminPanel({
 
                         {/* Dispatch Toggle Feature Switch */}
                         <div className="space-y-3 pt-3 border-t border-white/5">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Feature Switches</label>
+                          <label className="text-xs font-semibold text-slate-400 block">Feature Switches</label>
                           <div className="flex items-center justify-between p-3.5 bg-slate-950/80 rounded-xl border border-white/5 shadow-inner">
                             <div className="space-y-0.5 pr-2">
-                              <span className="text-xs font-black text-white uppercase tracking-wide block">Departmental Dispatch Board</span>
-                              <span className="text-[10px] text-slate-400 font-medium leading-normal block">Show or hide the Dispatch tab in the header navigation menu.</span>
+                              <span className="text-xs font-semibold text-white tracking-wide block">Departmental Dispatch Board</span>
+                              <span className="text-xs text-slate-400 font-medium leading-normal block">Show or hide the Dispatch tab in the header navigation menu.</span>
                             </div>
                             <button
                               type="button"
@@ -966,8 +966,8 @@ export default function AdminPanel({
 
                           {/* Dispatch lane capacity */}
                           <div className="space-y-3 pt-3 border-t border-white/5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">Dispatch Lane Capacity</label>
-                            <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                            <label className="text-xs font-semibold text-slate-400 block">Dispatch Lane Capacity</label>
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed">
                               Soft caps per production lane. Set to 0 for unlimited. Optionally block new routing when a lane is full.
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -976,7 +976,7 @@ export default function AdminPanel({
                                 const value = caps[lane.id];
                                 return (
                                   <div key={lane.id} className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-white/5">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider truncate">{lane.label}</span>
+                                    <span className="text-xs font-semibold text-slate-400 truncate">{lane.label}</span>
                                     <input
                                       type="number"
                                       min={0}
@@ -989,7 +989,7 @@ export default function AdminPanel({
                                           dispatchLaneCapacity: { ...prev, [lane.id]: n },
                                         });
                                       }}
-                                      className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs font-black text-white text-center focus:outline-none focus:ring-1 focus:ring-brand-primary"
+                                      className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs font-semibold text-white text-center focus:outline-none focus:ring-1 focus:ring-brand-primary"
                                     />
                                   </div>
                                 );
@@ -998,8 +998,8 @@ export default function AdminPanel({
                             <div className="flex flex-col gap-2 pt-1">
                               <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
                                 <div>
-                                  <span className="text-xs font-black text-white uppercase tracking-wide block">Show today&apos;s shop load</span>
-                                  <span className="text-[10px] text-slate-500">Compare active dispatch ROs to daily appointment goal.</span>
+                                  <span className="text-xs font-semibold text-white tracking-wide block">Show today&apos;s shop load</span>
+                                  <span className="text-xs text-slate-500">Compare active dispatch ROs to daily appointment goal.</span>
                                 </div>
                                 <button
                                   type="button"
@@ -1022,8 +1022,8 @@ export default function AdminPanel({
                               </label>
                               <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
                                 <div>
-                                  <span className="text-xs font-black text-white uppercase tracking-wide block">Block routing when lane full</span>
-                                  <span className="text-[10px] text-slate-500">Prevent dropping ROs into lanes at capacity.</span>
+                                  <span className="text-xs font-semibold text-white tracking-wide block">Block routing when lane full</span>
+                                  <span className="text-xs text-slate-500">Prevent dropping ROs into lanes at capacity.</span>
                                 </div>
                                 <button
                                   type="button"
@@ -1046,10 +1046,10 @@ export default function AdminPanel({
                               </label>
                             </div>
                             <div className="space-y-2 pt-2 border-t border-white/5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic block">
+                              <label className="text-xs font-semibold text-slate-400 block">
                                 Dispatch tech roster
                               </label>
-                              <p className="text-[10px] text-slate-500 leading-relaxed">
+                              <p className="text-xs text-slate-500 leading-relaxed">
                                 Map DMS tech numbers to display names on dispatch cards. ID = tech number, Label = name.
                               </p>
                               <div className="space-y-2">
@@ -1072,7 +1072,7 @@ export default function AdminPanel({
                                     <button
                                       type="button"
                                       onClick={() => removeDispatchTechRoster(d.id, idx)}
-                                      className="text-[9px] font-black uppercase text-rose-400 px-2"
+                                      className="text-xs font-semibold text-rose-400 px-2"
                                     >
                                       Remove
                                     </button>
@@ -1083,14 +1083,14 @@ export default function AdminPanel({
                                 <button
                                   type="button"
                                   onClick={() => addDispatchTechRoster(d.id)}
-                                  className="px-3 py-1.5 bg-slate-800 text-[9px] font-black uppercase tracking-widest text-white rounded-lg border border-slate-700"
+                                  className="px-3 py-1.5 bg-slate-800 text-xs font-semibold text-white rounded-lg border border-slate-700"
                                 >
                                   Add Tech
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => commitDispatchTechRoster(d.id)}
-                                  className="px-3 py-1.5 bg-brand-primary/20 text-[9px] font-black uppercase tracking-widest text-brand-primary rounded-lg border border-brand-primary/30"
+                                  className="px-3 py-1.5 bg-brand-primary/20 text-xs font-semibold text-brand-primary rounded-lg border border-brand-primary/30"
                                 >
                                   Save Tech Roster
                                 </button>
