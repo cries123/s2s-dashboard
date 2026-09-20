@@ -16,6 +16,7 @@ import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
 import { PageSkeleton } from '../../ui/Skeleton';
+import { applyUpsellReport } from '../../../lib/potOfGoldImport';
 import { buildOperationsViewPeriodOptions, formatArchiveDisplayLabel } from '../../../lib/operationsViewPeriod';
 
 interface PerformanceRow {
@@ -33,6 +34,7 @@ interface TechPerformanceRow {
 
 const TECHNICIANS = ['Daniel', 'Jon', 'Matthew', 'Jacinto', 'Ethan', 'Trevor'];
 const ADVISORS = ['frank', 'lemmy'];
+
 
 const INITIAL_PERFORMANCE_DATA: PerformanceRow[] = [
   { code: 'AF', desc: 'ENGINE AIR FILTER', frank: 0, lemmy: 0 },
@@ -254,24 +256,24 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
       
       // Map data to Pot of Gold structure
       if (data.advisors && data.advisors.length > 0) {
-        const newAdvData = advData.map(row => {
-          const base = { ...row };
-          data.advisors.forEach((aiAdv: any) => {
-            const advisorKey = aiAdv.name.toLowerCase().includes('frank') ? 'frank' :
-                               aiAdv.name.toLowerCase().includes('lemmy') ? 'lemmy' : null;
-            
-            if (advisorKey && aiAdv.upsells) {
-              const upsell = aiAdv.upsells.find((u: any) => u.code === row.code);
-              if (upsell) {
-                (base as any)[advisorKey] = Number(upsell.count) || 0;
-              }
-            }
-          });
-          return base;
-        });
+        const result = applyUpsellReport(advData, data.advisors, ADVISORS);
 
-        await saveToFirestore({ advData: newAdvData });
-        setSuccessMessage(`Analysis Complete: ${file.name}`);
+        if (result.matchedAdvisors.length === 0) {
+          throw new Error(
+            `This report names ${result.ignoredNames.join(', ') || 'advisors'}, which do not match ${ADVISORS.join(' or ')}. Nothing was changed.`
+          );
+        }
+
+        await saveToFirestore({ advData: result.rows });
+
+        const summary = result.matchedAdvisors
+          .map((k) => `${k[0].toUpperCase()}${k.slice(1)} ${result.totals[k]}`)
+          .join(', ');
+        setSuccessMessage(
+          result.ignoredNames.length
+            ? `Imported ${summary}. Ignored: ${result.ignoredNames.join(', ')}`
+            : `Imported ${summary}`
+        );
         await recordDmsImportSuccess(currentDealershipId || 'hyundai', {
           filename: file.name,
           importKind: 'pot_of_gold',
@@ -594,14 +596,16 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeSubTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="min-h-[500px]"
-        >
+      {/*
+        This was an AnimatePresence with mode="wait". The exit animation kept
+        stalling part way — the panel was measured frozen at opacity 0.774 — and
+        because mode="wait" holds the incoming child until the outgoing one
+        finishes, the new tab never mounted. Selecting Technicians highlighted
+        the button and left the previous panel on screen. A tab switch does not
+        need an exit animation; the panel just renders.
+      */}
+      <div className="min-h-[500px]">
+        <div>
           {activeSubTab === 'advisors' && (
             <div className="space-y-6">
               {/*
@@ -756,7 +760,75 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
           {activeSubTab === 'technicians' && (
             <div className="space-y-6">
-              <div className="-mx-1 sm:mx-0 max-w-[100vw] sm:max-w-none overflow-x-auto no-scrollbar rounded-3xl card-base">
+              <CardNoticeRow>
+                <CardNotice tone="warn" summary="Technician counts are entered by hand">
+                  The PDF import fills the advisor board only — the parser returns advisor upsells
+                  and no technician breakdown, so nothing here is populated automatically. If your
+                  Op Code Frequency report does split by technician, say so and it can be wired up.
+                </CardNotice>
+              </CardNoticeRow>
+
+              {/*
+                Six technician columns plus the code will not fit 375px — the
+                table sets min-w-[560px], so on a phone Trevor was off screen
+                entirely and Matthew's header was truncated. One card per code,
+                technicians in a grid inside it.
+              */}
+              <ul className="md:hidden card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
+                {techData.map((row, rIdx) => {
+                  const rowTotal = TECHNICIANS.reduce((sum, t) => sum + (Number(row[t]) || 0), 0);
+                  return (
+                    <li key={row.code} className="p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded text-xs font-semibold">
+                            {row.code}
+                          </span>
+                          <p className="crm-label mt-1">{row.desc}</p>
+                        </div>
+                        <p className="shrink-0 text-lg font-semibold tabular-nums leading-none">{rowTotal}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        {TECHNICIANS.map((t) => (
+                          <label key={t} className="flex items-center gap-2 min-w-0">
+                            <span className="crm-label flex-1 truncate">{t}</span>
+                            <input
+                              type="number"
+                              value={Number(row[t]) || 0}
+                              disabled={selectedMonth !== 'active'}
+                              onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
+                                const newData = techData.map((d, index) =>
+                                  index === rIdx ? { ...d, [t]: val } : d
+                                );
+                                setTechData(newData);
+                                saveToFirestore({ techData: newData });
+                              }}
+                              className="input-field w-16 shrink-0 px-2 py-1.5 text-center text-sm tabular-nums"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
+                <li className="p-3" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold">Shop total</span>
+                    <span className="text-brand-primary font-semibold tabular-nums">{techTotals.grand}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+                    {TECHNICIANS.map((t) => (
+                      <div key={t} className="flex items-baseline justify-between gap-2 min-w-0">
+                        <span className="crm-label truncate">{t}</span>
+                        <span className="tabular-nums text-sm shrink-0">{techTotals.totals[t]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </li>
+              </ul>
+
+              <div className="hidden md:block overflow-x-auto no-scrollbar rounded-lg card-base">
                 <table className="w-full min-w-[560px] text-left border-collapse">
                   <thead>
                     <tr className="border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
@@ -1011,8 +1083,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               </div>
             </div>
           )}
-        </motion.div>
-      </AnimatePresence>
+        </div>
+      </div>
     </div>
   );
 };
