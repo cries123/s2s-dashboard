@@ -294,9 +294,9 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
           <td class="py-3 px-4 font-bold text-gray-900">${tech.techName}</td>
           <td class="py-3 px-4 text-center font-medium">${tech.clockedHours.toFixed(2)} hrs</td>
           <td class="py-3 px-4 text-center font-medium">${tech.flaggedHours.toFixed(2)} hrs</td>
-          <td class="py-3 px-4 text-center font-black text-gray-900">${tech.efficiency}%</td>
+          <td class="py-3 px-4 text-center font-semibold text-gray-900">${tech.efficiency}%</td>
           <td class="py-3 px-6 text-center">
-            <span class="inline-flex px-2 py-0.5 rounded text-[8px] font-extrabold uppercase border tracking-wider ${statusClass}">
+            <span class="inline-flex px-2 py-0.5 rounded text-[11px] font-extrabold border ${statusClass}">
               ${isAboveStandard ? 'Above Standard' : 'Below Standard'}
             </span>
           </td>
@@ -313,18 +313,34 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
             body {
-              font-family: 'Inter', sans-serif;
+              font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
+
+            /* Tailwind is loaded from a CDN. If the dealership is offline or the
+               network blocks it, the report must still be a legible document
+               rather than a wall of unstyled text — these rules carry it. */
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            th { font-weight: 600; }
+            h1 { font-size: 24px; margin: 0 0 4px; }
+            h2 { font-size: 15px; margin: 20px 0 8px; }
+            h3 { font-size: 13px; margin: 14px 0 6px; }
+
+            @page { margin: 14mm; }
+
             @media print {
               body {
                 background: white !important;
                 color: black !important;
                 padding: 0 !important;
               }
+              /* Keep a table's header with its rows and never split a row. */
+              thead { display: table-header-group; }
+              tr { break-inside: avoid; }
               .paper {
                 box-shadow: none !important;
                 border: none !important;
@@ -338,60 +354,60 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
           </style>
         </head>
         <body class="bg-gray-50 text-slate-900 p-8">
-          <div class="paper max-w-5xl mx-auto bg-white p-10 rounded-3xl border border-gray-200 shadow-xl space-y-8">
+          <div class="paper max-w-5xl mx-auto bg-white p-10 rounded-lg border border-gray-200 shadow-xl space-y-8">
             
             <!-- Document Header -->
             <div class="border-b-2 border-slate-900 pb-6 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <span class="inline-block px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-[9px] font-black text-slate-700 uppercase tracking-widest mb-2">
+                <span class="inline-block px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-[11px] font-semibold text-slate-700 mb-2">
                   Dealership Executive Report
                 </span>
-                <h1 class="text-3xl font-black tracking-tight text-slate-900 leading-none uppercase">${dealershipName}</h1>
-                <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1.5">Advisor Performance & Technician Efficiency Summary</p>
+                <h1 class="text-3xl font-semibold tracking-tight text-slate-900 leading-none">${dealershipName}</h1>
+                <p class="text-xs text-slate-500 font-bold mt-1.5">Advisor Performance & Technician Efficiency Summary</p>
               </div>
               <div class="text-left md:text-right border-t md:border-t-0 border-slate-100 pt-3 md:pt-0">
-                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Report Generated On</p>
-                <p class="text-xs font-black text-slate-800 tracking-tight mt-0.5">${printTodayStr}</p>
-                <p class="text-[10px] text-slate-500 font-semibold mt-1">Status: Verified Active Logs</p>
+                <p class="text-[11px] font-semibold text-slate-400">Report Generated On</p>
+                <p class="text-xs font-semibold text-slate-800 tracking-tight mt-0.5">${printTodayStr}</p>
+                <p class="text-[11px] text-slate-500 font-semibold mt-1">Fixed operations performance</p>
               </div>
             </div>
 
             <!-- SECTION I: ADVISOR PERFORMANCE -->
             <div class="space-y-4">
               <div class="flex justify-between items-end border-b border-slate-900 pb-2">
-                <h2 class="text-sm font-black uppercase text-slate-900 tracking-wider">
+                <h2 class="text-sm font-semibold text-slate-900">
                   I. Fixed Ops Performance
                 </h2>
-                <span class="text-[10px] font-black text-slate-500 tracking-widest uppercase">
+                <span class="text-[11px] font-semibold text-slate-500">
                   ${formatDateRangeShort(printStartDateVal, printEndDateVal)}
                 </span>
               </div>
               
               <div class="grid grid-cols-4 gap-3 mb-4">
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Total Repair Orders</p>
-                  <p class="text-base sm:text-[17px] font-black text-slate-900 mt-0.5 truncate">${dSOs}</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Total Repair Orders</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dSOs}</p>
                 </div>
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Avg ROs / Day</p>
-                  <p class="text-base sm:text-[17px] font-black text-slate-900 mt-0.5 truncate">${printAvgROsPerDay}</p>
-                  <p class="text-[7px] text-gray-400 mt-0.5 font-bold uppercase tracking-wide">${printWorkingDays} Working Days</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Avg ROs / Day</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${printAvgROsPerDay}</p>
+                  <p class="text-[11px] text-gray-400 mt-0.5 font-bold tracking-wide">${printWorkingDays} Working Days</p>
                 </div>
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Hours Sold MTD</p>
-                  <p class="text-base sm:text-[17px] font-black text-slate-900 mt-0.5 truncate">${dHrs.toFixed(1)} hrs</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Hours Sold MTD</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dHrs.toFixed(1)} hrs</p>
                 </div>
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Showed Up %</p>
-                  <p class="text-base sm:text-[17px] font-black text-emerald-800 mt-0.5 truncate">${printShowedUpPercent}%</p>
-                  <p class="text-[7px] text-gray-400 mt-0.5 font-bold uppercase tracking-wide">Cross Ref. ${printFinalScheduled} Appts</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Showed Up %</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-emerald-800 mt-0.5 truncate">${printShowedUpPercent}%</p>
+                  <p class="text-[11px] text-gray-400 mt-0.5 font-bold tracking-wide">Cross Ref. ${printFinalScheduled} Appts</p>
                 </div>
               </div>
 
-              <div class="border border-gray-200 rounded-2xl overflow-hidden">
+              <div class="border border-gray-200 rounded-md overflow-hidden">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-slate-900 text-white uppercase text-[8px] tracking-widest font-black">
+                    <tr class="bg-slate-900 text-white text-[11px] font-semibold">
                       <th class="py-2.5 px-3">Advisor Name</th>
                       <th class="py-2.5 px-2 text-right">Labor Sales</th>
                       <th class="py-2.5 px-2 text-right">Labor Gross</th>
@@ -405,7 +421,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                   </thead>
                   <tbody>
                     ${advisorRows}
-                    <tr class="bg-slate-100 border-t-2 border-slate-900 text-[10px] uppercase font-black text-slate-950">
+                    <tr class="bg-slate-100 border-t-2 border-slate-900 text-[11px] font-semibold text-slate-950">
                       <td class="py-3 px-3">Department Totals</td>
                       <td class="py-3 px-2 text-right">$${dLabor.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td class="py-3 px-2 text-right">$${dLaborGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -421,7 +437,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
               </div>
               
               <!-- Page 1 Print Footer Details -->
-              <div class="border-t border-gray-200 pt-6 mt-8 flex justify-end items-center text-[10px] text-gray-400 font-medium">
+              <div class="border-t border-gray-200 pt-6 mt-8 flex justify-end items-center text-[11px] text-gray-400 font-medium">
                 <p class="italic">Page 1 of 2 — Confidentially Distributed Report</p>
               </div>
             </div>
@@ -429,33 +445,33 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
             <!-- SECTION II: TECHNICIAN EFFICIENCY -->
             <div class="space-y-4 pt-4 page-break" style="page-break-before: always; break-before: page; margin-top: 30px; padding-top: 20px;">
               <div class="flex justify-between items-end border-b border-slate-900 pb-2">
-                <h2 class="text-sm font-black uppercase text-slate-900 tracking-wider">
+                <h2 class="text-sm font-semibold text-slate-900">
                   II. Workshop Technician Efficiency Summary
                 </h2>
-                <span class="text-[10px] font-black text-slate-500 tracking-widest uppercase">
+                <span class="text-[11px] font-semibold text-slate-500">
                   ${formatDateRangeShort(printTechStartDateVal, printTechEndDateVal)}
                 </span>
               </div>
 
               <div class="grid grid-cols-3 gap-3 mb-4">
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Total Clocked Hours</p>
-                  <p class="text-base sm:text-[17px] font-black text-slate-900 mt-0.5 truncate">${dClockedHours.toFixed(2)} hrs</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Total Clocked Hours</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dClockedHours.toFixed(2)} hrs</p>
                 </div>
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Total Flagged Hours</p>
-                  <p class="text-base sm:text-[17px] font-black text-slate-900 mt-0.5 truncate">${dFlaggedHours.toFixed(2)} hrs</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Total Flagged Hours</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dFlaggedHours.toFixed(2)} hrs</p>
                 </div>
-                <div class="bg-slate-50 border border-gray-200 p-3 rounded-2xl min-w-0">
-                  <p class="text-[8px] font-black text-gray-400 uppercase tracking-widest truncate">Workshop Average Efficiency</p>
-                  <p class="text-base sm:text-[17px] font-black text-indigo-700 mt-0.5 truncate">${dAverageTechEfficiency}%</p>
+                <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Workshop Average Efficiency</p>
+                  <p class="text-base sm:text-[17px] font-semibold text-indigo-700 mt-0.5 truncate">${dAverageTechEfficiency}%</p>
                 </div>
               </div>
 
-              <div class="border border-gray-200 rounded-2xl overflow-hidden">
+              <div class="border border-gray-200 rounded-md overflow-hidden">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-slate-900 text-white uppercase text-[8px] tracking-widest font-black">
+                    <tr class="bg-slate-900 text-white text-[11px] font-semibold">
                       <th class="py-3 px-4">Technician Name</th>
                       <th class="py-3 px-4 text-center">Clocked In Hours</th>
                       <th class="py-3 px-4 text-center">Flagged (Sold) Hours</th>
@@ -465,7 +481,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                   </thead>
                   <tbody>
                     ${technicianRows}
-                    <tr class="bg-slate-100 border-t-2 border-slate-900 text-[10px] uppercase font-black text-slate-950">
+                    <tr class="bg-slate-100 border-t-2 border-slate-900 text-[11px] font-semibold text-slate-950">
                       <td class="py-3 px-4">Workshop Summary</td>
                       <td class="py-3 px-4 text-center">${dClockedHours.toFixed(2)} hrs</td>
                       <td class="py-3 px-4 text-center">${dFlaggedHours.toFixed(2)} hrs</td>
@@ -478,7 +494,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
             </div>
 
             <!-- Footer details -->
-            <div class="border-t border-gray-200 pt-6 mt-8 flex justify-end items-center text-[10px] text-gray-400 font-medium">
+            <div class="border-t border-gray-200 pt-6 mt-8 flex justify-end items-center text-[11px] text-gray-400 font-medium">
               <p class="italic">Page 2 of 2 — Confidentially Distributed Report</p>
             </div>
 
@@ -653,7 +669,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                 <div className="md:text-right border-t md:border-t-0 border-slate-100 pt-3 md:pt-0 w-full md:w-auto">
                   <p className="text-xs font-semibold text-slate-400 ">Report Generated On</p>
                   <p className="text-xs font-semibold text-slate-800 tracking-tight mt-0.5">{todayStr}</p>
-                  <p className="text-xs text-slate-500 font-semibold mt-1">Status: Verified Active Logs</p>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">Fixed operations performance</p>
                 </div>
               </div>
             </div>

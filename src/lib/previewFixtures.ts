@@ -94,6 +94,49 @@ export const PREVIEW_CUSTOMERS: Customer[] = [
     lastServiceDate: '2026-07-07',
     recentVisits: PREVIEW_SERVICE_VISITS,
   },
+  // Enough alert customers to show the call list in a realistic state rather
+  // than an empty shell. Invented people — never real customer records.
+  ...([
+    { last: 'Alvarado Whitfield', first: 'Marguerite', phone: '(805) 555-0142', year: '2025', model: 'Tucson', vin: 'SE014402', lastVisit: '2026-03-19' },
+    { last: 'Boone', first: 'Dell', phone: '(805) 555-0118', year: '2024', model: 'Tucson Hybrid', vin: 'RU158310', lastVisit: '2026-03-21' },
+    { last: 'Okonkwo', first: 'Ada', phone: '(805) 555-0190', year: '2019', model: 'Veloster', vin: 'KU006271', lastVisit: '2026-01-08', language: 'Spanish' },
+    { last: 'Reyes', first: 'Sol', phone: '(805) 555-0176', year: '2021', model: 'Sonata', vin: 'LH229045', lastVisit: '2025-11-30' },
+    { last: 'Vandermeer', first: 'Cy', phone: '', year: '2023', model: 'Palisade', vin: 'MP447719', lastVisit: '2026-04-02' },
+  ] as const).map((p, i) => ({
+    id: `preview-alert-${i}`,
+    firstName: p.first,
+    lastName: p.last,
+    phone: p.phone,
+    email: '',
+    make: 'Hyundai',
+    model: p.model,
+    year: p.year,
+    vinLast8: p.vin,
+    soldDate: p.lastVisit,
+    language: (p as { language?: string }).language ?? 'English',
+    enableServiceAlert: true,
+    serviceAlertTriggered: false,
+    createdAt: previewNow,
+    addedBy: 'preview-user',
+    dealershipId: 'hyundai',
+    addedByUsername: 'Preview User',
+    lastServiceDate: p.lastVisit,
+    // The alert engine reads visit history, not just lastServiceDate — without a
+    // visit these read "no visits on record" and date off the sold date instead.
+    recentVisits: [
+      {
+        id: `preview-visit-${i}`,
+        soNumber: `20${140 + i}`,
+        date: p.lastVisit,
+        mileage: 12000 + i * 3100,
+        advisor: 'LV4278',
+        status: 'Cashiered',
+        requests: 'SYNTHETIC OIL AND FILTER CHANGE; MULTI POINT INSPECTION',
+        createdAt: previewNow,
+        lines: [],
+      },
+    ],
+  })),
 ];
 
 /** Day-schedule fixtures for the preview scheduler grid. */

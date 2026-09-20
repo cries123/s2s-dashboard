@@ -300,14 +300,15 @@ export default function ServiceAlerts({
 
       {/* Toolbar */}
       <div className="card-base p-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* One line on a phone: four chips wrapping 3+1 looked like a mistake. */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1 lg:flex-wrap lg:overflow-visible lg:mx-0 lg:px-0">
           {filterChips.map((chip) => (
             <button
               key={chip.id}
               type="button"
               onClick={() => setFilter(chip.id)}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm transition-colors min-h-[36px]',
+                'shrink-0 px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors min-h-[36px]',
                 filter === chip.id ? 'bg-brand-primary text-white' : 'hover:bg-[var(--color-surface-hover)]'
               )}
               style={filter === chip.id ? undefined : { color: 'var(--color-text-secondary)' }}
@@ -383,7 +384,105 @@ export default function ServiceAlerts({
         />
       ) : (
         <div className="card-base overflow-hidden">
-          <div className="overflow-x-auto">
+          {/*
+            Phones get a stacked list, not the table. At 375px the six columns
+            squeezed every name and vehicle onto three lines each and pushed the
+            call button off the right edge, so the one thing you came to do was
+            the one thing you had to scroll sideways to reach.
+          */}
+          <ul className="md:hidden divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
+            {rows.map(({ customer, alert, lastVisit }) => {
+              const open = expandedId === customer.id;
+              return (
+                <li key={customer.id} className="p-3">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${customer.firstName} ${customer.lastName}`}
+                      checked={selected.has(customer.id)}
+                      onChange={() => toggleOne(customer.id)}
+                      className="accent-[var(--color-brand-primary)] mt-1 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => onViewProfile(customer)}
+                        className="font-semibold text-left hover:text-brand-primary block truncate w-full"
+                      >
+                        {formatCustomerDisplayName(customer.firstName, customer.lastName)}
+                      </button>
+                      <div className="crm-label flex items-center gap-2 min-w-0">
+                        <span className="truncate tabular-nums">{customer.phone || 'No phone number'}</span>
+                        {customer.language === 'Spanish' && (
+                          <span className="badge badge-warning text-xs shrink-0">Spanish</span>
+                        )}
+                      </div>
+                      <div className="crm-label truncate">
+                        {[customer.year, customer.model].filter(Boolean).join(' ') || 'No vehicle on file'}
+                        {customer.vinLast8 ? ` · ${customer.vinLast8}` : ''}
+                      </div>
+                      <div className="crm-label mt-0.5">
+                        {lastVisit
+                          ? `Last in ${lastVisit.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                          : 'No visits on record'}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={cn('badge whitespace-nowrap', TONE_CLASS[alert.tone])} title={alert.reason}>
+                        {alert.label}
+                      </span>
+                      <div className="crm-label mt-1 tabular-nums whitespace-nowrap">{formatDueDate(alert.dueIso)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-3">
+                    {customer.phone && (
+                      <a
+                        href={`tel:${customer.phone}`}
+                        className="btn-secondary flex-1 justify-center text-sm py-2 whitespace-nowrap"
+                      >
+                        <Phone size={14} /> Call
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onViewLog(customer)}
+                      className="btn-secondary text-sm py-2 px-3 shrink-0"
+                      title="Contact history"
+                      aria-label="Contact history"
+                    >
+                      <History size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(open ? null : customer.id)}
+                      className={cn(
+                        'btn-primary flex-1 justify-center text-sm py-2 px-3 whitespace-nowrap',
+                        open && 'bg-brand-secondary'
+                      )}
+                      aria-expanded={open}
+                    >
+                      Log call {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  </div>
+
+                  {open && (
+                    <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: 'var(--color-surface-base)' }}>
+                      <p className="crm-label mb-3">{alert.reason}</p>
+                      <ContactLogQuickForm
+                        defaultOutcome={preferences.contactWorkflow.defaultOutcome}
+                        autoCheckAppointmentSet={preferences.contactWorkflow.autoCheckAppointmentSet}
+                        onSubmit={(values) => handleLogCall(customer, values)}
+                        submitLabel="Save & clear alert"
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="crm-table">
               <thead>
                 <tr>
