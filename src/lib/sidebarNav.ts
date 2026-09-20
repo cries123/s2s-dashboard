@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  ArrowRightLeft,
   BarChart2,
   Bell,
   Calendar,
@@ -147,6 +148,15 @@ export function buildSidebarNav({
       href: '/reports/sales-performance',
       icon: BarChart2,
       tab: 'sales-performance',
+    });
+  }
+  if (modules.showSalesPerformanceTab) {
+    reportItems.push({
+      id: 'sales-to-service',
+      label: 'Sales to service',
+      href: '/reports/sales-to-service',
+      icon: ArrowRightLeft,
+      tab: 'sales-to-service',
     });
   }
   if (modules.showForecastTab) {

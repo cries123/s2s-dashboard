@@ -35,6 +35,8 @@ export function isTabAllowedForUser(tab: AppTab, user: User | null | undefined):
     case 'forecast':
       return showService && canSeeForecastReport(user);
     case 'sales-performance':
+    // Same audience as sales performance — it is the sales floor's number.
+    case 'sales-to-service':
       return canSeeSalesPerformanceReport(user);
     case 'pot-of-gold':
       return canSeeCompetitions(user, tenantId);

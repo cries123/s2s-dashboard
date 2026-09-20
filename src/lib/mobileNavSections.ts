@@ -79,6 +79,11 @@ export function buildMobileNavSections({
       label: 'Sales Performance',
       href: '/reports/sales-performance',
     });
+    reportItems.push({
+      tabId: 'sales-to-service',
+      label: 'Sales to Service',
+      href: '/reports/sales-to-service',
+    });
   }
   if (modules.showForecastTab) {
     reportItems.push({ tabId: 'forecast', label: 'Forecast', href: '/reports/forecast' });

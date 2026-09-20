@@ -9,13 +9,14 @@ import { cn } from './lib/utils';
 import {
   LogOut, User as UserIcon, LayoutDashboard, Search, Bell, Calendar, UserPlus,
   Settings, Loader2, Shield, Trophy, ChevronRight, TrendingUp, Layers,
-  BarChart2, ClipboardList
+  ArrowRightLeft, BarChart2, ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Components
 import CustomerForm from './components/dashboard/customers/CustomerForm';
 const SalesPerformance = React.lazy(() => import('./components/dashboard/analytics/SalesPerformance'));
+const SalesToService = React.lazy(() => import('./components/dashboard/analytics/SalesToService'));
 import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
 const Appointments = React.lazy(() => import('./components/dashboard/appointments/Appointments'));
 const DaySchedule = React.lazy(() => import('./components/dashboard/appointments/DaySchedule'));
@@ -330,6 +331,9 @@ function DashboardShell({ user }: { user: User }) {
     ...(modules.showForecastTab ? [{ id: 'forecast', label: 'Forecast', icon: TrendingUp }] : []),
     ...(modules.showSalesPerformanceTab
       ? [{ id: 'sales-performance', label: 'Sales Performance', icon: BarChart2 }]
+      : []),
+    ...(modules.showSalesPerformanceTab
+      ? [{ id: 'sales-to-service', label: 'Sales to Service', icon: ArrowRightLeft }]
       : []),
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
@@ -682,6 +686,8 @@ function DashboardShell({ user }: { user: User }) {
               currentDealershipId={currentDealershipId || 'ford'}
             />
           )}
+
+          {activeTab === 'sales-to-service' && <SalesToService customers={customers} />}
 
           {/* Personal preferences — available to every approved user, not just
               managers. Store-wide configuration stays under Manager. */}

@@ -6,6 +6,7 @@ import {
 import { db, auth } from '../../../firebase';
 import { Customer, User, DailyStat, UserPreferences } from '../../../types';
 import { TopMovingPartsCard } from './TopMovingPartsCard';
+import { ShowRateCard } from './ShowRateCard';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
@@ -207,6 +208,15 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     [viewPeriod.isHistorical, viewPeriod.year, viewPeriod.month]
   );
   const periodLabel = viewPeriod.isHistorical ? 'Month' : 'MTD';
+
+  // The show-rate card reads a date range of the appointment schedule, so it
+  // needs the selected month as actual days rather than a view-period key.
+  const showRateRange = React.useMemo(() => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const start = `${viewPeriod.year}-${pad(viewPeriod.month + 1)}-01`;
+    const lastDay = new Date(viewPeriod.year, viewPeriod.month + 1, 0).getDate();
+    return { start, end: `${viewPeriod.year}-${pad(viewPeriod.month + 1)}-${pad(lastDay)}` };
+  }, [viewPeriod.year, viewPeriod.month]);
   const [allowArchiveEditing, setAllowArchiveEditing] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [archiveSuccess, setArchiveSuccess] = useState<string | null>(null);
@@ -1234,6 +1244,16 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           </motion.div>
         )}
       </AnimatePresence>
+
+      {customers && customers.length > 0 && (
+        <ShowRateCard
+          dealershipId={currentDealershipId}
+          customers={customers}
+          startDate={showRateRange.start}
+          endDate={showRateRange.end}
+          periodLabel={viewPeriod.label}
+        />
+      )}
 
       {customers && customers.length > 0 && (
         <TopMovingPartsCard customers={customers} selectedMonth={selectedMonth} />

@@ -13,6 +13,7 @@ export type AppTab =
   | 'dispatch'
   | 'open-ros'
   | 'sales-performance'
+  | 'sales-to-service'
   | 'settings';
 
 export type AdminSubTab =
@@ -46,6 +47,7 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/reports/operations': { activeTab: 'appointments' },
   '/reports/schedule': { activeTab: 'schedule' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
+  '/reports/sales-to-service': { activeTab: 'sales-to-service' },
   '/settings': { activeTab: 'settings' },
   '/reports/forecast': { activeTab: 'forecast' },
   '/manager/operations': { activeTab: 'manager', managerSubTab: 'operations' },
@@ -139,6 +141,8 @@ export function buildAppPath(state: AppRouteState): string {
       return '/reports/schedule';
     case 'sales-performance':
       return '/reports/sales-performance';
+    case 'sales-to-service':
+      return '/reports/sales-to-service';
     case 'settings':
       return '/settings';
     case 'forecast':
