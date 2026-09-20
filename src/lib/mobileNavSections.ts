@@ -52,9 +52,12 @@ export function buildMobileNavSections({
   }
   sections.push({ id: 'sales', label: 'Sales', icon: UserPlus, items: salesItems });
 
+  // Schedule and Pot of Gold live with Service: they are things the drive does
+  // during the day, not month-end reporting.
   const serviceItems: MobileNavSection['items'] = [
     { tabId: 'search', label: 'Directory', href: '/service/directory' },
     { tabId: 'alerts', label: 'Alerts', href: '/service/alerts', badge: activeAlertsCount },
+    { tabId: 'schedule', label: 'Schedule', href: '/reports/schedule' },
   ];
   if (showOpenRosTab) {
     serviceItems.push({ tabId: 'open-ros', label: 'Open ROs', href: '/service/open-ros' });
@@ -62,15 +65,14 @@ export function buildMobileNavSections({
   if (enableDispatchTab) {
     serviceItems.push({ tabId: 'dispatch', label: 'Dispatch', href: '/service/dispatch' });
   }
+  if (currentDealershipId === 'hyundai' && modules.showPotOfGoldTab) {
+    serviceItems.push({ tabId: 'pot-of-gold', label: 'Pot of Gold', href: '/competitions/pot-of-gold' });
+  }
   sections.push({ id: 'service', label: 'Service', icon: Calendar, items: serviceItems });
 
   const reportItems: MobileNavSection['items'] = [
     { tabId: 'appointments', label: 'Operations', href: '/reports/operations' },
-    { tabId: 'schedule', label: 'Schedule', href: '/reports/schedule' },
   ];
-  if (currentDealershipId === 'hyundai' && modules.showPotOfGoldTab) {
-    reportItems.push({ tabId: 'pot-of-gold', label: 'Pot of Gold', href: '/competitions/pot-of-gold' });
-  }
   if (modules.showSalesPerformanceTab) {
     reportItems.push({
       tabId: 'sales-performance',

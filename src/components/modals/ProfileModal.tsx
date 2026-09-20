@@ -266,7 +266,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
   return (
     <div className="modal-overlay sm:p-4 p-0 !items-start sm:!items-center overflow-y-auto scroll-smooth">
-      <div className="modal-content !max-w-6xl w-full h-auto min-h-[100dvh] sm:min-h-0 sm:h-[90vh] rounded-none sm:rounded-[24px] !bg-[#0b0f1a] border border-white/5 shadow-2xl relative flex flex-col overflow-visible sm:overflow-hidden animate-zoom-in">
+      <div className="modal-content !max-w-6xl w-full h-auto min-h-[100dvh] sm:min-h-0 sm:h-[90vh] rounded-none sm:rounded-[24px] !bg-surface-base border border-white/5 shadow-2xl relative flex flex-col overflow-visible sm:overflow-hidden animate-zoom-in">
         
         {/* Banner with gradient accent */}
         <div className="absolute top-0 left-0 right-0 h-[120px] bg-gradient-to-r from-brand-primary/10 via-brand-secondary/5 to-transparent border-b border-white/5 opacity-50 z-0 pointer-events-none" />
@@ -415,7 +415,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               id="mobile-tab-select"
               value={activeTab}
               onChange={(e) => setActiveTab(e.target.value as TabType)}
-              className="w-full bg-[#0d1324] border border-white/10 text-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:border-brand-primary/50 appearance-none cursor-pointer"
+              className="w-full bg-surface-muted border border-white/10 text-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:border-brand-primary/50 appearance-none cursor-pointer"
             >
               <option value="overview">General</option>
               <option value="demographics">Information</option>
@@ -938,7 +938,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                     id="suspend-reason"
                                     value={suspendReason}
                                     onChange={(e) => setSuspendReason(e.target.value)}
-                                    className="w-full bg-[#0e1424] border border-rose-500/20 text-slate-200 px-3 py-2.5 rounded-lg text-xs font-bold focus:outline-none focus:border-rose-500/50"
+                                    className="w-full bg-surface-muted border border-rose-500/20 text-slate-200 px-3 py-2.5 rounded-lg text-xs font-bold focus:outline-none focus:border-rose-500/50"
                                   >
                                     <option value="Customer Opted-Out">Customer Opted-Out / Do Not Contact</option>
                                     <option value="Vehicle Sold">Vehicle Sold / Transferred Account</option>
@@ -958,7 +958,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                                     onChange={(e) => setSuspendNotes(e.target.value)}
                                     placeholder="Add background context, conversation notes, or specific customer requests here..."
                                     rows={3}
-                                    className="w-full bg-[#0e1424] border border-rose-500/20 text-slate-200 px-3 py-2.5 rounded-lg text-xs placeholder:text-slate-600 focus:outline-none focus:border-rose-500/50"
+                                    className="w-full bg-surface-muted border border-rose-500/20 text-slate-200 px-3 py-2.5 rounded-lg text-xs placeholder:text-slate-600 focus:outline-none focus:border-rose-500/50"
                                   />
                                 </div>
 
@@ -1227,7 +1227,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           name="notes"
                           value={formData.notes || ''}
                           onChange={handleChange}
-                          className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all h-28 resize-none"
+                          className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all h-28 resize-none"
                           placeholder="Persistent notes about this customer (will be displayed on alerts and profile)..."
                         />
                       </div>

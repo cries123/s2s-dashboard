@@ -187,7 +187,7 @@ export default function LoginView() {
           <div className="w-16 h-16 bg-brand-primary rounded-2xl flex items-center justify-center shadow-xl shadow-brand-primary/20 mb-6">
             <LayoutDashboard className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">S2S<span className="text-brand-primary"> Dashboard</span></h1>
+          <h1 className="text-3xl font-semibold text-white tracking-tight">S2S<span className="text-brand-primary"> Dashboard</span></h1>
           <p className="text-slate-400 mt-2 font-medium">Sales-to-Service Intelligence Platform</p>
         </div>
 
@@ -196,7 +196,7 @@ export default function LoginView() {
             <button 
               onClick={() => setMode('login')}
               className={cn(
-                "flex-1 py-4 text-sm font-bold uppercase tracking-widest transition-all", 
+                "flex-1 py-4 text-sm font-bold transition-all", 
                 mode === 'login' ? "text-brand-primary bg-brand-primary/5" : "text-slate-500 hover:text-slate-300"
               )}
             >
@@ -205,7 +205,7 @@ export default function LoginView() {
             <button 
               onClick={() => setMode('signup')}
               className={cn(
-                "flex-1 py-4 text-sm font-bold uppercase tracking-widest transition-all", 
+                "flex-1 py-4 text-sm font-bold transition-all", 
                 mode === 'signup' ? "text-brand-primary bg-brand-primary/5" : "text-slate-500 hover:text-slate-300"
               )}
             >
@@ -216,7 +216,7 @@ export default function LoginView() {
           <div className="p-8">
             {message && (
               <div className={cn(
-                "p-4 rounded-xl mb-6 text-xs font-bold uppercase tracking-wide animate-slide-in", 
+                "p-4 rounded-xl mb-6 text-xs font-bold tracking-wide animate-slide-in", 
                 message.isError ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
               )}>
                 {message.text}
@@ -243,7 +243,7 @@ export default function LoginView() {
                   {isLoading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-2">Sign in <ArrowRight size={18} /></span>}
                 </button>
                 <div className="text-center mt-6">
-                  <button type="button" onClick={() => setMode('reset')} className="text-xs font-bold text-slate-500 hover:text-brand-primary uppercase tracking-widest transition-colors">
+                  <button type="button" onClick={() => setMode('reset')} className="text-xs font-bold text-slate-500 hover:text-brand-primary transition-colors">
                     Forgot password?
                   </button>
                 </div>
@@ -251,9 +251,9 @@ export default function LoginView() {
             )}
 
             {mode === 'signup' && (
-              <p className="mb-4 text-center text-[10px] text-slate-500 font-medium">
+              <p className="mb-4 text-center text-xs text-slate-500 font-medium">
                 Santa Maria Ford/Lincoln enrollment code:{' '}
-                <span className="font-mono font-bold text-indigo-300 tracking-wider">
+                <span className="font-mono font-bold text-indigo-300 ">
                   {joinCodesByDealership.ford || getDealershipStaticEnrollmentCode('ford')}
                 </span>
               </p>
@@ -261,13 +261,13 @@ export default function LoginView() {
 
             {mode === 'signup' && tenantId === 'ford-lincoln' && selectedEnrollmentCode && (
               <div className="mb-5 rounded-xl border border-indigo-500/30 bg-indigo-950/30 px-4 py-3 text-center">
-                <p className="text-[10px] font-black uppercase tracking-wider text-indigo-300">
+                <p className="text-xs font-semibold text-indigo-300">
                   Santa Maria Ford/Lincoln enrollment code
                 </p>
-                <p className="mt-1 font-mono text-2xl font-bold tracking-[0.2em] text-white">
+                <p className="mt-1 font-mono text-2xl font-bold text-white">
                   {selectedEnrollmentCode}
                 </p>
-                <p className="mt-1 text-[10px] text-slate-400">
+                <p className="mt-1 text-xs text-slate-400">
                   New staff enter this code when enrolling below.
                 </p>
               </div>
@@ -305,7 +305,7 @@ export default function LoginView() {
                       ))}
                     </select>
                   </div>
-                  <p className="text-[9px] text-slate-500 font-medium">Nissan/Mazda and Ford/Lincoln share a dashboard layout; Hyundai is isolated.</p>
+                  <p className="text-xs text-slate-500 font-medium">Nissan/Mazda and Ford/Lincoln share a dashboard layout; Hyundai is isolated.</p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="input-label">Department</label>
@@ -331,7 +331,7 @@ export default function LoginView() {
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     required
-                    className="input-field uppercase font-mono tracking-widest"
+                    className="input-field font-mono "
                     placeholder={
                       tenantId === 'ford-lincoln' && selectedEnrollmentCode
                         ? selectedEnrollmentCode
@@ -339,7 +339,7 @@ export default function LoginView() {
                     }
                   />
                   {tenantId === 'ford-lincoln' && selectedEnrollmentCode ? (
-                    <p className="text-[10px] text-slate-500 font-medium">
+                    <p className="text-xs text-slate-500 font-medium">
                       Ford/Lincoln code:{' '}
                       <span className="font-mono font-bold text-indigo-300">{selectedEnrollmentCode}</span>
                     </p>
@@ -347,7 +347,7 @@ export default function LoginView() {
                 </div>
                 <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
                   <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={16} />
-                  <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                  <p className="text-xs text-slate-400 font-medium leading-relaxed">
                     Choose Sales or Service for manager approval at your dealership, or Manager for primary administrator review.
                   </p>
                 </div>
@@ -377,7 +377,7 @@ export default function LoginView() {
                   {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send Forgot password?'}
                 </button>
                 <div className="text-center mt-6">
-                  <button type="button" onClick={() => setMode('login')} className="text-xs font-bold text-slate-500 hover:text-brand-primary uppercase tracking-widest transition-colors">
+                  <button type="button" onClick={() => setMode('login')} className="text-xs font-bold text-slate-500 hover:text-brand-primary transition-colors">
                     &larr; Back to Access
                   </button>
                 </div>
@@ -386,7 +386,7 @@ export default function LoginView() {
           </div>
         </div>
         
-        <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-[0.2em] mt-10">
+        <p className="text-center text-xs text-slate-600 font-bold mt-10">
           SECURE MULTI-TENANT ACCESS • S2S DASHBOARD
         </p>
       </div>

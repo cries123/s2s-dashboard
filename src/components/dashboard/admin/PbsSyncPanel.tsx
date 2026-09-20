@@ -9,6 +9,7 @@ import type { DealershipSettings } from '../../../types';
 import { fetchPbsSyncStatus, runPbsSyncNow, waitForPbsSyncCompletion, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
+import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
 
 interface PbsSyncPanelProps {
   dealershipId: string;
@@ -42,12 +43,15 @@ export function PbsSyncPanel(props: PbsSyncPanelProps) {
   if (!isPbsSyncDealership(props.dealershipId)) {
     return (
       <div className="card-base rounded-2xl border border-white/5 p-6">
-        <p className="text-sm text-slate-300 font-medium">PBS automated sync is not enabled for this store.</p>
-        <p className="text-xs text-slate-500 mt-2 leading-relaxed max-w-2xl">
-          PartnerHUB sync only runs for <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong>.
-          Nissan/Mazda and Ford/Lincoln use separate DMS import workflows — their customer directories are never
-          modified by PBS sync.
-        </p>
+        <p className="text-sm text-slate-300 font-medium">PBS sync is not enabled for this store.</p>
+        <CardNoticeRow className="mt-2">
+          <CardNotice tone="info" summary="Why">
+            PartnerHUB sync only runs for{' '}
+            <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong>. Nissan/Mazda and
+            Ford/Lincoln use their own DMS import, and their customer directories are never touched
+            by PBS sync.
+          </CardNotice>
+        </CardNoticeRow>
       </div>
     );
   }
@@ -232,16 +236,26 @@ function PbsSyncPanelInner({
 
   return (
     <div className="space-y-5">
-      <p className="text-xs text-slate-500 leading-relaxed max-w-2xl">
-        Pull Hyundai customer/vehicle changes from PBS PartnerHUB (matched by VIN). Use{' '}
-        <strong className="text-slate-300">Pull changes</strong> for updates since the last
-        successful sync; use <strong className="text-slate-300">Full fleet refresh</strong> only
-        when you need to rebuild the entire directory from PBS. Also refreshes Operations
-        appointment counts, advisor performance, technician efficiency, service reminders, vehicle
-        inventory, and the dispatch board. Only{' '}
-        <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> is modified. A scheduled
-        job also runs every morning at 6:00 AM Pacific.
-      </p>
+      <div>
+        <p className="crm-label">
+          Pulls customer and vehicle changes from PBS PartnerHUB, matched by VIN. Runs on its own
+          every morning at 6:00 AM Pacific.
+        </p>
+        <CardNoticeRow className="mt-2">
+          <CardNotice tone="info" summary="Which button to use">
+            <strong className="text-slate-300">Pull changes</strong> fetches everything since the
+            last successful sync — that is the one you want almost always.{' '}
+            <strong className="text-slate-300">Full fleet refresh</strong> rebuilds the entire
+            directory from PBS, so use it only when something is genuinely missing.
+          </CardNotice>
+          <CardNotice tone="info" summary="What a pull updates">
+            Customer and vehicle records, Operations appointment counts, advisor performance,
+            technician efficiency, service reminders, vehicle inventory and the dispatch board.
+            Only <strong className="text-slate-300">{PBS_SYNC_DEALERSHIP_NAME}</strong> is
+            touched — no other store's data is read or written.
+          </CardNotice>
+        </CardNoticeRow>
+      </div>
 
       <div className="card-base rounded-2xl border border-white/5 p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">

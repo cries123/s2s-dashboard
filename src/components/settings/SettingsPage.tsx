@@ -197,7 +197,7 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <SlidersHorizontal size={16} className="text-brand-primary" />
-                <span className="text-xs font-semibold normal-case tracking-[0.25em] text-brand-primary">
+                <span className="text-xs font-semibold normal-case text-brand-primary">
                   Your workspace
                 </span>
               </div>

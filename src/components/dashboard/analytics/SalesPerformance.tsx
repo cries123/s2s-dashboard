@@ -190,11 +190,11 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
           <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 42)}>
             <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 24, left: 4, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" horizontal={false} />
-              <XAxis type="number" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+              <XAxis type="number" stroke='var(--color-text-secondary)' fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
               <YAxis
                 type="category"
                 dataKey="name"
-                stroke="#64748b"
+                stroke='var(--color-text-secondary)'
                 fontSize={10}
                 tickLine={false}
                 axisLine={false}

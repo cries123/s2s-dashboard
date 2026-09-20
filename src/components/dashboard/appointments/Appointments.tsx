@@ -831,14 +831,16 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
 
       {showProjections && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <details className="card-base p-5 col-span-1 lg:col-span-2">
-          <summary className="cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 min-h-11">
+        <section className="card-base p-5 col-span-1 lg:col-span-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <h2 className="crm-section-title flex items-center gap-2">
               <TrendingUp size={18} className="text-brand-primary" />
               {viewPeriod.isHistorical ? 'Month-end results and pace' : 'Forecast and appointment pace'}
             </h2>
-            <span className="crm-label">{viewPeriod.isHistorical ? 'View details' : `${metrics.daysRemaining} working days left · View details`}</span>
-          </summary>
+            {!viewPeriod.isHistorical && (
+              <span className="crm-label">{metrics.daysRemaining} working days left</span>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {projectionRows.filter(kpi => kpi.isCurrency ? performanceReport.status === 'ready' : hasAppointmentData).map((kpi) => {
@@ -887,14 +889,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-surface-border)" vertical={false} />
                 <XAxis
                   dataKey="dateLabel"
-                  stroke="#64748b"
+                  stroke='var(--color-text-secondary)'
                   fontSize={10}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                   minTickGap={24}
                 />
-                <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} width={44} />
+                <YAxis stroke='var(--color-text-secondary)' fontSize={10} tickLine={false} axisLine={false} width={44} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'var(--color-surface-card)',
@@ -904,12 +906,12 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   labelStyle={{ color: 'var(--color-text-primary)', fontSize: '11px', fontWeight: 'bold' }}
                   formatter={(v: number) => Math.round(v).toLocaleString()}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#94a3b8', paddingTop: '8px' }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '8px' }} />
                 <ReferenceLine
                   x={appointmentPaceSeries.find((p) => p.day === todayDayNum)?.dateLabel}
-                  stroke="#94a3b8"
+                  stroke='var(--color-text-secondary)'
                   strokeDasharray="3 3"
-                  label={{ value: 'Today', position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}
+                  label={{ value: 'Today', position: 'insideTopRight', fontSize: 10, fill: 'var(--color-text-secondary)' }}
                 />
                 <Area
                   type="monotone"
@@ -927,7 +929,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                   type="monotone"
                   dataKey="goal"
                   name="Goal pace"
-                  stroke="#94a3b8"
+                  stroke='var(--color-text-secondary)'
                   strokeWidth={2}
                   strokeDasharray="4 3"
                   dot={false}
@@ -936,7 +938,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               </ComposedChart>
             </ResponsiveContainer> : <p className="text-sm text-text-secondary">No appointment counts recorded for this month.</p>}
           </div>
-        </details>
+        </section>
 
         <div className="card-base p-4 flex flex-col">
           <h4 className="crm-section-title mb-3 flex items-center gap-2 text-sm">
@@ -1105,7 +1107,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                     {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={18} /> Confirm & Save Count</>}
                   </button>
                 ) : (
-                  <p className="text-xs text-slate-500 italic text-center font-bold normal-case tracking-normal pt-4">
+                  <p className="text-xs text-slate-500 text-center font-bold normal-case tracking-normal pt-4">
                     *Categorization based on PDF text analysis logic
                   </p>
                 )}

@@ -102,7 +102,7 @@ function NavDropdown({ label, isActive, children }: NavDropdownProps) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 rounded-xl text-[9.5px] font-semibold normal-case tracking-normal transition-all relative border shrink-0",
+          "flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all relative border shrink-0",
           isActive
             ? "bg-white/10 text-white shadow-inner border-white/10"
             : "text-slate-400 hover:text-slate-200 border-transparent hover:bg-white/5"
@@ -156,7 +156,7 @@ function NavLink({ href, onClick, isActive, children, badge }: NavLinkProps) {
         onClick();
       }}
       className={cn(
-        "flex items-center justify-between px-3 py-2 text-[9.5px] font-semibold normal-case tracking-normal rounded-xl transition-all",
+        "flex items-center justify-between px-3 py-2 text-xs font-semibold normal-case tracking-normal rounded-xl transition-all",
         isActive
           ? "bg-brand-primary/20 text-brand-primary"
           : "text-slate-300 hover:bg-white/5 hover:text-white"

@@ -259,7 +259,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           className={`w-full sm:w-auto flex items-center justify-center gap-2.5 py-4 px-8 rounded-2xl text-xs font-semibold border transition-all duration-200 ${
             showAIScanner 
               ? 'bg-brand-primary text-black border-brand-primary shadow-lg shadow-brand-primary/10' 
-              : 'bg-white/5 text-slate-300 border-white/5 hover:border-white/10 hover:bg-[#0c1020]'
+              : 'bg-white/5 text-slate-300 border-white/5 hover:border-white/10 hover:bg-surface-muted'
           }`}
         >
           <Camera size={15} />
@@ -282,7 +282,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
                 className={`relative p-8 rounded-3xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center text-center group ${
-                  dragActive ? 'border-brand-primary bg-brand-primary/5' : 'border-white/10 hover:border-white/20 bg-[#0a0e1a]/80'
+                  dragActive ? 'border-brand-primary bg-brand-primary/5' : 'border-white/10 hover:border-white/20 bg-surface-base/80'
                 }`}
               >
                 <div className={`p-4 rounded-full mb-4 transition-all ${dragActive ? 'bg-brand-primary/10 text-brand-primary' : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-brand-primary'}`}>
@@ -310,7 +310,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
       {/* 2. MAIN ENROLLMENT FORM (Full Width / Max-4XL Centered) */}
       <div className="max-w-4xl mx-auto">
-        <form onSubmit={handleSubmit} className="relative rounded-3xl bg-[#0a0e1a] border border-white/5 shadow-2xl p-6 md:p-8 space-y-8 overflow-hidden">
+        <form onSubmit={handleSubmit} className="relative rounded-3xl bg-surface-base border border-white/5 shadow-2xl p-6 md:p-8 space-y-8 overflow-hidden">
           {/* Subtle glowing ray behind header */}
           <div className="absolute top-0 left-0 w-44 h-24 bg-brand-primary/5 rounded-full blur-[60px]" />
           
@@ -338,7 +338,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   value={formData.firstName}
                   onChange={handleChange}
                   required
-                  className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
+                  className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
                   placeholder="e.g. Liam"
                 />
               </div>
@@ -351,7 +351,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   value={formData.lastName}
                   onChange={handleChange}
                   required
-                  className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
+                  className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
                   placeholder="e.g. Cooper"
                 />
               </div>
@@ -365,7 +365,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
                     placeholder="(555) 000-0000"
                   />
                 </div>
@@ -380,7 +380,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
                     placeholder="driver@example.com"
                   />
                 </div>
@@ -394,7 +394,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="language"
                     value={formData.language}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
                   >
                     <option value="English">English</option>
                     <option value="Spanish">Spanish</option>
@@ -427,7 +427,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     value={formData.vin}
                     onChange={handleVinChange}
                     maxLength={17}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-12 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-12 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
                     placeholder="ENTER 17-CHARACTER VIN"
                   />
                   {isDecoding && (
@@ -447,7 +447,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="model"
                     value={formData.model}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
                     placeholder="e.g. 2024 Elantra Hybrid"
                   />
                 </div>
@@ -463,7 +463,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     value={formData.vinLast8}
                     onChange={handleChange}
                     maxLength={8}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
                     placeholder="e.g. ABC12345"
                   />
                 </div>
@@ -488,7 +488,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="soldDate"
                     value={formData.soldDate}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none"
                   />
                 </div>
               </div>
@@ -501,7 +501,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     id="soldByUserId"
                     value={formData.soldByUserId}
                     onChange={handleChange}
-                    className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
+                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
                   >
                     <option value="">Select Salesperson...</option>
                     {salespeople.map(sp => (
@@ -527,7 +527,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                 id="notes"
                 value={formData.notes || ''}
                 onChange={handleChange}
-                className="w-full bg-[#0e1324] border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 h-24 resize-none"
+                className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 h-24 resize-none"
                 placeholder="Write any personal notes, service histories, or client preferences here..."
               />
             </div>

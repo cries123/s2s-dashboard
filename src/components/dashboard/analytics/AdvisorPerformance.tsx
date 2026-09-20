@@ -1046,7 +1046,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                         </div>
                       ))}
                       {(!advisor.upsells || advisor.upsells.length === 0) && (
-                        <p className="crm-label text-center py-4 text-xs font-bold normal-case tracking-normal italic">No service sales data available</p>
+                        <p className="crm-label text-center py-4 text-xs font-bold normal-case tracking-normal ">No service sales data available</p>
                       )}
                     </div>
                   </div>

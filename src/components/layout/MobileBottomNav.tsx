@@ -62,9 +62,9 @@ interface MobileBottomNavProps {
 const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
   home: ['home'],
   sales: ['add', 'vin-search'],
-  service: ['search', 'alerts', 'dispatch', 'open-ros'],
+  service: ['search', 'alerts', 'schedule', 'dispatch', 'open-ros', 'pot-of-gold'],
   competitions: [],
-  reports: ['appointments', 'forecast', 'sales-performance', 'schedule', 'pot-of-gold'],
+  reports: ['appointments', 'forecast', 'sales-performance'],
   manager: ['manager'],
   admin: ['admin'],
 };

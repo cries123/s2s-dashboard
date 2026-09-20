@@ -92,6 +92,15 @@ export function buildSidebarNav({
       tab: 'alerts',
       badge: activeAlertsCount,
     },
+    // Schedule and Pot of Gold sit with Service, not Reports: they are part of
+    // running the day, not reviewing the month.
+    {
+      id: 'schedule',
+      label: 'Schedule',
+      href: '/reports/schedule',
+      icon: CalendarDays,
+      tab: 'schedule',
+    },
   ];
   if (showOpenRosTab) {
     serviceItems.push({
@@ -111,23 +120,16 @@ export function buildSidebarNav({
       tab: 'dispatch',
     });
   }
-  sections.push({ id: 'service', label: 'Service', items: serviceItems });
-
   if (currentDealershipId === 'hyundai' && modules.showPotOfGoldTab) {
-    sections.push({
-      id: 'competitions',
-      label: 'Competitions',
-      items: [
-        {
-          id: 'pot-of-gold',
-          label: 'Pot of Gold',
-          href: '/competitions/pot-of-gold',
-          icon: Trophy,
-          tab: 'pot-of-gold',
-        },
-      ],
+    serviceItems.push({
+      id: 'pot-of-gold',
+      label: 'Pot of Gold',
+      href: '/competitions/pot-of-gold',
+      icon: Trophy,
+      tab: 'pot-of-gold',
     });
   }
+  sections.push({ id: 'service', label: 'Service', items: serviceItems });
 
   const reportItems: SidebarNavItem[] = [
     {
@@ -136,13 +138,6 @@ export function buildSidebarNav({
       href: '/reports/operations',
       icon: Calendar,
       tab: 'appointments',
-    },
-    {
-      id: 'schedule',
-      label: 'Schedule',
-      href: '/reports/schedule',
-      icon: CalendarDays,
-      tab: 'schedule',
     },
   ];
   if (modules.showSalesPerformanceTab) {

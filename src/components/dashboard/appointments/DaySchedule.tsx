@@ -294,11 +294,11 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="crm-label">Today's operational capacity</p>
-            <p className="text-4xl font-black tracking-tight mt-1">{capacity.utilizationPercent}%</p>
+            <p className="text-4xl font-semibold tracking-tight mt-1">{capacity.utilizationPercent}%</p>
           </div>
           <span
             className={cn(
-              'inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-full whitespace-nowrap',
+              'inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full whitespace-nowrap',
               CAPACITY_STATUS_STYLES[capacity.status].chip
             )}
           >
@@ -423,8 +423,8 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
                 )}
               >
                 <div className="w-11 shrink-0">
-                  <p className="text-xs font-black">{day.label}</p>
-                  <p className="text-[10px]" style={{ color: 'var(--color-text-tertiary)' }}>
+                  <p className="text-xs font-semibold">{day.label}</p>
+                  <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                     {day.monthLabel} {day.dayNum}
                   </p>
                 </div>
@@ -434,9 +434,9 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-base font-black tabular-nums leading-none">
+                  <p className="text-base font-semibold tabular-nums leading-none">
                     {day.count}
-                    <span className="text-[9px] font-bold uppercase ml-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                    <span className="text-xs font-bold ml-1" style={{ color: 'var(--color-text-tertiary)' }}>
                       appts
                     </span>
                   </p>
@@ -446,7 +446,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
           })}
         </div>
 
-        <p className="px-4 py-2.5 text-[10px] text-slate-500 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
+        <p className="px-4 py-2.5 text-xs text-slate-500 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
           Visits combining an oil change with other work (recall, diag) count as oil changes.
         </p>
       </div>

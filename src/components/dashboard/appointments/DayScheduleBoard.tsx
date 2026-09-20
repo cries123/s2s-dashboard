@@ -163,7 +163,7 @@ export function DayScheduleBoard({
   if (loading) {
     return (
       <div
-        className={cn('rounded-lg border p-8 text-center bg-[#0b1018]', className)}
+        className={cn('rounded-lg border p-8 text-center bg-surface-base', className)}
         style={{ borderColor: 'var(--color-surface-border)' }}
       >
         <p className="crm-label">Loading day schedule…</p>
@@ -174,7 +174,7 @@ export function DayScheduleBoard({
   if (appointments.length === 0) {
     return (
       <div
-        className={cn('rounded-lg border p-8 text-center space-y-3 bg-[#0b1018]', className)}
+        className={cn('rounded-lg border p-8 text-center space-y-3 bg-surface-base', className)}
         style={{ borderColor: 'var(--color-surface-border)' }}
       >
         <p className="crm-label">No scheduled appointments stored for this day.</p>
@@ -233,22 +233,22 @@ export function DayScheduleBoard({
       </div>
 
       <div
-        className="rounded-lg border overflow-hidden bg-[#0b1018] shadow-inner"
-        style={{ borderColor: '#1e293b' }}
+        className="rounded-lg border overflow-hidden bg-surface-base shadow-inner"
+        style={{ borderColor: 'var(--color-surface-border)' }}
       >
         <div className="overflow-x-auto">
           <div className="min-w-[720px]">
             {/* Column headers — PBS style */}
             <div
-              className="flex border-b bg-[#0d1320]"
-              style={{ borderColor: '#1e293b' }}
+              className="flex border-b bg-surface-muted"
+              style={{ borderColor: 'var(--color-surface-border)' }}
             >
-              <div className="w-[52px] shrink-0 border-r" style={{ borderColor: '#1e293b' }} />
+              <div className="w-[52px] shrink-0 border-r" style={{ borderColor: 'var(--color-surface-border)' }} />
               {columns.map((column) => (
                 <div
                   key={column.id || 'open'}
                   className="flex-1 min-w-[132px] px-2 py-2 border-r last:border-r-0 text-center"
-                  style={{ borderColor: '#1e293b' }}
+                  style={{ borderColor: 'var(--color-surface-border)' }}
                 >
                   <p className="text-[11px] font-semibold tracking-wide text-slate-100 truncate">
                     {column.id ? `Tech ${column.label}` : column.label}
@@ -261,8 +261,8 @@ export function DayScheduleBoard({
             <div className="flex relative">
               {/* Time axis */}
               <div
-                className="w-[52px] shrink-0 border-r relative bg-[#0b1018]"
-                style={{ borderColor: '#1e293b', height: bounds.heightPx }}
+                className="w-[52px] shrink-0 border-r relative bg-surface-base"
+                style={{ borderColor: 'var(--color-surface-border)', height: bounds.heightPx }}
               >
                 {hourLabels.map((hour) => (
                   <span
@@ -287,8 +287,8 @@ export function DayScheduleBoard({
                   return (
                     <div
                       key={column.id || 'open'}
-                      className="flex-1 min-w-[132px] relative border-r last:border-r-0 bg-[#0b1018]"
-                      style={{ borderColor: '#1e293b', height: bounds.heightPx }}
+                      className="flex-1 min-w-[132px] relative border-r last:border-r-0 bg-surface-base"
+                      style={{ borderColor: 'var(--color-surface-border)', height: bounds.heightPx }}
                     >
                       {hourLabels.map((hour) => (
                         <div
@@ -361,7 +361,7 @@ export function DayScheduleBoard({
                         'repeating-linear-gradient(-45deg, rgba(15,23,42,0.92) 0, rgba(15,23,42,0.92) 8px, rgba(30,41,59,0.75) 8px, rgba(30,41,59,0.75) 16px)',
                     }}
                   >
-                    <span className="text-xs font-semibold text-amber-500/70 bg-[#0b1018]/80 px-3 py-1 rounded border border-amber-900/30">
+                    <span className="text-xs font-semibold text-amber-500/70 bg-surface-base/80 px-3 py-1 rounded border border-amber-900/30">
                       Lunch
                     </span>
                   </div>
