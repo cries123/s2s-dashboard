@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Package } from 'lucide-react';
 import type { Customer } from '../../../types';
 import { computeTopMovingParts, movingPartsWindowForMonth } from '../../../lib/topMovingParts';
+import { formatPeriodRange } from '../../../lib/reportPeriodLabel';
 import { EmptyState } from '../../ui/EmptyState';
 import { cn } from '../../../lib/utils';
 
@@ -38,16 +39,17 @@ export function TopMovingPartsCard({
         aria-expanded={open}
         className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-[var(--color-surface-hover)] transition-colors"
       >
-        <span className="crm-section-title flex items-center gap-2">
-          <Package size={16} className="text-brand-primary" />
-          Top moving parts
-        </span>
-        <span className="flex items-center gap-3">
-          <span className="crm-label tabular-nums">
-            {window.start.slice(0, 7)} · {parts.length} parts · {totalUnits.toLocaleString()} units
+        <span className="min-w-0">
+          <span className="crm-section-title flex items-center gap-2">
+            <Package size={16} className="text-brand-primary" />
+            Top moving parts
           </span>
-          {open ? <ChevronUp size={16} className="shrink-0" /> : <ChevronDown size={16} className="shrink-0" />}
+          <span className="crm-label tabular-nums block mt-0.5 truncate">
+            {formatPeriodRange(window.start, window.end)} · {parts.length} parts ·{' '}
+            {totalUnits.toLocaleString()} units
+          </span>
         </span>
+        {open ? <ChevronUp size={16} className="shrink-0" /> : <ChevronDown size={16} className="shrink-0" />}
       </button>
 
       {open && (

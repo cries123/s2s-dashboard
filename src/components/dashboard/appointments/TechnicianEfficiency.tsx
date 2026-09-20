@@ -19,6 +19,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { EmptyState } from '../../ui/EmptyState';
 import { KpiStrip } from '../../ui/KpiStrip';
+import { CardMeta, CardNotice, CardNoticeRow } from '../../ui/CardNotice';
+import { formatReportPeriod } from '../../../lib/reportPeriodLabel';
 import { TableSkeleton } from '../../ui/Skeleton';
 import {
   formatArchiveDisplayLabel,
@@ -142,23 +144,6 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
       }
     }
     return null;
-  };
-
-  // Helper: Format date string for humans
-  const formatDateRangeShort = (startStr: string, endStr: string): string => {
-    try {
-      const start = new Date(startStr + 'T00:00:00');
-      const end = new Date(endStr + 'T00:00:00');
-      const fmt = (d: Date) => {
-        const m = d.getMonth() + 1;
-        const day = d.getDate();
-        const yr = d.getFullYear().toString().substring(2);
-        return `${m}/${day}/${yr}`;
-      };
-      return `${fmt(start)}-${fmt(end)}`;
-    } catch (e) {
-      return `${startStr} - ${endStr}`;
-    }
   };
 
   // Real-time Firestore sync
@@ -480,35 +465,31 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               Technician efficiency
             </h2>
             {reportStartDate && reportEndDate && (
-              <p className={cn('text-xs font-bold normal-case tracking-normal mt-0.5', embedded ? 'crm-label' : 'text-slate-400')}>
-                {embedded ? `${reportStartDate} – ${reportEndDate}` : `Active report period: ${formatDateRangeShort(reportStartDate, reportEndDate)}`}
-                {selectedMonth === 'active' && pbsSyncedAt && isPbsDealership
-                  ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}`
-                  : ''}
-              </p>
+              <CardMeta>
+                {formatReportPeriod(
+                  reportStartDate,
+                  reportEndDate,
+                  selectedMonth === 'active' && isPbsDealership ? pbsSyncedAt : null
+                )}
+              </CardMeta>
             )}
-            {selectedMonth !== 'active' && (
-              <p className="text-xs text-amber-400/90 font-medium mt-1">
-                PBS sync writes to the active month only — switch View Period to July (Active).
-              </p>
-            )}
-            {!embedded && selectedMonth === 'active' && pbsSyncedAt && (
-              <p className="text-xs text-slate-500 font-medium mt-1">
-                PBS synced {new Date(pbsSyncedAt).toLocaleString()}
-              </p>
-            )}
-            {embedded && isPbsDealership && selectedMonth === 'active' && technicians.length === 0 && (
-              <p className="text-xs text-amber-400/90 mt-1">
-                Run Pull changes in Admin → PBS Sync to load clock and flagged hours from PBS.
-              </p>
-            )}
-            {isPbsDealership && selectedMonth === 'active' && clockDataUnavailable && performanceSource === 'pbs-sync' && (
-              <p className="text-xs text-amber-400/90 mt-1">
-                PBS time clock access is not enabled for these PartnerHUB credentials — showing
-                flagged hours from repair orders only. Ask PBS support to enable
-                TimeClockActivityGet for clocked hours and efficiency.
-              </p>
-            )}
+
+            <CardNoticeRow className="mt-2">
+              {selectedMonth !== 'active' && (
+                <CardNotice tone="warn" summary="Archive month">
+                  PBS sync only writes to the active month. Switch View Period back to the active month
+                  to pull fresh hours.
+                </CardNotice>
+              )}
+              {isPbsDealership && selectedMonth === 'active' && clockDataUnavailable && performanceSource === 'pbs-sync' && (
+                <CardNotice tone="warn" summary="Clocked hours unavailable">
+                  PBS time clock access is not enabled for these PartnerHUB credentials, so this is
+                  flagged hours from repair orders only. Ask PBS support to enable{' '}
+                  <strong className="text-amber-200">TimeClockActivityGet</strong> for clocked hours and
+                  true efficiency.
+                </CardNotice>
+              )}
+            </CardNoticeRow>
           </div>
         </div>
 
@@ -738,10 +719,10 @@ export const TechnicianEfficiency: React.FC<TechnicianEfficiencyProps> = ({
               description={
                 report.status === 'error' ? 'The report could not be loaded. Reload to retry.' : isPbsDealership
                   ? selectedMonth !== 'active'
-                    ? 'PBS sync writes to the active month only. Set View Period to July (Active), then run Pull changes in Admin → PBS Sync.'
+                    ? 'PBS sync writes to the active month only. Set View Period back to the active month, then run Pull changes in Admin → PBS Sync.'
                     : performanceSource === 'pbs-sync' && pbsSyncedAt
                       ? `PBS pulled on ${new Date(pbsSyncedAt).toLocaleString()} but returned 0 technicians for ${reportStartDate}. Check Admin → PBS Sync log for Tech reports and clock punches.`
-                      : 'Run Pull changes in Admin → PBS Sync to load July clock hours and flagged hours from PBS.'
+                      : 'Run Pull changes in Admin → PBS Sync to load clocked and flagged hours from PBS.'
                   : 'Upload a technician summary PDF or use "Add technician" to start tracking flagged hours and efficiency.'
               }
             />

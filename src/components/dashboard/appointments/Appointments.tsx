@@ -44,6 +44,7 @@ import {
   resolveOperationsViewPeriod,
 } from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
+import { CardNotice } from '../../ui/CardNotice';
 import { PageSkeleton } from '../../ui/Skeleton';
 import {
   ResponsiveContainer,
@@ -776,10 +777,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         }
       />
 
-      <div className="flex flex-wrap items-end gap-4">
+      <div className="flex flex-wrap items-center gap-3">
           {/* Month Period Dropdown */}
           <div className="flex flex-col gap-1 flex-1 sm:flex-initial">
-            <span className="text-xs font-semibold text-slate-500 normal-case tracking-normal leading-none">View Period</span>
             <select
               aria-label="View period"
               value={selectedMonth}
@@ -800,7 +800,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           </div>
 
 
-        <p className="text-sm text-text-secondary pb-2">{viewPeriod.isHistorical ? 'Month-end results' : 'Month to date'} · {viewPeriod.label}</p>
+        <p className="crm-label">{viewPeriod.isHistorical ? 'Month-end results' : 'Month to date'}</p>
       </div>
       {performanceReport.status !== 'ready' && (
         <p role="status" className="card-base p-4 text-sm text-text-secondary">
@@ -810,19 +810,19 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         </p>
       )}
       {modulePrefs?.showOperationsKpis !== false && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="card-base px-5 py-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="card-base px-4 py-3.5 sm:px-5 sm:py-4">
           <p className="crm-label">Appointments {periodLabel}</p>
-          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{hasAppointmentData ? metrics.monthTotal.toLocaleString() : '—'}</p>
+          <p className="crm-kpi-value text-2xl sm:text-3xl mt-1 tabular-nums">{hasAppointmentData ? metrics.monthTotal.toLocaleString() : '—'}</p>
           <p className="crm-label mt-1.5">
-            {hasAppointmentData ? (viewPeriod.isHistorical ? 'Final recorded volume' : `Trending ${Math.round(metrics.forecast).toLocaleString()} · ${metrics.daysRemaining} working days left`) : trackerError ? 'Appointment counts could not be loaded' : 'No appointment counts recorded for this month'}
+            {hasAppointmentData ? (viewPeriod.isHistorical ? 'Final volume' : `Trending ${Math.round(metrics.forecast).toLocaleString()}`) : trackerError ? 'Counts unavailable' : 'No counts recorded'}
           </p>
         </div>
-        <div className="card-base px-5 py-4">
+        <div className="card-base px-4 py-3.5 sm:px-5 sm:py-4">
           <p className="crm-label">Labor gross {periodLabel}</p>
-          <p className="crm-kpi-value text-3xl mt-1 tabular-nums">{performanceReport.status === 'ready' ? `$${Math.round(metrics.mtdGross).toLocaleString()}` : '—'}</p>
+          <p className="crm-kpi-value text-2xl sm:text-3xl mt-1 tabular-nums">{performanceReport.status === 'ready' ? `$${Math.round(metrics.mtdGross).toLocaleString()}` : '—'}</p>
           <p className="crm-label mt-1.5">
-            {performanceReport.status === 'ready' ? `$${Math.round(metrics.laborDailyAvg).toLocaleString()}/day` : 'Financial results unavailable'} · goal ${Math.round(metrics.laborTarget).toLocaleString()}
+            {performanceReport.status === 'ready' ? `$${Math.round(metrics.laborDailyAvg).toLocaleString()}/day · goal $${Math.round(metrics.laborTarget).toLocaleString()}` : 'Results unavailable'}
           </p>
         </div>
       </div>
@@ -1135,25 +1135,32 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                 </span>
               )}
             </div>
-            <p className="text-xs font-bold text-slate-400 mt-1 normal-case tracking-wide">
-              {selectedMonth === 'active' 
-                ? "Active performance workspace for the current month. Save last month's figures first before restarting."
-                : allowArchiveEditing
-                  ? `Archive editing enabled. Any manual entry or PDF import will update the saved numbers for ${formatArchiveMonthLabel(selectedMonth)}.`
-                  : "Displaying historical database metrics in read-only audit mode."
-              }
-            </p>
+            <div className="mt-2">
+              {selectedMonth === 'active' ? (
+                <CardNotice tone="info" summary="Before you archive">
+                  This is the live workspace for the current month. Save last month's figures before
+                  restarting, or they are lost.
+                </CardNotice>
+              ) : allowArchiveEditing ? (
+                <CardNotice tone="warn" summary="Edits will overwrite the archive">
+                  Any manual entry or PDF import now updates the saved numbers for{' '}
+                  {formatArchiveMonthLabel(selectedMonth)}.
+                </CardNotice>
+              ) : (
+                <CardNotice tone="info" summary="Read-only audit" />
+              )}
+            </div>
         </div>
 
         {/* Dynamic Controls Grid */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          <div className="flex items-end gap-3 flex-1 sm:flex-initial mt-4 sm:mt-0 pt-1 lg:pt-0">
+        <div className="w-full lg:w-auto">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
             {/* Lock / Unlock Archive Editing */}
             {selectedMonth !== 'active' && (
               <button
                 onClick={() => setAllowArchiveEditing(!allowArchiveEditing)}
                 className={cn(
-                  "h-11 px-6 border text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none rounded-xl",
+                  "h-11 px-4 sm:px-6 border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 rounded-xl",
                   allowArchiveEditing 
                     ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
                     : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
@@ -1161,7 +1168,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                 title="Unlock editing capability for this historical archive month"
               >
                 {allowArchiveEditing ? <Unlock size={13} /> : <Lock size={13} />}
-                {allowArchiveEditing ? "Lock Archive (Save)" : "Unlock to Edit"}
+                {allowArchiveEditing ? "Lock archive" : "Unlock to edit"}
               </button>
             )}
 
@@ -1169,20 +1176,20 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             {selectedMonth === 'active' && showArchiveTools && (
               <button
                 onClick={() => setShowArchiveModal(true)}
-                className="h-11 px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+                className="h-11 px-2.5 sm:px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2"
                 title="Configure custom destination archive period and restart workspace"
               >
                 <Archive size={13} />
-                Archive & Restart Monthly
+                Archive &amp; restart
               </button>
             )}
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-11 px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-xs font-semibold normal-case tracking-normal transition-all cursor-pointer flex items-center justify-center gap-2 flex-1 sm:flex-none"
+              className="h-11 px-2.5 sm:px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2"
             >
               <Printer size={13} />
-              Print Report
+              Print report
             </button>
           </div>
         </div>

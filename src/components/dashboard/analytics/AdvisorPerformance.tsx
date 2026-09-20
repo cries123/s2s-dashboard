@@ -14,6 +14,8 @@ import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dms
 import { ManualPerformanceEntry } from './ManualPerformanceEntry';
 import { EmptyState } from '../../ui/EmptyState';
 import { KpiStrip } from '../../ui/KpiStrip';
+import { CardMeta, CardNotice, CardNoticeRow } from '../../ui/CardNotice';
+import { formatReportPeriod } from '../../../lib/reportPeriodLabel';
 import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import {
   EMPTY_PERFORMANCE_TOTALS,
@@ -694,60 +696,63 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         className="hidden"
       />
       
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
           <h3 className="crm-section-title flex items-center gap-2">
             <Users size={18} className="text-brand-secondary" />
             Advisor performance
           </h3>
-          <p className="crm-label mt-1">
-            {isPbsDealership
-              ? 'Labor, parts, and gross totals from PBS cashiered ROs (current month).'
-              : 'Labor, parts, and gross totals from productivity imports.'}
-          </p>
-          {selectedMonth !== 'active' && (
-            <p className="text-xs text-amber-400/90 mt-1 font-medium">
-              Historical view. PBS pulls update the current month; import a historical report to fill a missing archive.
-            </p>
-          )}
-          {selectedMonth === 'active' && reportStartDate && reportEndDate && (
-            <p className="crm-label text-xs mt-1">
-              Active period: {reportStartDate} – {reportEndDate}
-              {pbsSyncedAt ? ` · PBS synced ${new Date(pbsSyncedAt).toLocaleString()}` : ''}
-            </p>
-          )}
-          {isPbsDealership && partsInvoicesSkipped && selectedMonth === 'active' && (
-            <p className="text-xs text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
-              Parts totals are incomplete — PBS denied access to cashiered parts invoices
-              {partsInvoicesSkipReason ? ` (${partsInvoicesSkipReason})` : ''}. Counter/walk-in parts
-              are not included. Ask PBS/PartnerHUB to enable <strong className="text-amber-200">PartsInvoiceGet</strong> if
-              you need parts accuracy.
-            </p>
-          )}
-          {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && unmatchedAdvisorNames.length > 0 && (
-            <p className="text-xs text-amber-400/90 mt-2 max-w-2xl leading-relaxed">
-              PBS attributed labor to advisor names not on your performance roster:{' '}
-              <strong className="text-amber-200">{unmatchedAdvisorNames.join(', ')}</strong>. Their
-              cards are hidden. Map PBS login codes under{' '}
-              <strong className="text-amber-200">Manager → Operations settings → PBS login code map</strong>,
-              or add the advisor to your roster there, then run{' '}
-              <strong className="text-amber-200">Admin → PBS Sync → Pull changes</strong>.
-            </p>
-          )}
-          {isPbsDealership && performanceSource === 'csr-pdf' && selectedMonth === 'active' && (
-            <p className="text-xs text-emerald-400/90 mt-2 max-w-2xl leading-relaxed">
-              Labor gross is from your imported CSR productivity report (matches PBS). Pull changes will
-              refresh advisor rows but keep imported labor gross until you import a newer PDF.
-            </p>
-          )}
-          {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && (
-            <p className="crm-label text-xs mt-2 max-w-2xl leading-relaxed">
-              Labor gross is computed from cashiered repair orders via PBS. For an exact match to the CSR
-              productivity report, import that PDF here — PBS has no dedicated productivity report API.
-            </p>
-          )}
+          <CardMeta>
+            {selectedMonth === 'active'
+              ? formatReportPeriod(reportStartDate, reportEndDate, pbsSyncedAt) ||
+                (isPbsDealership ? 'From PBS cashiered ROs' : 'From productivity imports')
+              : `Archive · ${formatArchiveDisplayLabel(selectedMonth)}`}
+          </CardMeta>
+
+          <CardNoticeRow className="mt-2">
+            {selectedMonth !== 'active' && (
+              <CardNotice tone="warn" summary="Historical view">
+                PBS pulls only update the current month. To fill a missing archive, import a historical
+                report for that month.
+              </CardNotice>
+            )}
+            {isPbsDealership && partsInvoicesSkipped && selectedMonth === 'active' && (
+              <CardNotice tone="warn" summary="Parts totals incomplete">
+                PBS denied access to cashiered parts invoices
+                {partsInvoicesSkipReason ? ` (${partsInvoicesSkipReason})` : ''}, so counter and walk-in
+                parts are not included. Ask PBS/PartnerHUB to enable{' '}
+                <strong className="text-amber-200">PartsInvoiceGet</strong> if you need parts accuracy.
+              </CardNotice>
+            )}
+            {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && unmatchedAdvisorNames.length > 0 && (
+              <CardNotice
+                tone="warn"
+                summary={`${unmatchedAdvisorNames.length} advisor${unmatchedAdvisorNames.length === 1 ? '' : 's'} not on roster`}
+              >
+                PBS attributed labor to{' '}
+                <strong className="text-amber-200">{unmatchedAdvisorNames.join(', ')}</strong>, who are
+                not on your performance roster, so their cards are hidden. Map PBS login codes under{' '}
+                <strong className="text-amber-200">Manager → Operations settings → PBS login code map</strong>{' '}
+                or add them to the roster there, then run{' '}
+                <strong className="text-amber-200">Admin → PBS Sync → Pull changes</strong>.
+              </CardNotice>
+            )}
+            {isPbsDealership && performanceSource === 'csr-pdf' && selectedMonth === 'active' && (
+              <CardNotice tone="good" summary="Labor gross from your CSR import">
+                These figures come from the CSR productivity report you imported, so they match PBS
+                exactly. Pull changes will refresh advisor rows but keep this labor gross until you
+                import a newer PDF.
+              </CardNotice>
+            )}
+            {isPbsDealership && performanceSource === 'pbs-sync' && selectedMonth === 'active' && (
+              <CardNotice tone="info" summary="How labor gross is calculated">
+                Computed from cashiered repair orders via PBS. For an exact match to the CSR productivity
+                report, import that PDF here — PBS has no dedicated productivity report API.
+              </CardNotice>
+            )}
+          </CardNoticeRow>
         </div>
-        
+
         {selectedMonth !== 'active' && !allowArchiveEditing ? (
           <div className="card-base flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
