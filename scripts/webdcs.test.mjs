@@ -69,6 +69,47 @@ check('resolved is not waiting', parse.looksAwaitingResponse('DCM 1004 resolved'
   check('waiting excludes closed/answered', r.waiting, 2);
 }
 
+console.log('\nThe DCMNotification tooltip table (shape learned from the first real run)');
+{
+  const r = parse.parseNotificationRows([
+    ['New Cases', '2'],
+    ['Awaiting Dealer Response', '3'],
+    ['Closed This Month', '9'],
+  ]);
+  check('the row about a response wins', r.count, 3);
+  check('reason names the row', /response/i.test(r.reason), true);
+  check('labels and counts come back as evidence', r.labelled.map((x) => x.count), [2, 3, 9]);
+}
+check('a single numeric row is taken as the count', parse.parseNotificationRows([['Cases', '4']]).count, 4);
+check(
+  'awaiting-style label wins when nothing says response',
+  parse.parseNotificationRows([['Pending', '5'], ['Closed', '7']]).count,
+  5
+);
+check(
+  'several numeric rows and none awaiting is undecided, not 0',
+  parse.parseNotificationRows([['Total', '5'], ['Closed', '7']]).count,
+  null
+);
+check(
+  'rows that are the cases themselves are counted',
+  parse.parseNotificationRows([['Case 100123 — awaiting dealer response'], ['Case 100124 — closed'], ['Case 100125 — response required']]).count,
+  2
+);
+check(
+  'an embedded small number in an awaiting row is a count',
+  parse.parseNotificationRows([['You have 3 new cases']]).count,
+  3
+);
+check(
+  'a case id is never mistaken for a count',
+  parse.parseNotificationRows([['Case 1001 awaiting response']]).count,
+  1
+);
+check('empty table is undecided', parse.parseNotificationRows([]).count, null);
+check('cells are redacted in the diagnostic', parse.parseNotificationRows([['jane.doe@dealer.com', '1']]).redactedRows[0][0], '[email]');
+check('countDcmRows can skip the DCM word inside the DCM control', parse.countDcmRows(['awaiting response', 'closed'], { requireDcm: false }).waiting, 1);
+
 console.log('\nDeciding the answer');
 check('heading count wins', parse.decideCount({ headingCount: 5, rowCounts: { dcmRowsTotal: 9, waiting: 2 } }), { count: 5, strategy: 'panel-heading' });
 check('rows when no heading', parse.decideCount({ headingCount: null, rowCounts: { dcmRowsTotal: 3, waiting: 1 } }), { count: 1, strategy: 'panel-rows' });

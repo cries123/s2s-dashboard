@@ -1,17 +1,26 @@
 /**
- * DCM check. Injected into each frame of the signed-in WebDCS tab after
- * dcm-parse.js. Finds the notification bell, opens it, reads the DCM cases
- * waiting for a response, and puts the panel back the way it was.
+ * DCM check. Injected into each frame of the signed-in tab after dcm-parse.js.
  *
- * The WebDCS DOM has not been inspected from inside an authenticated session
- * yet, so every step tries an ordered list of stable candidates (aria labels,
- * titles, ids, class fragments) rather than one selector, and any step that
- * finds nothing returns a sanitized structural snapshot so the selectors can be
- * pinned down after one real look. Nothing here reads cookies, storage, or
- * sends a network request.
+ * Learned from the first real run (2026-09-23): the dealer portal is a
+ * SharePoint site at www.hyundaidealer.com, and the "bell" is
  *
- * Returns { skipped: true } from frames that have no bell; the background
- * script picks the frame that did.
+ *   <div class="tooltipBox">
+ *     <a id="ctl00_DCMNotification1_lnkCaption" class="caption"
+ *        href="/_layouts/15/SSOSharepointSolution/SSORedirect.aspx">
+ *     <table class="notification"><tbody> 3 x <tr> (2 cells) </tbody></table>
+ *   </div>
+ *
+ * The link is an SSO redirect into WebDCS — clicking it navigates away and
+ * never opens anything. The notification rows are already in the DOM beside
+ * it as a hover tooltip. So strategy A hovers, never clicks, and reads the
+ * table with textContent (innerText is empty for hidden elements, which is
+ * why the first snapshot showed textLen 0 everywhere).
+ *
+ * Strategy B is the generic click-the-bell path, kept for other layouts, with
+ * SSO links excluded so it can never navigate the user away.
+ *
+ * Nothing here reads cookies, storage, or sends a network request. Frames
+ * that have neither return { skipped: true }.
  */
 (async () => {
   const P = globalThis.__webdcsDcmParse;
@@ -20,16 +29,24 @@
   const say = (m) => log.push(`+${String(Date.now() - t0).padStart(5)}ms ${m}`);
 
   const isVisible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
-  const q = (sel, root = document) => {
+  const q = (sel, root = document, { visibleOnly = true } = {}) => {
     try {
-      return [...root.querySelectorAll(sel)].filter(isVisible);
+      const all = [...root.querySelectorAll(sel)];
+      return visibleOnly ? all.filter(isVisible) : all;
     } catch {
       return [];
     }
   };
-  const text = (el) => P.normalize(el?.innerText ?? el?.textContent ?? '');
+  // innerText respects visibility and comes back '' for anything hidden;
+  // textContent does not. A tooltip that is not currently shown still has its text.
+  const text = (el) => {
+    if (!el) return '';
+    const t = el.innerText;
+    return P.normalize(t && t.trim() ? t : el.textContent ?? '');
+  };
+  const frameInfo = () => ({ top: window === window.top, location: `${location.host}${location.pathname}` });
 
-  // ---- diagnostics: structure only, never text ----------------------------
+  // ---- diagnostics: structure only, never text --------------------------
   function snapshot(el, depth = 4, budget = { n: 140 }) {
     if (!el || budget.n <= 0 || el.nodeType !== 1) return null;
     budget.n -= 1;
@@ -37,11 +54,10 @@
     const node = {
       tag: el.tagName.toLowerCase(),
       id: pick('id'),
-      cls: el.className && typeof el.className === 'string' ? P.sanitizeAttr(el.className) : undefined,
+      cls: typeof el.className === 'string' && el.className ? P.sanitizeAttr(el.className) : undefined,
       role: pick('role'),
       aria: pick('aria-label'),
       title: pick('title'),
-      name: pick('name'),
       href: el.tagName === 'A' ? P.sanitizeAttr((el.getAttribute('href') || '').split('?')[0]) : undefined,
       textLen: text(el).length,
       kids: el.children.length,
@@ -52,11 +68,83 @@
     return node;
   }
 
-  function frameInfo() {
-    return { top: window === window.top, location: `${location.host}${location.pathname}` };
+  const isSsoLink = (el) => el?.tagName === 'A' && /ssoredirect/i.test(el.getAttribute('href') || '');
+
+  // ==== Strategy A: the DCMNotification control ============================
+  const dcmControls = q('[id*="DCMNotification" i]', document, { visibleOnly: false });
+  const dcmLink = dcmControls.find((el) => el.tagName === 'A') || dcmControls[0] || null;
+
+  if (dcmLink) {
+    say(`DCM notification control located (#${P.sanitizeAttr(dcmLink.id)})`);
+    const box = dcmLink.closest('.tooltipBox') || dcmLink.parentElement;
+    const table = box ? box.querySelector('table.notification') || box.querySelector('table') : null;
+
+    if (table) {
+      // Some controls only fill the tooltip on hover. A hover cannot navigate.
+      for (const target of [dcmLink, box]) {
+        for (const type of ['pointerover', 'mouseover', 'mouseenter']) {
+          try {
+            target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }));
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      say('Hovered the notification control');
+
+      const readRows = () =>
+        [...table.querySelectorAll('tr')]
+          .map((tr) => [...tr.querySelectorAll('td,th')].map(text))
+          .filter((cells) => cells.some((c) => c.length > 0));
+
+      let rows = readRows();
+      if (!rows.length) {
+        rows = await new Promise((resolve) => {
+          const done = (r) => {
+            obs.disconnect();
+            clearTimeout(timer);
+            resolve(r);
+          };
+          const obs = new MutationObserver(() => {
+            const r = readRows();
+            if (r.length) done(r);
+          });
+          obs.observe(box, { childList: true, subtree: true, characterData: true });
+          const timer = setTimeout(() => done(readRows()), 3000);
+        });
+      }
+      say(`${rows.length} notification row${rows.length === 1 ? '' : 's'} read`);
+
+      const parsed = P.parseNotificationRows(rows);
+      if (parsed.count !== null) {
+        say(`${parsed.count} DCM case${parsed.count === 1 ? '' : 's'} requiring response — ${parsed.reason}`);
+        return {
+          ok: true,
+          frame: frameInfo(),
+          count: parsed.count,
+          strategy: 'dcm-notification-table',
+          // Category labels and counts only; the raw rows stay in the tab.
+          evidence: { control: P.sanitizeAttr(dcmLink.id), rows: rows.length, labelled: parsed.labelled, reason: parsed.reason },
+          log,
+        };
+      }
+
+      say(`Notification table read but no count decided — ${parsed.reason}`);
+      return {
+        ok: false,
+        code: 'DCM_NOT_FOUND',
+        frame: frameInfo(),
+        log,
+        evidence: { control: P.sanitizeAttr(dcmLink.id), rows: rows.length, reason: parsed.reason },
+        // Redacted cell text is included here on purpose: without it the row
+        // format cannot be pinned down. Emails, VINs and long numbers are masked.
+        diagnostic: { rows: parsed.redactedRows, table: snapshot(table, 3) },
+      };
+    }
+    say('DCM control found but no table beside it — trying the generic bell');
   }
 
-  // ---- 1. find the bell ----------------------------------------------------
+  // ==== Strategy B: a generic notification bell ============================
   const BELL_SELECTORS = [
     '[aria-label*="notification" i]',
     '[title*="notification" i]',
@@ -76,9 +164,10 @@
   let bellSelector = null;
   for (const sel of BELL_SELECTORS) {
     const hits = q(sel).filter((el) => {
-      // Prefer something clickable and small — a control, not a whole panel.
+      if (isSsoLink(el) || el === dcmLink || dcmLink?.contains(el)) return false;
       const r = el.getBoundingClientRect();
-      const clickable = ['A', 'BUTTON'].includes(el.tagName) || el.getAttribute('role') === 'button' || el.onclick || el.getAttribute('tabindex') !== null;
+      const clickable =
+        ['A', 'BUTTON'].includes(el.tagName) || el.getAttribute('role') === 'button' || el.onclick || el.getAttribute('tabindex') !== null;
       return clickable && r.width < 200 && r.height < 120;
     });
     if (hits.length) {
@@ -89,23 +178,15 @@
   }
 
   if (!bell) {
-    return { skipped: true, reason: 'no-bell-in-frame', frame: frameInfo(), log };
+    return { skipped: true, reason: dcmLink ? 'dcm-control-without-table' : 'no-bell-in-frame', frame: frameInfo(), log };
   }
   say(`Notification control located via ${bellSelector}`);
 
-  // Badge on or beside the bell. Recorded as evidence only: it is usually the
-  // total of all notifications, not DCM specifically.
   let bellBadge = null;
   const badgeText = text(bell).match(/\b(\d{1,4})\b/);
   if (badgeText) bellBadge = Number(badgeText[1]);
-  else {
-    const sib = bell.parentElement ? q('[class*="badge" i], [class*="count" i], [class*="number" i]', bell.parentElement) : [];
-    const m = sib.map(text).join(' ').match(/\b(\d{1,4})\b/);
-    if (m) bellBadge = Number(m[1]);
-  }
   if (bellBadge !== null) say(`Bell badge shows ${bellBadge}`);
 
-  // ---- 2. open it and wait for something to appear -------------------------
   const before = new Set(q('*'));
   const wasExpanded = bell.getAttribute('aria-expanded');
 
@@ -127,7 +208,7 @@
         }
         const candidates = q(
           '[role="menu"], [role="dialog"], [role="listbox"], [role="region"], ' +
-            '[class*="notification" i], [class*="notif" i], [class*="popover" i], [class*="dropdown" i], [class*="panel" i], [class*="flyout" i]'
+            '[class*="notification" i], [class*="notif" i], [class*="popover" i], [class*="dropdown" i], [class*="panel" i], [class*="flyout" i], [class*="tooltip" i]'
         ).filter((el) => !before.has(el) && text(el).length > 0);
         if (candidates.length) return candidates.sort((a, b) => text(b).length - text(a).length)[0];
         return null;
@@ -159,20 +240,17 @@
   }
   say(`Notification panel appeared (${text(panel).length} chars)`);
 
-  // ---- 3. read the DCM information --------------------------------------
-  // An explicit count in a heading, tab or link wins.
   const headingCandidates = q('h1,h2,h3,h4,h5,h6,[role="tab"],[role="heading"],a,button,summary,legend,th', panel);
   let headingCount = null;
   for (const el of headingCandidates) {
     const n = P.extractCountFromText(text(el));
     if (n !== null) {
       headingCount = n;
-      say(`DCM heading found: "${text(el).slice(0, 60)}"`);
+      say('DCM heading with a count found');
       break;
     }
   }
 
-  // Otherwise count rows.
   const rowEls = q('li, tr, [role="listitem"], [role="menuitem"], [role="row"], article, a', panel).filter((el) => {
     const len = text(el).length;
     return len > 3 && len < 400 && !q('li, tr, [role="listitem"], [role="menuitem"]', el).length;
@@ -183,7 +261,6 @@
 
   const decision = P.decideCount({ headingCount, rowCounts });
 
-  // ---- 4. put the page back --------------------------------------------
   try {
     if (bell.getAttribute('aria-expanded') === 'true') bell.click();
     else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

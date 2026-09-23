@@ -72,14 +72,23 @@ SAP Portal pages nest content in iframes, so both the probe and the check run
 in every same-origin frame; the background script picks the frame that found
 what it was looking for.
 
-## What is deliberately unfinished
+## What the first real run taught us (2026-09-23)
 
-The WebDCS DOM has not been inspected from inside an authenticated session —
-that requires the user's login. So the bell, panel and DCM-row selectors are
-ordered lists of stable candidates rather than one known selector, and any
-step that finds nothing returns a sanitized structural snapshot. The first
-real run will either succeed or produce the snapshot needed to pin the
-selectors down. That is the intended path to reliability, not a gap in it.
+The selectors were written blind and the first run returned the structural
+snapshot as designed. It showed the dealer portal is a **SharePoint site at
+`www.hyundaidealer.com`** (`/_layouts/15/`, `SitePages`, `ctl00_` control ids)
+that SSO-redirects into the SAP WebDCS. The "bell" is
+`a#ctl00_DCMNotification1_lnkCaption` — an SSO link, so clicking it navigates
+away — and beside it, already in the DOM inside `div.tooltipBox`, sits
+`table.notification` with the notification rows as a hover tooltip.
+
+So the DCM check now hovers rather than clicks, reads the table with
+`textContent` (`innerText` is empty for hidden elements, which is why the
+snapshot showed `textLen: 0`), and parses label/count rows. The generic
+click-the-bell path remains as a fallback, with SSO links excluded so it can
+never navigate the user away. What is still unknown is the exact wording of
+those three rows; on an undecided read the redacted cell text comes back so
+the format can be pinned in one more pass.
 
 Session detection is the same: candidate markers, with a `unknown` state
 surfaced rather than guessed at.

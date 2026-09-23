@@ -60,13 +60,17 @@
    * Count notification rows that are DCM cases still waiting on the dealer.
    * A DCM row with no status text at all is counted — a notification that
    * exists is, by default, something to look at.
+   *
+   * Inside the DCM control itself the rows never say "DCM", so callers there
+   * pass requireDcm: false.
    */
-  function countDcmRows(rowTexts) {
+  function countDcmRows(rowTexts, { requireDcm = true } = {}) {
     let dcmRowsTotal = 0;
     let waiting = 0;
     for (const raw of rowTexts || []) {
       const t = normalize(raw);
-      if (!isDcmText(t)) continue;
+      if (!t) continue;
+      if (requireDcm && !isDcmText(t)) continue;
       dcmRowsTotal += 1;
       const hasStatusWords = AWAITING.test(t) || RESOLVED.test(t);
       if (!hasStatusWords || looksAwaitingResponse(t)) waiting += 1;
@@ -89,6 +93,68 @@
     return null;
   }
 
+  /**
+   * Read the DCMNotification tooltip table: rows of cells, learned from the
+   * first real run to be 3 rows x 2 cells. Two shapes are handled:
+   *
+   *   [label, count]   e.g. ["Awaiting Dealer Response", "3"] — the count in
+   *                    its own cell. The row whose label mentions a response
+   *                    wins; then any awaiting-style label; then, if there is
+   *                    exactly one numeric row, that one.
+   *   [case text]      no numeric cell — each row is a case; count the ones
+   *                    that read as awaiting. A standalone 1–3 digit number in
+   *                    an awaiting-style row ("You have 3 new cases") is taken
+   *                    as a count instead; case ids are longer and never match.
+   *
+   * Returns count: null when it cannot decide — never a guessed 0 — with a
+   * reason and the redacted rows so the format can be pinned down.
+   */
+  function parseNotificationRows(rows) {
+    const redactedRows = (rows || []).map((cells) => (cells || []).map((c) => sanitizeAttr(normalize(c))));
+    const labelled = [];
+
+    for (const cells of rows || []) {
+      const norm = (cells || []).map(normalize).filter(Boolean);
+      if (!norm.length) continue;
+      const numIdx = norm.findIndex((c) => /^\d{1,4}$/.test(c));
+      if (numIdx >= 0) {
+        labelled.push({ label: norm.filter((_, i) => i !== numIdx).join(' '), count: Number(norm[numIdx]) });
+        continue;
+      }
+      const joined = norm.join(' ');
+      const embedded = AWAITING.test(joined) && !RESOLVED.test(joined) ? joined.match(/(?<![#\d])\b(\d{1,3})\b(?!\d)/) : null;
+      if (embedded) labelled.push({ label: joined.replace(embedded[0], '').replace(/\s+/g, ' ').trim(), count: Number(embedded[1]) });
+    }
+
+    const pick = (row, why) => ({
+      count: row.count,
+      reason: `${why}: "${sanitizeAttr(row.label)}"`,
+      labelled: labelled.map((r) => ({ label: sanitizeAttr(r.label), count: r.count })),
+      redactedRows,
+    });
+
+    if (labelled.length) {
+      const byResponse = labelled.find((r) => /respon/i.test(r.label));
+      if (byResponse) return pick(byResponse, 'row about a response');
+      const byAwaiting = labelled.find((r) => AWAITING.test(r.label) && !RESOLVED.test(r.label));
+      if (byAwaiting) return pick(byAwaiting, 'awaiting-style row');
+      if (labelled.length === 1) return pick(labelled[0], 'only numeric row');
+      return {
+        count: null,
+        reason: 'several numeric rows and none is marked as awaiting a response',
+        labelled: labelled.map((r) => ({ label: sanitizeAttr(r.label), count: r.count })),
+        redactedRows,
+      };
+    }
+
+    const texts = (rows || []).map((cells) => (cells || []).map(normalize).join(' ')).filter(Boolean);
+    const rc = countDcmRows(texts, { requireDcm: false });
+    if (rc.dcmRowsTotal > 0) {
+      return { count: rc.waiting, reason: `${rc.waiting} of ${rc.dcmRowsTotal} case rows read as awaiting`, labelled: [], redactedRows };
+    }
+    return { count: null, reason: 'no readable rows', labelled: [], redactedRows };
+  }
+
   /** Attribute values in a diagnostic snapshot must not carry customer data. */
   function sanitizeAttr(value) {
     return String(value ?? '')
@@ -104,6 +170,7 @@
     extractCountFromText,
     looksAwaitingResponse,
     countDcmRows,
+    parseNotificationRows,
     decideCount,
     sanitizeAttr,
   };

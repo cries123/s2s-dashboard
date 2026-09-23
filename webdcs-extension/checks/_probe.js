@@ -39,6 +39,9 @@
 
   // ---- signed-in portal ------------------------------------------------------
   const readySelectors = [
+    // The dealer portal header (www.hyundaidealer.com, SharePoint) carries the
+    // DCM notification control only once signed in.
+    '[id*="DCMNotification" i]',
     'a[href*="logoff" i]',
     'a[href*="logout" i]',
     '[id*="logoff" i]',

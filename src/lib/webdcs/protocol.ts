@@ -6,7 +6,8 @@
  */
 
 export const WEBDCS_EXTENSION_ID = 'bfmmmlookgfoldppkocabfhoiflnfibm';
-export const WEBDCS_HOME_URL = 'https://wdcs.hyundaidealer.com/irj/portal/webdcs';
+/** The dealer portal (SharePoint) — it holds the DCM notification control and SSO-redirects into WebDCS. */
+export const WEBDCS_HOME_URL = 'https://www.hyundaidealer.com/';
 export const PROTOCOL_VERSION = 1;
 
 export const MSG = {

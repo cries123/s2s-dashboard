@@ -8,8 +8,10 @@
 
 import { SESSION } from './protocol.js';
 
-export const WEBDCS_ORIGIN = 'https://wdcs.hyundaidealer.com';
-export const WEBDCS_HOME_URL = `${WEBDCS_ORIGIN}/irj/portal/webdcs`;
+// The dealer portal is a SharePoint site at www.hyundaidealer.com; it carries
+// the DCM notification control and SSO-redirects into the SAP WebDCS behind it.
+export const WEBDCS_ORIGIN = 'https://www.hyundaidealer.com';
+export const WEBDCS_HOME_URL = `${WEBDCS_ORIGIN}/`;
 export const WEBDCS_TAB_PATTERNS = ['https://wdcs.hyundaidealer.com/*', 'https://*.hyundaidealer.com/*'];
 
 /** Prefer the tab the user is looking at; otherwise the most recently used one. */
