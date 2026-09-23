@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, ExternalLink, ListChecks, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../../layout/PageHeader';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
+import DpmMonitor from './DpmMonitor';
 import { cn } from '../../../lib/utils';
 import {
   browserSupportsExtension,
@@ -399,6 +400,9 @@ export default function WebDcsPanel() {
           )}
         </section>
       )}
+
+      {/* DPM is its own application on its own host; the same extension reads it. */}
+      <DpmMonitor canRun={presented.canRun || state === 'unknown'} />
     </div>
   );
 }

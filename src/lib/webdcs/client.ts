@@ -12,6 +12,7 @@ import {
   WEBDCS_EXTENSION_ID,
   type WebDcsCasesRunResult,
   type WebDcsCheckId,
+  type WebDcsDpmRunResult,
   type WebDcsFailure,
   type WebDcsPing,
   type WebDcsRunResult,
@@ -92,4 +93,9 @@ export function runWebDcsCheck(check: WebDcsCheckId): Promise<WebDcsRunResult> {
 /** The case table from the DCM Dashboard tab — number, due date, VIN, customer, status. */
 export function runWebDcsCases(): Promise<WebDcsCasesRunResult> {
   return send<WebDcsCasesRunResult>({ type: MSG.RUN, check: 'dcmCases' }, 40_000);
+}
+
+/** Every metric card on whichever DPM view is open, with HMA's red/blue marking. */
+export function runWebDcsDpm(): Promise<WebDcsDpmRunResult> {
+  return send<WebDcsDpmRunResult>({ type: MSG.RUN, check: 'dpmCards' }, 40_000);
 }

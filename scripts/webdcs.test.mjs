@@ -28,6 +28,8 @@ const build = async (src, name) => {
   await esbuild.build({ entryPoints: [src], bundle: true, format: 'esm', outfile: out, logLevel: 'error' });
   return import(pathToFileURL(out).href);
 };
+await import(pathToFileURL(resolve('webdcs-extension/checks/dpm-parse.js')).href);
+const dpm = globalThis.__webdcsDpmParse;
 const appProtocol = await build('src/lib/webdcs/protocol.ts', 'protocol');
 const presentation = await build('src/lib/webdcs/presentation.ts', 'presentation');
 
@@ -192,6 +194,69 @@ check('tomorrow reads as soon', presentation.dueRelative('2026-09-24', '2026-09-
 check('five days out reads as later', presentation.dueRelative('2026-09-28', '2026-09-23'), { label: 'due in 5 days', tone: 'later' });
 check('no date, no label', presentation.dueRelative(null, '2026-09-23'), { label: '', tone: 'none' });
 check('the DCM dashboard error tells you to open the tab', presentation.describeError('PAGE_NOT_OPEN').needsWebDcsAction, true);
+
+console.log('\nDPM metric cards (shapes from the 2026-09-23 screenshots)');
+check('DPM failing red classifies as red', dpm.classifyColor('rgb(192, 0, 0)'), 'red');
+check('DPM passing navy classifies as blue', dpm.classifyColor('rgb(31, 78, 158)'), 'blue');
+check('black labels are neutral', dpm.classifyColor('rgb(0, 0, 0)'), 'neutral');
+check('unparseable colour is neutral', dpm.classifyColor('transparent'), 'neutral');
+check('title arrow and asterisk are stripped', dpm.cleanTitle('PEP* ►'), 'PEP');
+check('"65.4%" parses', dpm.parseNumber('65.4%'), 65.4);
+check('"-$9,468" parses negative', dpm.parseNumber('-$9,468'), -9468);
+check('"178 / 857" takes the first number', dpm.parseNumber('178 / 857'), 178);
+check('"-" is null', dpm.parseNumber('-'), null);
+
+const SERVICE_LANE = {
+  title: 'Service Lane Technology',
+  headline: { label: 'Current Status', value: 'FAIL', color: 'red' },
+  rows: [
+    { label: 'Appointment %', value: '27.8%', note: 'vs 50% Obj.', color: 'red' },
+    { label: 'Lane Check-In %', value: '0.0%', note: 'vs 50% Obj.', color: 'red' },
+    { label: 'eMPI %', value: '65.4%', note: 'vs 50% Obj.', color: 'blue' },
+  ],
+};
+{
+  const v = dpm.evaluateServiceLane([SERVICE_LANE]);
+  check('eMPI 65.4 against a 50 objective passes', v.empi.pass, true);
+  check('eMPI value is read', v.empi.value, 65.4);
+  check('the objective is read from the note', v.empi.objective, 50);
+  check('appointment 27.8 fails', v.appointment.pass, false);
+  check('lane check-in 0.0 fails', v.laneCheckIn.pass, false);
+  check('the card status comes through', v.status, 'FAIL');
+}
+check('no Service Lane card means null, not a verdict', dpm.evaluateServiceLane([{ title: 'PEP', headline: null, rows: [] }]), null);
+
+const WOPR = [
+  { title: 'WOPR Rank', headline: { label: 'Nation', value: '178 / 857', color: 'neutral' }, rows: [] },
+  { title: 'Labor Only Claim', headline: { label: 'Reporting Month', value: '6.1%', color: 'red' }, rows: [{ label: 'Target', value: '6.0%', note: '', color: 'neutral' }] },
+  { title: 'High Freq Labor Op Ratio', headline: { label: 'Reporting Month', value: '17.2%', color: 'red' }, rows: [{ label: 'Target', value: '15.0%', note: '', color: 'neutral' }] },
+  { title: 'WTC Chargeback', headline: { label: 'Reporting Month', value: '0.0%', color: 'blue' }, rows: [{ label: 'Target', value: '5.0%', note: '', color: 'neutral' }] },
+  { title: 'Recall Completed On Drive', headline: { label: 'Reporting Month', value: '91.1%', color: 'red' }, rows: [{ label: 'Target', value: '100.0%', note: '', color: 'neutral' }] },
+  { title: 'PA Excessive Return', headline: { label: 'Reporting Month', value: '9.4%', color: 'blue' }, rows: [{ label: 'Target', value: '22.0%', note: '', color: 'neutral' }] },
+  { title: 'SCPVS', headline: { label: 'Reporting Month', value: '85.9%', color: 'blue' }, rows: [{ label: 'Target', value: '100.0%', note: '', color: 'neutral' }] },
+  { title: 'OSTD', headline: { label: 'Reporting Month', value: '-$9,468', color: 'blue' }, rows: [{ label: 'Target', value: '$0', note: '', color: 'neutral' }] },
+  { title: 'PCR Return Rate', headline: { label: 'Reporting Month', value: '30.2%', color: 'red' }, rows: [] },
+];
+{
+  const red = dpm.redCards(WOPR);
+  check('WOPR: the four red cards are found', red.map((c) => c.title), ['Labor Only Claim', 'High Freq Labor Op Ratio', 'Recall Completed On Drive', 'PCR Return Rate']);
+  check('each carries its value and target', red[0], { title: 'Labor Only Claim', label: 'Reporting Month', value: '6.1%', target: '6.0%' });
+  check('a red card with no target row reports null', red[3].target, null);
+  const s = dpm.summarize(WOPR);
+  check('summary counts every card', s.total, 9);
+  check('blue cards are listed by title', s.blue, ['WTC Chargeback', 'PA Excessive Return', 'SCPVS', 'OSTD']);
+  check('a neutral headline is neither red nor blue', s.red.length + s.blue.length, 8);
+}
+{
+  const DIAG = [
+    { title: 'Avg RO Open Days', headline: { label: 'Current Month', value: '16.53', color: 'red' }, rows: [{ label: 'Objective *', value: '14.34', note: '', color: 'neutral' }] },
+    { title: 'Avg Campaign RO Submission Days', headline: { label: 'Current Month', value: '1.98', color: 'blue' }, rows: [{ label: 'Objective*', value: '2.11', note: '', color: 'neutral' }] },
+    { title: 'Initial Acceptance Rate', headline: { label: 'Last Month**', value: '91.94%', color: 'red' }, rows: [{ label: 'Objective*', value: '93.72%', note: '', color: 'neutral' }] },
+  ];
+  check('Diagnostic: objective rows are read as targets', dpm.redCards(DIAG).map((c) => c.target), ['14.34', '93.72%']);
+}
+check('the DPM view key joins what was detected', appProtocol.dpmViewKey({ top: 'AFTERSALES', sub: 'Warranty', mode: 'WOPR' }), 'AFTERSALES › Warranty › WOPR');
+check('an undetected view still has a name', appProtocol.dpmViewKey({ top: null, sub: null, mode: null }), 'Unknown view');
 
 console.log('\nDeciding the answer');
 check('heading count wins', parse.decideCount({ headingCount: 5, rowCounts: { dcmRowsTotal: 9, waiting: 2 } }), { count: 5, strategy: 'panel-heading' });

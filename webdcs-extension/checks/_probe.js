@@ -64,6 +64,13 @@
   if (dcmNav) markers.push('ready:dcm-nav');
   if (caseTable || dcmNav) readyHits.push('dcm-dashboard');
 
+  // DPM: its own nav ("DPM Help") and the "Data updated:" stamp only show signed in.
+  const dpmNav = visible('a, li, span, div').slice(0, 400).some((el) => /^\s*DPM Help\s*$/i.test(el.textContent || '') || /^\s*Data updated/i.test(el.textContent || ''));
+  if (dpmNav) {
+    markers.push('ready:dpm');
+    readyHits.push('dpm');
+  }
+
   const onLoginPath = path.includes('/irj/portal/iam') || path.includes('/login') || path.includes('/logon');
   if (onLoginPath) markers.push('login-path');
 

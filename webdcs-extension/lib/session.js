@@ -15,13 +15,23 @@ export const WEBDCS_HOME_URL = `${WEBDCS_ORIGIN}/`;
 export const WEBDCS_TAB_PATTERNS = ['https://wdcs.hyundaidealer.com/*', 'https://*.hyundaidealer.com/*'];
 
 /**
- * Every dealer-portal tab, the one the user is looking at first, then most
+ * DPM (Dealer Performance) is reached from the portal's DPM link but is a
+ * separate application on its own host. That host is not known yet — it is
+ * whatever the address bar shows on the DPM tab — and the extension can only
+ * see and read tabs on hosts listed in manifest.json host_permissions. Until
+ * both are filled in, the DPM check reports PAGE_NOT_OPEN rather than guess.
+ */
+export const DPM_TAB_PATTERNS = [];
+
+/**
+ * Every matching tab, the one the user is looking at first, then most
  * recently used. A check is tried in each until one has what it needs — the
  * count lives on the portal page, the case table on the DCM Dashboard, and
  * both are usually open at once.
  */
-export async function findWebDcsTabs() {
-  const tabs = await chrome.tabs.query({ url: WEBDCS_TAB_PATTERNS });
+export async function findWebDcsTabs(patterns = WEBDCS_TAB_PATTERNS) {
+  if (!patterns.length) return [];
+  const tabs = await chrome.tabs.query({ url: patterns });
   return [...tabs].sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
 }
 

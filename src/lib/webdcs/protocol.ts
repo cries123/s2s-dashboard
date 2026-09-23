@@ -43,7 +43,49 @@ export const ERROR_CODES = [
 ] as const;
 export type WebDcsErrorCode = (typeof ERROR_CODES)[number];
 
-export type WebDcsCheckId = 'dcm' | 'dcmCases';
+export type WebDcsCheckId = 'dcm' | 'dcmCases' | 'dpmCards';
+
+/** One DPM metric card as read from the page. Colour is HMA's own pass/fail marking. */
+export type DpmColor = 'red' | 'blue' | 'green' | 'neutral';
+
+export interface DpmCardRow {
+  label: string;
+  value: string;
+  note: string;
+  color: DpmColor;
+}
+
+export interface DpmCard {
+  title: string;
+  headline: { label: string; value: string; color: DpmColor } | null;
+  rows: DpmCardRow[];
+}
+
+export interface DpmMetricVerdict {
+  label: string;
+  value: number | null;
+  objective: number;
+  pass: boolean;
+  color: DpmColor;
+}
+
+export interface DpmSummary {
+  total: number;
+  red: Array<{ title: string; label: string; value: string; target: string | null }>;
+  blue: string[];
+  serviceLane: {
+    status: string | null;
+    empi: DpmMetricVerdict | null;
+    appointment: DpmMetricVerdict | null;
+    laneCheckIn: DpmMetricVerdict | null;
+  } | null;
+}
+
+export interface DpmView {
+  top: string | null;
+  sub: string | null;
+  mode: string | null;
+}
 
 /** One row of the DCM Dashboard's case table. Shown, never stored. */
 export interface DcmCase {
@@ -107,5 +149,21 @@ export interface WebDcsDcmCasesResult extends WebDcsOkBase {
   strategy: string;
 }
 
+export interface WebDcsDpmResult extends WebDcsOkBase {
+  check: 'dpmCards';
+  strategy: string;
+  view: DpmView;
+  dataUpdated: string;
+  reportingMonth: string | null;
+  cards: DpmCard[];
+  summary: DpmSummary;
+}
+
 export type WebDcsRunResult = WebDcsDcmResult | WebDcsFailure;
 export type WebDcsCasesRunResult = WebDcsDcmCasesResult | WebDcsFailure;
+export type WebDcsDpmRunResult = WebDcsDpmResult | WebDcsFailure;
+
+/** A readable name for a DPM view, for filing results under. */
+export function dpmViewKey(view: DpmView): string {
+  return [view.top, view.sub, view.mode].filter(Boolean).join(' › ') || 'Unknown view';
+}

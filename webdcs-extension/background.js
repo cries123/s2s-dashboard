@@ -72,6 +72,9 @@ function shapeSuccess(checkId, r, log) {
   if (checkId === 'dcmCases') {
     return makeOk({ ...base, dcmCasesWaiting: r.count, cases: r.cases, sections: r.sections });
   }
+  if (checkId === 'dpmCards') {
+    return makeOk({ ...base, view: r.view, dataUpdated: r.dataUpdated, reportingMonth: r.reportingMonth, cards: r.cards, summary: r.summary });
+  }
   return makeOk({ ...base, dcmCasesWaiting: r.count, evidence: r.evidence });
 }
 
@@ -80,11 +83,20 @@ async function handleRun(checkId, log) {
   if (!check) return makeError(ERROR.UNKNOWN_CHECK, `Unknown check "${checkId}".`, { log: log.entries });
 
   log.info(`${check.label}: check started`);
-  const tabs = await findWebDcsTabs();
-  if (!tabs.length) return errorForState(SESSION.NO_TAB, log.entries);
+  if (check.tabPatterns && !check.tabPatterns.length) {
+    log.error('This check has no host configured yet');
+    return makeError(ERROR.PAGE_NOT_OPEN, `${check.notFound.message} (The extension does not know DPM's address yet.)`, { check: checkId, log: log.entries });
+  }
+  const tabs = await findWebDcsTabs(check.tabPatterns);
+  if (!tabs.length) {
+    return check.tabPatterns
+      ? makeError(ERROR.PAGE_NOT_OPEN, check.notFound.message, { check: checkId, log: log.entries })
+      : errorForState(SESSION.NO_TAB, log.entries);
+  }
 
   const failures = [];
   const skippedFrames = [];
+  const skippedDiagnostics = [];
   let blockedByAuth = null;
 
   for (const tab of tabs) {
@@ -112,7 +124,10 @@ async function handleRun(checkId, log) {
       return shapeSuccess(checkId, succeeded, log);
     }
     failures.push(...frames.filter((f) => f.ok === false));
-    skippedFrames.push(...frames.filter((f) => f.skipped).map((f) => f.frame));
+    for (const f of frames.filter((f) => f.skipped)) {
+      skippedFrames.push(f.frame);
+      if (f.diagnostic) skippedDiagnostics.push({ frame: f.frame, ...f.diagnostic });
+    }
   }
 
   if (failures.length) {
@@ -143,6 +158,7 @@ async function handleRun(checkId, log) {
   return makeError(ERROR[check.notFound.code] || ERROR.UI_CHANGED, check.notFound.message, {
     check: checkId,
     frames: skippedFrames,
+    diagnostic: skippedDiagnostics.length ? skippedDiagnostics : undefined,
     log: log.entries,
   });
 }

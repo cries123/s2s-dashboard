@@ -69,10 +69,10 @@ export function describeError(code: WebDcsErrorCode): ErrorPresentation {
       };
     case 'PAGE_NOT_OPEN':
       return {
-        title: 'The DCM Dashboard is not open',
-        hint: 'In WebDCS, click the red DCM notification to open the DCM Dashboard in its own tab, leave it open, then load the details again.',
+        title: 'The page this check needs is not open',
+        hint: 'Open it from the dealer portal, leave that tab open, and try again. The message below names the page.',
         needsWebDcsAction: true,
-        wantsDiagnostic: false,
+        wantsDiagnostic: true,
       };
     case 'BELL_NOT_FOUND':
       return {
