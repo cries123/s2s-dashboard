@@ -11,7 +11,7 @@
 
 import { MSG, SESSION, ERROR, makeOk, makeError, PROTOCOL_VERSION } from './lib/protocol.js';
 import { createLogger } from './lib/logger.js';
-import { findWebDcsTab, findWebDcsTabs, openOrFocusWebDcs, probeSession, safeTabLocation } from './lib/session.js';
+import { findWebDcsTab, findWebDcsTabs, openOrFocusWebDcs, probeSession, reloadAndWait, safeTabLocation } from './lib/session.js';
 import { CHECKS } from './checks/registry.js';
 
 const ALLOWED_ORIGINS = new Set(['https://salestoservice.net', 'http://localhost:3000']);
@@ -92,32 +92,51 @@ async function handleRun(checkId, log) {
   const skippedDiagnostics = [];
   let blockedByAuth = null;
 
+  const isThisPage = (frames) => !check.marker || frames.some((f) => (f.markers || []).some((m) => check.marker.test(m)));
+
   for (const tab of tabs) {
-    log.info(`WebDCS tab found at ${safeTabLocation(tab.url)}`);
-    const { state } = await withTimeout(probeSession(tab.id), 8000);
+    const where = safeTabLocation(tab.url);
+    let { state, frames } = await withTimeout(probeSession(tab.id), 8000);
     const blocked = errorForState(state, log.entries);
     if (blocked) {
       // Remember the first auth problem, but keep looking — another tab may be signed in.
-      log.warn(`Skipping: session state is ${state}`);
+      log.warn(`${where}: session state is ${state}, skipping`);
       blockedByAuth = blockedByAuth || { ...blocked, check: checkId };
       continue;
     }
-    log.info('Authenticated session detected');
+    if (!isThisPage(frames)) {
+      log.info(`${where}: not the page this check reads, skipping`);
+      skippedFrames.push(...frames.map((f) => ({ top: f.top, location: f.location })));
+      continue;
+    }
+    log.info(`${where}: authenticated session, this is the page`);
+
+    if (check.reloadBeforeRead) {
+      await withTimeout(reloadAndWait(tab.id), 20_000);
+      ({ state, frames } = await withTimeout(probeSession(tab.id), 8000));
+      const blockedAfter = errorForState(state, log.entries);
+      if (blockedAfter) {
+        log.warn(`${where}: after reload the session state is ${state}`);
+        return { ...blockedAfter, check: checkId, log: log.entries };
+      }
+      log.info(`${where}: reloaded so the numbers are current`);
+    }
 
     const injected = await withTimeout(
       chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: check.files }),
       check.timeoutMs
     );
-    const frames = injected.map((r) => r.result).filter(Boolean);
+    // `frames` above is the probe's view of the tab; these are the check's results.
+    const results = injected.map((r) => r.result).filter(Boolean);
 
-    const succeeded = frames.find((f) => f.ok === true);
+    const succeeded = results.find((f) => f.ok === true);
     if (succeeded) {
       for (const line of succeeded.log || []) log.info(`[${frameOf(succeeded)}] ${line}`);
       log.info('Check completed');
       return shapeSuccess(checkId, succeeded, log);
     }
-    failures.push(...frames.filter((f) => f.ok === false));
-    for (const f of frames.filter((f) => f.skipped)) {
+    failures.push(...results.filter((f) => f.ok === false));
+    for (const f of results.filter((f) => f.skipped)) {
       skippedFrames.push(f.frame);
       if (f.diagnostic) skippedDiagnostics.push({ frame: f.frame, ...f.diagnostic });
     }

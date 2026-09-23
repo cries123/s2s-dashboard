@@ -53,6 +53,34 @@ export async function openOrFocusWebDcs() {
   return chrome.tabs.create({ url: WEBDCS_HOME_URL, active: true });
 }
 
+/**
+ * Reload a tab and resolve once it has finished loading, plus a short settle
+ * so scripts that draw the notification tooltip after load have run.
+ *
+ * The portal's DCM tooltip and the DCM Dashboard's case table are both baked
+ * into the page when it loads. A tab left open all afternoon reports the
+ * afternoon it was opened — the count read 5 while the live dashboard said 1
+ * — so anything that claims to monitor has to read the page as it is now.
+ */
+export function reloadAndWait(tabId, timeoutMs = 20_000, settleMs = 600) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (fn, v) => {
+      if (done) return;
+      done = true;
+      chrome.tabs.onUpdated.removeListener(listener);
+      clearTimeout(timer);
+      fn(v);
+    };
+    const listener = (id, info) => {
+      if (id === tabId && info.status === 'complete') setTimeout(() => finish(resolve, true), settleMs);
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    const timer = setTimeout(() => finish(reject, Object.assign(new Error('The page did not finish reloading.'), { code: 'TIMEOUT' })), timeoutMs);
+    chrome.tabs.reload(tabId).catch((e) => finish(reject, e));
+  });
+}
+
 /** Strip the URL down to what a log can safely carry. */
 export function safeTabLocation(url) {
   try {

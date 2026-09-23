@@ -298,7 +298,8 @@ export default function WebDcsPanel() {
           {detailsFailed && detailsFailure && (
             <div className="mt-4 rounded-lg border-l-4 border-l-rose-400 p-3" style={{ backgroundColor: 'var(--color-surface-base)' }}>
               <p className="font-semibold">{detailsFailure.title}</p>
-              <p className="text-sm text-text-secondary mt-0.5">{detailsFailure.hint}</p>
+              {/* The extension's own message names the exact page and what to do on it. */}
+              <p className="text-sm text-text-secondary mt-0.5">{detailsFailed.error.message || detailsFailure.hint}</p>
               <p className="crm-label mt-1">{detailsFailed.error.code}</p>
             </div>
           )}
