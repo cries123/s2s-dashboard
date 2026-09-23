@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>S2S WebDCS Assistant</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; width: 320px; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; }
+      header { padding: 12px 14px 8px; border-bottom: 1px solid rgba(255,255,255,.08); display: flex; justify-content: space-between; align-items: baseline; }
+      header b { font-size: 14px; }
+      header span { color: #94a3b8; font-size: 11px; }
+      section { padding: 12px 14px; }
+      .host { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+      .muted { color: #94a3b8; }
+      button { font: inherit; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+      .primary { background: #3b82f6; color: #fff; width: 100%; margin-top: 8px; }
+      .primary[disabled] { opacity: .5; cursor: default; }
+      .ghost { background: transparent; color: #94a3b8; padding: 4px 8px; }
+      .ghost:hover { color: #fca5a5; }
+      ul { list-style: none; margin: 6px 0 0; padding: 0; }
+      li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.06); }
+      .ok { color: #34d399; }
+      .warn { color: #fbbf24; }
+      #status { min-height: 1.2em; margin-top: 8px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>S2S WebDCS Assistant</b>
+      <span id="version"></span>
+    </header>
+
+    <section>
+      <div class="muted">This tab</div>
+      <div id="host" class="host">…</div>
+      <button id="allow" class="primary" disabled>Allow this site</button>
+      <div id="status"></div>
+    </section>
+
+    <section>
+      <div class="muted">Sites the assistant may read</div>
+      <ul id="granted"></ul>
+      <p class="muted" style="margin:10px 0 0; font-size:11.5px;">
+        The dealer portal is always allowed. Allow the DCM Dashboard and DPM once,
+        from their own tabs, and the dashboard's checks can read them. Nothing is
+        read from a site you have not allowed.
+      </p>
+    </section>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

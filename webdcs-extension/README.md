@@ -23,10 +23,19 @@ Reload the extension from that page after pulling changes.
 3. Back in the dashboard, the status turns to **WebDCS ready**. Click
    **Run WebDCS check**.
 
+## Allowing the other HMA pages
+
+The dealer portal is always readable. HMA's other tools — the DCM Dashboard
+behind the red notification, DPM — live on their own hosts. On each, once:
+open the page, click the assistant's icon in the toolbar, **Allow this site**.
+Chrome keeps the grant; the popup lists what is allowed and can remove it.
+
 ## What it can and cannot touch
 
-- Permissions: `scripting` on `*.hyundaidealer.com` only. No `tabs`, no
-  `storage`, no `cookies`, no network.
+- Permissions: `scripting` on `*.hyundaidealer.com`, plus any host you allow
+  from the popup (and only those). `activeTab` lets the popup read the current
+  tab's address when you click the icon. No `tabs`, no `storage`, no `cookies`,
+  no network.
 - Accepts messages only from `https://salestoservice.net` and `localhost`.
 - Result payload: count, state, error code, redacted log. Nothing else leaves
   the tab. Diagnostics are structural (tag/id/class/aria) and contain no text.

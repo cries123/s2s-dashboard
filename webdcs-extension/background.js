@@ -83,16 +83,9 @@ async function handleRun(checkId, log) {
   if (!check) return makeError(ERROR.UNKNOWN_CHECK, `Unknown check "${checkId}".`, { log: log.entries });
 
   log.info(`${check.label}: check started`);
-  if (check.tabPatterns && !check.tabPatterns.length) {
-    log.error('This check has no host configured yet');
-    return makeError(ERROR.PAGE_NOT_OPEN, `${check.notFound.message} (The extension does not know DPM's address yet.)`, { check: checkId, log: log.entries });
-  }
-  const tabs = await findWebDcsTabs(check.tabPatterns);
-  if (!tabs.length) {
-    return check.tabPatterns
-      ? makeError(ERROR.PAGE_NOT_OPEN, check.notFound.message, { check: checkId, log: log.entries })
-      : errorForState(SESSION.NO_TAB, log.entries);
-  }
+  const tabs = await findWebDcsTabs();
+  if (!tabs.length) return errorForState(SESSION.NO_TAB, log.entries);
+  log.info(`${tabs.length} readable tab${tabs.length === 1 ? '' : 's'}`);
 
   const failures = [];
   const skippedFrames = [];

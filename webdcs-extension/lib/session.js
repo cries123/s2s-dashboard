@@ -15,22 +15,25 @@ export const WEBDCS_HOME_URL = `${WEBDCS_ORIGIN}/`;
 export const WEBDCS_TAB_PATTERNS = ['https://wdcs.hyundaidealer.com/*', 'https://*.hyundaidealer.com/*'];
 
 /**
- * DPM (Dealer Performance) is reached from the portal's DPM link but is a
- * separate application on its own host. That host is not known yet — it is
- * whatever the address bar shows on the DPM tab — and the extension can only
- * see and read tabs on hosts listed in manifest.json host_permissions. Until
- * both are filled in, the DPM check reports PAGE_NOT_OPEN rather than guess.
+ * The portal is always readable. HMA's other dealer tools — the DCM Dashboard
+ * behind the portal's SSO link, DPM on its own domain — are on hosts the user
+ * allows one at a time from the extension popup, on that page. Chrome keeps
+ * those grants, so this asks it rather than keeping a list of its own.
  */
-export const DPM_TAB_PATTERNS = [];
+export async function readableTabPatterns() {
+  const all = await chrome.permissions.getAll();
+  const granted = (all.origins || []).filter((o) => /^https:\/\//.test(o));
+  return [...new Set([...WEBDCS_TAB_PATTERNS, ...granted])];
+}
 
 /**
- * Every matching tab, the one the user is looking at first, then most
+ * Every readable tab, the one the user is looking at first, then most
  * recently used. A check is tried in each until one has what it needs — the
- * count lives on the portal page, the case table on the DCM Dashboard, and
- * both are usually open at once.
+ * count lives on the portal page, the case table on the DCM Dashboard, the
+ * cards in DPM — and decides by content, not by which host it is on.
  */
-export async function findWebDcsTabs(patterns = WEBDCS_TAB_PATTERNS) {
-  if (!patterns.length) return [];
+export async function findWebDcsTabs() {
+  const patterns = await readableTabPatterns();
   const tabs = await chrome.tabs.query({ url: patterns });
   return [...tabs].sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
 }

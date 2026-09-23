@@ -7,12 +7,9 @@
  *
  * `files` are injected in order into the same isolated world, so a check can
  * rely on a helper loaded before it. `timeoutMs` bounds the whole run.
- * `tabPatterns` says which tabs the check can live in (the default is the
- * dealer portal). `notFound` is the error to report when no tab or frame had
- * what the check needs — each check knows what "nothing there" means for it.
+ * Every check is tried in every readable tab and decides by content;
+ * `notFound` is what to say when none of them had what it needs.
  */
-import { DPM_TAB_PATTERNS } from '../lib/session.js';
-
 export const CHECKS = Object.freeze({
   /** How many DCM cases are waiting, from the portal header's notification tooltip. */
   dcm: {
@@ -34,7 +31,8 @@ export const CHECKS = Object.freeze({
     timeoutMs: 25_000,
     notFound: {
       code: 'PAGE_NOT_OPEN',
-      message: 'No open tab is showing the DCM Dashboard. Open it in WebDCS and try again.',
+      message:
+        'No readable tab is showing the DCM Dashboard. Open it from the red DCM notification, then click the assistant icon on that tab and choose Allow this site.',
     },
   },
 
@@ -44,10 +42,10 @@ export const CHECKS = Object.freeze({
     label: 'DPM metric cards',
     files: ['checks/dpm-parse.js', 'checks/dpm-cards.js'],
     timeoutMs: 25_000,
-    tabPatterns: DPM_TAB_PATTERNS,
     notFound: {
       code: 'PAGE_NOT_OPEN',
-      message: 'No open tab is showing DPM. Open DPM from the dealer portal, go to the view you want, and try again.',
+      message:
+        'No readable tab is showing DPM. Open DPM from the dealer portal, go to the view you want, then click the assistant icon on that tab and choose Allow this site.',
     },
   },
 

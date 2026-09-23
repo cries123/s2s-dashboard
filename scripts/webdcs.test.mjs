@@ -298,8 +298,10 @@ console.log('\nContract');
   const id = require('node:fs').readFileSync(resolve('webdcs-extension/.extension-id'), 'utf8').trim();
   check('manifest has the stable key', typeof manifest.key === 'string' && manifest.key.length > 100, true);
   check('app hardcodes the matching extension id', appProtocol.WEBDCS_EXTENSION_ID, id);
-  check('only the scripting permission', manifest.permissions, ['scripting']);
-  check('host access limited to hyundaidealer.com', manifest.host_permissions.every((h) => h.includes('hyundaidealer.com')), true);
+  check('scripting plus activeTab (for the popup to read the current tab)', manifest.permissions, ['scripting', 'activeTab']);
+  check('required host access limited to hyundaidealer.com', manifest.host_permissions.every((h) => h.includes('hyundaidealer.com')), true);
+  check('other HMA hosts are optional, granted per site by the user', manifest.optional_host_permissions, ['https://*/*']);
+  check('the popup exists to grant them', manifest.action?.default_popup, 'popup.html');
   check('only the dashboard may connect', manifest.externally_connectable.matches, ['https://salestoservice.net/*', 'http://localhost/*']);
 }
 

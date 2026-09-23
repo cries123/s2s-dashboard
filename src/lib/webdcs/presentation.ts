@@ -69,8 +69,8 @@ export function describeError(code: WebDcsErrorCode): ErrorPresentation {
       };
     case 'PAGE_NOT_OPEN':
       return {
-        title: 'The page this check needs is not open',
-        hint: 'Open it from the dealer portal, leave that tab open, and try again. The message below names the page.',
+        title: 'The page this check needs is not open, or not allowed yet',
+        hint: 'Open it from the dealer portal and leave that tab open. If it is on a different address than the portal, click the assistant icon while on that tab and choose Allow this site — once. The message below names the page.',
         needsWebDcsAction: true,
         wantsDiagnostic: true,
       };
