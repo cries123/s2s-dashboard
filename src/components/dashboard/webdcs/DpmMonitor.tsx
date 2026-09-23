@@ -45,12 +45,15 @@ export default function DpmMonitor({ canRun }: DpmMonitorProps) {
   const [lastError, setLastError] = useState<WebDcsDpmRunResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [showDiag, setShowDiag] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const [lastLog, setLastLog] = useState<string[]>([]);
 
   const handleRead = async () => {
     setLoading(true);
     setShowDiag(false);
     try {
       const r = await runWebDcsDpm();
+      setLastLog(r.log ?? []);
       if (r.ok) {
         setLastError(null);
         setReads((prev) => ({ ...prev, [dpmViewKey(r.view)]: r }));
@@ -104,6 +107,21 @@ export default function DpmMonitor({ canRun }: DpmMonitorProps) {
           <p className="font-semibold">{failureText.title}</p>
           <p className="text-sm text-text-secondary mt-0.5">{failure.error.message}</p>
           <p className="crm-label mt-1">{failure.error.code}</p>
+          {lastLog.length > 0 && (
+            <>
+              <button type="button" onClick={() => setShowLog((v) => !v)} className="btn-secondary text-sm py-1.5 mt-2 mr-2">
+                {showLog ? 'Hide log' : `Show log (${lastLog.length})`}
+              </button>
+              {showLog && (
+                <pre
+                  className="mt-2 text-xs leading-relaxed rounded-lg p-3 overflow-auto max-h-64 font-mono"
+                  style={{ backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-secondary)' }}
+                >
+                  {lastLog.join('\n')}
+                </pre>
+              )}
+            </>
+          )}
           {failure.diagnostic !== undefined && (
             <>
               <button type="button" onClick={() => setShowDiag((v) => !v)} className="btn-secondary text-sm py-1.5 mt-2">

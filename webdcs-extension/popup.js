@@ -98,8 +98,54 @@ $('allow').addEventListener('click', async () => {
   await refreshCurrent();
 });
 
+/**
+ * Ask the worker which other HMA sites the portal links to, and offer to
+ * allow each by name — so DPM can be allowed from the portal tab without
+ * anyone reading an address bar. A grant from a popup click is a valid user
+ * gesture for any origin, not only the current tab's.
+ */
+async function refreshDetected() {
+  const section = $('detected-section');
+  const list = $('detected');
+  list.innerHTML = '';
+  let res;
+  try {
+    res = await chrome.runtime.sendMessage({ type: 'webdcs.discover' });
+  } catch {
+    res = null;
+  }
+  const sites = (res && res.ok && res.sites) || [];
+  const all = await chrome.permissions.getAll();
+  const granted = new Set(all.origins || []);
+  const pending = sites.filter((s) => !granted.has(s.origin) && !isRequired(s.origin));
+  section.hidden = pending.length === 0;
+  for (const s of pending) {
+    const li = document.createElement('li');
+    const host = document.createElement('span');
+    host.className = 'host';
+    host.textContent = `${s.label} — ${s.origin.replace(/^https:\/\//, '').replace(/\/\*$/, '')}`;
+    const btn = document.createElement('button');
+    btn.className = 'primary';
+    btn.style.width = 'auto';
+    btn.style.marginTop = '0';
+    btn.textContent = 'Allow';
+    btn.addEventListener('click', async () => {
+      const ok = await chrome.permissions.request({ origins: [s.origin] });
+      $('status').innerHTML = ok
+        ? `<span class="ok">${s.label} allowed. Open it and run the check.</span>`
+        : '<span class="warn">Not granted.</span>';
+      await refreshGranted();
+      await refreshDetected();
+      await refreshCurrent();
+    });
+    li.append(host, btn);
+    list.appendChild(li);
+  }
+}
+
 (async () => {
   $('version').textContent = `v${chrome.runtime.getManifest().version}`;
   await refreshGranted();
   await refreshCurrent();
+  await refreshDetected();
 })();

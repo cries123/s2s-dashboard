@@ -28,7 +28,9 @@
     const t = el.innerText;
     return P.normalize(t && t.trim() ? t : el.textContent ?? '');
   };
-  const frameInfo = () => ({ top: window === window.top, location: `${location.host}${location.pathname}` });
+  // The hash is kept for DPM: if each view has its own route, the monitor can
+  // jump straight to it later instead of clicking through the tabs.
+  const frameInfo = () => ({ top: window === window.top, location: `${location.host}${location.pathname}${location.hash}` });
 
   // ---- titles ---------------------------------------------------------
   const TITLE_ARROW = /[►▸▶➤]\s*$/u;

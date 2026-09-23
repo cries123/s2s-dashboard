@@ -50,7 +50,7 @@ export const CHECKS = Object.freeze({
     label: 'DPM metric cards',
     files: ['checks/dpm-parse.js', 'checks/dpm-cards.js'],
     timeoutMs: 25_000,
-    marker: /ready:dpm/,
+    marker: /ready:dpm/, // matches both 'ready:dpm' and 'ready:dpm-tabs(n)'
     // DPM is a single-page app; a reload would throw away the view the user
     // navigated to. Its own "Data updated" stamp says how fresh it is.
     reloadBeforeRead: false,

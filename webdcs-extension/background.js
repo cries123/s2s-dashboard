@@ -105,8 +105,10 @@ async function handleRun(checkId, log) {
       continue;
     }
     if (!isThisPage(frames)) {
-      log.info(`${where}: not the page this check reads, skipping`);
-      skippedFrames.push(...frames.map((f) => ({ top: f.top, location: f.location })));
+      // Say what was seen, so "not allowed" and "allowed but unrecognised" read differently.
+      const seen = frames.flatMap((f) => f.markers || []).filter((m) => m.startsWith('ready:')).map((m) => m.slice(6));
+      log.info(`${where}: not the page this check reads (markers: ${seen.join(', ') || 'none'}), skipping`);
+      skippedFrames.push(...frames.map((f) => ({ top: f.top, location: f.location, markers: f.markers })));
       continue;
     }
     log.info(`${where}: authenticated session, this is the page`);
@@ -187,6 +189,53 @@ function mapThrown(e, log) {
   }
   return makeError(ERROR.EXTENSION_ERROR, 'The extension hit an unexpected error.', { detail: msg.slice(0, 200), log: log.entries });
 }
+
+/**
+ * Which other HMA applications the portal links to, so the popup can offer to
+ * allow them by name instead of the user reading an address bar. Reads only
+ * link targets on the portal page, which is always readable.
+ */
+async function discoverLinkedSites() {
+  const tab = await findWebDcsTab();
+  if (!tab) return { ok: true, sites: [] };
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: () => {
+      const wanted = [
+        { key: 'dpm', label: 'DPM', test: (t, h) => /^dpm$/i.test(t) || /\bdpm\b/i.test(h) },
+        { key: 'dcm', label: 'DCM Dashboard', test: (t, h) => /dcm/i.test(t) || /dcm/i.test(h) },
+      ];
+      const out = [];
+      for (const a of document.querySelectorAll('a[href]')) {
+        const text = (a.textContent || '').trim();
+        const href = a.getAttribute('href') || '';
+        let origin = null;
+        try {
+          const u = new URL(href, location.href);
+          if (u.protocol === 'https:' && u.host !== location.host) origin = `${u.protocol}//${u.host}/*`;
+        } catch {
+          /* ignore */
+        }
+        for (const w of wanted) {
+          if (w.test(text, href) && origin && !out.some((o) => o.origin === origin)) out.push({ key: w.key, label: w.label, origin });
+        }
+      }
+      return out;
+    },
+  });
+  return { ok: true, sites: results.flatMap((r) => r.result || []) };
+}
+
+// The popup talks to this worker over the internal channel. Only this
+// extension's own pages may use it.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return false;
+  if (message?.type !== 'webdcs.discover') return false;
+  discoverLinkedSites()
+    .then(sendResponse)
+    .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
+  return true;
+});
 
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   const origin = originOf(sender);

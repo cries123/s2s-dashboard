@@ -64,10 +64,15 @@
   if (dcmNav) markers.push('ready:dcm-nav');
   if (caseTable || dcmNav) readyHits.push('dcm-dashboard');
 
-  // DPM: its own nav ("DPM Help") and the "Data updated:" stamp only show signed in.
-  const dpmNav = visible('a, li, span, div').slice(0, 400).some((el) => /^\s*DPM Help\s*$/i.test(el.textContent || '') || /^\s*Data updated/i.test(el.textContent || ''));
-  if (dpmNav) {
-    markers.push('ready:dpm');
+  // DPM: its own nav ("DPM Help"), the "Data updated:" stamp, or its tab set —
+  // HOME / SALES / AFTERSALES / CX / BRAND AMBASSADOR together is a signature
+  // no other HMA page has. Any of these only show signed in.
+  const shortTexts = visible('a, li, span, div, button').slice(0, 600).map((el) => (el.textContent || '').trim());
+  const dpmNav = shortTexts.some((t) => /^DPM Help$/i.test(t) || /^Data updated/i.test(t) || /^Dealer Performance/i.test(t));
+  const DPM_TABS = ['HOME', 'SALES', 'AFTERSALES', 'CX', 'BRAND AMBASSADOR', 'RANKING'];
+  const dpmTabsSeen = DPM_TABS.filter((tab) => shortTexts.includes(tab)).length;
+  if (dpmNav || dpmTabsSeen >= 4) {
+    markers.push(dpmNav ? 'ready:dpm' : `ready:dpm-tabs(${dpmTabsSeen})`);
     readyHits.push('dpm');
   }
 
