@@ -116,6 +116,9 @@
       say(`${rows.length} notification row${rows.length === 1 ? '' : 's'} read`);
 
       const parsed = P.parseNotificationRows(rows);
+      // Category labels and counts only — safe to log, and the one thing that
+      // shows which row the number came from.
+      if (parsed.labelled.length) say(`Rows: ${parsed.labelled.map((r) => `${r.label} = ${r.count}`).join(' · ')}`);
       if (parsed.count !== null) {
         say(`${parsed.count} DCM case${parsed.count === 1 ? '' : 's'} requiring response — ${parsed.reason}`);
         return {

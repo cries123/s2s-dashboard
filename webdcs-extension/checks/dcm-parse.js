@@ -22,6 +22,26 @@
   /** Statuses that mean it is not waiting on us. */
   const RESOLVED = /\b(closed|resolved|complete[d]?|answered|replied|cancel+ed|archived)\b/i;
 
+  /**
+   * Which summary row answers "waiting for a response from us", best first.
+   *
+   * The DCM dashboard's own headline is "DEALER ACTION REQUIRED: PENDING
+   * ACKNOWLEDGEMENT (n)" — cases the dealer has not yet picked up. "Past Due"
+   * is a subset of those (a case is both), so it must never win while an
+   * acknowledgement row is present, whatever order the rows arrive in. The
+   * first real read picked "Past Due" purely because it came first.
+   */
+  const ROW_PRIORITY = [
+    { re: /acknowledg/i, why: 'pending acknowledgement' },
+    { re: /dealer action|action (needed|required)/i, why: 'dealer action required' },
+    { re: /respon/i, why: 'row about a response' },
+    { re: /pending/i, why: 'pending row' },
+    { re: /await/i, why: 'awaiting row' },
+    { re: /overdue|past due/i, why: 'past-due row' },
+    { re: /\bdue\b/i, why: 'due row' },
+    { re: /\b(new|open)\b/i, why: 'new/open row' },
+  ];
+
   function normalize(text) {
     return String(text ?? '').replace(/\s+/g, ' ').trim();
   }
@@ -134,10 +154,10 @@
     });
 
     if (labelled.length) {
-      const byResponse = labelled.find((r) => /respon/i.test(r.label));
-      if (byResponse) return pick(byResponse, 'row about a response');
-      const byAwaiting = labelled.find((r) => AWAITING.test(r.label) && !RESOLVED.test(r.label));
-      if (byAwaiting) return pick(byAwaiting, 'awaiting-style row');
+      for (const tier of ROW_PRIORITY) {
+        const row = labelled.find((r) => tier.re.test(r.label) && !RESOLVED.test(r.label));
+        if (row) return pick(row, tier.why);
+      }
       if (labelled.length === 1) return pick(labelled[0], 'only numeric row');
       return {
         count: null,

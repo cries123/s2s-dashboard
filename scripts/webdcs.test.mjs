@@ -80,6 +80,28 @@ console.log('\nThe DCMNotification tooltip table (shape learned from the first r
   check('reason names the row', /response/i.test(r.reason), true);
   check('labels and counts come back as evidence', r.labelled.map((x) => x.count), [2, 3, 9]);
 }
+// The first real read, 2026-09-23: the tooltip led with Past Due and the check
+// reported 1 when the dashboard said DEALER ACTION REQUIRED: PENDING
+// ACKNOWLEDGEMENT (4). Row order must not decide this.
+{
+  const r = parse.parseNotificationRows([
+    ['Past Due', '1'],
+    ['Pending Dlr Acknowledgement', '4'],
+    ['Due Today', '0'],
+  ]);
+  check('pending acknowledgement beats past due regardless of order', r.count, 4);
+  check('and says so', r.reason, 'pending acknowledgement: "Pending Dlr Acknowledgement"');
+}
+check(
+  'dealer action required also beats past due',
+  parse.parseNotificationRows([['Past Due', '2'], ['Dealer Action Required', '6']]).count,
+  6
+);
+check(
+  'with no acknowledgement row, past due is still an answer',
+  parse.parseNotificationRows([['Past Due', '1'], ['Due Today', '0'], ['Due Tomorrow', '1']]).count,
+  1
+);
 check('a single numeric row is taken as the count', parse.parseNotificationRows([['Cases', '4']]).count, 4);
 check(
   'awaiting-style label wins when nothing says response',

@@ -189,8 +189,24 @@ export default function WebDcsPanel() {
             <>
               <p className="text-2xl font-semibold mt-1">{formatCaseCount(result.dcmCasesWaiting)}</p>
               <p className="crm-label mt-1">
-                Last checked {formatCheckedAt(result.checkedAt)} · read via {result.strategy}
+                Last checked {formatCheckedAt(result.checkedAt)}
+                {typeof result.evidence?.reason === 'string' ? ` · ${result.evidence.reason}` : ` · read via ${result.strategy}`}
               </p>
+              {/* Every row the notification carried, so the headline is never a black box. */}
+              {Array.isArray(result.evidence?.labelled) && result.evidence.labelled.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {(result.evidence.labelled as Array<{ label: string; count: number }>).map((row) => (
+                    <li
+                      key={row.label}
+                      className="inline-flex items-baseline gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                      style={{ borderColor: 'var(--color-surface-border)' }}
+                    >
+                      <span className="text-text-secondary">{row.label}</span>
+                      <span className="font-semibold tabular-nums">{row.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           ) : (
             <>
