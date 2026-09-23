@@ -80,28 +80,36 @@ console.log('\nThe DCMNotification tooltip table (shape learned from the first r
   check('reason names the row', /response/i.test(r.reason), true);
   check('labels and counts come back as evidence', r.labelled.map((x) => x.count), [2, 3, 9]);
 }
-// The first real read, 2026-09-23: the tooltip led with Past Due and the check
-// reported 1 when the dashboard said DEALER ACTION REQUIRED: PENDING
-// ACKNOWLEDGEMENT (4). Row order must not decide this.
+// The real tooltip rows read on 2026-09-23, while the DCM dashboard said
+// DEALER ACTION REQUIRED: PENDING ACKNOWLEDGEMENT (4). The buckets are
+// disjoint — the overdue case has left "Pending Acknowledgment" for "Past Due"
+// — so the answer is their sum, and Work In Progress is never counted.
 {
   const r = parse.parseNotificationRows([
     ['Past Due', '1'],
-    ['Pending Dlr Acknowledgement', '4'],
-    ['Due Today', '0'],
+    ['Pending Acknowledgment', '3'],
+    ['Work In Progress', '0'],
   ]);
-  check('pending acknowledgement beats past due regardless of order', r.count, 4);
-  check('and says so', r.reason, 'pending acknowledgement: "Pending Dlr Acknowledgement"');
+  check('the real tooltip adds past due to pending acknowledgment', r.count, 4);
+  check('and shows the arithmetic', r.reason, 'Past Due 1 + Pending Acknowledgment 3');
+  check('all three rows come back for the breakdown', r.labelled.map((x) => x.count), [1, 3, 0]);
 }
 check(
-  'dealer action required also beats past due',
-  parse.parseNotificationRows([['Past Due', '2'], ['Dealer Action Required', '6']]).count,
-  6
+  'work in progress is never part of the total',
+  parse.parseNotificationRows([['Pending Acknowledgment', '3'], ['Work In Progress', '2']]).count,
+  3
+);
+check(
+  'due-date slices are time views of the same cases and are not added',
+  parse.parseNotificationRows([['Pending Acknowledgment', '4'], ['Due Today', '1'], ['Due Tomorrow', '1']]).count,
+  4
 );
 check(
   'with no acknowledgement row, past due is still an answer',
   parse.parseNotificationRows([['Past Due', '1'], ['Due Today', '0'], ['Due Tomorrow', '1']]).count,
   1
 );
+check('either spelling of acknowledgement counts', parse.parseNotificationRows([['Pending Dlr Acknowledgement', '4']]).count, 4);
 check('a single numeric row is taken as the count', parse.parseNotificationRows([['Cases', '4']]).count, 4);
 check(
   'awaiting-style label wins when nothing says response',

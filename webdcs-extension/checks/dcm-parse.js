@@ -23,13 +23,26 @@
   const RESOLVED = /\b(closed|resolved|complete[d]?|answered|replied|cancel+ed|archived)\b/i;
 
   /**
-   * Which summary row answers "waiting for a response from us", best first.
+   * What the DCMNotification tooltip actually holds, from the real rows read on
+   * 2026-09-23:
    *
-   * The DCM dashboard's own headline is "DEALER ACTION REQUIRED: PENDING
-   * ACKNOWLEDGEMENT (n)" — cases the dealer has not yet picked up. "Past Due"
-   * is a subset of those (a case is both), so it must never win while an
-   * acknowledgement row is present, whatever order the rows arrive in. The
-   * first real read picked "Past Due" purely because it came first.
+   *   Past Due = 1 · Pending Acknowledgment = 3 · Work In Progress = 0
+   *
+   * while the DCM dashboard said DEALER ACTION REQUIRED: PENDING
+   * ACKNOWLEDGEMENT (4). The buckets are disjoint: a case that goes past due
+   * leaves "Pending Acknowledgment" for "Past Due". So the number of cases
+   * waiting on the dealer is the unacknowledged rows PLUS the overdue rows —
+   * 1 + 3 = 4 — and never "Work In Progress" (already picked up) nor the
+   * due-today / due-tomorrow / due-3-days slices, which are time views of the
+   * same pending cases and would double count.
+   */
+  const UNACKNOWLEDGED = /acknowledg|dealer action|action (needed|required)|respon|await/i;
+  const OVERDUE = /past due|overdue/i;
+  const NOT_WAITING = /work in progress|\bwip\b|in progress|closed|resolved|complete|answered|replied|cancel|archived/i;
+
+  /**
+   * Fallback for tooltips that use none of the words above — one row wins,
+   * best meaning first, so row order never decides.
    */
   const ROW_PRIORITY = [
     { re: /acknowledg/i, why: 'pending acknowledgement' },
@@ -154,8 +167,23 @@
     });
 
     if (labelled.length) {
+      const safeLabelled = labelled.map((r) => ({ label: sanitizeAttr(r.label), count: r.count }));
+
+      // The real tooltip: add every unacknowledged and overdue bucket.
+      const waitingRows = labelled.filter(
+        (r) => !NOT_WAITING.test(r.label) && (UNACKNOWLEDGED.test(r.label) || OVERDUE.test(r.label))
+      );
+      if (waitingRows.length) {
+        return {
+          count: waitingRows.reduce((n, r) => n + r.count, 0),
+          reason: waitingRows.map((r) => `${sanitizeAttr(r.label)} ${r.count}`).join(' + '),
+          labelled: safeLabelled,
+          redactedRows,
+        };
+      }
+
       for (const tier of ROW_PRIORITY) {
-        const row = labelled.find((r) => tier.re.test(r.label) && !RESOLVED.test(r.label));
+        const row = labelled.find((r) => tier.re.test(r.label) && !RESOLVED.test(r.label) && !NOT_WAITING.test(r.label));
         if (row) return pick(row, tier.why);
       }
       if (labelled.length === 1) return pick(labelled[0], 'only numeric row');
