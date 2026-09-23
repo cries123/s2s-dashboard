@@ -14,13 +14,20 @@ export const WEBDCS_ORIGIN = 'https://www.hyundaidealer.com';
 export const WEBDCS_HOME_URL = `${WEBDCS_ORIGIN}/`;
 export const WEBDCS_TAB_PATTERNS = ['https://wdcs.hyundaidealer.com/*', 'https://*.hyundaidealer.com/*'];
 
-/** Prefer the tab the user is looking at; otherwise the most recently used one. */
-export async function findWebDcsTab() {
+/**
+ * Every dealer-portal tab, the one the user is looking at first, then most
+ * recently used. A check is tried in each until one has what it needs — the
+ * count lives on the portal page, the case table on the DCM Dashboard, and
+ * both are usually open at once.
+ */
+export async function findWebDcsTabs() {
   const tabs = await chrome.tabs.query({ url: WEBDCS_TAB_PATTERNS });
-  if (!tabs.length) return null;
-  const active = tabs.find((t) => t.active);
-  if (active) return active;
-  return [...tabs].sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0))[0];
+  return [...tabs].sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+}
+
+export async function findWebDcsTab() {
+  const tabs = await findWebDcsTabs();
+  return tabs[0] ?? null;
 }
 
 export async function openOrFocusWebDcs() {

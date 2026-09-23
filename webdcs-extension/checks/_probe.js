@@ -56,6 +56,14 @@
   const readyHits = readySelectors.filter((s) => visible(s).length > 0);
   markers.push(...readyHits.map((s) => `ready:${s}`));
 
+  // The DCM Dashboard (the page behind the portal's SSO link) has none of the
+  // portal's markers; its case table and its own nav are the sign it is up.
+  const caseTable = visible('th, td').some((c) => /case\s*number/i.test(c.textContent || ''));
+  const dcmNav = visible('a, li, span, div').slice(0, 400).some((el) => /^\s*DCM DASHBOARD\s*$/i.test(el.textContent || ''));
+  if (caseTable) markers.push('ready:case-table');
+  if (dcmNav) markers.push('ready:dcm-nav');
+  if (caseTable || dcmNav) readyHits.push('dcm-dashboard');
+
   const onLoginPath = path.includes('/irj/portal/iam') || path.includes('/login') || path.includes('/logon');
   if (onLoginPath) markers.push('login-path');
 

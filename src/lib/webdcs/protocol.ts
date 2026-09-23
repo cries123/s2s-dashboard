@@ -30,6 +30,7 @@ export const ERROR_CODES = [
   'SESSION_EXPIRED',
   'WEBDCS_UNAVAILABLE',
   'BELL_NOT_FOUND',
+  'PAGE_NOT_OPEN',
   'PANEL_NOT_LOADED',
   'DCM_NOT_FOUND',
   'UI_CHANGED',
@@ -42,7 +43,19 @@ export const ERROR_CODES = [
 ] as const;
 export type WebDcsErrorCode = (typeof ERROR_CODES)[number];
 
-export type WebDcsCheckId = 'dcm';
+export type WebDcsCheckId = 'dcm' | 'dcmCases';
+
+/** One row of the DCM Dashboard's case table. Shown, never stored. */
+export interface DcmCase {
+  caseNumber: string;
+  dueDate: string;
+  /** YYYY-MM-DD when the due date was readable, for sorting and overdue checks. */
+  dueDateIso: string | null;
+  vin: string;
+  model: string;
+  customerName: string;
+  status: string;
+}
 
 export interface WebDcsError {
   code: WebDcsErrorCode;
@@ -86,4 +99,13 @@ export interface WebDcsDcmResult extends WebDcsOkBase {
   evidence?: Record<string, unknown>;
 }
 
+export interface WebDcsDcmCasesResult extends WebDcsOkBase {
+  check: 'dcmCases';
+  dcmCasesWaiting: number;
+  cases: DcmCase[];
+  sections: Array<{ label: string; declaredCount: number | null; rows: number }>;
+  strategy: string;
+}
+
 export type WebDcsRunResult = WebDcsDcmResult | WebDcsFailure;
+export type WebDcsCasesRunResult = WebDcsDcmCasesResult | WebDcsFailure;

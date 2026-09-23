@@ -203,6 +203,84 @@
     return { count: null, reason: 'no readable rows', labelled: [], redactedRows };
   }
 
+  // ---- the DCM dashboard case table -------------------------------------
+  //
+  // Columns as seen on 2026-09-23: Case Number | Due Date | VIN | Model |
+  // Customer Name | Concern | Dealer Code | Role | Case Owner | Status.
+  // Matched by header text so a reordered or added column cannot shift data
+  // into the wrong field. Only the fields the dashboard shows are kept.
+  const COLUMN_MATCHERS = {
+    caseNumber: /case\s*(number|no\.?|#)/i,
+    dueDate: /due/i,
+    vin: /^\s*vin\s*$/i,
+    model: /model/i,
+    customerName: /customer/i,
+    status: /status/i,
+  };
+
+  /** "09/28/2026" -> "2026-09-28" for sorting and comparison; null if unreadable. */
+  function toIsoDate(mmddyyyy) {
+    const m = normalize(mmddyyyy).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return null;
+    return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  }
+
+  /**
+   * Turn a header row and body rows into cases. Returns null when the headers
+   * do not look like a case table (no case-number and VIN columns), so the
+   * caller can tell "wrong table" from "empty table".
+   */
+  function parseCaseTable(headers, rows) {
+    const cols = {};
+    (headers || []).forEach((h, i) => {
+      const t = normalize(h);
+      for (const [key, re] of Object.entries(COLUMN_MATCHERS)) {
+        if (cols[key] === undefined && re.test(t)) cols[key] = i;
+      }
+    });
+    if (cols.caseNumber === undefined || cols.vin === undefined) return null;
+
+    const cell = (r, key) => (cols[key] === undefined ? '' : normalize(r[cols[key]]));
+    const cases = (rows || [])
+      .map((r) => ({
+        caseNumber: cell(r, 'caseNumber'),
+        dueDate: cell(r, 'dueDate'),
+        dueDateIso: toIsoDate(cell(r, 'dueDate')),
+        vin: cell(r, 'vin'),
+        model: cell(r, 'model'),
+        customerName: cell(r, 'customerName'),
+        status: cell(r, 'status'),
+      }))
+      .filter((c) => c.caseNumber);
+
+    return { columns: cols, cases };
+  }
+
+  /**
+   * The cases waiting on the dealer, by each row's own status — the same rule
+   * as the tooltip: unacknowledged or overdue, never in progress or closed.
+   * A row with no status at all is kept; a case listed under "dealer action
+   * required" with no status is still a case to look at.
+   */
+  function filterWaitingCases(cases) {
+    return (cases || []).filter((c) => {
+      const s = normalize(c.status);
+      if (!s) return true;
+      if (NOT_WAITING.test(s)) return false;
+      return UNACKNOWLEDGED.test(s) || OVERDUE.test(s) || AWAITING.test(s);
+    });
+  }
+
+  /** Soonest due first; undated last. */
+  function sortByDue(cases) {
+    return [...(cases || [])].sort((a, b) => {
+      if (!a.dueDateIso && !b.dueDateIso) return 0;
+      if (!a.dueDateIso) return 1;
+      if (!b.dueDateIso) return -1;
+      return a.dueDateIso.localeCompare(b.dueDateIso);
+    });
+  }
+
   /** Attribute values in a diagnostic snapshot must not carry customer data. */
   function sanitizeAttr(value) {
     return String(value ?? '')
@@ -220,6 +298,10 @@
     countDcmRows,
     parseNotificationRows,
     decideCount,
+    parseCaseTable,
+    filterWaitingCases,
+    sortByDue,
+    toIsoDate,
     sanitizeAttr,
   };
 });

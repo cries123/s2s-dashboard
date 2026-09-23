@@ -67,6 +67,13 @@ export function describeError(code: WebDcsErrorCode): ErrorPresentation {
         needsWebDcsAction: true,
         wantsDiagnostic: false,
       };
+    case 'PAGE_NOT_OPEN':
+      return {
+        title: 'The DCM Dashboard is not open',
+        hint: 'In WebDCS, click the red DCM notification to open the DCM Dashboard in its own tab, leave it open, then load the details again.',
+        needsWebDcsAction: true,
+        wantsDiagnostic: false,
+      };
     case 'BELL_NOT_FOUND':
       return {
         title: 'Could not find the notification bell',
@@ -166,6 +173,20 @@ export function describeState(state: WebDcsSessionState | 'checking' | 'extensio
 export function formatCaseCount(n: number): string {
   if (n === 0) return '0 DCM cases currently waiting for response';
   return `${n} DCM case${n === 1 ? '' : 's'} waiting for response`;
+}
+
+/** "overdue" / "today" / "tomorrow" / "in 5 days" / "" for a due date against a given day. */
+export function dueRelative(dueDateIso: string | null, todayIso: string): { label: string; tone: 'overdue' | 'today' | 'soon' | 'later' | 'none' } {
+  if (!dueDateIso) return { label: '', tone: 'none' };
+  const a = new Date(`${dueDateIso}T00:00:00`).getTime();
+  const b = new Date(`${todayIso}T00:00:00`).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return { label: '', tone: 'none' };
+  const days = Math.round((a - b) / 86_400_000);
+  if (days < 0) return { label: days === -1 ? '1 day overdue' : `${-days} days overdue`, tone: 'overdue' };
+  if (days === 0) return { label: 'due today', tone: 'today' };
+  if (days === 1) return { label: 'due tomorrow', tone: 'soon' };
+  if (days <= 3) return { label: `due in ${days} days`, tone: 'soon' };
+  return { label: `due in ${days} days`, tone: 'later' };
 }
 
 export function formatCheckedAt(iso: string): string {

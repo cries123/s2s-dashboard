@@ -140,6 +140,59 @@ check('empty table is undecided', parse.parseNotificationRows([]).count, null);
 check('cells are redacted in the diagnostic', parse.parseNotificationRows([['jane.doe@dealer.com', '1']]).redactedRows[0][0], '[email]');
 check('countDcmRows can skip the DCM word inside the DCM control', parse.countDcmRows(['awaiting response', 'closed'], { requireDcm: false }).waiting, 1);
 
+console.log('\nThe DCM Dashboard case table');
+const HEADERS = ['Case Number', 'Due Date', 'VIN', 'Model', 'Customer Name', 'Concern', 'Dealer Code', 'Role', 'Case Owner', 'Status'];
+const ROWS = [
+  ['42863147-48', '09/28/2026', 'KM8R7DGEXRU746629', 'PALISADE NIGHT AWD', 'EFREN RUIZ', '', 'CA01W', 'Service', '', 'Pending Acknowledgement'],
+  ['43090134-15', '09/22/2026', 'KMHL14JA7RA409026', 'SONATA SEL FWD', 'JORGE TORRES', '', 'CA01W', 'Service', '', 'Pending Acknowledgement'],
+  ['42990561-28', '09/24/2026', '5NMZU3LB5HH036286', 'SANTA FE SPORT (AN) 2.4 THETA', 'TIFFANY NGUYEN', '', 'CA01W', 'Service', '', 'Pending Acknowledgement'],
+];
+{
+  const t = parse.parseCaseTable(HEADERS, ROWS);
+  check('columns are found by header text', t.columns, { caseNumber: 0, dueDate: 1, vin: 2, model: 3, customerName: 4, status: 9 });
+  check('every row becomes a case', t.cases.length, 3);
+  check('fields land in the right place', t.cases[0], {
+    caseNumber: '42863147-48',
+    dueDate: '09/28/2026',
+    dueDateIso: '2026-09-28',
+    vin: 'KM8R7DGEXRU746629',
+    model: 'PALISADE NIGHT AWD',
+    customerName: 'EFREN RUIZ',
+    status: 'Pending Acknowledgement',
+  });
+}
+{
+  const reordered = parse.parseCaseTable(['Status', 'Customer Name', 'VIN', 'Case Number', 'Due Date'], [['Pending Acknowledgement', 'ANA REYES', '5NMS2DAJ5PH500781', '43000000-01', '10/01/2026']]);
+  check('a reordered table still maps correctly', reordered.cases[0].customerName, 'ANA REYES');
+  check('missing model column is simply blank', reordered.cases[0].model, '');
+}
+check('a table without a VIN column is not a case table', parse.parseCaseTable(['Name', 'Amount'], [['x', '1']]), null);
+check('a table without a case-number column is not a case table', parse.parseCaseTable(['VIN', 'Owner'], [['x', 'y']]), null);
+check('blank rows are dropped', parse.parseCaseTable(HEADERS, [['', '', '', '', '', '', '', '', '', '']]).cases.length, 0);
+{
+  const cases = parse.parseCaseTable(HEADERS, [
+    ...ROWS,
+    ['43111111-11', '09/30/2026', '5NMP2DG15SH053844', 'SANTA FE', 'E. KUNEMOTO', '', 'CA01W', 'Service', '', 'Work In Progress'],
+    ['43222222-22', '09/30/2026', 'KMHL14JA7RA400000', 'SONATA', 'S. REYES', '', 'CA01W', 'Service', '', 'Closed'],
+    ['43333333-33', '', 'KMHL14JA7RA400001', 'SONATA', 'NO STATUS', '', 'CA01W', 'Service', '', ''],
+  ]).cases;
+  const waiting = parse.filterWaitingCases(cases);
+  check('in-progress and closed rows are not waiting', waiting.map((c) => c.caseNumber).includes('43111111-11') || waiting.map((c) => c.caseNumber).includes('43222222-22'), false);
+  check('a row with no status is kept', waiting.map((c) => c.caseNumber).includes('43333333-33'), true);
+  check('pending rows are waiting', waiting.length, 4);
+  const sorted = parse.sortByDue(waiting);
+  check('soonest due first', sorted[0].caseNumber, '43090134-15');
+  check('undated last', sorted[sorted.length - 1].caseNumber, '43333333-33');
+}
+check('dates convert to ISO', parse.toIsoDate('09/22/2026'), '2026-09-22');
+check('an unreadable date is null, not a guess', parse.toIsoDate('Sept 22'), null);
+check('overdue reads as overdue', presentation.dueRelative('2026-09-22', '2026-09-23'), { label: '1 day overdue', tone: 'overdue' });
+check('today reads as today', presentation.dueRelative('2026-09-23', '2026-09-23'), { label: 'due today', tone: 'today' });
+check('tomorrow reads as soon', presentation.dueRelative('2026-09-24', '2026-09-23'), { label: 'due tomorrow', tone: 'soon' });
+check('five days out reads as later', presentation.dueRelative('2026-09-28', '2026-09-23'), { label: 'due in 5 days', tone: 'later' });
+check('no date, no label', presentation.dueRelative(null, '2026-09-23'), { label: '', tone: 'none' });
+check('the DCM dashboard error tells you to open the tab', presentation.describeError('PAGE_NOT_OPEN').needsWebDcsAction, true);
+
 console.log('\nDeciding the answer');
 check('heading count wins', parse.decideCount({ headingCount: 5, rowCounts: { dcmRowsTotal: 9, waiting: 2 } }), { count: 5, strategy: 'panel-heading' });
 check('rows when no heading', parse.decideCount({ headingCount: null, rowCounts: { dcmRowsTotal: 3, waiting: 1 } }), { count: 1, strategy: 'panel-rows' });

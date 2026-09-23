@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "S2S WebDCS Assistant",
   "description": "Reads DCM case counts from your own authenticated WebDCS tab and reports them to the S2S Dashboard. Never handles credentials or 2FA.",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiMVP/TQfcHPUdt7haXPvNrc2/hcpj8hJCXUbpgNLT2g6vOPIkRKXLlP5xt3h0o8JJAtR29NCvi9g6mmmzJIUjSjz3DTPNr8LOt63oXNgCFGxFgD8XgERcoMGVzWi7eYlrlB+KeIqur5n3mqeNMrAWH/Uxn7c+nZOciAERZdo2EUVuUdfNZCXdTllWQSwu26temQ9+0UQX4zDW0DHg+7w8i8M/dFYDupDH8sFlYFORMkz9eTdo4Nuz3LlQjZM6TK7J19JlzB8ItIJPRfwxYHU9atASWl7E2arYNgtgIqZgLYJkzjaFOUuJ9OdqXgXni7KLr2jee9ly12D/Yv1rxo+7wIDAQAB",
   "minimum_chrome_version": "116",
   "background": {

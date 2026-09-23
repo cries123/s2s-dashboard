@@ -1,15 +1,17 @@
 /**
  * Service worker. Receives messages from the S2S Dashboard (and nothing else),
- * finds the WebDCS tab the user signed into, and runs checks inside it.
+ * finds the dealer-portal tabs the user signed into, and runs checks inside
+ * them.
  *
  * Trust boundary: the dashboard origin is verified on every message, and the
- * only thing that ever leaves this worker is the structured result — a count,
- * a state, an error code, a redacted log. No cookies, tokens or page text.
+ * only thing that ever leaves this worker is the structured result — counts,
+ * a state, an error code, a redacted log, and for the case-details check the
+ * case fields themselves. No cookies, tokens or page text otherwise.
  */
 
 import { MSG, SESSION, ERROR, makeOk, makeError, PROTOCOL_VERSION } from './lib/protocol.js';
 import { createLogger } from './lib/logger.js';
-import { findWebDcsTab, openOrFocusWebDcs, probeSession, safeTabLocation } from './lib/session.js';
+import { findWebDcsTab, findWebDcsTabs, openOrFocusWebDcs, probeSession, safeTabLocation } from './lib/session.js';
 import { CHECKS } from './checks/registry.js';
 
 const ALLOWED_ORIGINS = new Set(['https://salestoservice.net', 'http://localhost:3000']);
@@ -62,53 +64,62 @@ async function handleStatus(log) {
   return makeOk({ state, tabLocation: safeTabLocation(tab.url), log: log.entries });
 }
 
+const frameOf = (f) => `${f.frame?.top ? 'top' : 'frame'} ${f.frame?.location ?? ''}`;
+
+/** Shape a successful in-page result into the response for its check. */
+function shapeSuccess(checkId, r, log) {
+  const base = { check: checkId, strategy: r.strategy, frame: r.frame, log: log.entries };
+  if (checkId === 'dcmCases') {
+    return makeOk({ ...base, dcmCasesWaiting: r.count, cases: r.cases, sections: r.sections });
+  }
+  return makeOk({ ...base, dcmCasesWaiting: r.count, evidence: r.evidence });
+}
+
 async function handleRun(checkId, log) {
   const check = CHECKS[checkId];
   if (!check) return makeError(ERROR.UNKNOWN_CHECK, `Unknown check "${checkId}".`, { log: log.entries });
 
   log.info(`${check.label}: check started`);
-  const tab = await findWebDcsTab();
-  if (!tab) return errorForState(SESSION.NO_TAB, log.entries);
-  log.info(`WebDCS tab found at ${safeTabLocation(tab.url)}`);
+  const tabs = await findWebDcsTabs();
+  if (!tabs.length) return errorForState(SESSION.NO_TAB, log.entries);
 
-  const { state } = await withTimeout(probeSession(tab.id), 8000);
-  const blocked = errorForState(state, log.entries);
-  if (blocked) {
-    log.warn(`Cannot run: session state is ${state}`);
-    return { ...blocked, log: log.entries, check: checkId };
-  }
-  log.info('Authenticated session detected');
+  const failures = [];
+  const skippedFrames = [];
+  let blockedByAuth = null;
 
-  const injected = await withTimeout(
-    chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: check.files }),
-    check.timeoutMs
-  );
+  for (const tab of tabs) {
+    log.info(`WebDCS tab found at ${safeTabLocation(tab.url)}`);
+    const { state } = await withTimeout(probeSession(tab.id), 8000);
+    const blocked = errorForState(state, log.entries);
+    if (blocked) {
+      // Remember the first auth problem, but keep looking — another tab may be signed in.
+      log.warn(`Skipping: session state is ${state}`);
+      blockedByAuth = blockedByAuth || { ...blocked, check: checkId };
+      continue;
+    }
+    log.info('Authenticated session detected');
 
-  const frames = injected.map((r) => r.result).filter(Boolean);
-  const succeeded = frames.find((f) => f.ok === true);
-  const failed = frames.filter((f) => f.ok === false);
-  const skipped = frames.filter((f) => f.skipped);
+    const injected = await withTimeout(
+      chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, files: check.files }),
+      check.timeoutMs
+    );
+    const frames = injected.map((r) => r.result).filter(Boolean);
 
-  const frameOf = (f) => `${f.frame?.top ? 'top' : 'frame'} ${f.frame?.location ?? ''}`;
-
-  if (succeeded) {
-    for (const line of succeeded.log || []) log.info(`[${frameOf(succeeded)}] ${line}`);
-    log.info('Check completed');
-    return makeOk({
-      check: checkId,
-      dcmCasesWaiting: succeeded.count,
-      strategy: succeeded.strategy,
-      evidence: succeeded.evidence,
-      frame: succeeded.frame,
-      log: log.entries,
-    });
+    const succeeded = frames.find((f) => f.ok === true);
+    if (succeeded) {
+      for (const line of succeeded.log || []) log.info(`[${frameOf(succeeded)}] ${line}`);
+      log.info('Check completed');
+      return shapeSuccess(checkId, succeeded, log);
+    }
+    failures.push(...frames.filter((f) => f.ok === false));
+    skippedFrames.push(...frames.filter((f) => f.skipped).map((f) => f.frame));
   }
 
-  if (failed.length) {
+  if (failures.length) {
     // Prefer the failure that got furthest: a panel that opened beats a bell
     // that was never found.
     const rank = { DCM_NOT_FOUND: 3, PANEL_NOT_LOADED: 2, BELL_NOT_FOUND: 1 };
-    const worst = [...failed].sort((a, b) => (rank[b.code] || 0) - (rank[a.code] || 0))[0];
+    const worst = [...failures].sort((a, b) => (rank[b.code] || 0) - (rank[a.code] || 0))[0];
     for (const line of worst.log || []) log.info(`[${frameOf(worst)}] ${line}`);
     const messages = {
       PANEL_NOT_LOADED: 'The notification control was found, but no notification panel appeared after opening it.',
@@ -124,10 +135,14 @@ async function handleRun(checkId, log) {
     });
   }
 
-  log.error(`No frame contained the notification control (${skipped.length} frame${skipped.length === 1 ? '' : 's'} checked)`);
-  return makeError(ERROR.BELL_NOT_FOUND, 'The notification bell could not be found on the WebDCS page.', {
+  if (blockedByAuth && !skippedFrames.length) {
+    return { ...blockedByAuth, log: log.entries };
+  }
+
+  log.error(`${check.notFound.code}: nothing suitable in ${skippedFrames.length} frame${skippedFrames.length === 1 ? '' : 's'} across ${tabs.length} tab${tabs.length === 1 ? '' : 's'}`);
+  return makeError(ERROR[check.notFound.code] || ERROR.UI_CHANGED, check.notFound.message, {
     check: checkId,
-    frames: skipped.map((f) => f.frame),
+    frames: skippedFrames,
     log: log.entries,
   });
 }

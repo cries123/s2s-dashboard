@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bell, ExternalLink, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Bell, ExternalLink, ListChecks, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../../layout/PageHeader';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
 import { cn } from '../../../lib/utils';
@@ -8,10 +8,13 @@ import {
   getWebDcsStatus,
   openWebDcs,
   pingExtension,
+  runWebDcsCases,
   runWebDcsCheck,
 } from '../../../lib/webdcs/client';
 import {
   WEBDCS_HOME_URL,
+  type DcmCase,
+  type WebDcsCasesRunResult,
   type WebDcsFailure,
   type WebDcsRunResult,
   type WebDcsSessionState,
@@ -19,13 +22,27 @@ import {
 import {
   describeError,
   describeState,
+  dueRelative,
   formatCaseCount,
   formatCheckedAt,
 } from '../../../lib/webdcs/presentation';
 
+const DUE_TONE: Record<ReturnType<typeof dueRelative>['tone'], string> = {
+  overdue: 'text-rose-400',
+  today: 'text-amber-400',
+  soon: 'text-amber-300',
+  later: 'text-text-secondary',
+  none: 'text-text-secondary',
+};
+
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 type PanelState = WebDcsSessionState | 'checking' | 'extension_missing';
 
-function isFailure(r: WebDcsRunResult | null): r is WebDcsFailure {
+function isFailure(r: WebDcsRunResult | WebDcsCasesRunResult | null): r is WebDcsFailure {
   return r !== null && r.ok === false;
 }
 
@@ -49,6 +66,10 @@ export default function WebDcsPanel() {
   const [result, setResult] = useState<WebDcsRunResult | null>(null);
   const [showLog, setShowLog] = useState(false);
   const [showDiagnostic, setShowDiagnostic] = useState(false);
+  // Case details are loaded only on request: names and VINs are the most
+  // sensitive thing this page touches, so the default stays at a count.
+  const [details, setDetails] = useState<WebDcsCasesRunResult | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   const refreshStatus = useCallback(async () => {
     if (!supported) return;
@@ -85,9 +106,21 @@ export default function WebDcsPanel() {
     setTimeout(() => void refreshStatus(), 1500);
   };
 
+  const handleLoadDetails = async () => {
+    setLoadingDetails(true);
+    try {
+      const r = await runWebDcsCases();
+      setDetails(r);
+      if (isFailure(r) && r.error.code === 'EXTENSION_NOT_INSTALLED') setState('extension_missing');
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   const handleRun = async () => {
     setRunning(true);
     setShowDiagnostic(false);
+    setDetails(null);
     try {
       const r = await runWebDcsCheck('dcm');
       setResult(r);
@@ -108,6 +141,10 @@ export default function WebDcsPanel() {
   const canRun = presented.canRun && !running;
   const failed = isFailure(result) ? result : null;
   const failure = failed ? describeError(failed.error.code) : null;
+  const detailsFailed = details && details.ok === false ? details : null;
+  const detailsFailure = detailsFailed ? describeError(detailsFailed.error.code) : null;
+  const cases: DcmCase[] = details && details.ok ? details.cases : [];
+  const today = todayIso();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -224,6 +261,17 @@ export default function WebDcsPanel() {
           )}
 
           <div className="flex flex-wrap gap-2 mt-4">
+            {result.ok && (
+              <button
+                type="button"
+                onClick={() => void handleLoadDetails()}
+                disabled={loadingDetails || !presented.canRun}
+                className="btn-primary text-sm py-1.5 disabled:opacity-50"
+              >
+                {loadingDetails ? <Loader2 size={14} className="animate-spin" /> : <ListChecks size={14} />}
+                {loadingDetails ? 'Reading the DCM Dashboard…' : details ? 'Reload case details' : 'Load case details'}
+              </button>
+            )}
             {result.log && result.log.length > 0 && (
               <button type="button" onClick={() => setShowLog((v) => !v)} className="btn-secondary text-sm py-1.5">
                 {showLog ? 'Hide log' : `Show log (${result.log.length})`}
@@ -243,6 +291,96 @@ export default function WebDcsPanel() {
             >
               {result.log.join('\n')}
             </pre>
+          )}
+
+          {/* ---- Case details, from the DCM Dashboard tab ---- */}
+          {detailsFailed && detailsFailure && (
+            <div className="mt-4 rounded-lg border-l-4 border-l-rose-400 p-3" style={{ backgroundColor: 'var(--color-surface-base)' }}>
+              <p className="font-semibold">{detailsFailure.title}</p>
+              <p className="text-sm text-text-secondary mt-0.5">{detailsFailure.hint}</p>
+              <p className="crm-label mt-1">{detailsFailed.error.code}</p>
+            </div>
+          )}
+
+          {details && details.ok && (
+            <div className="mt-4">
+              <p className="crm-label">
+                {cases.length === 0
+                  ? 'No cases are waiting on the dealer.'
+                  : `${cases.length} case${cases.length === 1 ? '' : 's'} waiting · soonest due first · read ${formatCheckedAt(details.checkedAt)}`}
+              </p>
+
+              {/* Phones: one card per case. */}
+              {cases.length > 0 && (
+                <ul className="md:hidden mt-2 divide-y rounded-lg border" style={{ borderColor: 'var(--color-surface-border)' }}>
+                  {cases.map((c) => {
+                    const due = dueRelative(c.dueDateIso, today);
+                    return (
+                      <li key={c.caseNumber} className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate">{c.customerName || '—'}</p>
+                            <p className="crm-label truncate">{c.model || '—'}</p>
+                            <p className="crm-label font-mono truncate">{c.vin || '—'}</p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm tabular-nums">{c.dueDate || '—'}</p>
+                            <p className={cn('crm-label', DUE_TONE[due.tone])}>{due.label}</p>
+                          </div>
+                        </div>
+                        <p className="crm-label mt-2 flex items-center justify-between gap-2">
+                          <span className="font-mono">#{c.caseNumber}</span>
+                          <span className="truncate">{c.status}</span>
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {/* Desktop: the table. */}
+              {cases.length > 0 && (
+                <div className="hidden md:block mt-2 overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--color-surface-border)' }}>
+                  <table className="crm-table">
+                    <thead>
+                      <tr>
+                        <th>Case</th>
+                        <th>Due</th>
+                        <th>Customer</th>
+                        <th>Vehicle</th>
+                        <th>VIN</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cases.map((c) => {
+                        const due = dueRelative(c.dueDateIso, today);
+                        return (
+                          <tr key={c.caseNumber}>
+                            <td className="font-mono tabular-nums">{c.caseNumber}</td>
+                            <td className="whitespace-nowrap">
+                              <span className="tabular-nums">{c.dueDate || '—'}</span>
+                              {due.label && <span className={cn('ml-2 text-xs', DUE_TONE[due.tone])}>{due.label}</span>}
+                            </td>
+                            <td className="font-medium">{c.customerName || '—'}</td>
+                            <td>{c.model || '—'}</td>
+                            <td className="font-mono text-xs">{c.vin || '—'}</td>
+                            <td className="text-text-secondary">{c.status || '—'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {details.sections.length > 0 && (
+                <p className="crm-label mt-2">
+                  Sections read:{' '}
+                  {details.sections.map((s) => `${s.label || 'untitled'} (${s.rows})`).join(' · ')}
+                </p>
+              )}
+            </div>
           )}
 
           {showDiagnostic && failed && failed.diagnostic !== undefined && (

@@ -10,6 +10,7 @@
 import {
   MSG,
   WEBDCS_EXTENSION_ID,
+  type WebDcsCasesRunResult,
   type WebDcsCheckId,
   type WebDcsFailure,
   type WebDcsPing,
@@ -86,4 +87,9 @@ export function openWebDcs(): Promise<{ ok: true } | WebDcsFailure> {
 
 export function runWebDcsCheck(check: WebDcsCheckId): Promise<WebDcsRunResult> {
   return send<WebDcsRunResult>({ type: MSG.RUN, check }, 40_000);
+}
+
+/** The case table from the DCM Dashboard tab — number, due date, VIN, customer, status. */
+export function runWebDcsCases(): Promise<WebDcsCasesRunResult> {
+  return send<WebDcsCasesRunResult>({ type: MSG.RUN, check: 'dcmCases' }, 40_000);
 }
