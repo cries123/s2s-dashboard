@@ -65,7 +65,7 @@ const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
   service: ['search', 'alerts', 'schedule', 'dispatch', 'open-ros', 'pot-of-gold'],
   competitions: [],
   reports: ['appointments', 'forecast', 'sales-performance'],
-  manager: ['manager'],
+  manager: ['manager', 'webdcs'],
   admin: ['admin'],
 };
 
@@ -112,6 +112,7 @@ const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   'admin:suggestions': Lightbulb,
   'admin:import-health': Activity,
   'admin:pbs-sync': RefreshCw,
+  webdcs: Bell,
 };
 
 function subItemIcon(item: MobileNavSubItem): LucideIcon {

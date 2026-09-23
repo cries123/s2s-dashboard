@@ -15,7 +15,8 @@
     "test:alerts": "node scripts/smart-alerts.test.mjs",
     "test:parts": "node scripts/top-parts.test.mjs",
     "test:potofgold": "node scripts/pot-of-gold.test.mjs",
-    "test:conversion": "node scripts/conversion.test.mjs"
+    "test:conversion": "node scripts/conversion.test.mjs",
+    "test:webdcs": "node scripts/webdcs.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

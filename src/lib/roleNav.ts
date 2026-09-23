@@ -38,6 +38,9 @@ export function isTabAllowedForUser(tab: AppTab, user: User | null | undefined):
     // Same audience as sales performance — it is the sales floor's number.
     case 'sales-to-service':
       return canSeeSalesPerformanceReport(user);
+    // Dealer-level tooling for the people who run the store.
+    case 'webdcs':
+      return canSeeManagerPanel(user);
     case 'pot-of-gold':
       return canSeeCompetitions(user, tenantId);
     default:
