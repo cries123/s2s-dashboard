@@ -30,14 +30,16 @@ export function DealershipSwitcher({ value, onChange, className, compact }: Deal
       */}
       <div
         className={cn(
-          'relative flex items-center gap-2 rounded-lg border pl-3 pr-2.5 min-h-[44px]',
-          'focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/15'
+          'relative flex items-center gap-1.5 min-h-[44px] rounded-md',
+          compact
+            ? 'px-1 focus-within:ring-2 focus-within:ring-brand-primary/25'
+            : 'border pl-3 pr-2.5 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/15'
         )}
-        style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}
+        style={compact ? undefined : { backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-input-border)' }}
       >
-        <Building2 size={15} className="shrink-0" style={{ color: 'var(--color-text-secondary)' }} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
-        <ChevronDown size={15} className="shrink-0" style={{ color: 'var(--color-text-secondary)' }} />
+        {!compact && <Building2 size={15} className="shrink-0" style={{ color: 'var(--color-text-secondary)' }} />}
+        <span className={cn('min-w-0 truncate', compact ? 'text-base font-semibold' : 'flex-1 text-sm font-medium')}>{label}</span>
+        <ChevronDown size={compact ? 16 : 15} className="shrink-0" style={{ color: 'var(--color-text-secondary)' }} />
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}

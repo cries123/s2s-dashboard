@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { ArrowRight, CalendarDays, Phone, Search, UserPlus, Users } from 'lucide-react';
+import { CalendarDays, ChevronRight, Phone, Search, UserPlus, Users, Wrench } from 'lucide-react';
 import { db } from '../../../firebase';
 import type { Customer, DispatchRepairOrder, User } from '../../../types';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
@@ -17,6 +17,8 @@ import { KpiStrip, type KpiTile } from '../../ui/KpiStrip';
 import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import { EmptyState } from '../../ui/EmptyState';
 import { cn } from '../../../lib/utils';
+import { ListRowButton, Panel, tidyCase, tidyPersonName } from '../../ui/Panel';
+import { countOverdueOrders } from '../../../lib/dispatchPromiseTime';
 
 interface HomeDashboardProps {
   customers: Customer[];
@@ -125,57 +127,50 @@ export function HomeDashboard({
   }, [customers, now]);
 
   const tiles: KpiTile[] = [
+    {
+      label: 'Calls due',
+      value: String(dueThisWeek),
+      sublabel: 'this week',
+      valueTone: dueThisWeek ? 'danger' : undefined,
+    },
     // PBS keeps syncing dispatch orders even when the board is switched off for the
     // store. Counting them then puts a number nobody acts on in the most prominent
     // slot in the app — and it reads as "101 past promise" precisely because a board
     // nobody opens never gets closed out.
     ...(dispatchEnabled
-      ? [{
-          label: 'On the board',
-          value: String(activeOrders.length),
-          sublabel: 'active repair orders',
-          tone: 'info' as const,
-        }]
+      ? [{ label: 'On the board', value: String(activeOrders.length), sublabel: 'active repair orders' }]
       : []),
     {
       label: 'Appointments today',
       value: todayAppointments === null ? '—' : todayAppointments.toLocaleString(),
-      sublabel: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-      tone: 'info',
-    },
-    {
-      label: 'Calls due this week',
-      value: String(dueThisWeek),
-      sublabel: `${alertRows.length} total in queue`,
-      tone: dueThisWeek ? 'warning' : 'default',
     },
     {
       label: 'Visits this month',
       value: visitsThisMonth.toLocaleString(),
-      sublabel: `${customers.length.toLocaleString()} customer${customers.length === 1 ? '' : 's'} on file`,
+      sublabel: `${customers.length.toLocaleString()} customers on file`,
     },
   ];
 
   const firstName = (currentUser.username || '').split(' ')[0] || 'there';
   const loading = customersLoading || ordersLoading;
+  const pastPromiseCount = dispatchEnabled ? countOverdueOrders(activeOrders, now.getTime()) : 0;
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-5">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="crm-label">{dealershipName}</p>
-          <h1 className="crm-page-title mt-1" style={{ fontSize: '1.5rem' }}>
+          <h1 className="crm-page-title" style={{ fontSize: '1.375rem' }}>
             {greeting(now)}, {firstName}
           </h1>
-          <p className="crm-label mt-1">
+          <p className="crm-label mt-0.5">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => onNavigate('add')} className="btn-secondary text-sm">
+        <div className="hidden sm:flex flex-wrap gap-2">
+          <button type="button" onClick={() => onNavigate('add')} className="btn-secondary">
             <UserPlus size={15} /> Add customer
           </button>
-          <button type="button" onClick={() => onNavigate('search')} className="btn-secondary text-sm">
+          <button type="button" onClick={() => onNavigate('search')} className="btn-secondary">
             <Search size={15} /> Find a customer
           </button>
         </div>
@@ -183,107 +178,102 @@ export function HomeDashboard({
 
       {loading ? <KpiStripSkeleton /> : <KpiStrip tiles={tiles} columns={4} />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <section className="lg:col-span-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="crm-section-title flex items-center gap-2">
-              <Phone size={15} className="text-brand-primary" /> Service alerts — next up
-            </h2>
-            <button type="button" onClick={() => onNavigate('alerts')} className="crm-label hover:text-brand-primary inline-flex items-center gap-1">
-              View all <ArrowRight size={13} />
-            </button>
-          </div>
-
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+        <Panel
+          className="lg:col-span-3"
+          title="Service alerts"
+          icon={Phone}
+          tone="violet"
+          action={{ label: 'View all', onClick: () => onNavigate('alerts') }}
+        >
           {customersLoading ? (
-            <TableSkeleton rows={5} cols={3} />
+            <div className="p-4"><TableSkeleton rows={5} cols={3} /></div>
           ) : alertRows.length === 0 ? (
-            <EmptyState
-              title="No calls due"
-              description="Nobody is coming up for service in the current window. New alerts appear here as customers approach their predicted due date."
-            />
+            <p className="crm-label px-4 py-8 text-center">No calls due. Customers appear here as they come up for service.</p>
           ) : (
-            <div className="card-base overflow-hidden">
-              <ul className="divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
-                {alertRows.slice(0, 8).map(({ customer, alert }) => (
-                  <li key={customer.id}>
-                    <button
-                      type="button"
-                      onClick={() => onViewProfile(customer)}
-                      className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-[var(--color-surface-hover)] transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold truncate">
-                          {formatCustomerDisplayName(customer.firstName, customer.lastName)}
-                        </p>
-                        <p className="crm-label truncate">
-                          {[customer.year, customer.model].filter(Boolean).join(' ')}
-                          {customer.phone ? ` · ${customer.phone}` : ''}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className={cn('badge', TONE_CLASS[alert.tone])}>{alert.label}</span>
-                        <p className="crm-label mt-1 tabular-nums">{formatDueDate(alert.dueIso)}</p>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {alertRows.length > 8 && (
-                <div className="px-4 py-2 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
-                  <button type="button" onClick={() => onNavigate('alerts')} className="crm-label hover:text-brand-primary">
-                    {alertRows.length - 8} more in the full list →
-                  </button>
-                </div>
+            <>
+              {alertRows.slice(0, 6).map(({ customer, alert }) => (
+                <ListRowButton
+                  key={customer.id}
+                  onClick={() => onViewProfile(customer)}
+                  title={formatCustomerDisplayName(customer.firstName, customer.lastName)}
+                  subtitle={[customer.year, tidyCase(customer.model)].filter(Boolean).join(' ') || 'No vehicle on file'}
+                  right={<span className={cn('badge', TONE_CLASS[alert.tone])} title={`Due ${formatDueDate(alert.dueIso)}`}>{alert.label}</span>}
+                  chevron={false}
+                />
+              ))}
+              {alertRows.length > 6 && (
+                <button type="button" onClick={() => onNavigate('alerts')} className="list-row justify-center link-text text-sm">
+                  {alertRows.length - 6} more
+                </button>
               )}
-            </div>
+            </>
           )}
-        </section>
+        </Panel>
 
-        <section className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="crm-section-title flex items-center gap-2">
-              <CalendarDays size={16} className="text-brand-primary" /> Appointments today
-            </h2>
-            <button type="button" onClick={() => onNavigate('schedule')} className="btn-secondary text-sm">
-              Full schedule <ArrowRight size={14} />
-            </button>
-          </div>
-          <div className="card-base p-4 space-y-4">
-            <p className="text-sm text-text-secondary">
-              {appointments.date} · {todayAppointments === null ? 'Count unavailable' : todayAppointments.toLocaleString() + ' appointments'}
-            </p>
-            {appointments.loading ? <TableSkeleton rows={3} cols={2} /> : appointments.error ? (
-              <p role="status" className="text-sm text-text-secondary">Appointments could not be loaded. Open the schedule to retry.</p>
+        <div className="lg:col-span-2 space-y-5">
+          <Panel
+            title="Appointments today"
+            icon={CalendarDays}
+            tone="blue"
+            action={{ label: 'Schedule', onClick: () => onNavigate('schedule') }}
+          >
+            {appointments.loading ? (
+              <div className="p-4"><TableSkeleton rows={3} cols={2} /></div>
+            ) : appointments.error ? (
+              <p role="status" className="crm-label px-4 py-6 text-center">Couldn't load appointments. Open the schedule to try again.</p>
             ) : appointments.slots.length ? (
-              <ul className="divide-y divide-surface-border max-h-80 overflow-y-auto">
-                {appointments.slots.map(slot => (
-                  <li key={slot.id} className="py-3 flex gap-3 text-sm">
-                    <span className="font-semibold tabular-nums shrink-0 w-20">{formatScheduleTimeDetail(slot.startMinutes)}</span>
-                    <div className="min-w-0">
-                      <p className="font-medium break-words">{slot.customerName}</p>
-                      <p className="text-text-secondary break-words">{slot.vehicleLabel}</p>
-                      <p className="text-text-secondary break-words">{slot.concern || slot.status}</p>
+              <div className="max-h-96 overflow-y-auto">
+                {appointments.slots.map((slot) => (
+                  <div key={slot.id} className="list-row items-start">
+                    <span className="text-sm font-semibold tabular-nums shrink-0 w-[4.5rem] pt-px">{formatScheduleTimeDetail(slot.startMinutes)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">{tidyPersonName(slot.customerName)}</p>
+                      <p className="crm-label truncate">{tidyCase(slot.vehicleLabel)}</p>
+                      {slot.concern || slot.status ? (
+                        <p className="crm-label line-clamp-1">{tidyCase(slot.concern || slot.status, 'sentence')}</p>
+                      ) : null}
                     </div>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
-              <p className="text-sm text-text-secondary">{todayAppointments === 0
-                ? 'No appointments scheduled for today.'
-                : 'Appointment details have not been loaded yet. Open the full schedule to check availability.'}</p>
+              <p className="crm-label px-4 py-6 text-center">
+                {todayAppointments === 0 ? 'No appointments today.' : 'Open the schedule to see today’s appointments.'}
+              </p>
             )}
-          </div>
+          </Panel>
 
-          <div className="card-base p-4">
-            <p className="crm-label mb-2 flex items-center gap-2"><Users size={13} /> Quick links</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => onNavigate('search')} className="btn-secondary text-sm justify-start">Directory</button>
-              <button type="button" onClick={() => onNavigate('alerts')} className="btn-secondary text-sm justify-start">Service alerts</button>
-              <button type="button" onClick={() => onNavigate('dispatch')} className="btn-secondary text-sm justify-start">Dispatch</button>
-              <button type="button" onClick={() => onNavigate('add')} className="btn-secondary text-sm justify-start">Add customer</button>
-            </div>
+          {dispatchEnabled ? (
+            <Panel title="Shop today" icon={Wrench} tone="teal" action={{ label: 'Dispatch', onClick: () => onNavigate('dispatch') }}>
+              <div className="grid grid-cols-2 gap-px" style={{ backgroundColor: 'var(--color-row-divider)' }}>
+                <div className="px-4 py-3" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+                  <p className="crm-label">Active repair orders</p>
+                  <p className="text-xl font-semibold tabular-nums mt-0.5">{activeOrders.length}</p>
+                </div>
+                <div className="px-4 py-3" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+                  <p className="crm-label">Past promise</p>
+                  <p className="text-xl font-semibold tabular-nums mt-0.5" style={pastPromiseCount ? { color: 'var(--color-badge-error-text)' } : undefined}>
+                    {pastPromiseCount}
+                  </p>
+                </div>
+              </div>
+            </Panel>
+          ) : null}
+
+          <div className="list-group">
+            {[
+              { label: 'Customer directory', icon: Users, tab: 'search' as const },
+              { label: 'Add customer', icon: UserPlus, tab: 'add' as const },
+            ].map(({ label, icon: Icon, tab }) => (
+              <button key={label} type="button" className="list-row" onClick={() => onNavigate(tab)}>
+                <Icon size={17} style={{ color: 'var(--color-text-secondary)' }} />
+                <span className="flex-1 text-sm">{label}</span>
+                <ChevronRight size={16} style={{ color: 'var(--color-text-tertiary)' }} />
+              </button>
+            ))}
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );

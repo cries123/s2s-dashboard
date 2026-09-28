@@ -30,15 +30,15 @@ function NotificationBell({ notifications }: { notifications: TopBarNotification
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="btn-secondary p-3 relative min-w-[44px] min-h-[44px] justify-center"
+        className="icon-btn"
         title="Notifications"
         aria-label={notifications.length ? `Notifications, ${notifications.length} new` : 'Notifications'}
         aria-expanded={open}
       >
         {/* Neutral bell; only the count badge carries colour, and only when there is something. */}
-        <Bell size={16} style={{ color: 'var(--color-text-secondary)' }} />
+        <Bell size={20} />
         {notifications.length > 0 ? (
-          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-xs font-semibold text-white flex items-center justify-center">
+          <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[#ba0517] text-[10px] font-semibold flex items-center justify-center" style={{ color: '#fff' }}>
             {notifications.length > 9 ? '9+' : notifications.length}
           </span>
         ) : null}
@@ -228,16 +228,16 @@ export function AppTopBar({
             moreRef.current.querySelector('summary')?.focus();
           }
         }}>
-          <summary className="btn-secondary min-h-11 min-w-11 p-2 cursor-pointer list-none" aria-label="More actions">
-            <MoreHorizontal size={20} />
+          <summary className="icon-btn cursor-pointer list-none" aria-label="More actions">
+            <MoreHorizontal size={22} />
             {chatUnreadCount > 0 && <span className="sr-only">Unread chat messages</span>}
           </summary>
           <button type="button" className="fixed inset-0 z-40" aria-label="Close more actions" onClick={() => { if (moreRef.current) moreRef.current.open = false; }} />
-          <div className="absolute right-3 top-full mt-2 z-50 w-64 max-w-[calc(100vw-1.5rem)] card-base p-2 shadow-lg">
+          <div className="absolute right-3 top-full mt-1 z-50 w-64 max-w-[calc(100vw-1.5rem)] list-group shadow-lg">
             {menuActions.filter(item => item.action).map(({ label, icon: Icon, action }) => (
-              <button key={label} type="button" className="flex items-center gap-3 w-full min-h-11 px-3 py-2 text-sm text-left rounded-lg hover:bg-surface-hover"
+              <button key={label} type="button" className="list-row text-sm"
                 onClick={() => { if (moreRef.current) moreRef.current.open = false; action?.(); }}>
-                <Icon size={18} />{label}
+                <Icon size={18} style={{ color: 'var(--color-text-secondary)' }} />{label}
               </button>
             ))}
           </div>

@@ -23,6 +23,7 @@ import {
   FileText,
   LayoutDashboard,
   Wrench,
+  ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
@@ -172,7 +173,7 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="lg:hidden fixed inset-0 z-[75] bg-slate-950/60 backdrop-blur-[2px]"
+              className="lg:hidden fixed inset-0 z-[75] bg-black/40"
               onClick={() => setExpandedSection(null)}
             />
             <motion.div
@@ -183,21 +184,22 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
               className="lg:hidden fixed inset-x-0 z-[85] px-3"
               style={{ bottom: 'calc(4.25rem + 1px + env(safe-area-inset-bottom, 0px))' }}
             >
-              <div className="mx-auto max-w-lg rounded-2xl border border-white/10 bg-slate-900/95 shadow-[0_-12px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/5 bg-slate-800/50 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-400 normal-case tracking-normal">
-                    {expanded.label}
-                  </span>
+              <div
+                className="mx-auto max-w-lg rounded-lg border overflow-hidden"
+                style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)', boxShadow: '0 -4px 24px rgba(0,0,0,0.16)' }}
+              >
+                <div className="pl-4 pr-1 border-b flex items-center justify-between">
+                  <span className="text-sm font-semibold">{expanded.label}</span>
                   <button
                     type="button"
                     onClick={() => setExpandedSection(null)}
-                    className="text-xs font-semibold normal-case tracking-normal text-slate-400 hover:text-white px-3 min-h-[44px] inline-flex items-center"
+                    className="link-text text-sm px-3 min-h-[44px] inline-flex items-center"
                   >
-                    Close
+                    Done
                   </button>
                 </div>
                 {/* Tall enough for the Manage list (10 items) without slicing the last row in half. */}
-                <div className="p-2 max-h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom,0px)-7rem)] overflow-y-auto overscroll-contain">
+                <div className="max-h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom,0px)-7rem)] overflow-y-auto overscroll-contain">
                   {expanded.items.map((item) => {
                     const Icon = subItemIcon(item);
                     const isActive = isSubItemActive(item, activeTab, managerSubTab, adminSubTab);
@@ -207,27 +209,22 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
                         key={`${item.tabId}-${item.managerSubTab ?? item.href}`}
                         type="button"
                         onClick={() => handleSelect(item)}
-                        className={cn(
-                          'w-full flex items-center justify-between gap-3 px-3 py-3.5 rounded-xl text-left transition-colors touch-manipulation',
-                          isActive
-                            ? 'bg-brand-primary/15 text-brand-primary'
-                            : 'text-slate-300 hover:bg-white/5 active:bg-white/10'
-                        )}
+                        className={cn('list-row touch-manipulation', isActive && 'text-brand-primary')}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Icon
-                            size={18}
-                            className={cn('shrink-0', isActive ? 'text-brand-primary' : 'text-slate-500')}
-                          />
-                          <span className="text-xs font-semibold normal-case tracking-wide truncate">
-                            {item.label}
-                          </span>
-                        </div>
+                        <Icon
+                          size={18}
+                          className="shrink-0"
+                          style={isActive ? undefined : { color: 'var(--color-text-secondary)' }}
+                        />
+                        <span className={cn('flex-1 min-w-0 text-sm truncate', isActive && 'font-semibold')}>
+                          {item.label}
+                        </span>
                         {item.badge !== undefined && item.badge > 0 && (
-                          <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-xs font-semibold flex items-center justify-center">
+                          <span className="badge badge-error shrink-0">
                             {item.badge > 99 ? '99+' : item.badge}
                           </span>
                         )}
+                        <ChevronRight size={16} className="shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
                       </button>
                     );
                   })}
@@ -239,8 +236,12 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
       </AnimatePresence>
 
       <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-[80] border-t border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.35)]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        className="lg:hidden fixed bottom-0 inset-x-0 z-[80] border-t"
+        style={{
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          backgroundColor: 'var(--color-surface-card)',
+          borderColor: 'var(--color-surface-border)',
+        }}
         aria-label="Primary navigation"
       >
         <div
@@ -258,31 +259,28 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
                 type="button"
                 onClick={() => openSection(id)}
                 className={cn(
-                  'relative flex flex-col items-center justify-center gap-0.5 rounded-xl mx-0.5 transition-colors touch-manipulation min-h-[44px]',
+                  'relative flex flex-col items-center justify-center gap-1 mx-0.5 transition-colors touch-manipulation min-h-[44px]',
                   isSectionActive || isExpanded
                     ? 'text-brand-primary'
                     : 'text-text-secondary active:text-slate-300'
                 )}
               >
                 <span className="relative">
-                  <Icon size={19} strokeWidth={isSectionActive || isExpanded ? 2.5 : 2} />
+                  <Icon size={21} strokeWidth={isSectionActive || isExpanded ? 2.25 : 1.75} />
                   {alertBadge > 0 && id === 'service' && (
-                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-xs font-semibold flex items-center justify-center">
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#ba0517] text-[11px] font-semibold flex items-center justify-center" style={{ color: '#fff' }}>
                       {alertBadge > 99 ? '99+' : alertBadge}
                     </span>
                   )}
                 </span>
                 <span
                   className={cn(
-                    'text-xs font-semibold normal-case tracking-wide leading-none text-center px-0.5',
-                    (isSectionActive || isExpanded) && 'text-brand-primary'
+                    'text-[11px] font-medium leading-none text-center px-0.5',
+                    (isSectionActive || isExpanded) && 'text-brand-primary font-semibold'
                   )}
                 >
                   {label}
                 </span>
-                {(isSectionActive || isExpanded) && (
-                  <span className="absolute bottom-1 w-1 h-1 rounded-full bg-brand-primary" />
-                )}
               </button>
             );
           })}

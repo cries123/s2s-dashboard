@@ -45,6 +45,29 @@ import { PbsSyncLogsPanel } from './PbsSyncLogsPanel';
 import { ManagerOperationsConfig } from './ManagerOperationsConfig';
 import { StoreWorkspaceDefaultsSettings } from './StoreWorkspaceDefaultsSettings';
 import { ManagerPermissionsMatrix } from './ManagerPermissionsMatrix';
+import { SettingsDetail, SettingsGate, SettingsMenu, SettingsOnly, type SettingsMenuGroup } from '../../ui/SettingsMenu';
+import { resolveServiceAlertMode } from '../../../lib/dealershipSettingsUtils';
+import { DEFAULT_PROMISE_HOURS_FROM_NOW } from '../../../lib/operationsConfig';
+import {
+  Activity as OpsActivity,
+  AlertTriangle as OpsAlert,
+  Bell as OpsBell,
+  Clock as OpsClock,
+  Columns3 as OpsColumns,
+  Database as OpsDatabase,
+  Gauge as OpsGauge,
+  ListChecks as OpsList,
+  Megaphone as OpsMegaphone,
+  Monitor as OpsMonitor,
+  Moon as OpsMoon,
+  Shield as OpsShield,
+  Target as OpsTarget,
+  TrendingUp as OpsTrending,
+  Trophy as OpsTrophy,
+  UserCog as OpsUserCog,
+  Users as OpsUsers,
+  Wrench as OpsWrench,
+} from 'lucide-react';
 import type { DealershipAnnouncement } from '../../../types';
 import { LandingTab } from '../../../types';
 import { logSystemAction } from '../../../services/loggingService';
@@ -263,6 +286,15 @@ export default function AdminPanel({
       onError?.("Failed to update dealership settings. Access denied.");
     }
   };
+
+  // Which Operation settings screen is open; null shows the menu.
+  const [opsSection, setOpsSection] = useState<string | null>(null);
+  useEffect(() => {
+    setOpsSection(null);
+  }, [activeSubTab, currentDealershipId]);
+  useEffect(() => {
+    if (opsSection) window.scrollTo({ top: 0 });
+  }, [opsSection]);
 
   const [localCompetitionAdvisors, setLocalCompetitionAdvisors] = useState<
     Record<string, CompetitionAdvisorSlot[]>
@@ -711,14 +743,18 @@ export default function AdminPanel({
   if (panelMode === 'admin' && subTab === 'users') subTab = 'master-users';
   if (panelMode === 'admin' && subTab === 'enrollments') subTab = 'logs';
   const sectionMeta = getPanelSectionMeta(subTab, panelMode);
+  const opsDetailOpen = subTab === 'operations' && opsSection !== null;
 
   return (
     <div className="space-y-8 animate-fade-in pb-20 max-w-4xl mx-auto w-full">
-      <PageHeader
-        title={sectionMeta.title}
-        description={sectionMeta.description}
-        breadcrumbs={[{ label: sectionMeta.eyebrow }]}
-      />
+      {/* A single setting's screen carries its own back link and title. */}
+      {!opsDetailOpen ? (
+        <PageHeader
+          title={sectionMeta.title}
+          description={sectionMeta.description}
+          breadcrumbs={[{ label: sectionMeta.eyebrow }]}
+        />
+      ) : null}
 
       {panelMode === 'full' && (
         <div className="bg-slate-950/35 p-1.5 rounded-[22px] border border-white/5 backdrop-blur-md shadow-2xl relative overflow-hidden ring-1 ring-black/30">
@@ -786,326 +822,256 @@ export default function AdminPanel({
         </div>
       )}
 
-      {subTab === 'operations' && panelMode !== 'admin' && (
-        <div className="space-y-4 animate-in fade-in duration-300">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {DEALERSHIPS.filter((d) => d.id === currentDealershipId).map((d) => {
-              // Operation settings are scoped to the selected dealership only
-              if (currentUser?.role !== 'admin' && currentUser?.dealershipId !== d.id) return null;
+      {subTab === 'operations' && panelMode !== 'admin' && (() => {
+        // Operation settings as a menu. Each row opens one setting on its own screen;
+        // the blocks below are the same controls as before, gated by id.
+        const d = DEALERSHIPS.find((x) => x.id === currentDealershipId);
+        if (!d) return null;
+        if (currentUser?.role !== 'admin' && currentUser?.dealershipId !== d.id) return null;
+        const s = dealershipSettings[d.id] ?? {};
+        const dms = normalizeDmsProvider(s.dmsProvider) || defaultDmsProviderForDealership(d.id);
+        const alertMode = resolveServiceAlertMode(s);
+        const promiseHrs = s.dispatchPromiseDefaults?.defaultHoursFromNow ?? DEFAULT_PROMISE_HOURS_FROM_NOW;
+        const sweepMode = s.dispatchMidnightSweep?.mode ?? 'auto';
+        const roster = localCompetitionAdvisors[d.id] || getDealershipStaffConfig(d.id, s).competitionAdvisors;
+        const dispatchOn = s.enableDispatchTab !== false;
 
-              return (
-                <div key={d.id} className={cn(
-                  "card-base rounded-3xl border border-white/5 overflow-hidden p-6 col-span-full"
-                )}>
-                  <div className="flex flex-col gap-6">
-                    <span className="text-xs font-semibold text-slate-500 ">{d.name}</span>
+        const groups: SettingsMenuGroup[] = [
+          {
+            label: 'Store',
+            items: [
+              { id: 'announcement', title: 'Announcement', icon: OpsMegaphone, tone: 'amber', value: s.announcement?.enabled ? 'On' : 'Off' },
+              { id: 'goals', title: 'Monthly goals', icon: OpsTarget, tone: 'blue', value: `${s.appointmentTarget ?? 20} appts/day` },
+              { id: 'dms', title: 'DMS', icon: OpsDatabase, tone: 'blue', value: DMS_PROVIDERS.find((p) => p.id === dms)?.label ?? dms },
+              { id: 'workspace', title: 'New staff defaults', icon: OpsUserCog, tone: 'blue' },
+              { id: 'permissions', title: 'Manager permissions', icon: OpsShield, tone: 'blue' },
+            ],
+          },
+          {
+            label: 'Service',
+            items: [
+              { id: 'alerts', title: 'Service alerts', icon: OpsBell, tone: 'violet', value: alertMode === 'smart' ? 'Smart' : alertMode === 'optimized' ? 'Per customer' : 'Standard' },
+              { id: 'advisors', title: 'Advisor roster', icon: OpsUsers, tone: 'violet', hidden: dms !== 'pbs', value: `${s.performanceAdvisorRoster?.length ?? 0}` },
+              { id: 'potofgold', title: 'Pot of Gold advisors', icon: OpsTrophy, tone: 'violet', value: `${roster.length}` },
+              { id: 'forecast', title: 'Forecast defaults', icon: OpsTrending, tone: 'violet' },
+            ],
+          },
+          {
+            label: 'Dispatch',
+            items: [
+              { id: 'board', title: 'Dispatch board', icon: OpsColumns, tone: 'teal', value: dispatchOn ? 'On' : 'Off' },
+              { id: 'lanes', title: 'Lane names and order', icon: OpsColumns, tone: 'teal', hidden: !dispatchOn },
+              { id: 'capacity', title: 'Lane capacity', icon: OpsGauge, tone: 'teal', hidden: !dispatchOn },
+              { id: 'techs', title: 'Technicians', icon: OpsWrench, tone: 'teal', hidden: !dispatchOn, value: `${(localDispatchTechRoster[d.id] || []).length}` },
+              { id: 'promise', title: 'Promise times', icon: OpsClock, tone: 'teal', hidden: !dispatchOn, value: promiseHrs ? `${promiseHrs} hrs` : 'None' },
+              { id: 'overdue', title: 'Overdue alerts', icon: OpsAlert, tone: 'teal', hidden: !dispatchOn },
+              { id: 'intake', title: 'Required intake fields', icon: OpsList, tone: 'teal', hidden: !dispatchOn },
+              { id: 'techdisplay', title: 'Shop TV display', icon: OpsMonitor, tone: 'teal', hidden: !dispatchOn, value: s.dispatchTechDisplayConfig?.autoOpenOnTv ? 'Auto-open' : 'Manual' },
+              { id: 'sweep', title: 'End of day', icon: OpsMoon, tone: 'teal', hidden: !dispatchOn, value: sweepMode === 'auto' ? 'Automatic' : sweepMode === 'confirm' ? 'Ask first' : 'Off' },
+              { id: 'activity', title: 'Activity summary', icon: OpsActivity, tone: 'teal', hidden: !dispatchOn },
+            ],
+          },
+        ];
+        const open = groups.flatMap((g) => g.items).find((i) => i.id === opsSection);
 
-                    <div className="space-y-8">
-                        <DealershipAnnouncementSettings
-                          dealershipId={d.id}
-                          dealershipName={d.name}
-                          announcement={dealershipSettings[d.id]?.announcement}
-                          currentUserEmail={currentUser?.email}
-                          onSave={(announcement) => saveAnnouncement(d.id, announcement)}
-                        />
+        if (!open) return <SettingsMenu groups={groups} onOpen={setOpsSection} />;
 
-                        <ManagerOperationsConfig
-                          dealershipId={d.id}
-                          dealershipName={d.name}
-                          settings={dealershipSettings[d.id] ?? {}}
-                          onUpdate={(patch) => updateSetting(d.id, patch)}
-                        />
-
-                        <StoreWorkspaceDefaultsSettings
-                          defaults={dealershipSettings[d.id]?.storeWorkspaceDefaults ?? {}}
-                          onChange={(patch) => updateSetting(d.id, patch)}
-                        />
-
-                        <ManagerPermissionsMatrix />
-
-                        {/* DMS Configuration */}
-                        <div className="space-y-3">
-                          <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
-                            <Database size={12} className="text-brand-primary" />
-                            DMS Configuration
-                          </label>
-                          <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-xl">
-                            Choose your dealership management system. Report PDF imports (appointments, advisor performance, technician productivity) will route to the matching layout parser.
-                          </p>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-lg">
-                            <select
-                              value={normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)}
-                              onChange={(e) =>
-                                updateSetting(
-                                  d.id,
-                                  buildDmsProviderSettingsPatch(
-                                    d.id,
-                                    e.target.value as DmsProviderId,
-                                    dealershipSettings[d.id]
-                                  )
-                                )
-                              }
-                              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30 cursor-pointer"
-                            >
-                              {DMS_PROVIDERS.map((provider) => (
-                                <option key={provider.id} value={provider.id} className="bg-slate-950">
-                                  {provider.label}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="text-xs font-semibold text-slate-600 shrink-0">
-                              Active parser
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 leading-relaxed max-w-xl">
-                            {DMS_PROVIDERS.find((provider) => provider.id === (normalizeDmsProvider(dealershipSettings[d.id]?.dmsProvider) || defaultDmsProviderForDealership(d.id)))?.description}
-                          </p>
-                        </div>
-
-                        {/* Pot of Gold competition roster */}
-                        <div className="space-y-3 pt-3 border-t border-white/5">
-                          <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
-                            <Trophy size={12} className="text-brand-primary" />
-                            Pot of Gold Competition Advisors
-                          </label>
-                          <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-xl">
-                            Configure the advisor columns used in the Pot of Gold competition tracker and PDF imports for this store.
-                          </p>
-                          <div className="space-y-2 max-w-lg">
-                            {(localCompetitionAdvisors[d.id] || getDealershipStaffConfig(d.id, dealershipSettings[d.id]).competitionAdvisors).map((advisor, idx) => (
-                              <div key={`${advisor.id}-${idx}`} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                                <input
-                                  type="text"
-                                  value={advisor.label}
-                                  onChange={(e) => updateCompetitionAdvisor(d.id, idx, 'label', e.target.value)}
-                                  placeholder="Display name"
-                                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
-                                />
-                                <input
-                                  type="text"
-                                  value={advisor.id}
-                                  onChange={(e) => updateCompetitionAdvisor(d.id, idx, 'id', e.target.value)}
-                                  placeholder="Column key"
-                                  className="w-full sm:w-36 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-primary/30"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeCompetitionAdvisor(d.id, idx)}
-                                  className="px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => addCompetitionAdvisor(d.id)}
-                              className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-xs font-semibold text-white rounded-xl border border-slate-700"
-                            >
-                              Add Advisor
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => commitCompetitionAdvisors(d.id)}
-                              className="px-4 py-2 bg-brand-primary/20 hover:bg-brand-primary/30 text-xs font-semibold text-brand-primary rounded-xl border border-brand-primary/30"
-                            >
-                              Save Roster
-                            </button>
-                          </div>
-                        </div>
-
-                        {(dealershipSettings[d.id]?.performanceAdvisorRoster?.length ?? 0) > 0 && (
-                          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                            <p className="text-xs font-semibold text-slate-500 mb-2">
-                              Productivity advisors
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {(dealershipSettings[d.id]?.performanceAdvisorRoster || []).map(
-                                (slot: { id: string; label: string }) => (
-                                  <span
-                                    key={slot.id}
-                                    className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-950/50 text-indigo-300 border border-indigo-900/40"
-                                  >
-                                    {slot.label}
-                                  </span>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Dispatch Toggle Feature Switch */}
-                        <div className="space-y-3 pt-3 border-t border-white/5">
-                          <label className="text-xs font-semibold text-slate-400 block">Feature Switches</label>
-                          <div className="flex items-center justify-between p-3.5 bg-slate-950/80 rounded-xl border border-white/5 shadow-inner">
-                            <div className="space-y-0.5 pr-2">
-                              <span className="text-xs font-semibold text-white tracking-wide block">Departmental Dispatch Board</span>
-                              <span className="text-xs text-slate-400 font-medium leading-normal block">Show or hide the Dispatch tab in the header navigation menu.</span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentVal = dealershipSettings[d.id]?.enableDispatchTab !== false;
-                                updateSetting(d.id, { enableDispatchTab: !currentVal });
-                              }}
-                              className={cn(
-                                "w-11 h-6 rounded-full transition-colors relative focus:outline-none shrink-0",
-                                (dealershipSettings[d.id]?.enableDispatchTab !== false) ? "bg-brand-primary" : "bg-slate-800"
-                              )}
-                            >
-                              <span 
-                                className={cn(
-                                  "absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md",
-                                  (dealershipSettings[d.id]?.enableDispatchTab !== false) ? "translate-x-5" : "translate-x-0"
-                                )}
-                              />
-                            </button>
-                          </div>
-
-                          {/* Dispatch lane capacity */}
-                          <div className="space-y-3 pt-3 border-t border-white/5">
-                            <label className="text-xs font-semibold text-slate-400 block">Dispatch Lane Capacity</label>
-                            <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                              Soft caps per production lane. Set to 0 for unlimited. Optionally block new routing when a lane is full.
-                            </p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {DISPATCH_PRODUCTION_LANES.map((lane) => {
-                                const caps = mergeLaneCapacity(dealershipSettings[d.id]?.dispatchLaneCapacity);
-                                const value = caps[lane.id];
-                                return (
-                                  <div key={lane.id} className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/60 rounded-xl border border-white/5">
-                                    <span className="text-xs font-semibold text-slate-400 truncate">{lane.label}</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={99}
-                                      value={value}
-                                      onChange={(e) => {
-                                        const n = Math.max(0, parseInt(e.target.value, 10) || 0);
-                                        const prev = dealershipSettings[d.id]?.dispatchLaneCapacity || {};
-                                        updateSetting(d.id, {
-                                          dispatchLaneCapacity: { ...prev, [lane.id]: n },
-                                        });
-                                      }}
-                                      className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs font-semibold text-white text-center focus:outline-none focus:ring-1 focus:ring-brand-primary"
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            <div className="flex flex-col gap-2 pt-1">
-                              <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
-                                <div>
-                                  <span className="text-xs font-semibold text-white tracking-wide block">Show today&apos;s shop load</span>
-                                  <span className="text-xs text-slate-500">Compare active dispatch ROs to daily appointment goal.</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const on = dealershipSettings[d.id]?.dispatchShowTodayLoad !== false;
-                                    updateSetting(d.id, { dispatchShowTodayLoad: !on });
-                                  }}
-                                  className={cn(
-                                    'w-11 h-6 rounded-full transition-colors relative shrink-0',
-                                    dealershipSettings[d.id]?.dispatchShowTodayLoad !== false ? 'bg-brand-primary' : 'bg-slate-800'
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
-                                      dealershipSettings[d.id]?.dispatchShowTodayLoad !== false ? 'translate-x-5' : 'translate-x-0'
-                                    )}
-                                  />
-                                </button>
-                              </label>
-                              <label className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-white/5 cursor-pointer">
-                                <div>
-                                  <span className="text-xs font-semibold text-white tracking-wide block">Block routing when lane full</span>
-                                  <span className="text-xs text-slate-500">Prevent dropping ROs into lanes at capacity.</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const on = !!dealershipSettings[d.id]?.dispatchBlockWhenFull;
-                                    updateSetting(d.id, { dispatchBlockWhenFull: !on });
-                                  }}
-                                  className={cn(
-                                    'w-11 h-6 rounded-full transition-colors relative shrink-0',
-                                    dealershipSettings[d.id]?.dispatchBlockWhenFull ? 'bg-brand-primary' : 'bg-slate-800'
-                                  )}
-                                >
-                                  <span
-                                    className={cn(
-                                      'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
-                                      dealershipSettings[d.id]?.dispatchBlockWhenFull ? 'translate-x-5' : 'translate-x-0'
-                                    )}
-                                  />
-                                </button>
-                              </label>
-                            </div>
-                            <div className="space-y-2 pt-2 border-t border-white/5">
-                              <label className="text-xs font-semibold text-slate-400 block">
-                                Dispatch tech roster
-                              </label>
-                              <p className="text-xs text-slate-500 leading-relaxed">
-                                Map DMS tech numbers to display names on dispatch cards. ID = tech number, Label = name.
-                              </p>
-                              <div className="space-y-2">
-                                {(localDispatchTechRoster[d.id] || []).map((row, idx) => (
-                                  <div key={`dispatch-tech-${idx}`} className="flex gap-2 items-center">
-                                    <input
-                                      type="text"
-                                      placeholder="Tech #"
-                                      value={row.id}
-                                      onChange={(e) => updateDispatchTechRoster(d.id, idx, 'id', e.target.value)}
-                                      className="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-mono text-white"
-                                    />
-                                    <input
-                                      type="text"
-                                      placeholder="Display name"
-                                      value={row.label}
-                                      onChange={(e) => updateDispatchTechRoster(d.id, idx, 'label', e.target.value)}
-                                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs font-bold text-white"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => removeDispatchTechRoster(d.id, idx)}
-                                      className="text-xs font-semibold text-rose-400 px-2"
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => addDispatchTechRoster(d.id)}
-                                  className="px-3 py-1.5 bg-slate-800 text-xs font-semibold text-white rounded-lg border border-slate-700"
-                                >
-                                  Add Tech
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => commitDispatchTechRoster(d.id)}
-                                  className="px-3 py-1.5 bg-brand-primary/20 text-xs font-semibold text-brand-primary rounded-lg border border-brand-primary/30"
-                                >
-                                  Save Tech Roster
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                </div>
-              );
-            })}
+        const toggle = (on: boolean, onClick: () => void, label: string) => (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on}
+            aria-label={label}
+            onClick={onClick}
+            className={cn('w-11 h-6 rounded-full transition-colors relative shrink-0', on ? 'bg-brand-primary' : 'bg-slate-300')}
+            style={on ? undefined : { backgroundColor: 'var(--color-input-border)' }}
+          >
+            <span
+              className={cn('absolute top-1 left-1 w-4 h-4 rounded-full transition-all shadow', on ? 'translate-x-5' : 'translate-x-0')}
+              style={{ backgroundColor: '#fff' }}
+            />
+          </button>
+        );
+        const switchRow = (title: string, hint: string, on: boolean, onClick: () => void) => (
+          <div className="flex items-center justify-between gap-4 py-1">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{title}</p>
+              <p className="crm-label mt-0.5">{hint}</p>
+            </div>
+            {toggle(on, onClick, title)}
           </div>
-        </div>
-      )}
+        );
+
+        return (
+          <SettingsDetail
+            backLabel="Operation settings"
+            title={open.title}
+            description={d.name}
+            onBack={() => setOpsSection(null)}
+          >
+            <SettingsOnly id={open.id}>
+              <SettingsGate id="announcement">
+                <DealershipAnnouncementSettings
+                  dealershipId={d.id}
+                  dealershipName={d.name}
+                  announcement={s.announcement}
+                  currentUserEmail={currentUser?.email}
+                  onSave={(announcement) => saveAnnouncement(d.id, announcement)}
+                />
+              </SettingsGate>
+
+              <ManagerOperationsConfig
+                dealershipId={d.id}
+                dealershipName={d.name}
+                settings={s}
+                onUpdate={(patch) => updateSetting(d.id, patch)}
+              />
+
+              <SettingsGate id="workspace">
+                <StoreWorkspaceDefaultsSettings
+                  defaults={s.storeWorkspaceDefaults ?? {}}
+                  onChange={(patch) => updateSetting(d.id, patch)}
+                />
+              </SettingsGate>
+
+              <SettingsGate id="permissions">
+                <ManagerPermissionsMatrix />
+              </SettingsGate>
+
+              <SettingsGate id="dms">
+                <p className="crm-label">
+                  Report PDF imports (appointments, advisor performance, technician productivity) use the
+                  layout for this system.
+                </p>
+                <label className="input-label" htmlFor="ops-dms">Dealership management system</label>
+                <select
+                  id="ops-dms"
+                  value={dms}
+                  onChange={(e) =>
+                    updateSetting(d.id, buildDmsProviderSettingsPatch(d.id, e.target.value as DmsProviderId, s))
+                  }
+                  className="input-field"
+                >
+                  {DMS_PROVIDERS.map((provider) => (
+                    <option key={provider.id} value={provider.id}>{provider.label}</option>
+                  ))}
+                </select>
+                <p className="crm-label">{DMS_PROVIDERS.find((p) => p.id === dms)?.description}</p>
+              </SettingsGate>
+
+              <SettingsGate id="potofgold">
+                <p className="crm-label">The advisor columns in the Pot of Gold tracker and its PDF imports.</p>
+                <div className="list-group">
+                  {roster.map((advisor, idx) => (
+                    <div key={`${advisor.id}-${idx}`} className="list-row flex-wrap sm:flex-nowrap">
+                      <input
+                        type="text"
+                        value={advisor.label}
+                        onChange={(e) => updateCompetitionAdvisor(d.id, idx, 'label', e.target.value)}
+                        placeholder="Name"
+                        aria-label="Advisor name"
+                        className="input-field flex-1 min-w-0"
+                      />
+                      <input
+                        type="text"
+                        value={advisor.id}
+                        onChange={(e) => updateCompetitionAdvisor(d.id, idx, 'id', e.target.value)}
+                        placeholder="Report column"
+                        aria-label="Report column"
+                        className="input-field sm:w-36 font-mono"
+                      />
+                      <button type="button" onClick={() => removeCompetitionAdvisor(d.id, idx)} className="text-sm font-semibold text-rose-500 px-2 min-h-[44px]">
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => addCompetitionAdvisor(d.id)} className="btn-secondary">Add advisor</button>
+                  <button type="button" onClick={() => commitCompetitionAdvisors(d.id)} className="btn-primary">Save</button>
+                </div>
+              </SettingsGate>
+
+              <SettingsGate id="board">
+                {switchRow('Show the Dispatch board', 'Adds Dispatch to the Service menu for this store.', dispatchOn, () =>
+                  updateSetting(d.id, { enableDispatchTab: !dispatchOn })
+                )}
+                {dispatchOn
+                  ? switchRow(
+                      "Show today's shop load",
+                      'Compares active repair orders to the daily appointment goal.',
+                      s.dispatchShowTodayLoad !== false,
+                      () => updateSetting(d.id, { dispatchShowTodayLoad: !(s.dispatchShowTodayLoad !== false) })
+                    )
+                  : null}
+              </SettingsGate>
+
+              <SettingsGate id="capacity">
+                <p className="crm-label">A soft limit per lane. 0 means no limit.</p>
+                <div className="list-group">
+                  {DISPATCH_PRODUCTION_LANES.map((lane) => {
+                    const caps = mergeLaneCapacity(s.dispatchLaneCapacity);
+                    return (
+                      <div key={lane.id} className="list-row">
+                        <span className="flex-1 text-sm">{lane.label}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={99}
+                          inputMode="numeric"
+                          aria-label={`${lane.label} capacity`}
+                          value={caps[lane.id]}
+                          onChange={(e) => {
+                            const n = Math.max(0, parseInt(e.target.value, 10) || 0);
+                            updateSetting(d.id, { dispatchLaneCapacity: { ...(s.dispatchLaneCapacity || {}), [lane.id]: n } });
+                          }}
+                          className="input-field w-20 text-center"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                {switchRow('Block routing when a lane is full', 'Stops new repair orders going into a lane at its limit.', !!s.dispatchBlockWhenFull, () =>
+                  updateSetting(d.id, { dispatchBlockWhenFull: !s.dispatchBlockWhenFull })
+                )}
+              </SettingsGate>
+
+              <SettingsGate id="techs">
+                <p className="crm-label">Names shown on dispatch cards for each technician number.</p>
+                <div className="list-group">
+                  {(localDispatchTechRoster[d.id] || []).map((row, idx) => (
+                    <div key={`dispatch-tech-${idx}`} className="list-row">
+                      <input
+                        type="text"
+                        placeholder="Tech #"
+                        aria-label="Technician number"
+                        value={row.id}
+                        onChange={(e) => updateDispatchTechRoster(d.id, idx, 'id', e.target.value)}
+                        className="input-field w-24 font-mono"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Name"
+                        aria-label="Technician name"
+                        value={row.label}
+                        onChange={(e) => updateDispatchTechRoster(d.id, idx, 'label', e.target.value)}
+                        className="input-field flex-1 min-w-0"
+                      />
+                      <button type="button" onClick={() => removeDispatchTechRoster(d.id, idx)} className="text-sm font-semibold text-rose-500 px-2 min-h-[44px]">
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => addDispatchTechRoster(d.id)} className="btn-secondary">Add technician</button>
+                  <button type="button" onClick={() => commitDispatchTechRoster(d.id)} className="btn-primary">Save</button>
+                </div>
+              </SettingsGate>
+            </SettingsOnly>
+          </SettingsDetail>
+        );
+      })()}
 
       {subTab === 'master-users' && panelMode === 'admin' && (
         <MasterUserSettings onSuccess={onSuccess} onError={onError} />

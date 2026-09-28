@@ -7,7 +7,9 @@ interface ThemeContextValue {
   setTheme: (theme: ThemeMode) => void;
 }
 
-const STORAGE_KEY = 's2s-theme';
+// v2: light became the default. A new key means every browser starts light once;
+// anyone who prefers dark switches back in Settings and it sticks.
+const STORAGE_KEY = 's2s-theme-v2';
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readStored(): ThemeMode {
@@ -17,7 +19,7 @@ function readStored(): ThemeMode {
   } catch {
     /* ignore */
   }
-  return 'dark';
+  return 'light';
 }
 
 function applyTheme(theme: ThemeMode) {
@@ -25,6 +27,7 @@ function applyTheme(theme: ThemeMode) {
   root.classList.toggle('dark', theme === 'dark');
   root.setAttribute('data-theme', theme);
   root.style.colorScheme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0f172a' : '#ffffff');
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

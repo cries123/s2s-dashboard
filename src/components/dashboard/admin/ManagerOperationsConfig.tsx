@@ -37,6 +37,7 @@ import { getDealershipStaffConfig } from '../../../lib/dealershipStaff';
 import { defaultDmsProviderForDealership } from '../../../constants/dealerDefaults';
 import { normalizeDmsProvider } from '../../../constants/dmsProviders';
 import { PbsAdvisorPerformanceSettings } from './PbsAdvisorPerformanceSettings';
+import { SettingsGate, useInSettingsDetail } from '../../ui/SettingsMenu';
 import { resolveServiceAlertMode } from '../../../lib/dealershipSettingsUtils';
 import type {
   DealershipSettings,
@@ -57,18 +58,29 @@ interface ManagerOperationsConfigProps {
 }
 
 function Section({
+  id,
   title,
   description,
   icon: Icon,
   children,
 }: {
+  id: string;
   title: string;
   description: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   children: React.ReactNode;
 }) {
+  // On its own settings screen the screen already carries the title.
+  const inDetail = useInSettingsDetail();
+  if (inDetail) {
+    return (
+      <SettingsGate id={id}>
+        <div className="space-y-3">{children}</div>
+      </SettingsGate>
+    );
+  }
   return (
-    <div className="space-y-3 pt-4 border-t border-white/5 first:pt-0 first:border-t-0">
+    <div className="space-y-3 pt-4 border-t first:pt-0 first:border-t-0">
       <div>
         <label className="text-xs font-semibold text-slate-400 flex items-center gap-2">
           <Icon size={12} className="text-brand-primary" />
@@ -295,11 +307,8 @@ export function ManagerOperationsConfig({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-slate-500 mb-2">
-        Settings for {dealershipName}. Nothing changes until you save.
-      </p>
-
       <Section
+        id="activity"
         title="Dispatch activity summary"
         description="Live snapshot from today's board — read only."
         icon={Activity}
@@ -340,6 +349,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="goals"
         title="Operations goals"
         description="Daily appointment goal and monthly labor/parts gross targets for reports and dispatch load."
         icon={Target}
@@ -414,6 +424,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="alerts"
         title="Service alert timing"
         description="Choose how the Service Alerts tab decides when to call customers back for maintenance."
         icon={Bell}
@@ -498,15 +509,18 @@ export function ManagerOperationsConfig({
       </Section>
 
       {dmsProvider === 'pbs' ? (
-        <PbsAdvisorPerformanceSettings
-          dealershipId={dealershipId}
-          settings={settings}
-          unmatchedAdvisorNames={unmatchedAdvisorNames}
-          onUpdate={onUpdate}
-        />
+        <SettingsGate id="advisors">
+          <PbsAdvisorPerformanceSettings
+            dealershipId={dealershipId}
+            settings={settings}
+            unmatchedAdvisorNames={unmatchedAdvisorNames}
+            onUpdate={onUpdate}
+          />
+        </SettingsGate>
       ) : null}
 
       <Section
+        id="forecast"
         title="Fixed ops forecast defaults"
         description="Default report period and which advisors count toward forecast goals."
         icon={BarChart3}
@@ -559,6 +573,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="overdue"
         title="Overdue promise rules"
         description="Grace period before an RO is flagged overdue and how alerts appear on the dispatch board."
         icon={Timer}
@@ -606,6 +621,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="promise"
         title="Default promise window"
         description="Optional default hours from now on intake and business hours label shown to staff."
         icon={Clock}
@@ -685,6 +701,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="techdisplay"
         title="Tech display defaults"
         description="Shop TV mode: auto-open, refresh interval, and which statuses appear on wall cards."
         icon={Monitor}
@@ -740,6 +757,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="intake"
         title="Required intake fields"
         description="When enabled, dispatch intake blocks submit until the field is filled."
         icon={Gauge}
@@ -782,6 +800,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="lanes"
         title="Lane labels and order"
         description="Rename production lanes and reorder columns on the dispatch board."
         icon={Layers}
@@ -831,6 +850,7 @@ export function ManagerOperationsConfig({
       </Section>
 
       <Section
+        id="sweep"
         title="Midnight sweep behavior"
         description="How open ROs are handled at end of shop day (PST)."
         icon={Moon}

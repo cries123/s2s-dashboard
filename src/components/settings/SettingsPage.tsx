@@ -1,64 +1,28 @@
-import React, { useState } from 'react';
-import {
-  Phone,
-  Monitor,
-  Users,
-  RotateCcw,
-  Loader2,
-  Check,
-  SlidersHorizontal,
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Building2, LayoutGrid, Menu as MenuIcon, Palette, Phone, RotateCcw, Users } from 'lucide-react';
 import { usePreferences } from '../../context/PreferencesContext';
-import {
-  LandingTab,
-  LanguageFilter,
-  CrmDensity,
-} from '../../types';
+import { useTheme } from '../../context/ThemeContext';
+import { LandingTab, LanguageFilter, CrmDensity } from '../../types';
 import { CONTACT_OUTCOMES } from '../../lib/contactOutcomes';
 import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../hooks/useAuth';
 import { DealershipProfileField } from '../ui/DealershipProfileField';
 import { PageHeader } from '../layout/PageHeader';
+import { SettingsDetail, SettingsMenu, type SettingsMenuGroup } from '../ui/SettingsMenu';
+import { DEALERSHIPS } from '../../constants';
+import { shortDealershipName } from '../layout/DealershipSwitcher';
 
 interface SettingsPageProps {
   onNavigate: (tab: LandingTab) => void;
   onNotify: (msg: string, isError?: boolean) => void;
   currentDealershipId?: string;
   onDealershipChange?: (dealershipId: string) => void;
-  /** When true, omit the page hero — parent supplies the section header. */
+  /** When true, omit the page header — the parent supplies it. */
   embedded?: boolean;
 }
 
-function Section({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="card-base rounded-xl border border-white/5 overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/5 bg-slate-950/40">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-primary/15 flex items-center justify-center shrink-0">
-            <Icon size={18} className="text-brand-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-white normal-case tracking-normal">{title}</h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-xl">{description}</p>
-          </div>
-        </div>
-      </div>
-      <div className="p-5 sm:p-6 space-y-5">{children}</div>
-    </section>
-  );
-}
-
+/** One switch as a list row: label and hint on the left, the switch on the right. */
 function ToggleRow({
   label,
   description,
@@ -73,296 +37,244 @@ function ToggleRow({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-white normal-case tracking-wide">{label}</p>
-        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+    <div className="list-row">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm">{label}</p>
+        {description && <p className="crm-label mt-0.5">{description}</p>}
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
         disabled={disabled}
         onClick={() => !disabled && onChange(!checked)}
         className={cn(
-          'inline-flex h-6 w-11 shrink-0 items-center rounded-full border p-0.5 transition-colors',
-          checked ? 'bg-brand-primary border-brand-primary/50' : 'bg-slate-800 border-white/10',
+          'inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
+          checked ? 'bg-brand-primary' : '',
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         )}
+        style={checked ? undefined : { backgroundColor: 'var(--color-input-border)' }}
       >
         <span
           aria-hidden
-          className={cn(
-            'block h-5 w-5 rounded-full bg-white shadow transition-transform',
-            checked ? 'translate-x-5' : 'translate-x-0'
-          )}
+          className={cn('block h-5 w-5 rounded-full shadow transition-transform', checked ? 'translate-x-5' : 'translate-x-0')}
+          style={{ backgroundColor: '#fff' }}
         />
       </button>
     </div>
   );
 }
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-  disabled?: boolean;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-semibold normal-case tracking-normal text-slate-500 mb-1.5 block">
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white disabled:opacity-50"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
+/**
+ * Personal settings, as a menu: each row shows its current value and opens its own
+ * screen. Same controls as before; they were one long stack of cards.
+ */
 export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDealershipChange, embedded = false }: SettingsPageProps) {
   const { user } = useAuth();
-  const {
-    preferences,
-    saving,
-    updateContactWorkflow,
-    updateDashboardModules,
-    updateCrmDisplay,
-    resetPreferences,
-  } = usePreferences();
+  const { theme } = useTheme();
+  const { preferences, saving, updateContactWorkflow, updateDashboardModules, updateCrmDisplay, resetPreferences } =
+    usePreferences();
+  const [open, setOpen] = useState<string | null>(null);
 
-  const [savedFlash, setSavedFlash] = useState(false);
+  useEffect(() => {
+    if (open) window.scrollTo({ top: 0 });
+  }, [open]);
 
   const wrapSave = async (fn: () => Promise<void>) => {
     try {
       await fn();
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 2000);
-      onNotify('Preferences saved.');
+      onNotify('Saved');
     } catch {
-      onNotify('Could not save preferences. Check your connection and try again.', true);
+      onNotify("Couldn't save. Check your connection and try again.", true);
     }
   };
 
-  const saveToolbar = (
-    <div className="flex items-center justify-end gap-2 flex-wrap">
-      {saving && (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold normal-case text-slate-400">
-          <Loader2 size={12} className="animate-spin" /> Saving
-        </span>
-      )}
-      {savedFlash && !saving && (
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold normal-case text-emerald-400">
-          <Check size={12} /> Saved
-        </span>
-      )}
-      <button
-        type="button"
-        onClick={() =>
-          wrapSave(async () => {
-            await resetPreferences();
-          })
-        }
-        disabled={saving}
-        className="btn-secondary text-xs disabled:opacity-50"
-      >
-        <RotateCcw size={12} />
-        Reset to defaults
-      </button>
-    </div>
-  );
+  const mods = preferences.dashboardModules;
+  const sectionsShown = [
+    mods.showOperationsKpis,
+    mods.showOperationsProjections,
+    mods.showAdvisorPerformance,
+    mods.showTechEfficiency,
+    mods.showArchiveTools,
+  ].filter(Boolean).length;
+  const tabsShown = [mods.showForecastTab, mods.showSalesPerformanceTab, mods.showVinSearchTab, mods.showPotOfGoldTab].filter(
+    Boolean
+  ).length;
+  const store = DEALERSHIPS.find((d) => d.id === currentDealershipId);
+
+  const groups: SettingsMenuGroup[] = [
+    {
+      label: 'General',
+      items: [
+        { id: 'appearance', title: 'Appearance', icon: Palette, tone: 'blue', value: theme === 'dark' ? 'Dark' : 'Light' },
+        { id: 'dealership', title: 'Dealership', icon: Building2, tone: 'blue', value: store ? shortDealershipName(store.name) : undefined },
+      ],
+    },
+    {
+      label: 'Workflow',
+      items: [
+        { id: 'contact', title: 'Call logging', icon: Phone, tone: 'violet', value: preferences.contactWorkflow.defaultOutcome },
+        {
+          id: 'directory',
+          title: 'Customer directory',
+          icon: Users,
+          tone: 'violet',
+          value: preferences.crmDisplay.density === 'compact' ? 'Compact' : 'Standard',
+        },
+      ],
+    },
+    {
+      label: 'Dashboard',
+      items: [
+        { id: 'modules', title: 'Operations sections', icon: LayoutGrid, tone: 'teal', value: `${sectionsShown} of 5 shown` },
+        { id: 'tabs', title: 'Menu items', icon: MenuIcon, tone: 'teal', value: `${tabsShown} of 4 shown` },
+      ],
+    },
+  ];
+  const current = groups.flatMap((g) => g.items).find((i) => i.id === open);
+
+  if (current) {
+    return (
+      <div className={cn('w-full pb-8', !embedded && 'max-w-3xl mx-auto')}>
+        <SettingsDetail backLabel={embedded ? 'Preferences' : 'Settings'} title={current.title} onBack={() => setOpen(null)}>
+          {current.id === 'appearance' ? (
+            <>
+              <p className="crm-label">Remembered on this device.</p>
+              <ThemeToggle />
+            </>
+          ) : null}
+
+          {current.id === 'dealership' ? (
+            <DealershipProfileField user={user} value={currentDealershipId} onChange={(id) => onDealershipChange?.(id)} />
+          ) : null}
+
+          {current.id === 'contact' ? (
+            <>
+              <div>
+                <label className="input-label" htmlFor="pref-outcome">Default call outcome</label>
+                <select
+                  id="pref-outcome"
+                  value={preferences.contactWorkflow.defaultOutcome}
+                  onChange={(e) => wrapSave(() => updateContactWorkflow({ defaultOutcome: e.target.value }))}
+                  disabled={saving}
+                  className="input-field"
+                >
+                  {CONTACT_OUTCOMES.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="list-group">
+                <ToggleRow
+                  label="Tick 'appointment set' automatically"
+                  description='When the outcome is "Appointment Set".'
+                  checked={preferences.contactWorkflow.autoCheckAppointmentSet}
+                  onChange={(v) => wrapSave(() => updateContactWorkflow({ autoCheckAppointmentSet: v }))}
+                  disabled={saving}
+                />
+              </div>
+            </>
+          ) : null}
+
+          {current.id === 'directory' ? (
+            <>
+              <div>
+                <p className="input-label">Card size</p>
+                <div className="grid grid-cols-2 rounded-md border overflow-hidden" style={{ borderColor: 'var(--color-input-border)' }} role="group">
+                  {(['standard', 'compact'] as CrmDensity[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      disabled={saving}
+                      aria-pressed={preferences.crmDisplay.density === d}
+                      onClick={() => wrapSave(() => updateCrmDisplay({ density: d }))}
+                      className={cn(
+                        'py-2.5 text-sm font-semibold capitalize transition-colors',
+                        preferences.crmDisplay.density === d ? 'bg-brand-primary text-white' : 'hover:bg-surface-hover'
+                      )}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="input-label" htmlFor="pref-lang">Language shown by default</label>
+                <select
+                  id="pref-lang"
+                  value={preferences.crmDisplay.defaultLanguageFilter}
+                  onChange={(e) => wrapSave(() => updateCrmDisplay({ defaultLanguageFilter: e.target.value as LanguageFilter }))}
+                  disabled={saving}
+                  className="input-field"
+                >
+                  <option value="all">All languages</option>
+                  <option value="english">English</option>
+                  <option value="spanish">Spanish</option>
+                </select>
+              </div>
+              <div className="list-group">
+                <ToggleRow
+                  label="Start with alert customers only"
+                  description="The directory opens filtered to customers with a service alert."
+                  checked={preferences.crmDisplay.alertsOnlyDefault}
+                  onChange={(v) => wrapSave(() => updateCrmDisplay({ alertsOnlyDefault: v }))}
+                  disabled={saving}
+                />
+              </div>
+              <button type="button" onClick={() => onNavigate('search')} className="link-text text-sm">
+                Open the directory
+              </button>
+            </>
+          ) : null}
+
+          {current.id === 'modules' ? (
+            <>
+              <p className="crm-label">Hide the Operations sections you don't use.</p>
+              <div className="list-group">
+                <ToggleRow label="Summary numbers" checked={mods.showOperationsKpis} onChange={(v) => wrapSave(() => updateDashboardModules({ showOperationsKpis: v }))} disabled={saving} />
+                <ToggleRow label="Month-end projections" checked={mods.showOperationsProjections} onChange={(v) => wrapSave(() => updateDashboardModules({ showOperationsProjections: v }))} disabled={saving} />
+                <ToggleRow label="Advisor performance" checked={mods.showAdvisorPerformance} onChange={(v) => wrapSave(() => updateDashboardModules({ showAdvisorPerformance: v }))} disabled={saving} />
+                <ToggleRow label="Technician efficiency" checked={mods.showTechEfficiency} onChange={(v) => wrapSave(() => updateDashboardModules({ showTechEfficiency: v }))} disabled={saving} />
+                <ToggleRow label="Past months" checked={mods.showArchiveTools} onChange={(v) => wrapSave(() => updateDashboardModules({ showArchiveTools: v }))} disabled={saving} />
+              </div>
+            </>
+          ) : null}
+
+          {current.id === 'tabs' ? (
+            <>
+              <p className="crm-label">Choose which pages appear in your menu.</p>
+              <div className="list-group">
+                <ToggleRow label="Forecast" checked={mods.showForecastTab} onChange={(v) => wrapSave(() => updateDashboardModules({ showForecastTab: v }))} disabled={saving} />
+                <ToggleRow label="Sales performance" checked={mods.showSalesPerformanceTab} onChange={(v) => wrapSave(() => updateDashboardModules({ showSalesPerformanceTab: v }))} disabled={saving} />
+                <ToggleRow label="VIN search" checked={mods.showVinSearchTab} onChange={(v) => wrapSave(() => updateDashboardModules({ showVinSearchTab: v }))} disabled={saving} />
+                <ToggleRow label="Pot of Gold" checked={mods.showPotOfGoldTab} onChange={(v) => wrapSave(() => updateDashboardModules({ showPotOfGoldTab: v }))} disabled={saving} />
+              </div>
+            </>
+          ) : null}
+        </SettingsDetail>
+      </div>
+    );
+  }
 
   return (
-    <div className={cn('space-y-6 animate-in fade-in duration-300 w-full pb-8', embedded ? '' : 'max-w-3xl mx-auto slide-in-from-bottom-4')}>
+    <div className={cn('w-full pb-8 animate-fade-in', !embedded && 'max-w-3xl mx-auto')}>
+      {!embedded ? <PageHeader title="Settings" description="Saved to your profile and synced across your devices." /> : null}
 
-      {!embedded ? (
-        <PageHeader
-          title="Settings"
-          description="Your display and contact-workflow settings. Saved to your profile."
-          actions={saveToolbar}
-        />
-      ) : (
-        saveToolbar
-      )}
+      <SettingsMenu groups={groups} onOpen={setOpen} />
 
-      <Section
-        title="Display"
-        description="Choose a light or dark workspace. Your choice is remembered on this device."
-        icon={Monitor}
-      >
-        <ThemeToggle />
-      </Section>
-      <Section
-        title="Organization profile"
-        description="Your enrolled dealership group is locked unless you are a system administrator."
-        icon={Monitor}
-      >
-        <DealershipProfileField
-          user={user}
-          value={currentDealershipId}
-          onChange={(id) => onDealershipChange?.(id)}
-        />
-      </Section>
-
-      <Section
-        title="Contact workflow"
-        description="Choose the defaults used when logging calls from the queue or customer directory."
-        icon={Phone}
-      >
-        <SelectField
-          label="Default contact outcome"
-          value={preferences.contactWorkflow.defaultOutcome}
-          onChange={(v) => wrapSave(() => updateContactWorkflow({ defaultOutcome: v }))}
-          options={CONTACT_OUTCOMES.map((o) => ({ value: o, label: o }))}
-          disabled={saving}
-        />
-        <ToggleRow
-          label="Auto-check appointment set"
-          description='When outcome is "Appointment Set", check the appointment box automatically.'
-          checked={preferences.contactWorkflow.autoCheckAppointmentSet}
-          onChange={(v) => wrapSave(() => updateContactWorkflow({ autoCheckAppointmentSet: v }))}
-          disabled={saving}
-        />
-      </Section>
-
-      <Section
-        title="Dashboard modules"
-        description="Hide sections you don't use to reduce clutter on Operations and navigation."
-        icon={Monitor}
-      >
-        <div className="space-y-4 divide-y divide-white/5">
-          <ToggleRow
-            label="Operations KPI header"
-            checked={preferences.dashboardModules.showOperationsKpis}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showOperationsKpis: v }))}
+      <div className="max-w-2xl mt-6">
+        <div className="list-group">
+          <button
+            type="button"
+            className="list-row justify-center text-sm font-semibold text-rose-500"
             disabled={saving}
-          />
-          <ToggleRow
-            label="Month-end projections"
-            checked={preferences.dashboardModules.showOperationsProjections}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showOperationsProjections: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="Advisor performance"
-            checked={preferences.dashboardModules.showAdvisorPerformance}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showAdvisorPerformance: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="Technician efficiency"
-            checked={preferences.dashboardModules.showTechEfficiency}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showTechEfficiency: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="Archive tools"
-            checked={preferences.dashboardModules.showArchiveTools}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showArchiveTools: v }))}
-            disabled={saving}
-          />
-          <p className="text-xs font-semibold normal-case tracking-normal text-slate-600 pt-2">Navigation tabs</p>
-          <ToggleRow
-            label="Forecast tab"
-            checked={preferences.dashboardModules.showForecastTab}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showForecastTab: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="Sales performance tab"
-            checked={preferences.dashboardModules.showSalesPerformanceTab}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showSalesPerformanceTab: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="VIN search tab"
-            checked={preferences.dashboardModules.showVinSearchTab}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showVinSearchTab: v }))}
-            disabled={saving}
-          />
-          <ToggleRow
-            label="Pot of Gold tab"
-            checked={preferences.dashboardModules.showPotOfGoldTab}
-            onChange={(v) => wrapSave(() => updateDashboardModules({ showPotOfGoldTab: v }))}
-            disabled={saving}
-          />
+            onClick={() => wrapSave(() => resetPreferences())}
+          >
+            <RotateCcw size={15} /> Reset to defaults
+          </button>
         </div>
-      </Section>
-
-      <Section
-        title="CRM directory"
-        description="Card density, language filter, and whether to show alert customers first."
-        icon={Users}
-      >
-        <div>
-          <p className="text-xs font-semibold normal-case tracking-normal text-slate-500 mb-2">Card density</p>
-          <div className="flex gap-2">
-            {(['standard', 'compact'] as CrmDensity[]).map((d) => (
-              <button
-                key={d}
-                type="button"
-                disabled={saving}
-                onClick={() => wrapSave(() => updateCrmDisplay({ density: d }))}
-                className={cn(
-                  'flex-1 py-2.5 rounded-xl text-xs font-semibold normal-case tracking-normal border transition-all',
-                  preferences.crmDisplay.density === d
-                    ? 'border-brand-primary/50 bg-brand-primary/10 text-brand-primary'
-                    : 'border-white/5 text-slate-400 hover:border-white/15'
-                )}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-        <SelectField
-          label="Default language filter"
-          value={preferences.crmDisplay.defaultLanguageFilter}
-          onChange={(v) =>
-            wrapSave(() => updateCrmDisplay({ defaultLanguageFilter: v as LanguageFilter }))
-          }
-          options={[
-            { value: 'all', label: 'All languages' },
-            { value: 'english', label: 'English' },
-            { value: 'spanish', label: 'Spanish' },
-          ]}
-          disabled={saving}
-        />
-        <ToggleRow
-          label="Alerts-only default"
-          description="When opening Directory, start filtered to customers with active service alerts."
-          checked={preferences.crmDisplay.alertsOnlyDefault}
-          onChange={(v) => wrapSave(() => updateCrmDisplay({ alertsOnlyDefault: v }))}
-          disabled={saving}
-        />
-        <button
-          type="button"
-          onClick={() => onNavigate('search')}
-          className="text-xs font-semibold normal-case tracking-normal text-brand-primary hover:underline"
-        >
-          Go to Directory →
-        </button>
-      </Section>
-
-      <p className="text-xs text-slate-600 font-bold normal-case tracking-normal text-center">
-        Preferences sync across devices · CRM search is saved locally on this browser
-      </p>
+      </div>
     </div>
   );
 }
