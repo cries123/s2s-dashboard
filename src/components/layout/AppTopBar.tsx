@@ -247,10 +247,10 @@ export function AppTopBar({
           <button
             type="button"
             onClick={onOpenChat}
-            className="btn-secondary p-2.5 relative"
+            className="icon-btn"
             title="Team chat"
           >
-            <MessageSquare size={16} className="text-indigo-300" />
+            <MessageSquare size={19} />
             {chatUnreadCount > 0 ? (
               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-xs font-semibold text-white flex items-center justify-center">
                 {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
@@ -262,31 +262,31 @@ export function AppTopBar({
           <button
             type="button"
             onClick={onOpenSuggestions}
-            className="btn-secondary p-3 min-w-[44px] min-h-[44px] justify-center"
+            className="icon-btn"
             title="Send a suggestion"
             aria-label="Send a suggestion"
           >
-            <Lightbulb size={16} className="text-amber-400" />
+            <Lightbulb size={19} />
           </button>
         ) : null}
         {onOpenSettings ? (
           <button
             type="button"
             onClick={onOpenSettings}
-            className="btn-secondary p-3 min-w-[44px] min-h-[44px] justify-center"
+            className="icon-btn"
             title="Settings"
             aria-label="Settings"
           >
-            <SettingsIcon size={16} style={{ color: 'var(--color-text-secondary)' }} />
+            <SettingsIcon size={19} />
           </button>
         ) : null}
         <button
           type="button"
           onClick={onSignOut}
-          className="btn-secondary p-3 min-w-[44px] min-h-[44px] justify-center"
+          className="icon-btn"
           title="Sign out"
         >
-          <LogOut size={16} />
+          <LogOut size={19} />
         </button>
         </div>
       </div>
