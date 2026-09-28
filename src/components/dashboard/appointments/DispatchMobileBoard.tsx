@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronLeft, ChevronRight, Inbox } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import type { DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
 import type { DispatchProductionLane } from '../../../lib/dispatchConfig';
@@ -16,6 +16,11 @@ interface DispatchMobileBoardProps {
   laneCapacity: Partial<Record<DepartmentColumnId, number>>;
 }
 
+/**
+ * Dispatch on a phone: lane chips across the top, then that lane's tickets.
+ * The intake form used to fill the first screen; it now opens from a
+ * "New repair order" button, so the waiting queue is what you see first.
+ */
 export function DispatchMobileBoard({
   activeTab,
   onTabChange,
@@ -25,10 +30,11 @@ export function DispatchMobileBoard({
   renderCard,
   laneCapacity,
 }: DispatchMobileBoardProps) {
+  const [intakeOpen, setIntakeOpen] = useState(false);
   const queueTickets = ticketsByColumn.unassigned || [];
 
-  const tabs: { id: MobileDispatchTab; label: string; count?: number }[] = [
-    { id: 'intake', label: 'Intake', count: queueTickets.length || undefined },
+  const tabs: { id: MobileDispatchTab; label: string; count: number }[] = [
+    { id: 'intake', label: 'Waiting', count: queueTickets.length },
     ...displayColumns.map((col) => ({
       id: col.id,
       label: col.shortLabel,
@@ -36,109 +42,75 @@ export function DispatchMobileBoard({
     })),
   ];
 
-  const tabIndex = tabs.findIndex((t) => t.id === activeTab);
-  const goPrev = () => {
-    if (tabIndex > 0) onTabChange(tabs[tabIndex - 1].id);
-  };
-  const goNext = () => {
-    if (tabIndex < tabs.length - 1) onTabChange(tabs[tabIndex + 1].id);
-  };
-
   const activeList =
-    activeTab === 'intake' ? [] : ticketsByColumn[activeTab as DepartmentColumnId] || [];
+    activeTab === 'intake' ? queueTickets : ticketsByColumn[activeTab as DepartmentColumnId] || [];
   const cap = activeTab !== 'intake' ? laneCapacity[activeTab as DepartmentColumnId] : 0;
+  const laneName =
+    activeTab === 'intake' ? 'Waiting for a lane' : displayColumns.find((c) => c.id === activeTab)?.label || activeTab;
 
   return (
-    <div className="md:hidden space-y-4 pb-6">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={goPrev}
-          disabled={tabIndex <= 0}
-          className="p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 disabled:opacity-30"
-          aria-label="Previous lane"
-        >
-          <ChevronLeft size={16} />
-        </button>
-        <div className="flex-1 overflow-x-auto flex gap-1.5 py-1 scrollbar-none">
-          {tabs.map((tab) => (
+    <div className="md:hidden space-y-3 pb-6">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 py-0.5" role="tablist" aria-label="Lanes">
+        {tabs.map((tab) => {
+          const on = activeTab === tab.id;
+          return (
             <button
               key={tab.id}
               type="button"
+              role="tab"
+              aria-selected={on}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors',
-                activeTab === tab.id
-                  ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-200'
-                  : 'bg-slate-950 border-slate-800 text-slate-500'
+                'shrink-0 px-3.5 min-h-[36px] rounded-full text-sm border transition-colors whitespace-nowrap',
+                on ? 'bg-brand-primary border-brand-primary font-semibold' : ''
               )}
+              style={
+                on
+                  ? { color: '#fff' }
+                  : { borderColor: 'var(--color-input-border)', backgroundColor: 'var(--color-surface-card)', color: 'var(--color-text-primary)' }
+              }
             >
               {tab.label}
-              {tab.count != null && tab.count > 0 && (
-                <span className="ml-1 tabular-nums text-amber-300">{tab.count}</span>
-              )}
+              {tab.count > 0 ? <span className={cn('ml-1.5 tabular-nums', on ? '' : 'opacity-60')}>{tab.count}</span> : null}
             </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={goNext}
-          disabled={tabIndex >= tabs.length - 1}
-          className="p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 disabled:opacity-30"
-          aria-label="Next lane"
-        >
-          <ChevronRight size={16} />
-        </button>
+          );
+        })}
       </div>
 
       {activeTab === 'intake' ? (
-        <div className="space-y-4">
-          {intakeForm}
-          <div className="rounded-2xl border border-white/[0.08] bg-slate-900/80 p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Inbox size={14} className="text-amber-300" />
-                <span className="text-xs font-semibold text-white">Waiting Queue</span>
-              </div>
-              <span className="text-xs font-semibold tabular-nums text-amber-200">{queueTickets.length}</span>
+        intakeOpen ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">New repair order</h2>
+              <button type="button" onClick={() => setIntakeOpen(false)} className="link-text text-sm inline-flex items-center gap-1 min-h-[36px]">
+                <X size={15} /> Close
+              </button>
             </div>
-            {queueTickets.length === 0 ? (
-              <p className="text-center text-xs font-bold text-slate-600 py-8 border border-dashed border-slate-800 rounded-xl">
-                Queue is clear
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {queueTickets.map((ro) => (
-                  <div key={ro.id}>{renderCard(ro)}</div>
-                ))}
-              </div>
-            )}
+            {intakeForm}
           </div>
-        </div>
+        ) : (
+          <button type="button" onClick={() => setIntakeOpen(true)} className="btn-primary w-full">
+            <Plus size={16} /> New repair order
+          </button>
+        )
+      ) : null}
+
+      <div className="flex items-baseline justify-between px-0.5">
+        <h2 className="text-sm font-semibold">{laneName}</h2>
+        <span className="crm-label tabular-nums">
+          {cap && cap > 0 ? `${activeList.length} of ${cap}` : `${activeList.length} ${activeList.length === 1 ? 'ticket' : 'tickets'}`}
+        </span>
+      </div>
+
+      {activeList.length === 0 ? (
+        <p className="card-base crm-label text-center py-10">
+          {activeTab === 'intake' ? 'Nothing waiting.' : 'No tickets in this lane.'}
+        </p>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <Inbox size={14} className="text-indigo-400" />
-              <span className="text-xs font-semibold text-slate-300">
-                {displayColumns.find((c) => c.id === activeTab)?.label || activeTab}
-              </span>
-            </div>
-            <span className="text-xs font-semibold text-slate-500 tabular-nums">
-              {cap && cap > 0 ? `${activeList.length}/${cap}` : activeList.length} tickets
-            </span>
-          </div>
-          {activeList.length === 0 ? (
-            <p className="text-center text-xs font-bold text-slate-600 py-12 border border-dashed border-slate-800 rounded-2xl">
-              No tickets in this lane
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {activeList.map((ro) => (
-                <div key={ro.id}>{renderCard(ro)}</div>
-              ))}
-            </div>
-          )}
+          {activeList.map((ro) => (
+            <div key={ro.id}>{renderCard(ro)}</div>
+          ))}
         </div>
       )}
     </div>

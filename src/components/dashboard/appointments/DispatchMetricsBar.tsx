@@ -47,33 +47,21 @@ export function DispatchMetricsBar({
   );
 
   if (compact) {
+    // One hairline strip of counts, same pattern as the summary numbers elsewhere.
+    const cells: Array<[string, number, boolean]> = [
+      ['Active', metrics.activeCount, false],
+      ['Waiting', metrics.queueCount, false],
+      ['Past promise', overdueCount, overdueCount > 0],
+    ];
     return (
       <div className="space-y-2">
-        <div className="grid grid-cols-2 gap-2 text-xs font-semibold ">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
-            <span className="text-slate-500 block">Queue</span>
-            <span className="text-white tabular-nums text-sm">{metrics.queueCount}</span>
-          </div>
-          <div
-            className={cn(
-              'rounded-xl border px-3 py-2',
-              overdueCount > 0
-                ? 'border-rose-500/50 bg-rose-950/50 animate-pulse'
-                : 'border-slate-800 bg-slate-950/80'
-            )}
-          >
-            <span className={overdueCount > 0 ? 'text-rose-300 block' : 'text-slate-500 block'}>
-              Overdue
-            </span>
-            <span
-              className={cn(
-                'tabular-nums text-sm',
-                overdueCount > 0 ? 'text-rose-200' : 'text-slate-500'
-              )}
-            >
-              {overdueCount}
-            </span>
-          </div>
+        <div className="grid grid-cols-3 gap-px rounded-md border overflow-hidden" style={{ backgroundColor: 'var(--color-row-divider)', borderColor: 'var(--color-surface-border)' }}>
+          {cells.map(([label, n, alarm]) => (
+            <div key={label} className="px-3 py-2.5 text-center" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+              <p className="text-lg font-semibold tabular-nums" style={alarm ? { color: 'var(--color-badge-error-text)' } : undefined}>{n}</p>
+              <p className="crm-label">{label}</p>
+            </div>
+          ))}
         </div>
         {techWorkload.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">

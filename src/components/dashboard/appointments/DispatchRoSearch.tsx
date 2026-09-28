@@ -61,7 +61,7 @@ export function DispatchRoSearch({
   };
 
   return (
-    <div ref={rootRef} className="relative w-full max-w-md">
+    <div ref={rootRef} className="relative w-full">
       <form onSubmit={handleSubmit}>
         <label htmlFor="dispatch-ro-search" className="sr-only">
           Search repair order
@@ -69,7 +69,8 @@ export function DispatchRoSearch({
         <div className="relative">
           <Search
             size={14}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--color-text-secondary)' }}
           />
           <input
             id="dispatch-ro-search"
@@ -83,12 +84,12 @@ export function DispatchRoSearch({
             onFocus={() => {
               if (query.trim()) setOpen(true);
             }}
-            placeholder="Search RO #, tag, customer, VIN…"
+            placeholder="Search RO, tag or customer"
             autoComplete="off"
             role="combobox"
             aria-expanded={open && matches.length > 0}
             aria-controls={listboxId}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium"
+            className="input-field pl-9 pr-10"
           />
           {query ? (
             <button

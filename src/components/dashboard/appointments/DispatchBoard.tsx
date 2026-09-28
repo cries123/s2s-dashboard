@@ -7,6 +7,7 @@ import { useCustomers } from '../../../hooks/useCustomers';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { Customer, DealershipSettings, DepartmentColumnId, DispatchRepairOrder } from '../../../types';
 import { cn } from '../../../lib/utils';
+import { tidyCase, tidyPersonName } from '../../ui/Panel';
 import {
   mergeLaneCapacity,
   DispatchProductionLane,
@@ -90,6 +91,7 @@ import {
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
   Check, Wrench, Monitor, X, Inbox, MapPin, Moon, Pencil, FileText,
   ChevronRight,
+  MoreHorizontal,
 } from 'lucide-react';
 
 function playQueueAlert() {
@@ -1480,7 +1482,7 @@ export function DispatchBoard({
 
     const customerLabel = isInternalAsset
       ? `${ro.year || ''} ${ro.model || 'Internal Vehicle'}`.trim()
-      : ro.customerName || ro.customerLastName || 'Walk-in guest';
+      : tidyPersonName(ro.customerName || ro.customerLastName) || 'Walk-in guest';
 
     const vehicleLabel =
       !isInternalAsset && ro.model ? `${ro.year || ''} ${ro.model}`.trim() : null;
@@ -1502,9 +1504,9 @@ export function DispatchBoard({
         draggable={isDesktop}
         onDragStart={(e) => handleDragStart(e, ro.id)}
         onDragEnd={handleDragEnd}
-        style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '5px' }}
+        style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '4px' }}
         className={cn(
-          'bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 hover:border-slate-700/80 p-4 rounded-xl space-y-3 shadow-lg hover:shadow-2xl hover:shadow-indigo-950/10 transition-all duration-300 relative group select-none w-full text-slate-100',
+          'card-base p-4 space-y-3 transition-shadow relative group select-none w-full',
           isOvernight && 'ring-1 ring-amber-500/30',
           promiseState?.urgency === 'soon' && 'ring-1 ring-amber-500/25',
           promiseState?.urgency === 'urgent' && 'ring-1 ring-orange-500/40',
@@ -1521,45 +1523,32 @@ export function DispatchBoard({
               e.stopPropagation();
               setEditingRo(ro);
             }}
-            className="group flex-1 min-w-0 space-y-1.5 text-left rounded-lg hover:bg-slate-900/40 transition-colors cursor-pointer p-1 -m-1"
+            className="group flex-1 min-w-0 space-y-1.5 text-left rounded-md transition-colors cursor-pointer p-1 -m-1"
             title="Click to edit RO details"
           >
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xl font-semibold text-white tabular-nums tracking-tight leading-none">
-                {ro.roNumber}
+              <span className="text-base font-semibold text-brand-primary tabular-nums leading-none">
+                RO {ro.roNumber}
               </span>
               <span
-                className="text-xs font-semibold px-2 py-0.5 rounded border"
-                style={{
-                  color: statusInfo.hex,
-                  borderColor: `${statusInfo.hex}55`,
-                  backgroundColor: `${statusInfo.hex}18`,
-                }}
+                className="badge"
+                style={{ color: statusInfo.hex, backgroundColor: `${statusInfo.hex}1f` }}
               >
                 {statusInfo.label}
               </span>
               {isOvernight ? (
-                <span className="bg-amber-950/80 text-amber-400 border border-amber-900/40 px-1.5 py-0.5 rounded text-xs font-semibold ">
-                  Overnight
-                </span>
+                <span className="badge badge-warning">Overnight</span>
               ) : null}
               {(ro.isWaiting || ro.isPdl) && renderIntakeFlagBadge(ro)}
             </div>
 
             {isInternalAsset ? (
-              <span className="inline-flex bg-amber-950/80 text-amber-400 border border-amber-900/50 text-xs font-bold px-2 py-0.5 rounded-md">
-                Store inventory / recon
-              </span>
+              <span className="badge badge-neutral">Store vehicle</span>
             ) : null}
 
             <div>
-              <h3 className="text-sm font-bold tracking-tight text-white truncate">{customerLabel}</h3>
-              {vehicleLabel ? (
-                <p className="text-xs text-slate-400 truncate">{vehicleLabel}</p>
-              ) : null}
-              <p className="text-xs font-bold text-slate-600 group-hover:text-indigo-400/80 mt-1">
-                Tap to edit
-              </p>
+              <h3 className="text-sm font-semibold truncate">{customerLabel}</h3>
+              {vehicleLabel ? <p className="crm-label truncate">{tidyCase(vehicleLabel)}</p> : null}
             </div>
           </button>
 
@@ -1570,10 +1559,10 @@ export function DispatchBoard({
                 e.stopPropagation();
                 setEditingRo(ro);
               }}
-              className="flex items-center gap-1 text-xs font-semibold text-slate-400 bg-slate-950/50 border border-slate-800 px-1.5 py-0.5 rounded hover:bg-indigo-950/40 hover:text-indigo-300 hover:border-indigo-900/40"
+              className="link-text text-sm px-1.5 min-h-[32px]"
               title="Edit RO"
             >
-              <Pencil size={11} /> Edit
+              Edit
             </button>
             <button
               type="button"
@@ -1581,9 +1570,9 @@ export function DispatchBoard({
                 const card = e.currentTarget.closest('[data-dispatch-card]') as HTMLElement | null;
                 toggleMoveMenu(ro.id, card ?? e.currentTarget, e);
               }}
-              className="flex items-center gap-1 text-xs font-semibold text-indigo-400 bg-indigo-950/50 border border-indigo-900/40 px-1.5 py-0.5 rounded hover:bg-indigo-900/40"
+              className="link-text text-sm px-1.5 min-h-[32px]"
             >
-              <MapPin size={11} /> Move
+              Move
             </button>
 
             {confirmDeleteId === ro.id ? (
@@ -1623,40 +1612,32 @@ export function DispatchBoard({
                   setConfirmDeleteId(ro.id);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="text-slate-600 hover:text-rose-450 p-0.5 rounded transition-all duration-200 cursor-pointer relative z-20"
-                title="Delete from Board"
+                className="icon-btn !min-w-[32px] !min-h-[32px] hover:!text-rose-600 relative z-20"
+                title="Delete from board"
+                aria-label="Delete from board"
               >
-                <Trash2 size={13} />
+                <Trash2 size={15} />
               </button>
             )}
           </div>
         </div>
 
         {ro.concern ? (
-          <div className="rounded-lg border border-sky-500/25 bg-sky-950/25 px-3 py-2">
-            <p className="text-xs font-semibold text-sky-300/90 mb-1">
-              Concern
-            </p>
-            <p className="text-xs font-medium text-slate-100 leading-relaxed break-words">
-              {ro.concern}
-            </p>
+          <div>
+            <p className="crm-label">Concern</p>
+            <p className="text-sm leading-snug break-words">{tidyCase(ro.concern, 'sentence')}</p>
           </div>
         ) : null}
 
         {factChips.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
+          <dl className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
             {factChips.map((chip) => (
-              <span
-                key={`${chip.label}-${chip.value}`}
-                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-950/70 border border-slate-800 text-xs"
-              >
-                <span className="text-xs font-semibold text-slate-500">
-                  {chip.label}
-                </span>
-                <span className="font-mono text-slate-200 truncate max-w-[120px]">{chip.value}</span>
-              </span>
+              <div key={`${chip.label}-${chip.value}`} className="flex gap-1.5 min-w-0">
+                <dt style={{ color: 'var(--color-text-secondary)' }}>{chip.label}</dt>
+                <dd className="tabular-nums truncate max-w-[140px]">{chip.value}</dd>
+              </div>
             ))}
-          </div>
+          </dl>
         ) : null}
 
         <div
@@ -1666,7 +1647,7 @@ export function DispatchBoard({
           onPointerDown={(e) => e.stopPropagation()}
         >
           <div className="flex items-stretch gap-2">
-            <div className="flex-1 min-w-0 rounded-lg border border-slate-800/40 bg-slate-950/30 px-1.5 py-1">
+            <div className="flex-1 min-w-0 rounded-md border px-1.5 py-1" style={{ borderColor: 'var(--color-input-border)' }}>
               <DispatchTechSelector
                 techNumber={ro.techNumber}
                 roster={dispatchTechRoster}
@@ -1675,17 +1656,15 @@ export function DispatchBoard({
                 compact
               />
             </div>
-            <div className="shrink-0 flex items-center justify-center px-2 py-1 rounded-lg border border-slate-800/40 bg-slate-950/30 max-w-[5.5rem]">
-              <span className="text-xs font-bold text-slate-400 text-center leading-tight line-clamp-2">
+            <div className="shrink-0 flex items-center justify-center px-2 py-1 rounded-md max-w-[6rem]" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+              <span className="text-xs font-semibold text-center leading-tight line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
                 {laneLabel(ro.department)}
               </span>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-800/40 bg-slate-950/30 p-2.5 space-y-2">
-            <span className="text-slate-500 block text-xs font-bold">
-              Promise time
-            </span>
+          <div className="space-y-1.5">
+            <span className="crm-label block">Promise time</span>
             {ro.promiseTimeAt ? (
               <DispatchPromiseCountdown
                 promiseTimeAt={ro.promiseTimeAt}
@@ -1702,7 +1681,7 @@ export function DispatchBoard({
 
         {/* ACTIONS & STATUS SELECT */}
         <div
-          className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60"
+          className="flex items-center justify-between gap-2 pt-3 border-t"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -1713,8 +1692,9 @@ export function DispatchBoard({
               onChange={(e) => handleUpdateStatus(ro.id, e.target.value as typeof ro.status)}
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-xs font-semibold w-full px-2 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 outline-none cursor-pointer focus:border-indigo-500 transition-all appearance-none text-left"
+              className="input-field !py-2 !pr-7 text-sm font-medium cursor-pointer appearance-none"
               style={{ borderLeftColor: statusInfo.hex, borderLeftWidth: '3px' }}
+              aria-label="Status"
             >
               {Object.entries(DISPATCH_STATUS_COLORS).map(([val, info]) => (
                 <option 
@@ -1739,9 +1719,9 @@ export function DispatchBoard({
               e.stopPropagation();
               handleToggleComplete(ro, true);
             }}
-            className="flex items-center gap-1 bg-slate-950 hover:bg-emerald-950/60 hover:text-emerald-400 border border-slate-800 hover:border-emerald-900/60 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 select-none cursor-pointer"
+            className="btn-secondary py-2"
           >
-            <Check size={11} className="text-emerald-500" />
+            <Check size={15} />
             <span>Done</span>
           </button>
         </div>
@@ -1795,6 +1775,17 @@ export function DispatchBoard({
     />
   );
 
+  const dispatchActions: Array<{ label: string; icon: typeof Monitor; onClick: () => void; disabled?: boolean }> = [
+    { label: 'Board display', icon: Monitor, onClick: openDisplayMode, disabled: loading || showCompleted || isTechDisplayMode },
+    { label: 'Tech display', icon: Users, onClick: openTechDisplayMode, disabled: loading || showCompleted || isDisplayMode },
+    { label: 'End of day', icon: FileText, onClick: () => setShowEndOfDayReport(true), disabled: loading },
+    {
+      label: showCompleted ? 'Back to board' : `Completed (${completedTickets.length})`,
+      icon: CheckSquare,
+      onClick: () => setShowCompleted(!showCompleted),
+    },
+  ];
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-slate-200">
       {showEndOfDayReport ? (
@@ -1811,86 +1802,71 @@ export function DispatchBoard({
         <p className="crm-label">Preview: sample data only.</p>
       )}
       {/* Page Header */}
-      {/* Same header as every other page (PageHeader's markup); kept inline because the
-          action cluster here wraps across lines, which PageHeader's action slot doesn't. */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div className="min-w-0">
-          <nav className="flex items-center gap-1 text-xs mb-2" aria-label="Breadcrumb">
-            <span className="crm-label">Service</span>
-            <ChevronRight size={12} className="text-slate-400 shrink-0" />
-            <span className="crm-label">Dispatch</span>
-          </nav>
-          <h1 className="crm-page-title">Dispatch</h1>
-          <p className="crm-label mt-1 max-w-2xl">Route repair orders to shop lanes and track promise times.</p>
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <nav className="flex items-center gap-1 text-xs mb-1" aria-label="Breadcrumb">
+              <span className="crm-label">Service</span>
+              <ChevronRight size={12} className="shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
+              <span className="crm-label">Dispatch</span>
+            </nav>
+            <h1 className="crm-page-title">Dispatch</h1>
+            <p className="crm-label mt-0.5 hidden sm:block">Route repair orders to shop lanes and track promise times.</p>
+          </div>
+
+          {/* Wide screens: the actions inline. Phones: behind a "⋯" menu, so tickets come first. */}
+          <div className="hidden md:flex items-center gap-2 flex-wrap justify-end">
+            {overdueOrders.length > 0 && shouldShowOverdueCompact(overdueRules.alertDisplay) ? (
+              <DispatchOverdueAlert overdue={overdueOrders} compact />
+            ) : null}
+            {dispatchActions.map(({ label, icon: Icon, onClick, disabled }) => (
+              <button key={label} type="button" onClick={onClick} disabled={disabled} className="btn-secondary py-2 disabled:opacity-40">
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
+          <details className="md:hidden relative">
+            <summary className="icon-btn list-none" aria-label="More dispatch actions">
+              <MoreHorizontal size={22} />
+            </summary>
+            <div className="absolute right-0 top-full mt-1 z-40 w-60 list-group shadow-lg">
+              {dispatchActions.map(({ label, icon: Icon, onClick, disabled }) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={disabled}
+                  className="list-row text-sm disabled:opacity-40"
+                  onClick={(e) => {
+                    (e.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open');
+                    onClick();
+                  }}
+                >
+                  <Icon size={17} style={{ color: 'var(--color-text-secondary)' }} /> {label}
+                </button>
+              ))}
+            </div>
+          </details>
         </div>
-        <div className="flex items-center gap-3 flex-wrap justify-end">
-          {overdueOrders.length > 0 && shouldShowOverdueCompact(overdueRules.alertDisplay) ? (
-            <DispatchOverdueAlert overdue={overdueOrders} compact />
-          ) : null}
-          <DispatchRoSearch
-            orders={orders}
-            selectedRoId={lookupRoId}
-            onSelectRo={(ro) => setLookupRoId(ro.id)}
-            onClear={() => setLookupRoId(null)}
-          />
+
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="flex-1 min-w-0">
+            <DispatchRoSearch
+              orders={orders}
+              selectedRoId={lookupRoId}
+              onSelectRo={(ro) => setLookupRoId(ro.id)}
+              onClear={() => setLookupRoId(null)}
+            />
+          </div>
           {showTodayLoad && (
-            <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-lg border text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+            <div className="hidden sm:inline-flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-md border text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
               <Calendar size={13} className="shrink-0" />
               <span className="whitespace-nowrap">Today</span>
               <span className="whitespace-nowrap"><span className="font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{activeTickets.filter((o) => o.dateCreated === businessDatePst).length}</span> active ROs</span>
               <span className="whitespace-nowrap"><span className="font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{todayApptCount}</span> of {apptGoal} appts</span>
             </div>
           )}
-          <button
-            type="button"
-            onClick={openDisplayMode}
-            disabled={loading || showCompleted || isTechDisplayMode}
-            className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
-          >
-            <Monitor size={13} />
-            <span>Board display</span>
-          </button>
-          <button
-            type="button"
-            onClick={openTechDisplayMode}
-            disabled={loading || showCompleted || isDisplayMode}
-            className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-violet-500/40 disabled:opacity-40"
-          >
-            <Users size={13} />
-            <span>Tech display</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowEndOfDayReport(true)}
-            disabled={loading}
-            className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-amber-500/40 disabled:opacity-40"
-          >
-            <FileText size={13} />
-            <span>End of day</span>
-          </button>
-
-          <button 
-            onClick={() => setShowCompleted(!showCompleted)}
-            className={cn(
-              "btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all",
-              showCompleted 
-                ? "bg-emerald-950/20 text-emerald-400 border-emerald-500/30" 
-                : "bg-slate-900 border-slate-800 text-slate-300 hover:text-white"
-            )}
-          >
-            <CheckSquare size={13} />
-            <span>{showCompleted ? "Back to board" : `Completed (${completedTickets.length})`}</span>
-          </button>
         </div>
       </div>
-
-      {!loading && !showCompleted && overdueOrders.length > 0 && shouldShowOverdueFull(overdueRules.alertDisplay) ? (
-        <DispatchOverdueAlert
-          overdue={overdueOrders}
-          onSelectRo={(ro) => setLookupRoId(ro.id)}
-        />
-      ) : null}
 
       {!loading && lookupRo ? (
         <div className="rounded-2xl border border-sky-500/30 bg-sky-950/15 p-4 sm:p-5 space-y-4 shadow-lg shadow-sky-950/10">
@@ -1969,6 +1945,14 @@ export function DispatchBoard({
           </div>
         </>
       )}
+
+      {!loading && !showCompleted && overdueOrders.length > 0 && shouldShowOverdueFull(overdueRules.alertDisplay) ? (
+        <DispatchOverdueAlert
+          overdue={overdueOrders}
+          onSelectRo={(ro) => setLookupRoId(ro.id)}
+        />
+      ) : null}
+
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
