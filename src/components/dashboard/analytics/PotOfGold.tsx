@@ -12,6 +12,7 @@ import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dms
 import { doc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
+import { useToast } from '../../../context/ToastContext';
 import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
@@ -67,6 +68,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   const viewPeriodOptions = useMemo(() => buildOperationsViewPeriodOptions(), []);
   const [activeSubTab, setActiveSubTab] = useState<'advisors' | 'technicians' | 'upsells' | 'performance'>('advisors');
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -133,13 +135,12 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     }
   };
   
-  // Success message timer
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 3000);
-      return () => clearTimeout(timer);
+      showToast(successMessage, 'success');
+      setSuccessMessage(null);
     }
-  }, [successMessage]);
+  }, [successMessage, showToast]);
 
   // Calculations
   const calculateAdvisorTotals = () => {
@@ -291,7 +292,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         error: message,
         userEmail: user?.email,
       });
-      alert(message);
+      showToast(message, 'error');
     } finally {
       setIsAiProcessing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -382,20 +383,6 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         )}
       </AnimatePresence>
 
-      {/* Success Notification */}
-      <AnimatePresence>
-        {successMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-24 left-1/2 z-[100] bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-2xl shadow-emerald-500/20 border border-emerald-400/30 flex items-center gap-3 min-w-[300px] justify-center"
-          >
-            <Zap size={18} fill="currentColor" />
-            <span className="text-[11px] font-semibold ">{successMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Hero Header */}
       <div className="relative overflow-hidden rounded-[2.5rem] card-base p-5 md:p-12">
@@ -466,22 +453,19 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isAiProcessing}
-                className="flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-2xl text-xs font-semibold shadow-xl shadow-brand-primary/20 disabled:opacity-50 disabled:0 transition-all group"
+                className="btn-primary disabled:opacity-50"
+                title="PDF: Op Code Frequency report"
               >
-                {isAiProcessing ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Upload size={16} className="group-hover:-translate-y-0.5 transition-transform" />
-                )}
-                {isAiProcessing ? 'Deep Multi-Audit...' : 'PDF Multi-Audit'}
+                {isAiProcessing ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                {isAiProcessing ? 'Reading report…' : 'Import upsell report'}
               </button>
 
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 px-5 py-3.5 card-base rounded-2xl shadow-xl">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-              <span className="text-xs font-semibold text-amber-500">
-                🔒 VIEWING HISTORY ARCHIVE ({formatArchiveDisplayLabel(selectedMonth)} - READ ONLY)
+            <div className="flex items-center gap-2.5 px-4 py-3 card-base">
+              <span className="badge badge-neutral shrink-0">Read only</span>
+              <span className="crm-label">
+                Viewing {formatArchiveDisplayLabel(selectedMonth)}
               </span>
             </div>
           )}

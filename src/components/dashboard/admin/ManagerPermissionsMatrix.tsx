@@ -32,7 +32,7 @@ export function ManagerPermissionsMatrix() {
           Manager permissions matrix
         </label>
         <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-          Who can change operational settings vs personal preferences. System admin = primary platform admin account.
+          Who can change store settings and who can change only their own preferences.
         </p>
       </div>
 

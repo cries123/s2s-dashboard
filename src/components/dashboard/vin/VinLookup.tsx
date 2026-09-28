@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
+import { PageHeader } from '../../layout/PageHeader';
 
 interface VinData {
   Variable: string;
@@ -186,45 +187,38 @@ export const VinLookup: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Search Header */}
-      <div className="relative">
-        <div className="absolute -top-24 -left-24 w-64 h-64 bg-brand-primary/10 blur-[100px] rounded-full pointer-events-none" />
-        
-        <header className="relative z-10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 bg-brand-primary/10 rounded-xl border border-brand-primary/20 backdrop-blur-sm">
-              <Search className="text-brand-primary" size={22} />
-            </div>
-            <h2 className="text-2xl font-semibold text-white tracking-tight ">VIN Intelligence</h2>
-          </div>
-          <p className="text-slate-500 text-sm font-medium tracking-wide">Advanced Forensic Vehicle Analysis & Recall Monitoring</p>
-        </header>
+      <PageHeader
+        title="VIN search"
+        description="Decode a VIN to see vehicle specs, open recalls and estimated value."
+        breadcrumbs={[{ label: 'Sales' }, { label: 'VIN search' }]}
+      />
 
-        <div className="mt-8 group relative">
-          <div className="absolute inset-0 bg-brand-primary/5 blur-2xl rounded-3xl opacity-0 group-focus-within:opacity-100 transition-opacity" />
-          <form onSubmit={handleSearch} className="relative flex flex-col md:flex-row gap-0 bg-slate-900/40 backdrop-blur-2xl border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl p-1.5 focus-within:border-brand-primary/30 transition-all">
-            <div className="relative flex-1">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-primary transition-colors" size={20} />
-              <input
-                type="text"
-                value={vin}
-                onChange={(e) => setVin(e.target.value.toUpperCase())}
-                placeholder="ENTER 17-CHARACTER VIN..."
-                className="w-full bg-transparent border-none focus:ring-0 focus:outline-none py-6 pl-16 pr-6 text-xl font-semibold text-white placeholder:text-slate-600 font-mono"
-                maxLength={17}
-              />
-            </div>
-            <button 
-              type="submit"
-              disabled={loading || vin.length < 17}
-              className="bg-brand-primary hover:bg-brand-secondary disabled:bg-slate-800 text-white px-10 py-5 rounded-[1.75rem] font-semibold text-xs transition-all flex items-center justify-center gap-3 shadow-xl shadow-brand-primary/20 m-1"
-            >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : <BadgeCheck size={18} />}
-              Analyze Vehicle
-            </button>
-          </form>
-        </div>
-      </div>
+      {/* The standard field and button — the glowing 2rem capsule with 20px
+          all-caps mono placeholder was clipped at phone width ("ENTER 17-CHARACTER V"). */}
+      <form onSubmit={handleSearch} className="card-base p-4 flex flex-col md:flex-row md:items-end gap-3">
+        <label className="flex-1 min-w-0">
+          <span className="input-label">VIN</span>
+          <span className="relative block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: 'var(--color-text-secondary)' }} />
+            <input
+              type="text"
+              value={vin}
+              onChange={(e) => setVin(e.target.value.toUpperCase())}
+              placeholder="17 characters"
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              className="input-field pl-9 font-mono tracking-wide"
+              maxLength={17}
+            />
+          </span>
+          <span className="crm-label mt-1 block tabular-nums">{vin.length}/17</span>
+        </label>
+        <button type="submit" disabled={loading || vin.length < 17} className="btn-primary md:mb-6 min-h-[44px]">
+          {loading ? <Loader2 className="animate-spin" size={16} /> : <BadgeCheck size={16} />}
+          Look up vehicle
+        </button>
+      </form>
 
       {error && (
         <motion.div 
@@ -414,7 +408,7 @@ export const VinLookup: React.FC = () => {
                      <div className="flex items-center justify-between mb-8">
                         <div>
                           <h4 className="text-2xl font-semibold text-rose-500 tracking-tighter ">Safety Campaign Directives</h4>
-                          <p className="text-rose-400/60 text-xs font-semibold mt-1">Sourced from NHTSA Forensic Database</p>
+                          <p className="text-rose-400/60 text-xs font-semibold mt-1">Source: NHTSA recall database</p>
                         </div>
                         <button onClick={() => setRecallsExpanded(false)} className="p-2 hover:bg-rose-500/10 rounded-full transition-colors">
                           <AlertTriangle className="text-rose-500" size={24} />
@@ -528,11 +522,11 @@ export const VinLookup: React.FC = () => {
             </div>
           </div>
 
-            {/* Forensic Specs Grid */}
+            {/* Full specification */}
           <div className="lg:col-span-6 space-y-6 pt-12">
             <div className="flex items-center gap-4 mb-4">
               <div className="h-px flex-1 bg-white/5" />
-              <h4 className="text-[11px] font-semibold text-slate-600 px-4 ">Full Forensic Specification Grid</h4>
+              <h4 className="text-[11px] font-semibold text-slate-600 px-4 ">Full specification</h4>
               <div className="h-px flex-1 bg-white/5" />
             </div>
 
@@ -558,33 +552,15 @@ export const VinLookup: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="relative min-h-[500px] flex flex-col items-center justify-center p-20 rounded-[3rem] border border-dashed border-white/5 bg-slate-900/10 overflow-hidden group"
+          className="card-base flex flex-col items-center justify-center text-center px-6 py-12"
         >
-          <div className="absolute inset-0 bg-brand-primary/5 opacity-0 group-hover:opacity-100 transition-opacity blur-3xl rounded-full scale-50" />
-          
-          <div className="relative p-12 bg-slate-950 rounded-[2.5rem] border border-white/5 shadow-2sl mb-8 transform group-hover:-translate-y-2 transition-transform duration-500">
-             <Car size={80} strokeWidth={1} className="text-slate-800" />
-          </div>
-          
-          <div className="text-center space-y-3 relative z-10">
-            <h3 className="text-2xl font-semibold text-white ">Diagnostic Terminal Alpha</h3>
-            <p className="text-slate-500 font-bold text-xs ">Initialize vehicle scan by entering a unique 17-character VIN above</p>
-          </div>
-          
-          <div className="mt-12 flex items-center gap-8 opacity-20">
-             <div className="flex items-center gap-2">
-               <ShieldCheck size={16} />
-               <span className="text-xs font-semibold ">NHTSA Secure</span>
-             </div>
-             <div className="flex items-center gap-2">
-               <Zap size={16} />
-               <span className="text-xs font-semibold ">Live API Stream</span>
-             </div>
-             <div className="flex items-center gap-2">
-               <Sparkles size={16} />
-               <span className="text-xs font-semibold ">Regional Market Pulse</span>
-             </div>
-          </div>
+          {/* No fake trust badges ("NHTSA Secure", "Live API Stream") and no
+              "Diagnostic Terminal Alpha" — just what to do. */}
+          <Car size={40} strokeWidth={1.5} style={{ color: 'var(--color-text-secondary)' }} />
+          <h3 className="crm-section-title text-base mt-4">Look up a vehicle</h3>
+          <p className="crm-label text-sm mt-1 max-w-xs">
+            Enter all 17 characters of the VIN to see specs, open recalls and estimated value.
+          </p>
         </motion.div>
       )}
 

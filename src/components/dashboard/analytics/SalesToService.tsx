@@ -14,10 +14,10 @@ interface SalesToServiceProps {
 
 /** How long a customer gets to come back before the cohort is judged. */
 const HORIZONS = [
-  { days: 90, label: 'First 90 days' },
-  { days: 180, label: 'First 6 months' },
-  { days: 365, label: 'First year' },
-  { days: 0, label: 'Ever' },
+  { days: 90, label: '90 days' },
+  { days: 180, label: '6 months' },
+  { days: 365, label: '1 year' },
+  { days: 0, label: 'All time' },
 ];
 
 function monthLabel(key: string): string {
@@ -102,16 +102,17 @@ export default function SalesToService({ customers }: SalesToServiceProps) {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+        <div className="card-base p-1 grid grid-cols-4 gap-1 w-full sm:w-auto" role="group" aria-label="Time since sale">
           {HORIZONS.map((h) => (
             <button
               key={h.days}
               type="button"
               onClick={() => setHorizonDays(h.days)}
+              aria-pressed={horizonDays === h.days}
               className={
                 horizonDays === h.days
-                  ? 'shrink-0 px-3 py-1.5 rounded-md text-sm whitespace-nowrap bg-brand-primary text-white min-h-[36px]'
-                  : 'shrink-0 px-3 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-[var(--color-surface-hover)] min-h-[36px]'
+                  ? 'min-w-0 px-2 sm:px-3 py-1.5 rounded-md text-sm whitespace-nowrap bg-brand-primary text-white min-h-[40px]'
+                  : 'min-w-0 px-2 sm:px-3 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-[var(--color-surface-hover)] min-h-[40px]'
               }
               style={horizonDays === h.days ? undefined : { color: 'var(--color-text-secondary)' }}
             >

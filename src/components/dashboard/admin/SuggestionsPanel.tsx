@@ -95,16 +95,7 @@ export function SuggestionsPanel() {
   return (
     <div className="space-y-4 animate-in fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-brand-primary text-xs font-semibold ">
-            <Lightbulb size={12} />
-            User suggestions
-          </div>
-          <p className="text-xs text-slate-500 max-w-2xl mt-1">
-            Feedback submitted from the lightbulb icon in the top bar.
-            {newCount > 0 ? ` ${newCount} new.` : ''}
-          </p>
-        </div>
+        <p className="crm-label tabular-nums">{newCount > 0 ? `${newCount} new` : 'Nothing new'}</p>
         <div className="flex flex-wrap gap-2">
           {(['all', 'new', 'reviewed', 'resolved'] as const).map((id) => (
             <button
@@ -112,10 +103,10 @@ export function SuggestionsPanel() {
               type="button"
               onClick={() => setFilter(id)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                'px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors capitalize',
                 filter === id
-                  ? 'bg-brand-primary text-slate-950 border-brand-primary'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                  ? 'bg-brand-primary/15 text-brand-primary border-brand-primary/40'
+                  : 'border-surface-border text-text-secondary hover:text-text-primary'
               )}
             >
               {id}

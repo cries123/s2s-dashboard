@@ -69,10 +69,10 @@ function PbsSyncHealth() {
   return (
     <div
       className={cn(
-        'rounded-xl border p-4 md:col-span-2',
+        'rounded-lg border p-4 md:col-span-2',
         error || (state && !ok)
           ? 'border-rose-500/25 bg-rose-950/15'
-          : 'border-white/5 bg-slate-950/40'
+          : 'border-surface-border'
       )}
     >
       <div className="flex items-center gap-2 mb-2">
@@ -116,8 +116,7 @@ export function DmsImportHealthPanel({ dealershipSettings }: DmsImportHealthPane
   return (
     <div className="space-y-4">
       <div>
-        <p className="crm-label">How data gets into each store, and whether it is arriving.</p>
-        <CardNoticeRow className="mt-2">
+        <CardNoticeRow>
           <CardNotice tone="info" summary="What is tracked here">
             Two routes. Staff uploading appointment, performance, technician, forecast or Pot of
             Gold PDFs, and the automatic PBS sync that runs every morning at 6:00 AM Pacific.
@@ -132,47 +131,50 @@ export function DmsImportHealthPanel({ dealershipSettings }: DmsImportHealthPane
           const failures = health?.recentFailures ?? [];
 
           return (
-            <div key={d.id} className="card-base rounded-lg border border-white/5 p-5">
+            <div key={d.id} className="card-base p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-4">
-                <FileText size={16} className="text-brand-primary" />
-                <h3 className="text-sm font-semibold text-white ">{d.name}</h3>
+                <FileText size={16} style={{ color: 'var(--color-text-secondary)' }} />
+                <h3 className="crm-section-title">{d.name}</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {isPbsSyncDealership(d.id) && <PbsSyncHealth />}
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-4">
+                <div
+                  className={cn(
+                    'rounded-lg border p-4',
+                    last ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-surface-border'
+                  )}
+                >
                   <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 size={14} className="text-emerald-400" />
-                    <span className="text-xs font-semibold text-emerald-300">Last success</span>
+                    <CheckCircle2 size={14} className={last ? 'text-emerald-400' : undefined} style={last ? undefined : { color: 'var(--color-text-secondary)' }} />
+                    <span className={cn('text-xs font-semibold', last ? 'text-emerald-400' : 'crm-label')}>Last successful import</span>
                   </div>
                   {last ? (
                     <>
-                      <p className="text-xs font-bold text-white">{dmsImportKindLabel(last.importKind)}</p>
-                      <p className="text-[11px] text-slate-400 truncate mt-1">{last.filename}</p>
-                      <p className="text-xs text-slate-600 mt-2">{formatWhen(last.at)}</p>
-                      {last.userEmail ? (
-                        <p className="text-xs text-slate-600">{last.userEmail}</p>
-                      ) : null}
+                      <p className="text-sm font-semibold">{dmsImportKindLabel(last.importKind)}</p>
+                      <p className="crm-label truncate mt-1">{last.filename}</p>
+                      <p className="crm-label mt-2">{formatWhen(last.at)}</p>
+                      {last.userEmail ? <p className="crm-label">{last.userEmail}</p> : null}
                     </>
                   ) : (
-                    <p className="text-xs text-slate-500">No successful imports recorded yet.</p>
+                    <p className="crm-label">None yet</p>
                   )}
                 </div>
 
                 <div
                   className={cn(
-                    'rounded-xl border p-4',
-                    failures.length ? 'border-rose-500/25 bg-rose-950/15' : 'border-white/5 bg-slate-950/40'
+                    'rounded-lg border p-4',
+                    failures.length ? 'border-rose-500/25 bg-rose-500/5' : 'border-surface-border'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle size={14} className="text-rose-400" />
-                    <span className="text-xs font-semibold text-rose-300">
-                      Recent failures ({failures.length})
+                    <AlertTriangle size={14} className={failures.length ? 'text-rose-400' : undefined} style={failures.length ? undefined : { color: 'var(--color-text-secondary)' }} />
+                    <span className={cn('text-xs font-semibold', failures.length ? 'text-rose-400' : 'crm-label')}>
+                      Recent failures{failures.length ? ` (${failures.length})` : ''}
                     </span>
                   </div>
                   {failures.length === 0 ? (
-                    <p className="text-xs text-slate-500">No failed parses logged.</p>
+                    <p className="crm-label">No failed imports</p>
                   ) : (
                     <ul className="max-h-40 overflow-y-auto pr-1">
                       {failures.slice(0, 8).map((f, idx) => (

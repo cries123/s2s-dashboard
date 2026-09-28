@@ -88,7 +88,8 @@ import { CardPromiseTimeEditor } from './CardPromiseTimeEditor';
 import { 
   Users, CheckCircle2, ClipboardList, AlertTriangle, HelpCircle, 
   Plus, Calendar, Sparkles, RefreshCw, Layers, CheckSquare, Trash2,
-  Check, Wrench, Monitor, X, Inbox, MapPin, Moon, Pencil, FileText
+  Check, Wrench, Monitor, X, Inbox, MapPin, Moon, Pencil, FileText,
+  ChevronRight,
 } from 'lucide-react';
 
 function playQueueAlert() {
@@ -1807,29 +1808,20 @@ export function DispatchBoard({
         />
       ) : null}
       {isPreviewMode && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-[11px] text-amber-100">
-          <span className="font-semibold text-amber-300">Preview mode</span>
-          <span className="text-amber-200/80">
-            {' '}
-            — sample data only, no login required. Use{' '}
-            <code className="text-amber-100">npm run dev:preview</code>, add{' '}
-            <code className="text-amber-100">?preview=true</code> to the URL, or set{' '}
-            <code className="text-amber-100">VITE_PREVIEW_MODE=true</code> in{' '}
-            <code className="text-amber-100">.env.local</code>.
-          </span>
-        </div>
+        <p className="crm-label">Preview: sample data only.</p>
       )}
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-semibold text-indigo-400 block">Automated Dispatch System</span>
-          </div>
-          <h1 className="text-3xl font-semibold text-white tracking-tight ">Departmental Dispatch Board</h1>
-          <p className="text-slate-400 text-xs font-medium">
-            Streamlining shop capacity by routing tickets structurally across production department bays.
-          </p>
+      {/* Same header as every other page (PageHeader's markup); kept inline because the
+          action cluster here wraps across lines, which PageHeader's action slot doesn't. */}
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="min-w-0">
+          <nav className="flex items-center gap-1 text-xs mb-2" aria-label="Breadcrumb">
+            <span className="crm-label">Service</span>
+            <ChevronRight size={12} className="text-slate-400 shrink-0" />
+            <span className="crm-label">Dispatch</span>
+          </nav>
+          <h1 className="crm-page-title">Dispatch</h1>
+          <p className="crm-label mt-1 max-w-2xl">Route repair orders to shop lanes and track promise times.</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
           {overdueOrders.length > 0 && shouldShowOverdueCompact(overdueRules.alertDisplay) ? (
@@ -1842,16 +1834,11 @@ export function DispatchBoard({
             onClear={() => setLookupRoId(null)}
           />
           {showTodayLoad && (
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold ">
-              <Calendar size={13} className="text-indigo-400 shrink-0" />
-              <span className="text-slate-400">Today</span>
-              <span className="text-white tabular-nums">{activeTickets.filter((o) => o.dateCreated === businessDatePst).length}</span>
-              <span className="text-slate-600">active ROs</span>
-              <span className="text-slate-600">·</span>
-              <span className="text-emerald-400 tabular-nums">{todayApptCount}</span>
-              <span className="text-slate-500">appts logged</span>
-              <span className="text-slate-600">·</span>
-              <span className="text-slate-400">goal {apptGoal}</span>
+            <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-lg border text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+              <Calendar size={13} className="shrink-0" />
+              <span className="whitespace-nowrap">Today</span>
+              <span className="whitespace-nowrap"><span className="font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{activeTickets.filter((o) => o.dateCreated === businessDatePst).length}</span> active ROs</span>
+              <span className="whitespace-nowrap"><span className="font-semibold tabular-nums" style={{ color: 'var(--color-text-primary)' }}>{todayApptCount}</span> of {apptGoal} appts</span>
             </div>
           )}
           <button
@@ -1861,7 +1848,7 @@ export function DispatchBoard({
             className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40 disabled:opacity-40"
           >
             <Monitor size={13} />
-            <span>Display Preview</span>
+            <span>Board display</span>
           </button>
           <button
             type="button"
@@ -1870,7 +1857,7 @@ export function DispatchBoard({
             className="btn-secondary border text-xs gap-1.5 font-bold py-2 px-4 rounded-xl transition-all bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-violet-500/40 disabled:opacity-40"
           >
             <Users size={13} />
-            <span>Tech Display</span>
+            <span>Tech display</span>
           </button>
 
           <button
@@ -1893,7 +1880,7 @@ export function DispatchBoard({
             )}
           >
             <CheckSquare size={13} />
-            <span>{showCompleted ? "View Active Board" : `View Completed Logs (${completedTickets.length})`}</span>
+            <span>{showCompleted ? "Back to board" : `Completed (${completedTickets.length})`}</span>
           </button>
         </div>
       </div>

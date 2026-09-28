@@ -237,15 +237,11 @@ function PbsSyncPanelInner({
   return (
     <div className="space-y-5">
       <div>
-        <p className="crm-label">
-          Pulls customer and vehicle changes from PBS PartnerHUB, matched by VIN. Runs on its own
-          every morning at 6:00 AM Pacific.
-        </p>
-        <CardNoticeRow className="mt-2">
+        <CardNoticeRow>
           <CardNotice tone="info" summary="Which button to use">
             <strong className="text-slate-300">Pull changes</strong> fetches everything since the
             last successful sync — that is the one you want almost always.{' '}
-            <strong className="text-slate-300">Full fleet refresh</strong> rebuilds the entire
+            <strong className="text-slate-300">Full refresh</strong> rebuilds the entire
             directory from PBS, so use it only when something is genuinely missing.
           </CardNotice>
           <CardNotice tone="info" summary="What a pull updates">
@@ -257,16 +253,14 @@ function PbsSyncPanelInner({
         </CardNoticeRow>
       </div>
 
-      <div className="card-base rounded-2xl border border-white/5 p-5 space-y-4">
+      <div className="card-base p-4 sm:p-5 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Database size={16} className="text-brand-primary" />
-              <h3 className="text-sm font-semibold text-white ">{dealershipName}</h3>
+              <Database size={16} style={{ color: 'var(--color-text-secondary)' }} />
+              <h3 className="crm-section-title">{dealershipName}</h3>
             </div>
-            <p className="text-xs text-slate-500 font-bold">
-              PBS PartnerHUB · Serial 8200
-            </p>
+            <p className="crm-label">PBS PartnerHUB</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -274,12 +268,7 @@ function PbsSyncPanelInner({
               type="button"
               onClick={() => handleSync(false)}
               disabled={syncing || fullRefreshing || !canPullFromPbs}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all',
-                canPullFromPbs
-                  ? 'bg-brand-primary text-slate-950 hover:brightness-110 disabled:opacity-60'
-                  : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-              )}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {syncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
               {syncing ? 'Pulling changes…' : 'Pull changes'}
@@ -288,15 +277,10 @@ function PbsSyncPanelInner({
               type="button"
               onClick={() => handleSync(true)}
               disabled={syncing || fullRefreshing || !canPullFromPbs}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all border',
-                canPullFromPbs
-                  ? 'border-white/10 text-slate-200 hover:bg-white/5 disabled:opacity-60'
-                  : 'border-slate-800 text-slate-500 cursor-not-allowed'
-              )}
+              className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {fullRefreshing ? <Loader2 size={14} className="animate-spin" /> : <Database size={14} />}
-              {fullRefreshing ? 'Full refresh…' : 'Full fleet refresh'}
+              {fullRefreshing ? 'Refreshing…' : 'Full refresh'}
             </button>
           </div>
         </div>
@@ -314,11 +298,8 @@ function PbsSyncPanelInner({
           </div>
         ) : null}
 
-        {!canPullFromPbs && !statusLoading ? (
-          <div className="rounded-xl border border-slate-700/50 bg-slate-950/40 p-3 text-xs text-slate-400">
-            Pull is disabled until PBS credentials and the Firebase service account are configured on the server.
-            Check the status cards above after Netlify redeploys.
-          </div>
+        {!canPullFromPbs && !statusLoading && statusHealthy ? (
+          <p className="crm-label">Pulling is off until the PBS connection is set up.</p>
         ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -397,75 +378,67 @@ function PbsSyncPanelInner({
         </div>
 
         {!statusHealthy && !statusLoading ? (
-          <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100/90 space-y-2">
+          <div className="rounded-lg border border-surface-border p-3 space-y-2">
             {firestoreQuotaExceeded ? (
               <>
-                <p>
-                  <strong className="text-amber-50">Firebase read/write quota is exceeded.</strong> PBS credentials
-                  and the service account are configured correctly — Firestore is temporarily blocking requests.
+                <p className="text-sm font-semibold">Database limit reached for today</p>
+                <p className="crm-label">
+                  Syncing will work again when the daily limit resets, usually at midnight Pacific.
                 </p>
-                <p>
-                  Open{' '}
+                <CardNotice tone="info" summary="Details">
+                  The Firebase read/write quota is exceeded; the PBS connection itself is fine. Check{' '}
                   <a
                     href={firebaseUsageUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-amber-50 underline underline-offset-2 hover:text-white"
+                    className="underline underline-offset-2"
                   >
                     Firebase Console → Usage
                   </a>{' '}
-                  to check daily limits and billing, or wait for the quota to reset (usually midnight Pacific).
-                </p>
-                <p className="text-amber-200/80">
-                  The dashboard loads the full customer list on every visit, which can use up the free-tier quota
-                  quickly. Upgrading to the Blaze (pay-as-you-go) plan removes the hard daily cap.
-                </p>
+                  for limits and billing. The Blaze (pay-as-you-go) plan removes the hard daily cap.
+                </CardNotice>
               </>
             ) : needsEnvSetup ? (
               <>
-                <p>
-                  Server-side env vars are not ready yet. After saving variables in Netlify, trigger a new{' '}
-                  <strong className="text-amber-50">production deploy</strong> — saving alone does not update live
-                  functions.
+                <p className="text-sm font-semibold">PartnerHUB connection not set up</p>
+                <p className="crm-label">
+                  Syncing is off until an administrator connects this store's PBS account.
                 </p>
-                {cronStatus && !cronStatus.cronReady ? (
-                  <p>
-                    Morning auto-sync will not run until PBS credentials and{' '}
-                    <code className="text-amber-100">FIREBASE_SERVICE_ACCOUNT_JSON</code> are set. Check the
-                    Morning auto-sync card above after redeploy.
-                  </p>
-                ) : null}
-                {missingPbsVars.length ? (
-                  <p>
-                    Missing PBS vars on the server:{' '}
-                    <code className="text-amber-100">{missingPbsVars.join(', ')}</code>
-                  </p>
-                ) : null}
-                {diagnostics?.serviceAccountMessage ? (
-                  <p>{diagnostics.serviceAccountMessage}</p>
-                ) : (
-                  <p>
-                    Set <code className="text-amber-100">FIREBASE_SERVICE_ACCOUNT_JSON</code> to the entire
-                    downloaded Firebase service-account JSON file (not just the private key).
-                  </p>
-                )}
+                <CardNotice tone="info" summary="Setup details">
+                  {missingPbsVars.length ? (
+                    <span className="block">
+                      Missing server settings: <code>{missingPbsVars.join(', ')}</code>.
+                    </span>
+                  ) : null}
+                  <span className="block mt-1">
+                    {diagnostics?.serviceAccountMessage ||
+                      'Set FIREBASE_SERVICE_ACCOUNT_JSON to the whole downloaded Firebase service-account file (not just the private key).'}
+                  </span>
+                  {cronStatus && !cronStatus.cronReady ? (
+                    <span className="block mt-1">The 6:00 AM automatic sync also needs these before it will run.</span>
+                  ) : null}
+                  <span className="block mt-1">
+                    After saving them in Netlify → Environment variables, start a new production deploy; saving
+                    alone does not update the live site.
+                  </span>
+                </CardNotice>
               </>
             ) : (
               <>
-                <p>
-                  Firestore could not be reached from the server. PBS credentials and the service account look
-                  configured — this is usually a temporary Firebase outage or permission issue.
-                </p>
-                {firestoreError ? <p>{firestoreError}</p> : null}
+                <p className="text-sm font-semibold">Can't reach the database right now</p>
+                <p className="crm-label">This is usually temporary. Try again in a few minutes.</p>
+                {firestoreError ? (
+                  <CardNotice tone="info" summary="Details">
+                    {firestoreError}
+                  </CardNotice>
+                ) : null}
               </>
             )}
           </div>
         ) : null}
       </div>
 
-      <p className="text-xs text-slate-600 leading-relaxed">
-        Sync history is under <strong className="text-slate-400">Admin → Logs → PBS sync log</strong>.
-      </p>
+      <p className="crm-label">Sync history is under Admin → Audit logs.</p>
     </div>
   );
 }

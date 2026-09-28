@@ -51,7 +51,7 @@ export function TelemetryCard({ roData }: TelemetryCardProps) {
       {!isInternalAsset && (roData.phoneNumber || roData.customerName) && (
         <div className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-950/40 p-2 rounded-lg border border-slate-800/60">
           <span className="text-slate-500">📞</span>
-          <span>{roData.phoneNumber || 'No Phone Entry'}</span>
+          <span>{roData.phoneNumber || 'No phone'}</span>
         </div>
       )}
 

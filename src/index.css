@@ -96,6 +96,34 @@
     background-color: var(--color-surface-base);
     color: var(--color-text-primary);
   }
+
+  /*
+    Tailwind v4 dropped v3's default border colour: a bare `border` or
+    `divide-y` now draws in currentColor, which on the dark theme is near-white
+    text colour. That is what put bright white rules between list rows across
+    the app. Restore a quiet default from the theme token; anything that sets
+    its own border colour still wins, since utilities sit in a later layer.
+  */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-surface-border, currentColor);
+  }
+}
+
+/*
+  iOS Safari zooms the whole page when a focused field's text is under 16px,
+  and does not zoom back out. Every form field on phones gets 16px. Deliberately
+  outside @layer so it beats per-field text-xs / text-sm utilities.
+*/
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 @layer components {
@@ -165,6 +193,8 @@
   .badge-warning { @apply bg-amber-500/10 text-amber-400 border-amber-500/20; }
   .badge-error { @apply bg-rose-500/10 text-rose-400 border-rose-500/20; }
   .badge-info { @apply bg-brand-primary/10 text-brand-primary border-brand-primary/20; }
+  /* Facts that are not a status (a language, a category): no colour at all. */
+  .badge-neutral { border-color: var(--color-surface-border); color: var(--color-text-secondary); }
 
   .section-container {
     @apply w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6;

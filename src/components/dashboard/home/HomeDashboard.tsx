@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { ArrowRight, Bell, CalendarDays, Search, UserPlus, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, Phone, Search, UserPlus, Users } from 'lucide-react';
 import { db } from '../../../firebase';
 import type { Customer, DispatchRepairOrder, User } from '../../../types';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
@@ -173,7 +173,7 @@ export function HomeDashboard({
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => onNavigate('add')} className="btn-secondary text-sm">
-            <UserPlus size={15} /> Onboard customer
+            <UserPlus size={15} /> Add customer
           </button>
           <button type="button" onClick={() => onNavigate('search')} className="btn-secondary text-sm">
             <Search size={15} /> Find a customer
@@ -187,10 +187,10 @@ export function HomeDashboard({
         <section className="lg:col-span-3 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="crm-section-title flex items-center gap-2">
-              <Bell size={15} className="text-brand-primary" /> Call list — next up
+              <Phone size={15} className="text-brand-primary" /> Service alerts — next up
             </h2>
             <button type="button" onClick={() => onNavigate('alerts')} className="crm-label hover:text-brand-primary inline-flex items-center gap-1">
-              All alerts <ArrowRight size={13} />
+              View all <ArrowRight size={13} />
             </button>
           </div>
 
@@ -278,9 +278,9 @@ export function HomeDashboard({
             <p className="crm-label mb-2 flex items-center gap-2"><Users size={13} /> Quick links</p>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => onNavigate('search')} className="btn-secondary text-sm justify-start">Directory</button>
-              <button type="button" onClick={() => onNavigate('alerts')} className="btn-secondary text-sm justify-start">Alerts</button>
+              <button type="button" onClick={() => onNavigate('alerts')} className="btn-secondary text-sm justify-start">Service alerts</button>
               <button type="button" onClick={() => onNavigate('dispatch')} className="btn-secondary text-sm justify-start">Dispatch</button>
-              <button type="button" onClick={() => onNavigate('add')} className="btn-secondary text-sm justify-start">Onboard</button>
+              <button type="button" onClick={() => onNavigate('add')} className="btn-secondary text-sm justify-start">Add customer</button>
             </div>
           </div>
         </section>

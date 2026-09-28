@@ -754,6 +754,8 @@ export default function FixedOpsForecast({
   const [forecastReportPeriod, setForecastReportPeriod] = useState<'current_month' | 'next_month'>('next_month');
 
   const [mtdTelemetry, setMtdTelemetry] = useState(INITIAL_MTD_TELEMETRY);
+  // Same object identity until a real report is loaded or imported.
+  const isSampleTelemetry = mtdTelemetry === INITIAL_MTD_TELEMETRY;
 
   // Input states aligned exactly with spreadsheet layout in mockup
   const [inputs, setInputs] = useState(getInitialInputs());
@@ -1484,7 +1486,7 @@ export default function FixedOpsForecast({
               <div class="p-5 bg-emerald-50/20 border border-emerald-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
                 <span class="text-[10px] uppercase text-emerald-600 font-extrabold tracking-wider block">Adjusted Profit GP</span>
                 <div class="mt-2 text-xl font-mono font-black text-emerald-700">$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                <span class="text-[9px] text-emerald-400 font-semibold block mt-1">Net Services GP Yield</span>
+                <span class="text-[9px] text-emerald-400 font-semibold block mt-1">Service gross profit</span>
               </div>
 
               <div class="p-5 bg-amber-50/20 border border-amber-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
@@ -1603,7 +1605,7 @@ export default function FixedOpsForecast({
                   <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 mt-3 flex justify-between items-center text-emerald-900 select-all font-bold transition-all">
                     <div class="flex items-center gap-1.5">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      <span class="text-[10px] uppercase tracking-wider text-emerald-800">Adjusted GP Yield:</span>
+                      <span class="text-[10px] uppercase tracking-wider text-emerald-800">Gross profit after unapplied time:</span>
                     </div>
                     <span class="font-mono font-black text-base">$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                   </div>
@@ -1644,8 +1646,9 @@ export default function FixedOpsForecast({
     <div className="space-y-6 max-w-7xl mx-auto min-h-screen text-slate-200">
       <PageHeader
         className="no-print"
-        title="Fixed Ops Financial Forecaster"
-        description="Month-to-date telemetry, capacity modeling, and end-of-month revenue projections."
+        title="Fixed ops forecast"
+        description="Month-to-date results and a projection to month end."
+        breadcrumbs={[{ label: 'Reports' }, { label: 'Forecast' }]}
         actions={
           <>
             <button
@@ -1654,18 +1657,18 @@ export default function FixedOpsForecast({
                 setValidationError(null);
                 setIsPdfModalOpen(true);
               }}
-              className="bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-semibold py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/15"
+              className="btn-primary text-sm"
             >
               <TrendingUp size={14} />
-              Forecast Generator
+              Import report
             </button>
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/15"
+              className="btn-secondary text-sm"
             >
               <Printer size={14} />
-              Preview & Print
+              Print
             </button>
           </>
         }
@@ -1727,52 +1730,53 @@ export default function FixedOpsForecast({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <ForecastPanel className="lg:col-span-4 p-5 sm:p-6 self-stretch animate-fade-in">
           <ForecastSectionHeader
-            eyebrow="Closed Balance Sheets"
-            title="Live Telemetry MTD"
+            title="Month to date"
             action={
-              <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-xs font-semibold ">
-                Current Month
-              </span>
+              isSampleTelemetry ? (
+                <span className="badge badge-warning">Sample figures</span>
+              ) : (
+                <span className="badge badge-neutral">This month</span>
+              )
             }
           />
 
           <div className="space-y-6">
+            {isSampleTelemetry ? (
+              <p className="crm-label -mt-2">
+                No month-to-date report imported yet. Use Import report to replace these sample figures.
+              </p>
+            ) : null}
             <ForecastStat
-              label="MTD Gross Labor Sales"
+              label="Labor sales"
               value={`$${mtdTelemetry.grossLaborSales.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
             />
             <ForecastStat
-              label="MTD Labor Gross Profit"
+              label="Labor gross profit"
               value={`$${mtdTelemetry.laborGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
               sub={`${mtdTelemetry.laborGPPercent}% gross margin`}
               accent="text-brand-primary"
             />
 
             <div className="grid grid-cols-2 gap-3">
-              <ForecastMiniStat label="Hours Sold" value={`${mtdTelemetry.hoursSold.toFixed(1)} hrs`} />
+              <ForecastMiniStat label="Hours sold" value={`${mtdTelemetry.hoursSold.toFixed(1)} hrs`} />
               <ForecastMiniStat
-                label="Repair Orders"
+                label="Repair orders"
                 value={mtdTelemetry.repairOrdersWritten.toLocaleString()}
               />
             </div>
 
-            <div className="flex justify-between items-end pt-1 border-t border-white/5">
+            <div className="pt-4 border-t">
               <ForecastStat
-                label="Effective Labor Rate"
+                label="Effective labor rate"
                 value={`$${mtdTelemetry.effectiveLaborRate.toFixed(2)}`}
-                accent="text-brand-primary"
               />
-              <span className="px-2.5 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold rounded-lg ">
-                Live
-              </span>
             </div>
           </div>
         </ForecastPanel>
 
         <ForecastPanel className="lg:col-span-8 p-5 sm:p-6 space-y-6">
           <ForecastSectionHeader
-            eyebrow="Forecasting Parameters"
-            title="Capacity & Rate Modifiers"
+            title="Assumptions"
             action={
               <div className="bg-slate-950/50 p-1 rounded-xl border border-white/5 flex gap-1 select-none">
                 {(['conservative', 'balanced', 'aggressive'] as const).map((p) => (
@@ -1796,10 +1800,10 @@ export default function FixedOpsForecast({
 
           <div className="space-y-6">
             <div className="space-y-3">
-              <p className="text-xs font-semibold text-slate-500">Capacity Constants</p>
+              <p className="crm-label">Shop capacity</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <ForecastSlider
-                  label="Billing Days in Month"
+                  label="Working days in month"
                   valueLabel={`${inputs.billingDays} days`}
                   value={inputs.billingDays}
                   min={1}
@@ -1807,7 +1811,7 @@ export default function FixedOpsForecast({
                   onChange={(v) => setInputs({ ...inputs, billingDays: v })}
                 />
                 <ForecastSlider
-                  label="Staffed Technicians"
+                  label="Technicians"
                   valueLabel={`${inputs.techsAvailable} techs`}
                   value={inputs.techsAvailable}
                   min={1}
@@ -1815,7 +1819,7 @@ export default function FixedOpsForecast({
                   onChange={(v) => setInputs({ ...inputs, techsAvailable: v })}
                 />
                 <ForecastSlider
-                  label="Standard Shift Hours"
+                  label="Hours per shift"
                   valueLabel={`${inputs.hoursPerDay} hrs/day`}
                   value={inputs.hoursPerDay}
                   min={4}
@@ -1824,7 +1828,7 @@ export default function FixedOpsForecast({
                   onChange={(v) => setInputs({ ...inputs, hoursPerDay: v })}
                 />
                 <ForecastSlider
-                  label="Absenteeism Factor"
+                  label="Time off"
                   valueLabel={`${inputs.absenteeismRate}%`}
                   value={inputs.absenteeismRate}
                   min={0}
@@ -1834,7 +1838,7 @@ export default function FixedOpsForecast({
                   onChange={(v) => setInputs({ ...inputs, absenteeismRate: v })}
                 />
                 <ForecastSlider
-                  label="Shop Efficiency"
+                  label="Shop efficiency"
                   valueLabel={`${inputs.efficiencyForecast}%`}
                   value={inputs.efficiencyForecast}
                   min={10}
@@ -1848,9 +1852,7 @@ export default function FixedOpsForecast({
 
             <div className="space-y-3 pt-2 border-t border-white/5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-slate-500">
-                  Revenue Mix Strategy Targets
-                </p>
+                <p className="crm-label">Pay mix targets</p>
                 <span
                   className={cn(
                     'px-2.5 py-1 rounded-lg text-xs font-semibold w-fit',
@@ -1940,9 +1942,7 @@ export default function FixedOpsForecast({
             </div>
 
             <div className="space-y-3 pt-2 border-t border-white/5">
-              <p className="text-xs font-semibold text-slate-500">
-                Sublet, Misc & Ledger Adjustments
-              </p>
+              <p className="crm-label">Sublet and other</p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <ForecastField label="Sublet Sales">
                   <input
@@ -1997,22 +1997,22 @@ export default function FixedOpsForecast({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
         <ForecastMetricCard
           icon={Calendar}
-          label="Max Raw Capacity"
+          label="Available hours"
           value={`${calculations.totalMonthlyHoursAvail.toLocaleString(undefined, { maximumFractionDigits: 0 })} hrs`}
           detail={`${inputs.billingDays}d × ${inputs.techsAvailable} techs × ${inputs.hoursPerDay}h`}
           iconWrapClass="bg-slate-800/80 text-slate-300"
         />
         <ForecastMetricCard
           icon={Clock}
-          label="Shop Efficiency Yield"
+          label="Projected hours"
           value={`${calculations.totalNetProjectedHours.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} hrs`}
-          detail={`Lost to absenteeism: −${calculations.lostHours.toFixed(1)} hrs`}
+          detail={`After time off: −${calculations.lostHours.toFixed(1)} hrs`}
           accent="text-emerald-400"
           iconWrapClass="bg-emerald-500/10 text-emerald-400"
         />
         <ForecastMetricCard
           icon={DollarSign}
-          label="Projected Labor Sales"
+          label="Projected labor sales"
           value={`$${calculations.totalLaborSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           detail={`Labor GP $${calculations.totalLaborGrossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })} · ${calculations.blendedGPPercent.toFixed(0)}% blended`}
           accent="text-brand-primary"
@@ -2020,9 +2020,9 @@ export default function FixedOpsForecast({
         />
         <ForecastMetricCard
           icon={TrendingUp}
-          label="Forecast Blended ELR"
+          label="Projected ELR"
           value={`$${calculations.totalELR.toFixed(2)}`}
-          detail={`Live baseline $${mtdTelemetry.effectiveLaborRate.toFixed(2)}`}
+          detail={`Month to date $${mtdTelemetry.effectiveLaborRate.toFixed(2)}`}
           accent="text-amber-400"
           iconWrapClass="bg-amber-500/10 text-amber-400"
         />
@@ -2030,35 +2030,36 @@ export default function FixedOpsForecast({
 
       <ForecastPanel className="p-6 md:p-8 select-none">
         <ForecastSectionHeader
-          eyebrow="Consolidated Summation"
-          title="Total Service Operations"
+          title="Service department total"
         />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           <ForecastStat
-            label="Total Service Department Sales"
+            label="Service sales"
             value={`$${calculations.totalServiceSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            sub="Labor + Sublet + Misc"
+            sub="Labor, sublet and misc"
           />
           <ForecastStat
-            label="Total Service Gross Profit"
+            label="Service gross profit"
             value={`$${calculations.totalServiceGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             sub="Labor GP + Sublet GP + Misc GP"
             accent="text-brand-primary"
           />
-          <ForecastStat
-            label="Adjusted Total Gross Profit"
-            value={`$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            sub="Service GP − unapplied hours/expense"
-            accent="text-emerald-400"
-          />
+          {Math.abs(calculations.adjustedTotalGrossProfit - calculations.totalServiceGrossProfit) >= 0.005 ? (
+            <ForecastStat
+              label="Gross profit after unapplied time"
+              value={`$${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              sub="Service gross profit less unapplied hours and expense"
+            />
+          ) : (
+            <ForecastStat label="Unapplied time" value="None" sub="No adjustment to gross profit" />
+          )}
         </div>
       </ForecastPanel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 select-none">
         <ForecastPanel className="p-5 sm:p-6 space-y-4">
           <ForecastSectionHeader
-            eyebrow="Financial Yield Comparison"
-            title="Current vs Forecasted Labor Volume"
+            title="Labor sales: to date vs projected"
           />
           <div className="w-full">
             <ResponsiveContainer width="100%" height={240}>
@@ -2082,8 +2083,8 @@ export default function FixedOpsForecast({
                   formatter={(v: number) => [`$${Number(v).toLocaleString()}`, '']}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: 'var(--color-text-secondary)', paddingTop: '12px' }} />
-                <Bar dataKey="current" name="Current MTD" fill="var(--color-brand-primary, #6366f1)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="projected" name="Projected Forecast" fill="var(--color-text-secondary)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="current" name="Month to date" fill="var(--color-brand-primary, #6366f1)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="projected" name="Projected" fill="var(--color-text-secondary)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -2091,8 +2092,7 @@ export default function FixedOpsForecast({
 
         <ForecastPanel className="p-5 sm:p-6 space-y-4">
           <ForecastSectionHeader
-            eyebrow="Revenue Mix Portfolio"
-            title="Projected Yield Shares"
+            title="Projected pay mix"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
             <div className="relative flex items-center justify-center h-52">
@@ -2410,7 +2410,7 @@ export default function FixedOpsForecast({
               <div className="p-5 bg-emerald-50/20 border border-emerald-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
                 <span className="text-xs text-emerald-600 font-semibold block">Adjusted Profit GP</span>
                 <div className="mt-2 text-xl font-mono font-semibold text-emerald-700">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                <span className="text-xs text-emerald-400 font-semibold block mt-1">Net Services GP Yield</span>
+                <span className="text-xs text-emerald-400 font-semibold block mt-1">Service gross profit</span>
               </div>
 
               <div className="p-5 bg-amber-50/20 border border-amber-100/60 rounded-2xl flex flex-col justify-between shadow-sm">
@@ -2529,7 +2529,7 @@ export default function FixedOpsForecast({
                   <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 mt-3 flex justify-between items-center text-emerald-950 select-all font-bold transition-all">
                     <div className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      <span className="text-xs text-emerald-800">Adjusted GP Yield:</span>
+                      <span className="text-xs text-emerald-800">Gross profit after unapplied time:</span>
                     </div>
                     <span className="font-mono font-semibold text-base">${calculations.adjustedTotalGrossProfit.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
                   </div>

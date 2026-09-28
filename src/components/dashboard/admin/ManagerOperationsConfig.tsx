@@ -14,6 +14,8 @@ import {
   Save,
   Target,
   Timer,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import {
@@ -294,7 +296,7 @@ export function ManagerOperationsConfig({
   return (
     <div className="space-y-2">
       <p className="text-xs text-slate-500 mb-2">
-        Configure {dealershipName} operations. Defaults match current app behavior until you change and save.
+        Settings for {dealershipName}. Nothing changes until you save.
       </p>
 
       <Section
@@ -552,7 +554,7 @@ export function ManagerOperationsConfig({
           <p className="text-xs text-slate-600">Add advisors under Pot of Gold roster to filter forecast rollup.</p>
         )}
         <p className="text-xs text-slate-600">
-          Empty selection = all advisors (current behavior).
+          Leave all unselected to include every advisor.
         </p>
       </Section>
 
@@ -594,9 +596,9 @@ export function ManagerOperationsConfig({
               }
               className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white"
             >
-              <option value="both">Compact + full strip (default)</option>
-              <option value="compact">Compact badge only</option>
-              <option value="full">Full strip only</option>
+              <option value="both">Badge and banner (default)</option>
+              <option value="compact">Badge only</option>
+              <option value="full">Banner only</option>
               <option value="hidden">Hidden</option>
             </select>
           </div>
@@ -611,7 +613,7 @@ export function ManagerOperationsConfig({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
           <div>
             <label className="text-xs font-semibold text-slate-500">
-              Default hours from now (0 = manual)
+              Default promise time, in hours (0 for none)
             </label>
             <input
               type="number"
@@ -689,7 +691,7 @@ export function ManagerOperationsConfig({
       >
         <Toggle
           label="Auto-open tech display on TV"
-          description="Opens tech display when dispatch loads with ?tv=1 in the URL"
+          description="Shop TVs open straight to the tech display."
           enabled={techDisplay.autoOpenOnTv === true}
           onToggle={() =>
             onUpdate({
@@ -786,28 +788,28 @@ export function ManagerOperationsConfig({
       >
         <div className="space-y-2 max-w-lg">
           {orderedLanes.map((lane, idx) => (
-            <div key={lane.id} className="flex gap-2 items-center">
-              <div className="flex flex-col gap-0.5 shrink-0">
-                <button
-                  type="button"
-                  disabled={idx === 0}
-                  onClick={() => moveLane(lane.id, -1)}
-                  className="text-xs text-slate-500 disabled:opacity-30 px-1"
-                >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  disabled={idx === orderedLanes.length - 1}
-                  onClick={() => moveLane(lane.id, 1)}
-                  className="text-xs text-slate-500 disabled:opacity-30 px-1"
-                >
-                  ▼
-                </button>
-              </div>
-              <span className="text-xs font-mono text-slate-600 w-24 shrink-0">{lane.id}</span>
+            <div key={lane.id} className="flex gap-1.5 items-center min-w-0">
+              <button
+                type="button"
+                disabled={idx === 0}
+                onClick={() => moveLane(lane.id, -1)}
+                className="btn-secondary p-0 w-11 h-11 justify-center shrink-0 disabled:opacity-30"
+                aria-label={`Move ${laneCustom.labels?.[lane.id] || lane.label} up`}
+              >
+                <ChevronUp size={16} />
+              </button>
+              <button
+                type="button"
+                disabled={idx === orderedLanes.length - 1}
+                onClick={() => moveLane(lane.id, 1)}
+                className="btn-secondary p-0 w-11 h-11 justify-center shrink-0 disabled:opacity-30"
+                aria-label={`Move ${laneCustom.labels?.[lane.id] || lane.label} down`}
+              >
+                <ChevronDown size={16} />
+              </button>
               <input
                 type="text"
+                aria-label={`Name for the ${lane.label} lane`}
                 placeholder={lane.label}
                 value={laneCustom.labels?.[lane.id] ?? ''}
                 onChange={(e) =>
@@ -821,7 +823,7 @@ export function ManagerOperationsConfig({
                     },
                   })
                 }
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white"
+                className="input-field flex-1 min-w-0"
               />
             </div>
           ))}

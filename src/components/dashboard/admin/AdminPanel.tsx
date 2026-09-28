@@ -92,80 +92,80 @@ function getPanelSectionMeta(
   panelMode: 'admin' | 'manager' | 'full'
 ): { eyebrow: string; title: string; description: string } {
   const scope =
-    panelMode === 'admin' ? 'Admin settings' : panelMode === 'manager' ? 'Manager settings' : 'System administration';
+    panelMode === 'admin' ? 'Admin' : panelMode === 'manager' ? 'Manager' : 'Administration';
 
   switch (subTab) {
     case 'operations':
       return {
         eyebrow: scope,
-        title: 'Dealership Configuration',
-        description: 'DMS, dispatch, and competition settings for this store.',
+        title: 'Operation settings',
+        description: 'Dispatch, service alerts, goals and imports for this store.',
       };
     case 'preferences':
       return {
         eyebrow: scope,
-        title: 'Workspace Preferences',
-        description: 'Personal workspace settings for contact workflow, modules, and CRM display.',
+        title: 'Preferences',
+        description: 'Your own display and contact-workflow settings.',
       };
     case 'users':
       return {
         eyebrow: scope,
-        title: 'User Administration',
+        title: 'Team',
         description:
           panelMode === 'manager'
-            ? 'Approve enrollments and manage sales and service staff permissions for this store.'
-            : 'Dealership user administration has moved to Manager → User administration.',
+            ? 'Approve new staff and manage what each person can see.'
+            : 'Store staff are managed under Manager → Team.',
       };
     case 'ai-usage':
       return {
         eyebrow: scope,
-        title: 'AI Usage Logs',
-        description: 'Token usage from automated PDF and DMS parse routes.',
+        title: 'AI usage',
+        description: 'Usage from PDF and DMS report imports.',
       };
     case 'suggestions':
       return {
         eyebrow: scope,
-        title: 'User Suggestions',
-        description: 'Feedback submitted from the suggestion icon in the top bar.',
+        title: 'Suggestions',
+        description: 'Feedback sent from the suggestion button.',
       };
     case 'master-users':
       return {
         eyebrow: scope,
-        title: 'Master User Settings',
-        description: 'Cross-dealership accounts, platform announcements, and system admin access.',
+        title: 'Master users',
+        description: 'Every account across all three stores, and store announcements.',
       };
     case 'enrollments':
       return {
         eyebrow: scope,
-        title: 'Enrollment Queues',
-        description: 'Manager enrollments are approved under Manager → User administration.',
+        title: 'Access requests',
+        description: 'Manager requests are approved under Manager → Team.',
       };
     case 'import-health':
       return {
         eyebrow: scope,
-        title: 'DMS Import Health',
-        description: 'Last successful PDF parse and recent failures per dealership.',
+        title: 'Import health',
+        description: 'Last successful PDF import and recent failures for each store.',
       };
     case 'pbs-sync':
       return {
         eyebrow: scope,
-        title: 'PBS Data Sync',
-        description: 'Pull customers, service history, and appointments from PartnerHUB.',
+        title: 'PBS sync',
+        description: 'Customer and vehicle changes from PBS PartnerHUB, matched by VIN. Runs every morning at 6:00 AM Pacific.',
       };
     case 'logs':
       return {
         eyebrow: scope,
-        title: panelMode === 'manager' ? 'Dealership Logs' : 'Audit Logs',
+        title: panelMode === 'manager' ? 'Logs' : 'Audit logs',
         description:
           panelMode === 'manager'
-            ? 'Tenant-specific audit trail for this dealership only.'
-            : 'User action audit trail and PBS PartnerHUB sync history.',
+            ? 'Activity at this store, with who did it and when. Entries cannot be edited.'
+            : 'Activity across all stores, plus PBS sync history. Entries cannot be edited.',
       };
     default:
       return {
         eyebrow: scope,
-        title: 'System Administration',
-        description: 'Secure administrative controls for this dealership.',
+        title: 'Administration',
+        description: 'Settings for this store.',
       };
   }
 }
@@ -769,7 +769,7 @@ export default function AdminPanel({
         <div className="space-y-4 mb-8 animate-in fade-in duration-300">
           <PageHeader
             title="Dealership announcements"
-            description="Publish a live banner for logged-in staff at each store. Updates appear instantly for all users."
+            description="A banner shown to signed-in staff at each store."
           />
           <div className="grid grid-cols-1 gap-4">
             {DEALERSHIPS.map((d) => (

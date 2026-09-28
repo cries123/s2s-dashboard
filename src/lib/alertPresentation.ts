@@ -24,13 +24,19 @@ function startOfDay(d: Date): Date {
   return c;
 }
 
+/** Overdue by more than this many days shows red; up to it, amber. */
+export const OVERDUE_DANGER_DAYS = 30;
+
 function labelFor(daysPastDue: number): { label: string; tone: AlertTone } {
   if (daysPastDue < 0) {
     const n = Math.abs(daysPastDue);
     return { label: n === 1 ? 'Due tomorrow' : `Due in ${n} days`, tone: 'info' };
   }
   if (daysPastDue === 0) return { label: 'Due today', tone: 'warning' };
-  return { label: daysPastDue === 1 ? '1 day overdue' : `${daysPastDue} days overdue`, tone: 'danger' };
+  // Graded, so red means something: every overdue row used to be red, which made a
+  // customer 3 days late look the same as one 4 months late.
+  const label = daysPastDue === 1 ? '1 day overdue' : `${daysPastDue} days overdue`;
+  return { label, tone: daysPastDue > OVERDUE_DANGER_DAYS ? 'danger' : 'warning' };
 }
 
 /**

@@ -17,19 +17,10 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const VARIANT_STYLES: Record<ToastVariant, { icon: typeof CheckCircle2; classes: string }> = {
-  success: {
-    icon: CheckCircle2,
-    classes: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  },
-  error: {
-    icon: XCircle,
-    classes: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-  },
-  info: {
-    icon: Info,
-    classes: 'bg-brand-primary/10 text-brand-primary border-brand-primary/20',
-  },
+const VARIANT_STYLES: Record<ToastVariant, { icon: typeof CheckCircle2; iconClass: string; accent: string }> = {
+  success: { icon: CheckCircle2, iconClass: 'text-emerald-500', accent: 'var(--color-success, #10b981)' },
+  error: { icon: XCircle, iconClass: 'text-rose-500', accent: '#f43f5e' },
+  info: { icon: Info, iconClass: 'text-brand-primary', accent: 'var(--color-brand-primary)' },
 };
 
 const AUTO_DISMISS_MS = 5000;
@@ -71,7 +62,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       <div
-        className="fixed top-4 inset-x-4 sm:inset-x-auto sm:left-auto sm:right-4 z-[10000] flex flex-col gap-2 sm:w-96 max-w-full pointer-events-none"
+        className="fixed inset-x-4 bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px)+0.75rem)] lg:bottom-auto lg:top-4 sm:left-auto sm:right-4 z-[10000] flex flex-col gap-2 sm:w-96 max-w-full pointer-events-none"
         aria-live="polite"
         aria-atomic="false"
       >
@@ -82,17 +73,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             <div
               key={toast.id}
               role="status"
-              className={cn(
-                'pointer-events-auto flex items-start gap-3 rounded-2xl border p-4 shadow-lg backdrop-blur-sm animate-slide-in',
-                style.classes
-              )}
+              className="pointer-events-auto flex items-start gap-3 rounded-lg border border-l-[3px] p-3.5 shadow-lg animate-slide-in"
+              style={{
+                backgroundColor: 'var(--color-surface-card)',
+                borderColor: 'var(--color-surface-border)',
+                borderLeftColor: style.accent,
+                color: 'var(--color-text-primary)',
+              }}
             >
-              <Icon size={18} className="shrink-0 mt-0.5" />
-              <span className="flex-1 text-sm font-semibold leading-snug">{toast.text}</span>
+              <Icon size={18} className={cn('shrink-0 mt-0.5', style.iconClass)} />
+              <span className="flex-1 text-sm font-medium leading-snug">{toast.text}</span>
               <button
                 type="button"
                 onClick={() => dismiss(toast.id)}
-                className="shrink-0 rounded-md p-0.5 opacity-70 hover:opacity-100 transition-opacity"
+                className="shrink-0 rounded-md p-1 -m-1 transition-opacity"
+                style={{ color: 'var(--color-text-secondary)' }}
                 aria-label="Dismiss notification"
               >
                 <X size={14} />

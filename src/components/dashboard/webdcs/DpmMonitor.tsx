@@ -75,10 +75,10 @@ export default function DpmMonitor({ canRun }: DpmMonitorProps) {
         <div className="min-w-0">
           <h2 className="crm-section-title flex items-center gap-2">
             <Gauge size={16} className="text-brand-primary" />
-            DPM monitor
+            DPM scorecard
           </h2>
           <p className="crm-label mt-0.5">
-            Reads the metric cards on whichever DPM view is open — red and blue are HMA's own marks.
+            Reads the scorecard on the open DPM view. Pass/fail colours come from HMA.
           </p>
         </div>
         <button
@@ -93,7 +93,7 @@ export default function DpmMonitor({ canRun }: DpmMonitorProps) {
       </div>
 
       <CardNoticeRow className="mt-3">
-        <CardNotice tone="info" summary="How to use it">
+        <CardNotice tone="info" summary="How it works">
           Open DPM from the dealer portal. Go to <strong>After Sales → Warranty → WOPR</strong> and click
           Read; switch to <strong>Diagnostic</strong> and click Read; then the view with the{' '}
           <strong>Service Lane Technology</strong> card and click Read. Each read is filed under the

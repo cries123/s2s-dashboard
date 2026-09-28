@@ -295,7 +295,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     ? "Alert Sourced"
                     : serviceAlerts.isStandardMode
                       ? "Standard (6 mo)"
-                      : "S2S Optimized"}
+                      : "Active"}
                 </span>
               </div>
               
@@ -362,7 +362,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Car size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Asset</p>
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Vehicle</p>
               <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate max-w-[100px] sm:max-w-[150px]">{customer.year || 'N/A'} {customer.make} {customer.model}</p>
             </div>
           </div>
@@ -372,8 +372,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Gauge size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 font-sans truncate">Odometer</p>
-              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">{customer.mileage ? `${parseInt(customer.mileage).toLocaleString()} mi` : 'Not Logged'}</p>
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 font-sans truncate">Mileage</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">{customer.mileage ? `${parseInt(customer.mileage).toLocaleString()} mi` : '—'}</p>
             </div>
           </div>
 
@@ -392,7 +392,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <Activity size={15} />
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Predictive</p>
+              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Next service</p>
               <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">
                 {serviceAlerts.isStandardMode
                   ? serviceAlerts.isServiceAlertActive(customer)
@@ -420,7 +420,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <option value="overview">General</option>
               <option value="demographics">Information</option>
               <option value="history">Service History ({customer.recentVisits?.length || 0})</option>
-              <option value="campaigns">S2S Care Campaigns</option>
+              <option value="campaigns">Recalls & campaigns</option>
             </select>
             <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
               <span className="text-xs">▼</span>
@@ -433,7 +433,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               { id: 'overview', label: 'General', icon: Sparkles },
               { id: 'demographics', label: 'Information', icon: UserIcon },
               { id: 'history', label: `Service History (${customer.recentVisits?.length || 0})`, icon: Database },
-              { id: 'campaigns', label: 'S2S Care Campaigns', icon: ShieldCheck }
+              { id: 'campaigns', label: 'Recalls & campaigns', icon: ShieldCheck }
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -480,25 +480,25 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       </div>
                       
                       <p className="text-xs font-semibold text-brand-secondary mb-4 flex items-center gap-2">
-                        <Car size={13} /> Active Fleet Configuration
+                        <Car size={13} /> Vehicle
                       </p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-2">
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-xs font-semibold text-slate-500 ">Model Specification</p>
+                          <p className="text-xs font-semibold text-slate-500 ">Model</p>
                           <p className="text-base sm:text-lg font-semibold text-white mt-1">
                             {formData.year || 'Not Specified'} {formData.make} {formData.model}
                           </p>
                         </div>
 
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl col-span-1 sm:col-span-2 relative">
-                          <p className="text-xs font-semibold text-slate-500 ">Global Chassis VIN Profile</p>
+                          <p className="text-xs font-semibold text-slate-500 ">VIN</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                             <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
-                              <p className="text-xs font-semibold text-slate-500 ">Full VIN (17 Characters)</p>
+                              <p className="text-xs font-semibold text-slate-500 ">Full VIN</p>
                               <div className="flex items-center justify-between mt-1 gap-2">
                                 <span className="font-mono text-xs sm:text-sm font-semibold text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap ">
-                                  {formData.vin || 'Not Set'}
+                                  {formData.vin || '—'}
                                 </span>
                                 {formData.vin && (
                                   <button 
@@ -534,9 +534,9 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         </div>
 
                         <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-xs font-semibold text-slate-500 ">Verified Odometer</p>
+                          <p className="text-xs font-semibold text-slate-500 ">Mileage</p>
                           <p className="text-base sm:text-lg font-semibold text-white mt-1">
-                            {formData.mileage ? `${parseInt(formData.mileage).toLocaleString()} miles` : 'N/A'}
+                            {formData.mileage ? `${parseInt(formData.mileage).toLocaleString()} mi` : '—'}
                           </p>
                         </div>
 
@@ -553,7 +553,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     {/* Oil Analysis Bento Panel */}
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
                       <p className="text-xs font-semibold text-brand-primary mb-4 flex items-center gap-2">
-                        <Droplet size={13} className="text-indigo-400 animate-pulse" /> Precision Service Intelligence
+                        <Droplet size={13} className="text-indigo-400" /> Service history
                       </p>
 
                       {oilAnalysis ? (
@@ -562,7 +562,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                               <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl flex items-center justify-between">
                                 <div>
-                                  <p className="text-xs font-semibold text-slate-500 mb-1">Average Service Calendar</p>
+                                  <p className="text-xs font-semibold text-slate-500 mb-1">Average time between visits</p>
                                   <p className="text-sm sm:text-base font-semibold text-white">
                                     {oilAnalysis.avgMonths} Months
                                   </p>
@@ -591,7 +591,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                               </div>
                               
                               <p className="text-xs font-semibold text-brand-secondary mb-3 flex items-center gap-1.5">
-                                <Activity size={12} /> S2S Predictive Next Oil Change
+                                <Activity size={12} /> Next oil change (estimated)
                               </p>
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -629,7 +629,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     {/* Customer Notes Bento Block */}
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 mt-4 sm:mt-6">
                       <p className="text-xs font-semibold text-amber-400 flex items-center gap-2">
-                        <MessageSquare size={13} className="text-amber-400" /> Executive Service & Account Notes
+                        <MessageSquare size={13} className="text-amber-400" /> Notes
                       </p>
                       
                       <div className="space-y-3">
@@ -664,7 +664,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   <div className="space-y-4 sm:space-y-6 lg:space-y-8">
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
                       <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
-                        <UserIcon size={14} className="text-brand-secondary" /> Primary Contacts
+                        <UserIcon size={14} className="text-brand-secondary" /> Contact
                       </p>
 
                       <div className="space-y-3.5 sm:space-y-4">
@@ -759,22 +759,22 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
                       <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
-                        <Shield size={14} className="text-emerald-500" /> Executive Metadata
+                        <Shield size={14} className="text-emerald-500" /> Record details
                       </p>
                       
                       <div className="space-y-3.5 text-xs">
                         <div className="flex justify-between items-center text-slate-400">
-                          <span className="font-bold">Original Advisor:</span>
-                          <span className="font-semibold text-white">{customer.soldByUsername || 'Import Conduit'}</span>
+                          <span className="font-bold">Sold by:</span>
+                          <span className="font-semibold text-white">{customer.soldByUsername || 'Imported record'}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-400">
-                          <span className="font-bold">Dealership Source:</span>
+                          <span className="font-bold">Store:</span>
                           <span className="font-semibold text-white font-mono">HY-{customer.dealershipId ? customer.dealershipId.slice(-6).toUpperCase() : 'MAIN'}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-400">
-                          <span className="font-bold">Campaign Status:</span>
+                          <span className="font-bold">Reminders:</span>
                           <span className="flex items-center gap-1.5 font-semibold text-white">
-                            <CheckCircle2 size={12} className="text-emerald-400" /> Sync OK
+                            <CheckCircle2 size={12} className="text-emerald-400" /> On
                           </span>
                         </div>
                       </div>
@@ -829,7 +829,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     <div className="space-y-3 sm:space-y-4">
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
                         <span className="text-xs font-semibold text-slate-500">Street Address</span>
-                        <p className="text-sm font-semibold text-white mt-1">{formData.address || 'Not Logged'}</p>
+                        <p className="text-sm font-semibold text-white mt-1">{formData.address || '—'}</p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1073,7 +1073,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   <div className="flex items-center justify-between border-b border-white/5 pb-4">
                     <div>
                       <h4 className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-                        <Edit2 size={14} className="text-brand-secondary" /> Modify Customer Coordinates
+                        <Edit2 size={14} className="text-brand-secondary" /> Edit customer
                       </h4>
                       <p className="text-xs font-bold text-slate-500 mt-0.5">Please ensure all required CRM fields match official records.</p>
                     </div>
@@ -1082,7 +1082,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                   <div className="space-y-6 sm:space-y-8">
                     {/* Part 1: Personal Specifications */}
                     <div className="space-y-4">
-                      <p className="text-xs font-semibold text-brand-primary ">Part A: Name & Identity</p>
+                      <p className="text-xs font-semibold text-brand-primary ">Name</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">First Name</label>
@@ -1097,7 +1097,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 2: Contact Options */}
                     <div className="space-y-4">
-                      <p className="text-xs font-semibold text-brand-primary ">Part B: Communication Contacts</p>
+                      <p className="text-xs font-semibold text-brand-primary ">Contact</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">Phone Connection</label>
@@ -1112,7 +1112,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 3: Vehicle Specs */}
                     <div className="space-y-4">
-                      <p className="text-xs font-semibold text-indigo-400 ">Part C: Automotive Registry Details</p>
+                      <p className="text-xs font-semibold text-indigo-400 ">Vehicle</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">Model Year</label>
@@ -1152,8 +1152,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           <input name="vinLast8" value={formData.vinLast8} onChange={handleChange} className="input-field font-mono text-brand-secondary" placeholder="Last 8 alphanumeric" maxLength={8} />
                         </div>
                         <div className="space-y-1.5 col-span-1">
-                          <label className="input-label">Current Odometer (Miles)</label>
-                          <input name="mileage" value={formData.mileage || ''} onChange={handleChange} className="input-field font-mono" placeholder="Mileage integer" />
+                          <label className="input-label">Mileage</label>
+                          <input name="mileage" value={formData.mileage || ''} onChange={handleChange} className="input-field font-mono" placeholder="e.g. 24500" inputMode="numeric" />
                         </div>
                       </div>
 
@@ -1167,15 +1167,15 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 4: Address Coordinates */}
                     <div className="space-y-4">
-                      <p className="text-xs font-semibold text-rose-400 ">Part D: Residence Logistics</p>
+                      <p className="text-xs font-semibold text-rose-400 ">Address</p>
                       <div className="space-y-3">
                         <div className="space-y-1.5">
-                          <label className="input-label">Street Address Coordinates</label>
-                          <input name="address" value={formData.address || ''} onChange={handleChange} className="input-field" placeholder="Primary Address Coordinates" />
+                          <label className="input-label">Street address</label>
+                          <input name="address" value={formData.address || ''} onChange={handleChange} className="input-field" placeholder="Street address" />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                           <div className="space-y-1.5">
-                            <label className="input-label">City State Hub</label>
+                            <label className="input-label">City</label>
                             <input name="city" value={formData.city || ''} onChange={handleChange} className="input-field" placeholder="City" />
                           </div>
                           <div className="space-y-1.5">
@@ -1192,7 +1192,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 5: Campaign & Language preferences */}
                     <div className="space-y-4">
-                      <p className="text-xs font-semibold text-emerald-400 ">Part E: Retention Configurations</p>
+                      <p className="text-xs font-semibold text-emerald-400 ">Service reminders</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="input-label">Communication Dialect</label>
@@ -1220,7 +1220,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     {/* Part 6: Profile Notes */}
                     <div className="space-y-4">
-                      <p className="text-xs font-semibold text-amber-500 ">Part F: Account Notes</p>
+                      <p className="text-xs font-semibold text-amber-500 ">Notes</p>
                       <div className="space-y-1.5">
                         <label className="input-label">Customer Profile Notes</label>
                         <textarea

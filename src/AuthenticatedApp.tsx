@@ -188,7 +188,6 @@ function DashboardShell({ user }: { user: User }) {
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'logs');
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
-  const [managerDashboardSubTab, setManagerDashboardSubTab] = useState<'users' | 'settings' | 'logs'>('users');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const adminMenuRef = React.useRef<HTMLDivElement>(null);
 
@@ -301,10 +300,7 @@ function DashboardShell({ user }: { user: User }) {
   const handleSidebarNavigate = React.useCallback((item: SidebarNavItem) => {
     setActiveTab(item.tab);
     if (item.adminSubTab) setAdminSubTab(item.adminSubTab);
-    if (item.managerSubTab) {
-      setManagerSubTab(item.managerSubTab);
-      if (item.managerSubTab === 'team') setManagerDashboardSubTab('users');
-    }
+    if (item.managerSubTab) setManagerSubTab(item.managerSubTab);
   }, []);
   const serviceAlerts = useServiceAlertInterval(
     currentDealershipId || 'hyundai',
@@ -318,7 +314,7 @@ function DashboardShell({ user }: { user: User }) {
 
   const availableTabs = [
     { id: 'home', label: 'Home', icon: LayoutDashboard },
-    { id: 'add', label: 'Onboard', icon: UserPlus },
+    { id: 'add', label: 'Add customer', icon: UserPlus },
     { id: 'search', label: 'Directory', icon: Search },
     { id: 'alerts', label: 'Alerts', icon: Bell, badge: activeAlertsCount },
     { id: 'appointments', label: 'Operations', icon: Calendar },
@@ -710,8 +706,6 @@ function DashboardShell({ user }: { user: User }) {
 
           {activeTab === 'manager' && canSeeManagerPanel(currentUser) && managerSubTab === 'team' && (
             <ManagerDashboard
-              activeSubTab={managerDashboardSubTab}
-              onChangeSubTab={setManagerDashboardSubTab}
               currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
@@ -803,9 +797,6 @@ function DashboardShell({ user }: { user: User }) {
           setActiveTab(tab as typeof activeTab);
           if (nextManagerSubTab) {
             setManagerSubTab(nextManagerSubTab);
-            if (nextManagerSubTab === 'team') {
-              setManagerDashboardSubTab('users');
-            }
           }
           if (nextAdminSubTab) {
             setAdminSubTab(nextAdminSubTab as AdminSubTab);

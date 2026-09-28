@@ -308,11 +308,6 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
           </form>
         </div>
         
-        <div className="px-6 py-4 bg-slate-950/80 border-t border-surface-border text-center">
-           <p className="text-xs font-bold text-slate-700 ">
-             Advanced Telemetry Integration • Hyundai Group
-           </p>
-        </div>
       </div>
     </div>
   );

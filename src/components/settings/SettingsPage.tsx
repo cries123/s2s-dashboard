@@ -19,6 +19,7 @@ import { ThemeToggle } from '../ui/ThemeToggle';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../hooks/useAuth';
 import { DealershipProfileField } from '../ui/DealershipProfileField';
+import { PageHeader } from '../layout/PageHeader';
 
 interface SettingsPageProps {
   onNavigate: (tab: LandingTab) => void;
@@ -179,10 +180,10 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
           })
         }
         disabled={saving}
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-semibold normal-case tracking-normal text-slate-300 disabled:opacity-50"
+        className="btn-secondary text-xs disabled:opacity-50"
       >
         <RotateCcw size={12} />
-        Reset defaults
+        Reset to defaults
       </button>
     </div>
   );
@@ -191,26 +192,11 @@ export function SettingsPage({ onNavigate, onNotify, currentDealershipId, onDeal
     <div className={cn('space-y-6 animate-in fade-in duration-300 w-full pb-8', embedded ? '' : 'max-w-3xl mx-auto slide-in-from-bottom-4')}>
 
       {!embedded ? (
-        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-surface-card p-6 sm:p-8 shadow-sm">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-brand-primary/10 blur-[60px] rounded-full pointer-events-none" />
-          <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <SlidersHorizontal size={16} className="text-brand-primary" />
-                <span className="text-xs font-semibold normal-case text-brand-primary">
-                  Your workspace
-                </span>
-              </div>
-              <h1 className="text-2xl font-semibold text-white tracking-tight">
-                Preferences
-              </h1>
-              <p className="text-sm text-slate-400 mt-2">
-                Tune contact logging, dashboard modules, and CRM display. Saved to your profile.
-              </p>
-            </div>
-            {saveToolbar}
-          </div>
-        </div>
+        <PageHeader
+          title="Settings"
+          description="Your display and contact-workflow settings. Saved to your profile."
+          actions={saveToolbar}
+        />
       ) : (
         saveToolbar
       )}

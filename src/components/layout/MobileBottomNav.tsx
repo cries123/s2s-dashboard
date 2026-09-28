@@ -59,26 +59,18 @@ interface MobileBottomNavProps {
   onNavigate: (selection: MobileNavSelection) => void;
 }
 
-const SECTION_TAB_MAP: Record<MobileNavSectionId, string[]> = {
-  home: ['home'],
-  sales: ['add', 'vin-search'],
-  service: ['search', 'alerts', 'schedule', 'dispatch', 'open-ros', 'pot-of-gold'],
-  competitions: [],
-  reports: ['appointments', 'forecast', 'sales-performance'],
-  manager: ['manager', 'webdcs'],
-  admin: ['admin'],
-};
-
+/**
+ * The lit tab is whichever section actually lists the current page. This used
+ * to be a hand-kept map that went stale whenever a page was added, and its
+ * fallback lit Home — so Sales to service, every admin screen and Settings all
+ * showed "Home" as the current section. A page no section lists (Settings,
+ * reached from the top bar) now lights nothing, which is the truth.
+ */
 function resolveActiveSection(
   activeTab: string,
   sections: MobileNavSection[]
 ): MobileNavSectionId | null {
-  for (const section of sections) {
-    if (SECTION_TAB_MAP[section.id].includes(activeTab)) {
-      return section.id;
-    }
-  }
-  return sections[0]?.id ?? null;
+  return sections.find((section) => section.items.some((item) => item.tabId === activeTab))?.id ?? null;
 }
 
 /**
@@ -204,7 +196,8 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
                     Close
                   </button>
                 </div>
-                <div className="p-2 max-h-[min(50vh,360px)] overflow-y-auto no-scrollbar">
+                {/* Tall enough for the Manage list (10 items) without slicing the last row in half. */}
+                <div className="p-2 max-h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom,0px)-7rem)] overflow-y-auto overscroll-contain">
                   {expanded.items.map((item) => {
                     const Icon = subItemIcon(item);
                     const isActive = isSubItemActive(item, activeTab, managerSubTab, adminSubTab);
@@ -268,7 +261,7 @@ export function MobileBottomNav({ activeTab, managerSubTab, adminSubTab,
                   'relative flex flex-col items-center justify-center gap-0.5 rounded-xl mx-0.5 transition-colors touch-manipulation min-h-[44px]',
                   isSectionActive || isExpanded
                     ? 'text-brand-primary'
-                    : 'text-slate-500 active:text-slate-300'
+                    : 'text-text-secondary active:text-slate-300'
                 )}
               >
                 <span className="relative">

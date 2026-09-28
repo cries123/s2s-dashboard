@@ -277,11 +277,11 @@ export default function ServiceAlerts({
         ? 'Reminders follow each customer\'s oil-change interval.'
         : 'Reminders are six months after delivery or last outreach.';
 
-  const filterChips: Array<{ id: Filter; label: string; n: number }> = [
-    { id: 'all', label: 'All', n: counts.all },
-    { id: 'soon', label: 'Due soon', n: counts.soon },
-    { id: 'today', label: 'Due today', n: counts.today },
-    { id: 'overdue', label: 'Overdue', n: counts.overdue },
+  const filterChips: Array<{ id: Filter; label: string; short: string; n: number }> = [
+    { id: 'all', label: 'All', short: 'All', n: counts.all },
+    { id: 'soon', label: 'Due soon', short: 'Soon', n: counts.soon },
+    { id: 'today', label: 'Due today', short: 'Today', n: counts.today },
+    { id: 'overdue', label: 'Overdue', short: 'Overdue', n: counts.overdue },
   ];
 
   return (
@@ -300,31 +300,33 @@ export default function ServiceAlerts({
 
       {/* Toolbar */}
       <div className="card-base p-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {/* One line on a phone: four chips wrapping 3+1 looked like a mistake. */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1 lg:flex-wrap lg:overflow-visible lg:mx-0 lg:px-0">
+        <div className="grid grid-cols-4 gap-1 lg:flex lg:items-center lg:gap-1.5" role="group" aria-label="Filter alerts">
           {filterChips.map((chip) => (
             <button
               key={chip.id}
               type="button"
               onClick={() => setFilter(chip.id)}
+              aria-pressed={filter === chip.id}
               className={cn(
-                'shrink-0 px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors min-h-[36px]',
+                'min-w-0 px-1.5 lg:px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors min-h-[40px]',
                 filter === chip.id ? 'bg-brand-primary text-white' : 'hover:bg-[var(--color-surface-hover)]'
               )}
               style={filter === chip.id ? undefined : { color: 'var(--color-text-secondary)' }}
             >
-              {chip.label} <span className="tabular-nums opacity-70">{chip.n}</span>
+              <span className="lg:hidden">{chip.short}</span>
+              <span className="hidden lg:inline">{chip.label}</span>{' '}
+              <span className="tabular-nums opacity-70">{chip.n}</span>
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <label className="relative flex-1 lg:w-64">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-tertiary)' }} />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, phone, vehicle…"
+              placeholder="Search"
               className="input-field pl-9 py-2"
               aria-label="Search alerts"
             />
@@ -332,13 +334,13 @@ export default function ServiceAlerts({
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
-            className="input-field w-auto py-2"
+            className="input-field sm:w-auto py-2"
             aria-label="Sort"
           >
-            <option value="due">Sort: due soonest</option>
-            <option value="overdue">Sort: most overdue</option>
-            <option value="name">Sort: name</option>
-            <option value="lastVisit">Sort: last visit</option>
+            <option value="due">Due soonest</option>
+            <option value="overdue">Most overdue</option>
+            <option value="name">Name</option>
+            <option value="lastVisit">Last visit</option>
           </select>
         </div>
       </div>
@@ -407,17 +409,17 @@ export default function ServiceAlerts({
                       <button
                         type="button"
                         onClick={() => onViewProfile(customer)}
-                        className="font-semibold text-left hover:text-brand-primary block truncate w-full"
+                        className="font-semibold text-left hover:text-brand-primary block w-full break-words"
                       >
                         {formatCustomerDisplayName(customer.firstName, customer.lastName)}
                       </button>
-                      <div className="crm-label flex items-center gap-2 min-w-0">
-                        <span className="truncate tabular-nums">{customer.phone || 'No phone number'}</span>
+                      <div className="crm-label flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="whitespace-nowrap tabular-nums">{customer.phone || 'No phone number'}</span>
                         {customer.language === 'Spanish' && (
-                          <span className="badge badge-warning text-xs shrink-0">Spanish</span>
+                          <span className="badge badge-neutral text-xs shrink-0">Spanish</span>
                         )}
                       </div>
-                      <div className="crm-label truncate">
+                      <div className="crm-label break-words">
                         {[customer.year, customer.model].filter(Boolean).join(' ') || 'No vehicle on file'}
                         {customer.vinLast8 ? ` · ${customer.vinLast8}` : ''}
                       </div>
@@ -519,7 +521,7 @@ export default function ServiceAlerts({
                             {customer.phone ? (
                               <a href={`tel:${customer.phone}`} className="hover:text-brand-primary">{customer.phone}</a>
                             ) : '—'}
-                            {customer.language === 'Spanish' && <span className="ml-2 badge badge-warning text-xs">Spanish</span>}
+                            {customer.language === 'Spanish' && <span className="ml-2 badge badge-neutral text-xs">Spanish</span>}
                           </div>
                         </td>
                         <td>

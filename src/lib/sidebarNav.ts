@@ -70,7 +70,7 @@ export function buildSidebarNav({
   });
 
   const salesItems: SidebarNavItem[] = [
-    { id: 'onboard', label: 'Onboard customer', href: '/sales/onboard', icon: UserPlus, tab: 'add' },
+    { id: 'onboard', label: 'Add customer', href: '/sales/onboard', icon: UserPlus, tab: 'add' },
   ];
   if (modules.showVinSearchTab) {
     salesItems.push({

@@ -7,16 +7,12 @@ import {
 import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { cn } from '../../lib/utils';
-import { 
-  LayoutDashboard, Mail, Lock, User as UserIcon, Briefcase, 
+import {
+  Mail, Lock, User as UserIcon, Briefcase,
   ArrowRight, Loader2, ShieldCheck, Building2
 } from 'lucide-react';
-import { TENANT_PROFILES } from '../../lib/tenants';
-import { dealershipIdFromTenantId } from '../../lib/tenants';
-import {
-  getDealershipEnrollmentCode,
-  getDealershipStaticEnrollmentCode,
-} from '../../lib/dealershipEnrollment';
+import { BrandMark } from '../ui/BrandMark';
+import { TENANT_PROFILES, dealershipIdFromTenantId } from '../../lib/tenants';
 import { resolveEnrollmentJoinCode } from '../../lib/dealershipSettingsUtils';
 import type { UserDepartment } from '../../types';
 import { logAuditAction } from '../../services/loggingService';
@@ -50,13 +46,6 @@ export default function LoginView() {
     })();
   }, []);
 
-  const selectedDealershipId = tenantId
-    ? dealershipIdFromTenantId(tenantId as (typeof TENANT_PROFILES)[number]['tenantId'])
-    : '';
-  const selectedEnrollmentCode = selectedDealershipId
-    ? joinCodesByDealership[selectedDealershipId] ||
-      getDealershipEnrollmentCode(selectedDealershipId, null)
-    : '';
 
   /** Firebase error codes are not user-facing copy. */
   const friendlyAuthError = (err: unknown): string => {
@@ -184,11 +173,11 @@ export default function LoginView() {
     <div className="min-h-screen bg-surface-base flex items-center justify-center p-4 selection:bg-brand-primary selection:text-white">
       <div className="w-full max-w-[420px] animate-fade-in">
         <div className="flex flex-col items-center mb-10 text-center">
-          <div className="w-16 h-16 bg-brand-primary rounded-2xl flex items-center justify-center shadow-xl shadow-brand-primary/20 mb-6">
-            <LayoutDashboard className="text-white" size={32} />
-          </div>
-          <h1 className="text-3xl font-semibold text-white tracking-tight">S2S<span className="text-brand-primary"> Dashboard</span></h1>
-          <p className="text-slate-400 mt-2 font-medium">Sales-to-Service Intelligence Platform</p>
+          <BrandMark size={56} className="mb-5" />
+          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+            S2S Dashboard
+          </h1>
+          <p className="crm-label text-sm mt-1.5">Sales-to-service retention for your dealership</p>
         </div>
 
         <div className="card-base bg-surface-base/50 backdrop-blur-xl border-surface-border overflow-hidden">
@@ -197,19 +186,19 @@ export default function LoginView() {
               onClick={() => setMode('login')}
               className={cn(
                 "flex-1 py-4 text-sm font-bold transition-all", 
-                mode === 'login' ? "text-brand-primary bg-brand-primary/5" : "text-slate-500 hover:text-slate-300"
+                mode === 'login' ? "text-brand-primary bg-brand-primary/5" : "text-text-secondary hover:text-slate-300"
               )}
             >
-              Access
+              Sign in
             </button>
             <button 
               onClick={() => setMode('signup')}
               className={cn(
                 "flex-1 py-4 text-sm font-bold transition-all", 
-                mode === 'signup' ? "text-brand-primary bg-brand-primary/5" : "text-slate-500 hover:text-slate-300"
+                mode === 'signup' ? "text-brand-primary bg-brand-primary/5" : "text-text-secondary hover:text-slate-300"
               )}
             >
-              Enroll
+              Request access
             </button>
           </div>
 
@@ -229,83 +218,65 @@ export default function LoginView() {
                   <label className="input-label">Email address</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
+                    <input type="email" autoComplete="username" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Password</label>
+                  <div className="flex items-baseline justify-between">
+                    <label className="input-label mb-0">Password</label>
+                    <button type="button" onClick={() => setMode('reset')} className="text-xs font-medium text-text-secondary hover:text-brand-primary transition-colors">
+                      Forgot password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field pl-12" placeholder="••••••••" />
+                    <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field pl-12" />
                   </div>
                 </div>
-                <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4">
+                <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 mt-2">
                   {isLoading ? <Loader2 className="animate-spin" size={20} /> : <span className="flex items-center gap-2">Sign in <ArrowRight size={18} /></span>}
                 </button>
-                <div className="text-center mt-6">
-                  <button type="button" onClick={() => setMode('reset')} className="text-xs font-bold text-slate-500 hover:text-brand-primary transition-colors">
-                    Forgot password?
-                  </button>
-                </div>
               </form>
             )}
 
-            {mode === 'signup' && (
-              <p className="mb-4 text-center text-xs text-slate-500 font-medium">
-                Santa Maria Ford/Lincoln enrollment code:{' '}
-                <span className="font-mono font-bold text-indigo-300 ">
-                  {joinCodesByDealership.ford || getDealershipStaticEnrollmentCode('ford')}
-                </span>
-              </p>
-            )}
-
-            {mode === 'signup' && tenantId === 'ford-lincoln' && selectedEnrollmentCode && (
-              <div className="mb-5 rounded-xl border border-indigo-500/30 bg-indigo-950/30 px-4 py-3 text-center">
-                <p className="text-xs font-semibold text-indigo-300">
-                  Santa Maria Ford/Lincoln enrollment code
-                </p>
-                <p className="mt-1 font-mono text-2xl font-bold text-white">
-                  {selectedEnrollmentCode}
-                </p>
-                <p className="mt-1 text-xs text-slate-400">
-                  New staff enter this code when enrolling below.
-                </p>
-              </div>
-            )}
-
+            {/*
+              This page is public. It used to print the Ford/Lincoln enrollment
+              join code here — twice, plus as the input placeholder — which made
+              the code pointless as a gate. Managers already see their store's
+              code in the top bar and hand it to new staff.
+            */}
             {mode === 'signup' && (
               <form onSubmit={handleSignup} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="input-label">Full Name</label>
+                  <label className="input-label">Full name</label>
                   <div className="relative">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="input-field pl-12" placeholder="Jane Smith" />
+                    <input type="text" autoComplete="name" value={username} onChange={e => setUsername(e.target.value)} required className="input-field pl-12" placeholder="Jane Smith" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Email address</label>
+                  <label className="input-label">Work email</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
+                    <input type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Dealership Profile</label>
+                  <label className="input-label">Dealership</label>
                   <div className="relative">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <select 
-                      value={tenantId} 
-                      onChange={e => setTenantId(e.target.value)} 
-                      required 
+                    <select
+                      value={tenantId}
+                      onChange={e => setTenantId(e.target.value)}
+                      required
                       className="input-field pl-12 appearance-none"
                     >
-                      <option value="">-- Select Profile --</option>
+                      <option value="">Select your dealership</option>
                       {TENANT_PROFILES.map(t => (
                         <option key={t.tenantId} value={t.tenantId}>{t.name}</option>
                       ))}
                     </select>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium">Nissan/Mazda and Ford/Lincoln share a dashboard layout; Hyundai is isolated.</p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="input-label">Department</label>
@@ -317,7 +288,7 @@ export default function LoginView() {
                       required 
                       className="input-field pl-12 appearance-none"
                     >
-                      <option value="">-- Select Department --</option>
+                      <option value="">Select your department</option>
                       <option value="sales">Sales</option>
                       <option value="service">Service</option>
                       <option value="manager">Manager</option>
@@ -325,41 +296,31 @@ export default function LoginView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Enrollment Join Code</label>
+                  <label className="input-label">Store access code</label>
                   <input
                     type="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     required
-                    className="input-field font-mono "
-                    placeholder={
-                      tenantId === 'ford-lincoln' && selectedEnrollmentCode
-                        ? selectedEnrollmentCode
-                        : 'Provided by your manager'
-                    }
+                    className="input-field font-mono"
+                    placeholder="From your manager"
                   />
-                  {tenantId === 'ford-lincoln' && selectedEnrollmentCode ? (
-                    <p className="text-xs text-slate-500 font-medium">
-                      Ford/Lincoln code:{' '}
-                      <span className="font-mono font-bold text-indigo-300">{selectedEnrollmentCode}</span>
-                    </p>
-                  ) : null}
-                </div>
-                <div className="p-4 bg-slate-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
-                  <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={16} />
-                  <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                    Choose Sales or Service for manager approval at your dealership, or Manager for primary administrator review.
-                  </p>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Create Password</label>
+                  <label className="input-label">Create password</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="input-field pl-12" placeholder="••••••••" />
+                    <input type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="input-field pl-12" placeholder="At least 6 characters" />
                   </div>
                 </div>
-                <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20">
-                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Request Enrollment'}
+                <p className="crm-label leading-relaxed flex items-start gap-2">
+                  <ShieldCheck className="text-brand-primary shrink-0 mt-0.5" size={14} />
+                  A manager at your dealership approves new accounts before you can sign in.
+                </p>
+                <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 mt-2">
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Request access'}
                 </button>
               </form>
             )}
@@ -367,18 +328,18 @@ export default function LoginView() {
             {mode === 'reset' && (
               <form onSubmit={handleReset} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="input-label">Registered Email</label>
+                  <label className="input-label">Work email</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
+                    <input type="email" autoComplete="username" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
-                <button type="submit" disabled={isLoading} className="w-full btn-primary py-4 mt-4">
-                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send Forgot password?'}
+                <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 mt-2">
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send reset link'}
                 </button>
                 <div className="text-center mt-6">
-                  <button type="button" onClick={() => setMode('login')} className="text-xs font-bold text-slate-500 hover:text-brand-primary transition-colors">
-                    &larr; Back to Access
+                  <button type="button" onClick={() => setMode('login')} className="text-xs font-medium text-text-secondary hover:text-brand-primary transition-colors">
+                    &larr; Back to sign in
                   </button>
                 </div>
               </form>
@@ -386,8 +347,8 @@ export default function LoginView() {
           </div>
         </div>
         
-        <p className="text-center text-xs text-slate-600 font-bold mt-10">
-          SECURE MULTI-TENANT ACCESS • S2S DASHBOARD
+        <p className="crm-label text-center mt-10">
+          For authorized dealership staff only
         </p>
       </div>
     </div>

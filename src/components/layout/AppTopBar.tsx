@@ -6,6 +6,7 @@ import { getDealershipEnrollmentCode } from '../../lib/dealershipEnrollment';
 import { isPreviewMode } from '../../lib/previewMode';
 import { cn } from '../../lib/utils';
 import { DealershipSwitcher } from './DealershipSwitcher';
+import { BrandMark } from '../ui/BrandMark';
 
 export interface TopBarNotification {
   id: string;
@@ -30,10 +31,12 @@ function NotificationBell({ notifications }: { notifications: TopBarNotification
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="btn-secondary p-3 relative min-w-[44px] min-h-[44px] justify-center"
-        title="Alerts"
+        title="Notifications"
+        aria-label={notifications.length ? `Notifications, ${notifications.length} new` : 'Notifications'}
         aria-expanded={open}
       >
-        <Bell size={16} className="text-amber-400" />
+        {/* Neutral bell; only the count badge carries colour, and only when there is something. */}
+        <Bell size={16} style={{ color: 'var(--color-text-secondary)' }} />
         {notifications.length > 0 ? (
           <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-xs font-semibold text-white flex items-center justify-center">
             {notifications.length > 9 ? '9+' : notifications.length}
@@ -54,16 +57,19 @@ function NotificationBell({ notifications }: { notifications: TopBarNotification
             style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}
           >
             <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-surface-border)' }}>
-              <p className="text-xs font-semibold normal-case tracking-normal" style={{ color: 'var(--color-text-secondary)' }}>
-                Alerts
+              {/* "Notifications", not "Alerts": Service alerts is the customer call list, and two
+                  things called Alerts contradicted each other ("nothing needs your attention"
+                  beside four overdue calls). This panel is system status only. */}
+              <p className="text-xs font-semibold" style={{ color: 'var(--color-text-secondary)' }}>
+                Notifications
               </p>
             </div>
             {notifications.length === 0 ? (
-              <p className="text-xs px-4 py-6 text-center" style={{ color: 'var(--color-text-tertiary)' }}>
-                Nothing needs your attention.
+              <p className="text-xs px-4 py-6 text-center" style={{ color: 'var(--color-text-secondary)' }}>
+                No system notifications.
               </p>
             ) : (
-              <ul className="max-h-80 overflow-y-auto divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
+              <ul className="max-h-80 overflow-y-auto divide-y divide-surface-border">
                 {notifications.map((item) => {
                   const style = NOTIFICATION_TONE_STYLES[item.tone];
                   const Icon = style.icon;
@@ -160,6 +166,10 @@ export function AppTopBar({
         borderColor: 'var(--color-surface-border)',
       }}
     >
+      {/* The product mark, on phones only — the desktop sidebar already carries it. */}
+      <span className="lg:hidden shrink-0">
+        <BrandMark size={32} />
+      </span>
       <div className="min-w-0 flex-1 max-w-xs sm:max-w-sm">
         {canSwitch ? (
           <DealershipSwitcher
@@ -171,7 +181,7 @@ export function AppTopBar({
           <div>
             <p className="text-sm font-semibold truncate">{dealershipName}</p>
             <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-              Service to Sales
+              S2S Dashboard
             </p>
           </div>
         )}

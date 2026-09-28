@@ -95,7 +95,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
                 <div className="w-6 h-6 rounded-lg bg-slate-950 flex items-center justify-center group-hover/link:bg-brand-secondary/10 transition-colors border border-white/5 shadow-inner">
                   <Phone size={11} className="text-slate-600 group-hover/link:text-brand-secondary" />
                 </div>
-                {customer.phone || 'No Phone Entry'}
+                {customer.phone || 'No phone'}
               </a>
               {lastVisit && (
                 <div className="flex items-center gap-2 text-xs font-semibold text-brand-primary ">
@@ -158,22 +158,24 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs font-semibold text-slate-500 leading-none">Odometer</p>
-            <p className="text-sm font-semibold text-white tabular-nums tracking-tighter mt-0.5">
-              {parseInt(customer.mileage || '0').toLocaleString()} <span className="text-xs font-normal text-slate-400 font-sans ">M</span>
+            <p className="crm-label leading-none">Mileage</p>
+            <p className="text-sm font-semibold tabular-nums mt-0.5">
+              {parseInt(customer.mileage || '', 10) > 0
+                ? `${parseInt(customer.mileage || '', 10).toLocaleString()} mi`
+                : <span className="crm-label font-normal">—</span>}
             </p>
           </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between text-[11px]">
           <div className="flex flex-col">
-            <span className="text-xs font-semibold text-slate-500 ">Contact Records</span>
+            <span className="text-xs font-semibold text-slate-500 ">Last contact</span>
             <span className="text-xs font-bold text-slate-300">
               {formatLastContact(customer.lastServiceContact)}
             </span>
           </div>
           <div className="flex flex-col text-right">
-            <span className="text-xs font-semibold text-slate-500 ">S2S Alert Range</span>
+            <span className="text-xs font-semibold text-slate-500 ">Next service due</span>
             <span className="text-xs font-semibold text-brand-secondary ">
               {serviceAlerts.getNextServiceMilestone(customer)}
             </span>

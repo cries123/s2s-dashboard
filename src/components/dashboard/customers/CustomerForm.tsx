@@ -225,15 +225,15 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
       });
 
       await logSystemAction(
-        "Driver Enrolled",
-        `Enrolled driver ${formData.firstName} ${formData.lastName} (${formData.model || 'Unknown Model'})`,
+        "Customer Added",
+        `Added customer ${formData.firstName} ${formData.lastName} (${formData.model || 'Unknown Model'})`,
         'demographics',
         currentUser.email,
         currentUser.username,
         currentUser.dealershipId
       );
 
-      onSuccess("Customer successfully registered & enrolled in retention cycles!");
+      onSuccess("Customer added. Service reminders are scheduled.");
       setFormData({
         firstName: '', lastName: '', phone: '', email: '',
         make: 'Hyundai', model: '', vin: '', vinLast8: '', soldDate: '',
@@ -317,16 +317,16 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           {/* Elegant header segment inside card */}
           <div className="border-b border-white/5 pb-6">
             <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-3">
-              <UserIcon className="text-brand-secondary" size={18} /> Enroll Customer Profile
+              <UserIcon className="text-brand-secondary" size={18} /> Add customer
             </h2>
-            <p className="text-[11px] font-bold text-slate-500 mt-1">Enter parameters to construct custom service cycle loops</p>
+            <p className="crm-label mt-1">We schedule their first service reminder from the delivery date.</p>
           </div>
 
           {/* Subsection 1: Demographics */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-brand-primary" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">General Owner Details</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">Customer</h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -381,7 +381,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     value={formData.email}
                     onChange={handleChange}
                     className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
-                    placeholder="driver@example.com"
+                    placeholder="name@example.com"
                   />
                 </div>
               </div>
@@ -418,7 +418,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="vin">Full VIN (17 Characters)</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="vin">VIN</label>
                 <div className="relative">
                   <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -439,7 +439,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="model">Vehicle Class / Model</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="model">Model</label>
                 <div className="relative">
                   <Car className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <input
@@ -475,7 +475,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-emerald-500" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">Delivery & Care Logistics</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">Sale</h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -494,7 +494,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="soldByUserId">Attribution Agent</label>
+                <label className="text-xs font-semibold text-slate-400 " htmlFor="soldByUserId">Salesperson</label>
                 <div className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                   <select
@@ -518,11 +518,11 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
           <div className="space-y-6">
             <div className="flex items-center gap-2 pb-2 border-b border-white/5">
               <ChevronRight className="text-amber-500" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">Enrollment & Profile Notes</h3>
+              <h3 className="text-xs font-semibold text-slate-400 ">Notes</h3>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 " htmlFor="notes">Onboarding Notes</label>
+              <label className="text-xs font-semibold text-slate-400 " htmlFor="notes">Notes</label>
               <textarea
                 id="notes"
                 value={formData.notes || ''}
@@ -546,8 +546,8 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                 />
               </div>
               <div className="text-left">
-                <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors block">Auto-Enroll Alerts</span>
-                <span className="text-xs font-semibold text-slate-500 block">Queue system alarms at calculated averages</span>
+                <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors block">Send service reminders</span>
+                <span className="text-xs font-semibold text-slate-500 block">First reminder is based on the delivery date</span>
               </div>
             </label>
 
@@ -555,7 +555,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               type="submit"
               className="w-full sm:w-auto py-3 px-10 rounded-xl font-semibold text-xs text-black bg-brand-primary hover:bg-brand-primary/90 shadow-xl shadow-brand-primary/10 transition-all duration-200 shrink-0"
             >
-              Enroll New Driver
+              Add customer
             </button>
           </div>
         </form>

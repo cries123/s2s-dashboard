@@ -22,12 +22,12 @@ interface LogEntry {
 }
 
 const CATEGORIES = [
-  { id: 'all', label: 'All Categories', icon: FileText },
-  { id: 'demographics', label: 'Drivers / Demographics', icon: User },
-  { id: 'scanner', label: 'Form Scanner', icon: Laptop },
+  { id: 'all', label: 'All', icon: FileText },
+  { id: 'demographics', label: 'Customers', icon: User },
+  { id: 'scanner', label: 'Document scans', icon: Laptop },
   { id: 'appointments', label: 'Appointments', icon: Calendar },
-  { id: 'settings', label: 'System Settings', icon: Settings },
-  { id: 'auth', label: 'Authentication', icon: Shield },
+  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'auth', label: 'Sign-ins', icon: Shield },
 ];
 
 interface SystemLogsProps {
@@ -161,45 +161,30 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
 
   return (
     <div className="space-y-6">
-      {loadError && <p role="alert" className="card-base p-4 text-sm text-text-secondary">Audit logs could not be loaded. Reload to retry.</p>}
-      {tenantScope && dealershipId && (
-        <p className="text-xs font-semibold normal-case tracking-normal text-slate-500 px-1">
-          Showing logs for <span className="text-brand-primary">{dealershipId.toUpperCase()}</span> only
-        </p>
+      {loadError && (
+        <div role="alert" className="card-base p-4">
+          <p className="text-sm font-semibold">Couldn't load the logs</p>
+          <p className="crm-label mt-1">Check your connection, then reload the page.</p>
+        </div>
       )}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/5 pb-5">
-        <div>
-          <h4 className="text-lg font-semibold normal-case tracking-normal text-white">Audit logs</h4>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed max-w-xl font-medium">
-            Store activity, recorded with the signed-in user and time. Entries cannot be edited or deleted from the app.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 text-xs font-semibold normal-case tracking-normal rounded-xl text-slate-300 border border-white/5">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
-          Live
-        </div>
-      </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center">
+      <div className="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary" size={16} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: 'var(--color-text-secondary)' }} />
           <input
-            type="text"
-            placeholder="Search action logs by username, email, descriptive keyword..."
+            type="search"
+            placeholder="Search logs"
+            aria-label="Search logs by name, email or description"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-12 pr-4 py-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-primary transition-all font-medium"
+            className="input-field pl-9"
           />
         </div>
 
-        {/* Category pills wrap list */}
-        <div className="flex flex-wrap gap-1.5">
+        {/* Category chips: one scrolling row on phones instead of a three-row wall. */}
+        <div className="flex flex-nowrap sm:flex-wrap gap-1.5 overflow-x-auto -mx-1 px-1 pb-1 sm:pb-0">
           {CATEGORIES.map(cat => {
             const Icon = cat.icon;
             const isSelected = selectedCategory === cat.id;
@@ -208,10 +193,10 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold normal-case tracking-normal transition-all justify-center border whitespace-nowrap",
+                  "shrink-0 flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors justify-center border whitespace-nowrap",
                   isSelected
-                    ? "bg-brand-primary text-black border-brand-primary shadow-lg shadow-brand-primary/15"
-                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                    ? "bg-brand-primary/15 text-brand-primary border-brand-primary/40"
+                    : "border-surface-border text-text-secondary hover:text-text-primary"
                 )}
               >
                 <Icon size={12} />
@@ -226,16 +211,16 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4 bg-[#0a0e1a]/40 rounded-3xl border border-white/5">
           <Clock className="animate-spin text-brand-primary" size={32} />
-          <p className="text-slate-500 font-semibold normal-case tracking-normal text-xs">Streaming System Audit Logs...</p>
+          <p className="crm-label">Loading logs…</p>
         </div>
       ) : filteredLogs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 bg-[#0a0e1a]/40 rounded-3xl border border-white/5">
           <div className="p-4 bg-slate-900 rounded-full text-slate-500">
             <FileText size={24} />
           </div>
-          <p className="text-slate-300 font-semibold normal-case tracking-normal text-xs">No Audit Logs Found</p>
-          <p className="text-xs text-slate-500 max-w-sm text-center leading-relaxed">
-            No activities matched your filter or search key. Try expanding the query.
+          <p className="text-sm font-semibold">{logs.length ? 'No matching entries' : 'No activity yet'}</p>
+          <p className="crm-label max-w-sm text-center">
+            {logs.length ? 'Try a different search or category.' : 'Actions taken in the app will appear here.'}
           </p>
         </div>
       ) : (
@@ -254,7 +239,7 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
                   
                   <div className="space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-200 tracking-wide normal-case">{log.action || "System Trigger"}</span>
+                      <span className="text-xs font-semibold text-slate-200 tracking-wide normal-case">{log.action || "System event"}</span>
                       {getCategoryBadge(log.category)}
                     </div>
                     
@@ -265,7 +250,7 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
                       <div className="flex items-center gap-1.5">
                         <User size={11} className="text-slate-600" />
                         <span>{log.username || "System"}</span>
-                        <span className="text-slate-700 bg-slate-950/40 px-1.5 py-0.5 rounded border border-white/5 font-sans font-semibold text-xs normal-case tracking-normal">{log.userEmail || "system@active"}</span>
+                        <span className="text-slate-700 bg-slate-950/40 px-1.5 py-0.5 rounded border border-white/5 font-sans font-semibold text-xs normal-case tracking-normal">{log.userEmail || "—"}</span>
                       </div>
                       <span className="hidden sm:inline text-slate-700">|</span>
                       <span>ID: {log.id.slice(0, 8)}</span>
@@ -283,11 +268,9 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
             ))}
           </div>
           <div className="px-5 py-3 bg-slate-950/60 border-t border-white/5 flex items-center justify-between">
-            <span className="text-xs font-semibold normal-case tracking-normal text-slate-500">
-              Live Feed Connected
-            </span>
-            <span className="text-xs font-mono text-slate-500 font-bold whitespace-nowrap">
-              Showing {filteredLogs.length} of {logs.length} tracked items
+            <span className="crm-label">Updates automatically</span>
+            <span className="crm-label tabular-nums whitespace-nowrap">
+              {filteredLogs.length} of {logs.length}
             </span>
           </div>
         </div>

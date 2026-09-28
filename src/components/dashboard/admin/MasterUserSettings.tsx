@@ -20,6 +20,7 @@ import { cn } from '../../../lib/utils';
 import { DEALERSHIPS } from '../../../constants';
 import { TENANT_PROFILES, dealershipIdFromTenantId, getTenantProfile } from '../../../lib/tenants';
 import { TableSkeleton } from '../../ui/Skeleton';
+import { EmptyState } from '../../ui/EmptyState';
 import {
   buildMasterPermissionPatch,
   buildUserApprovalPatch,
@@ -76,6 +77,10 @@ export function MasterUserSettings({
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed first load used to raise a red toast over the top bar and leave "0 users"
+  // underneath, which read as "this store has no staff". Kept inline instead.
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [tenantFilter, setTenantFilter] = useState<string>(scopeTenantId || 'all');
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
@@ -122,6 +127,7 @@ export function MasterUserSettings({
     if (!currentUser) return;
 
     setLoading(true);
+    setLoadError(false);
     const unsubscribe = subscribeTenantUsers(
       scopeTenantId,
       (list) => {
@@ -130,13 +136,13 @@ export function MasterUserSettings({
       },
       (error) => {
         console.error('MasterUserSettings list error:', error);
-        onError?.('Could not load users. Confirm your account has list permissions.');
+        setLoadError(true);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [currentUser, scopeTenantId, onError]);
+  }, [currentUser, scopeTenantId, retryKey]);
 
   const selectedUser = useMemo(
     () => users.find((u) => u.uid === selectedUid) || null,
@@ -410,49 +416,47 @@ export function MasterUserSettings({
     return <TableSkeleton rows={8} cols={4} />;
   }
 
+  if (loadError) {
+    return (
+      <EmptyState
+        title={managerMode ? "Couldn't load your team" : "Couldn't load users"}
+        description="Check your connection and try again. If it keeps happening, your account may not have access to this list."
+        action={
+          <button type="button" className="btn-secondary" onClick={() => setRetryKey((k) => k + 1)}>
+            <RefreshCw size={14} /> Try again
+          </button>
+        }
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="border-b border-white/5 pb-4">
-        <div className="flex items-center gap-2 text-brand-primary text-xs font-semibold mb-1.5">
-          <Shield size={12} />
-          {managerMode ? 'Dealership team' : scopeTenantId ? 'User administration' : 'Platform administration'}
-        </div>
-        <h2 className="text-2xl font-semibold text-white tracking-tight">
-          {managerMode
-            ? scopedTenantName
-              ? `${scopedTenantName} users`
-              : 'Dealership users'
-            : scopeTenantId
-              ? `${scopedTenantName} users`
-              : 'Master User Settings'}
+      {!managerMode ? (
+        <h2 className="crm-section-title">
+          {scopeTenantId && scopedTenantName ? `${scopedTenantName} accounts` : 'Accounts'}
         </h2>
-        <p className="text-xs text-slate-500 mt-2 max-w-2xl">
-          {managerMode
-            ? 'Approve manager and staff enrollments, update permissions, and send password resets for this store.'
-            : scopeTenantId
-              ? 'All program users for this dealership — reset passwords, change email, and set permissions.'
-              : 'View and edit every account across all dealerships. Email changes and password resets require the server admin SDK (FIREBASE_SERVICE_ACCOUNT_JSON).'}
-        </p>
-      </div>
+      ) : null}
 
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-primary" size={14} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: 'var(--color-text-secondary)' }} />
           <input
-            type="text"
-            placeholder="Search name, email, UID..."
+            type="search"
+            placeholder="Search by name or email"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            className="input-field pl-9"
           />
         </div>
         {!scopeTenantId ? (
           <select
             value={tenantFilter}
             onChange={(e) => setTenantFilter(e.target.value)}
-            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white min-w-[200px]"
+            className="input-field lg:w-auto lg:min-w-[200px]"
+            aria-label="Filter by dealership"
           >
-            <option value="all">All tenants</option>
+            <option value="all">All dealerships</option>
             {TENANT_PROFILES.map((t) => (
               <option key={t.tenantId} value={t.tenantId}>
                 {t.name}
@@ -460,14 +464,19 @@ export function MasterUserSettings({
             ))}
           </select>
         ) : null}
-        <div className="text-xs font-semibold text-slate-500 flex items-center px-2">
-          {filteredUsers.length} users
+        <div className="crm-label flex items-center px-1 tabular-nums">
+          {filteredUsers.length} {filteredUsers.length === 1 ? 'person' : 'people'}
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-2 card-base border border-white/5 overflow-hidden max-h-[640px] flex flex-col">
-          <div className="overflow-y-auto divide-y divide-slate-800">
+        <div className="xl:col-span-2 card-base overflow-hidden max-h-[640px] flex flex-col">
+          {filteredUsers.length === 0 ? (
+            <p className="crm-label text-center px-4 py-10">
+              {users.length ? 'No one matches that search.' : 'No accounts yet.'}
+            </p>
+          ) : null}
+          <div className="overflow-y-auto divide-y divide-surface-border">
             {filteredUsers.map((u) => (
               <button
                 key={u.uid}
@@ -505,7 +514,7 @@ export function MasterUserSettings({
           </div>
         </div>
 
-        <div className="xl:col-span-3 card-base border border-white/5 p-6 space-y-5">
+        <div className={cn('xl:col-span-3 card-base p-4 sm:p-6 space-y-5', !selectedUser && 'hidden xl:block')}>
           {!selectedUser ? (
             <div className="py-16 text-center text-slate-500 text-sm">
               <Users className="mx-auto mb-3 opacity-40" size={32} />

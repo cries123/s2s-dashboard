@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ChevronsLeft, ChevronsRight, LayoutDashboard } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { BrandMark } from '../ui/BrandMark';
 import {
   buildSidebarNav,
   isSidebarItemActive,
@@ -95,15 +96,12 @@ export function AppSidebar({
         style={{ borderColor: 'var(--color-sidebar-border)' }}
       >
         <div className={cn('flex items-center gap-3', collapsed && 'justify-center')}>
-          <div
-            className="w-9 h-9 rounded-lg bg-brand-primary flex items-center justify-center text-white shrink-0"
-            title={collapsed ? 'Service to Sales' : undefined}
-          >
-            <LayoutDashboard size={18} />
-          </div>
+          <span title={collapsed ? 'S2S Dashboard' : undefined}>
+            <BrandMark size={36} />
+          </span>
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate">Service to Sales</p>
+              <p className="text-sm font-semibold truncate">S2S Dashboard</p>
               {!canSwitchDealership && (
                 <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
                   {dealershipName}

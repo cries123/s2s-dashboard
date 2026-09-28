@@ -152,16 +152,16 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
     <div className="space-y-8 animate-fade-in">
       <PageHeader
         title="Sales performance"
-        description="Delivery volume, rep leaderboard, and service adoption across your CRM fleet."
+        description="Deliveries, salesperson ranking and service retention."
         breadcrumbs={[{ label: 'Sales' }, { label: 'Performance' }]}
       />
 
       <KpiStrip
         columns={4}
         tiles={[
-          { label: 'Dealership fleet', value: overallMetrics.totalDeliveries.toLocaleString(), tone: 'info' },
-          { label: 'Active sales reps', value: overallMetrics.activeReps.toLocaleString(), tone: 'success' },
-          { label: 'Avg deliveries / rep', value: overallMetrics.avgDeliveriesPerRep.toFixed(1), sublabel: 'Fleet ÷ active reps' },
+          { label: 'Deliveries', value: overallMetrics.totalDeliveries.toLocaleString() },
+          { label: 'Salespeople', value: overallMetrics.activeReps.toLocaleString() },
+          { label: 'Avg deliveries per salesperson', value: overallMetrics.avgDeliveriesPerRep.toFixed(1) },
           {
             label: 'Avg service retention',
             value: `${overallMetrics.avgServiceRetention}%`,
@@ -179,7 +179,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
           </h3>
           <p className="crm-label text-[11px]">
             {chartData.length > 0
-              ? `Top ${chartData.length} of ${filteredSalesmen.length} matching rep${filteredSalesmen.length === 1 ? '' : 's'}`
+              ? `Top ${chartData.length} of ${filteredSalesmen.length}`
               : null}
           </p>
         </div>
@@ -233,16 +233,16 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="crm-section-title flex items-center gap-2">
-                <Trophy className="text-brand-primary" size={18} /> Sales champion leaderboard
+                <Trophy className="text-brand-primary" size={18} /> Salesperson ranking
               </h3>
-              <p className="crm-label mt-1">Representatives ranked by total deliveries, customer retention, and service compliance.</p>
+              <p className="crm-label mt-1">Ranked by deliveries, then service retention.</p>
             </div>
 
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-primary" size={14} />
               <input
                 type="text"
-                placeholder="Search advisor or favorite model..."
+                placeholder="Search salesperson or model"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="input-field pl-10 text-xs py-2"
@@ -253,7 +253,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
           {filteredSalesmen.length === 0 ? (
             <EmptyState
               title="No sales representatives matched"
-              description="Try a different name or vehicle model, or clear your search to see the full leaderboard."
+              description="Try a different name or vehicle model, or clear your search to see everyone."
               action={searchTerm ? (
                 <button type="button" onClick={() => setSearchTerm('')} className="btn-secondary">
                   Clear search
@@ -268,12 +268,12 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                   <table className="crm-table">
                     <thead>
                       <tr>
-                        <th>Rank & professional</th>
+                        <th>Salesperson</th>
                         <th className="text-center">Deliveries</th>
-                        <th>Top vehicle sold</th>
-                        <th className="text-center">S2S retention</th>
+                        <th>Top model</th>
+                        <th className="text-center">Service retention</th>
                         <th className="text-center">Active alerts</th>
-                        <th className="text-right">Drilldown</th>
+                        <th className="text-right"><span className="sr-only">Details</span></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -309,7 +309,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                                     {rep.name}
                                   </span>
                                   <span className="text-xs font-semibold mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-                                    {rep.customers.length} Accounts Monitored
+                                    {rep.customers.length} customers
                                   </span>
                                 </div>
                               </div>
@@ -403,7 +403,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                       <div className="flex-1 min-w-0">
                         <p className={cn("text-sm font-bold truncate", isSelected && "text-brand-primary")}>{rep.name}</p>
                         <p className="crm-label text-[11px] truncate mt-0.5">
-                          {rep.favModel} · {rep.customers.length} accounts
+                          {rep.favModel} · {rep.customers.length} customers
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -430,7 +430,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
         {/* Drilldown Details Panel */}
         <div className="lg:col-span-1 space-y-6">
           <h3 className="crm-section-title flex items-center gap-2">
-            <Info className="text-brand-secondary" size={18} /> Representative profiles
+            <Info className="text-brand-secondary" size={18} /> Salesperson details
           </h3>
 
           <AnimatePresence mode="wait">
@@ -448,9 +448,9 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                 >
                   <UserIcon size={32} />
                 </div>
-                <h4 className="crm-section-title">Salesperson drilldown portal</h4>
+                <h4 className="crm-section-title">Pick a salesperson</h4>
                 <p className="crm-label text-xs mt-2 max-w-xs mx-auto leading-relaxed">
-                  Select a registered sales representative from the leaderboard on the left to inspect their managed accounts, check alert statuses, and read customer notes.
+                  Choose someone from the ranking to see their customers, alerts and notes.
                 </p>
               </motion.div>
             ) : (

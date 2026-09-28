@@ -151,7 +151,7 @@ export default function WebDcsPanel() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="WebDCS"
-        description="Read from your own signed-in WebDCS tab. Nothing here handles your password or 2FA."
+        description="DCM case counts and DPM scorecards from your WebDCS session."
         breadcrumbs={[{ label: 'Manager' }, { label: 'WebDCS' }]}
         actions={
           extensionVersion ? (
@@ -205,8 +205,8 @@ export default function WebDcsPanel() {
                 : 'The WebDCS check runs through a browser extension, which phone browsers cannot load. Open this page in Chrome or Edge on a computer.'}
             </CardNotice>
           )}
-          <CardNotice tone="info" summary="How this works">
-            Open WebDCS and sign in as you normally would, including 2FA. Once the home page is up, this
+          <CardNotice tone="info" summary="How it works">
+            Nothing here handles your password or 2FA. Open WebDCS and sign in as you normally would. Once the home page is up, this
             status turns to ready. Running a check opens the notification bell in that tab, reads how many
             DCM cases are waiting for a response, closes it again, and shows the number here. Only the count
             and a technical log come back — never your session, your cookies, or case details.

@@ -45,10 +45,10 @@ export function buildMobileNavSections({
   });
 
   const salesItems: MobileNavSection['items'] = [
-    { tabId: 'add', label: 'Onboard', href: '/sales/onboard' },
+    { tabId: 'add', label: 'Add customer', href: '/sales/onboard' },
   ];
   if (modules.showVinSearchTab) {
-    salesItems.push({ tabId: 'vin-search', label: 'VIN Search', href: '/sales/vin-search' });
+    salesItems.push({ tabId: 'vin-search', label: 'VIN search', href: '/sales/vin-search' });
   }
   sections.push({ id: 'sales', label: 'Sales', icon: UserPlus, items: salesItems });
 
@@ -56,7 +56,7 @@ export function buildMobileNavSections({
   // during the day, not month-end reporting.
   const serviceItems: MobileNavSection['items'] = [
     { tabId: 'search', label: 'Directory', href: '/service/directory' },
-    { tabId: 'alerts', label: 'Alerts', href: '/service/alerts', badge: activeAlertsCount },
+    { tabId: 'alerts', label: 'Service alerts', href: '/service/alerts', badge: activeAlertsCount },
     { tabId: 'schedule', label: 'Schedule', href: '/reports/schedule' },
   ];
   if (showOpenRosTab) {
@@ -76,12 +76,12 @@ export function buildMobileNavSections({
   if (modules.showSalesPerformanceTab) {
     reportItems.push({
       tabId: 'sales-performance',
-      label: 'Sales Performance',
+      label: 'Sales performance',
       href: '/reports/sales-performance',
     });
     reportItems.push({
       tabId: 'sales-to-service',
-      label: 'Sales to Service',
+      label: 'Sales to service',
       href: '/reports/sales-to-service',
     });
   }
@@ -108,7 +108,7 @@ export function buildMobileNavSections({
       items: [
         {
           tabId: 'manager',
-          label: 'Operation Settings',
+          label: 'Operation settings',
           href: '/manager/operations',
           managerSubTab: 'operations',
         },
@@ -120,7 +120,7 @@ export function buildMobileNavSections({
         },
         {
           tabId: 'manager',
-          label: 'Team Approvals',
+          label: 'Team',
           href: '/manager/team',
           managerSubTab: 'team',
         },

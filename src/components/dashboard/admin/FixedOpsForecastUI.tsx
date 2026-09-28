@@ -11,7 +11,7 @@ export function ForecastPanel({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-slate-800/70 bg-gradient-to-b from-slate-900/70 to-slate-950/90 shadow-xl',
+        'card-base',
         className
       )}
     >
@@ -30,16 +30,11 @@ export function ForecastSectionHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/8 pb-4 mb-5">
-      <div>
-        {eyebrow ? (
-          <p className="text-xs font-semibold text-brand-primary mb-1">
-            {eyebrow}
-          </p>
-        ) : null}
-        <h3 className="text-base font-semibold text-white tracking-tight">{title}</h3>
-      </div>
-      {action}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 mb-5">
+      {/* eyebrow is accepted for older call sites but no longer drawn: a second,
+          brand-coloured title above every title was the loudest thing on the page. */}
+      <h3 className="crm-section-title">{title}</h3>
+      {action ? <div className="self-start sm:self-auto shrink-0">{action}</div> : null}
     </div>
   );
 }
@@ -57,18 +52,18 @@ export function ForecastStat({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className={cn('text-2xl sm:text-3xl font-semibold tabular-nums tracking-tight', accent)}>{value}</p>
-      {sub ? <p className="text-xs text-slate-400 font-medium">{sub}</p> : null}
+      <p className="crm-label">{label}</p>
+      <p className="text-2xl sm:text-3xl font-semibold tabular-nums tracking-tight" style={{ color: 'var(--color-text-primary)' }}>{value}</p>
+      {sub ? <p className="crm-label">{sub}</p> : null}
     </div>
   );
 }
 
 export function ForecastMiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 px-4 py-3">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="text-sm font-semibold text-white tabular-nums mt-1">{value}</p>
+    <div className="rounded-lg border px-4 py-3" style={{ backgroundColor: 'var(--color-surface-muted)' }}>
+      <p className="crm-label">{label}</p>
+      <p className="text-sm font-semibold tabular-nums mt-1">{value}</p>
     </div>
   );
 }
@@ -95,9 +90,9 @@ export function ForecastSlider({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-3 space-y-2.5">
+    <div className="rounded-lg border px-4 py-3 space-y-2.5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-bold text-slate-400">{label}</span>
+        <span className="crm-label">{label}</span>
         <span className={cn('text-sm font-semibold tabular-nums', valueClassName)}>{valueLabel}</span>
       </div>
       <input
@@ -137,13 +132,13 @@ export function ForecastMetricCard({
         highlight && 'border-rose-500/30 bg-gradient-to-br from-rose-950/20 to-slate-950/90'
       )}
     >
-      <div className={cn('p-3 rounded-xl border border-white/5 shrink-0', iconWrapClass)}>
+      <div className="p-2.5 rounded-lg border shrink-0" style={{ color: 'var(--color-text-secondary)' }}>
         <Icon size={18} />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-slate-500">{label}</p>
-        <p className={cn('text-xl font-semibold tabular-nums mt-1 leading-none', accent)}>{value}</p>
-        {detail ? <p className="text-xs text-slate-500 mt-1.5 leading-snug">{detail}</p> : null}
+        <p className="crm-label">{label}</p>
+        <p className="text-xl font-semibold tabular-nums mt-1 leading-none" style={{ color: 'var(--color-text-primary)' }}>{value}</p>
+        {detail ? <p className="crm-label mt-1.5 leading-snug">{detail}</p> : null}
       </div>
     </ForecastPanel>
   );

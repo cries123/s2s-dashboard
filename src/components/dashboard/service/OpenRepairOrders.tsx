@@ -18,6 +18,8 @@ import {
 import { cn } from '../../../lib/utils';
 import { isPbsSyncDealership } from '../../../lib/pbsSyncScope';
 import { ServiceVisitDetailModal } from '../customers/ServiceVisitDetailModal';
+import { PageHeader } from '../../layout/PageHeader';
+import { EmptyState } from '../../ui/EmptyState';
 
 type SortColumn = 'roNumber' | 'advisor' | 'days';
 type SortDirection = 'asc' | 'desc';
@@ -73,6 +75,11 @@ export default function OpenRepairOrders({
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // A failed first load used to fall through to "0 open ROs / No open repair orders",
+  // which reads as a fact about the shop rather than a failure. Tracked separately now.
+  const [loadError, setLoadError] = useState(false);
+  const hasOrdersRef = React.useRef(false);
+  hasOrdersRef.current = orders.length > 0;
   const [search, setSearch] = useState('');
   const [sortColumn, setSortColumn] = useState<SortColumn>('days');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -117,9 +124,13 @@ export default function OpenRepairOrders({
         const result = await fetchOpenRepairOrders({ forceRefresh: isRefresh });
         setOrders(result.orders);
         setFetchedAt(result.fetchedAt);
+        setLoadError(false);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load open repair orders.';
-        onErrorRef.current(message);
+        // With orders already on screen, a failed refresh is a passing notice; with
+        // nothing on screen it is the page's state and is shown in place.
+        if (isRefresh && hasOrdersRef.current) onErrorRef.current(message);
+        else setLoadError(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -218,52 +229,62 @@ export default function OpenRepairOrders({
 
   if (!isPbsSyncDealership(currentDealershipId)) {
     return (
-      <div className="card-base rounded-2xl border border-white/5 p-8 text-center">
-        <p className="text-sm text-slate-300">Open repair orders are only available for PBS-integrated stores.</p>
-      </div>
+      <EmptyState
+        title="Not available for this store"
+        description="Open repair orders come from PBS, which is connected for Hyundai of Santa Maria only."
+      />
     );
   }
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <ClipboardList size={22} className="text-brand-primary" />
-            Open Repair Orders
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-            Live open ROs from PBS. Click a row for the repair order, or click a customer name to open their profile.
-            {fetchedAt ? ` Last refreshed ${formatFetchedAt(fetchedAt)}.` : ''}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void loadOrders(true)}
-          disabled={loading || refreshing}
-          className="btn-primary bg-slate-800 hover:bg-slate-700 text-xs sm:text-sm py-2.5 px-4 min-h-[44px] w-full sm:w-auto disabled:opacity-50"
-        >
-          {refreshing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
-          {refreshing ? 'Refreshing…' : 'Refresh from PBS'}
-        </button>
-      </div>
+      <PageHeader
+        title="Open repair orders"
+        description={`Open ROs from PBS. Tap one for details.${fetchedAt ? ` Updated ${formatFetchedAt(fetchedAt)}.` : ''}`}
+        breadcrumbs={[{ label: 'Service' }, { label: 'Open ROs' }]}
+        actions={
+          <button
+            type="button"
+            onClick={() => void loadOrders(true)}
+            disabled={loading || refreshing}
+            className="btn-secondary min-h-[44px] disabled:opacity-50"
+          >
+            {refreshing ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+            {refreshing ? 'Refreshing…' : 'Refresh'}
+          </button>
+        }
+      />
 
+      {loadError && !loading ? (
+        <EmptyState
+          title="Couldn't load repair orders"
+          description="Check your connection and try again. If you were signed out, sign back in first."
+          action={
+            <button type="button" className="btn-secondary" onClick={() => void loadOrders(false)}>
+              <RefreshCw size={14} /> Try again
+            </button>
+          }
+        />
+      ) : (
+      <>
       <div className="relative max-w-md">
-        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} />
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search RO #, tag, customer, VIN, advisor…"
-          className="w-full bg-slate-900/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-brand-primary"
+          placeholder="Search"
+          aria-label="Search by RO number, tag, customer, VIN or advisor"
+          className="input-field pl-9"
         />
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-        <span className="font-semibold text-white">{filtered.length}</span>
-        <span>open RO{filtered.length === 1 ? '' : 's'}</span>
-        {search.trim() ? <span className="text-slate-500">(filtered from {orders.length})</span> : null}
-      </div>
+      {!loading ? (
+        <p className="crm-label tabular-nums">
+          {filtered.length} open RO{filtered.length === 1 ? '' : 's'}
+          {search.trim() ? ` (of ${orders.length})` : ''}
+        </p>
+      ) : null}
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 gap-3">
@@ -271,11 +292,10 @@ export default function OpenRepairOrders({
           <span className="text-sm font-medium">Loading open repair orders…</span>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="card-base rounded-2xl border border-white/5 p-10 text-center">
-          <p className="text-sm text-slate-300 font-medium">
-            {search.trim() ? 'No repair orders match your search.' : 'No open repair orders in the last 90 days.'}
-          </p>
-        </div>
+        <EmptyState
+          title={search.trim() ? 'No matches' : 'No open repair orders'}
+          description={search.trim() ? 'Try a different RO number, name or VIN.' : 'Nothing has been open in the last 90 days.'}
+        />
       ) : (
         <>
           {/* Mobile — one card per repair order, all fields visible without horizontal scroll */}
@@ -513,6 +533,8 @@ export default function OpenRepairOrders({
           </div>
           </div>
         </>
+      )}
+      </>
       )}
 
       {selectedVisit ? (
