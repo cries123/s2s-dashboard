@@ -18,7 +18,8 @@ import {
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { computeServiceReminderDueDate } from '../../../lib/serviceReminder';
@@ -252,19 +253,21 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-0 lg:px-6">
       {/* 1. FORM SCANNER HEADER TRIGGER CONTAINER (Placed Above the Form) */}
-      <div className="mb-8 flex flex-col items-center justify-center max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto mb-4">
+        <div className="flex items-end justify-between gap-3 mb-3">
+          <div>
+            <p className="crm-label">Sales</p>
+            <h1 className="crm-page-title">Add customer</h1>
+          </div>
         <button
           type="button"
           onClick={() => setShowAIScanner(prev => !prev)}
-          className={`w-full sm:w-auto flex items-center justify-center gap-2.5 py-4 px-8 rounded-2xl text-xs font-semibold border transition-all duration-200 ${
-            showAIScanner 
-              ? 'bg-brand-primary text-black border-brand-primary shadow-lg shadow-brand-primary/10' 
-              : 'bg-white/5 text-slate-300 border-white/5 hover:border-white/10 hover:bg-surface-muted'
-          }`}
+          className="btn-secondary shrink-0"
         >
           <Camera size={15} />
-          {showAIScanner ? 'Close Form Scanner' : 'Use Form Scanner'}
+          {showAIScanner ? 'Close scanner' : 'Scan a form'}
         </button>
+        </div>
 
         <AnimatePresence mode="wait">
           {showAIScanner && (
@@ -310,91 +313,81 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
       {/* 2. MAIN ENROLLMENT FORM (Full Width / Max-4XL Centered) */}
       <div className="max-w-4xl mx-auto">
-        <form onSubmit={handleSubmit} className="relative rounded-3xl bg-surface-base border border-white/5 shadow-2xl p-6 md:p-8 space-y-8 overflow-hidden">
-          {/* Subtle glowing ray behind header */}
-          <div className="absolute top-0 left-0 w-44 h-24 bg-brand-primary/5 rounded-full blur-[60px]" />
+        <form onSubmit={handleSubmit} className="card-base p-4 sm:p-6 space-y-6">
           
           {/* Elegant header segment inside card */}
-          <div className="border-b border-white/5 pb-6">
-            <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-3">
-              <UserIcon className="text-brand-secondary" size={18} /> Add customer
-            </h2>
-            <p className="crm-label mt-1">We schedule their first service reminder from the delivery date.</p>
-          </div>
+          <p className="crm-label">We schedule their first service reminder from the delivery date.</p>
 
           {/* Subsection 1: Demographics */}
           <div className="space-y-6">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-              <ChevronRight className="text-brand-primary" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">Customer</h3>
-            </div>
+            <h3 className="text-sm font-semibold">Customer</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="firstName">First Name</label>
+                <label className="input-label !mb-0" htmlFor="firstName">First name</label>
                 <input
                   type="text"
                   id="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
                   required
-                  className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
-                  placeholder="e.g. Liam"
+                  className="input-field "
+                  placeholder="Liam"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="lastName">Last Name</label>
+                <label className="input-label !mb-0" htmlFor="lastName">Last name</label>
                 <input
                   type="text"
                   id="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
                   required
-                  className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 px-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
-                  placeholder="e.g. Cooper"
+                  className="input-field "
+                  placeholder="Cooper"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="phone">Primary Phone</label>
+                <label className="input-label !mb-0" htmlFor="phone">Phone</label>
                 <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <input
                     type="tel"
                     id="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
+                    className="input-field pl-10 font-mono"
                     placeholder="(555) 000-0000"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="email">Email Address</label>
+                <label className="input-label !mb-0" htmlFor="email">Email</label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <input
                     type="email"
                     id="email"
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
+                    className="input-field pl-10"
                     placeholder="name@example.com"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="language">Preferred Contact Language</label>
+                <label className="input-label !mb-0" htmlFor="language">Language</label>
                 <div className="relative">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <select
                     id="language"
                     value={formData.language}
                     onChange={handleChange}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
+                    className="input-field pl-10 appearance-none cursor-pointer"
                   >
                     <option value="English">English</option>
                     <option value="Spanish">Spanish</option>
@@ -403,7 +396,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                     <option value="Korean">Korean</option>
                     <option value="Other">Other</option>
                   </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">▼</div>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: 'var(--color-text-secondary)' }} />
                 </div>
               </div>
             </div>
@@ -411,24 +404,21 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
           {/* Subsection 2: Vehicle Specs */}
           <div className="space-y-6">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-              <ChevronRight className="text-brand-secondary" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">Vehicle Details</h3>
-            </div>
+            <h3 className="text-sm font-semibold">Vehicle</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2 space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="vin">VIN</label>
+                <label className="input-label !mb-0" htmlFor="vin">VIN</label>
                 <div className="relative">
-                  <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <BadgeCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <input
                     type="text"
                     id="vin"
                     value={formData.vin}
                     onChange={handleVinChange}
                     maxLength={17}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-12 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
-                    placeholder="ENTER 17-CHARACTER VIN"
+                    className="input-field pl-10 pr-12 font-mono"
+                    placeholder="17 characters"
                   />
                   {isDecoding && (
                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -439,32 +429,32 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="model">Model</label>
+                <label className="input-label !mb-0" htmlFor="model">Model</label>
                 <div className="relative">
-                  <Car className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <Car className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <input
                     type="text"
                     id="model"
                     value={formData.model}
                     onChange={handleChange}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150"
-                    placeholder="e.g. 2024 Elantra Hybrid"
+                    className="input-field pl-10"
+                    placeholder="2024 Elantra Hybrid"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="vinLast8">VIN (Last 8 Characters)</label>
+                <label className="input-label !mb-0" htmlFor="vinLast8">Last 8 of VIN</label>
                 <div className="relative">
-                  <BadgeCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <BadgeCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <input
                     type="text"
                     id="vinLast8"
                     value={formData.vinLast8}
                     onChange={handleChange}
                     maxLength={8}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 font-mono"
-                    placeholder="e.g. ABC12345"
+                    className="input-field pl-10 font-mono"
+                    placeholder="ABC12345"
                   />
                 </div>
               </div>
@@ -473,42 +463,39 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
           {/* Subsection 3: Service Programs */}
           <div className="space-y-6">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-              <ChevronRight className="text-emerald-500" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">Sale</h3>
-            </div>
+            <h3 className="text-sm font-semibold">Sale</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="soldDate">Delivery Date</label>
+                <label className="input-label !mb-0" htmlFor="soldDate">Delivery date</label>
                 <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <input
                     type="date"
                     id="soldDate"
                     value={formData.soldDate}
                     onChange={handleChange}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none"
+                    className="input-field pl-10 appearance-none"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-400 " htmlFor="soldByUserId">Salesperson</label>
+                <label className="input-label !mb-0" htmlFor="soldByUserId">Salesperson</label>
                 <div className="relative">
-                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                  <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--color-text-secondary)' }} size={14} />
                   <select
                     id="soldByUserId"
                     value={formData.soldByUserId}
                     onChange={handleChange}
-                    className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 pl-12 pr-3.5 py-3 rounded-xl text-xs font-semibold focus:outline-none transition-all duration-150 appearance-none cursor-pointer"
+                    className="input-field pl-10 appearance-none cursor-pointer"
                   >
-                    <option value="">Select Salesperson...</option>
+                    <option value="">Select salesperson</option>
                     {salespeople.map(sp => (
                       <option key={sp.id} value={sp.id}>{sp.firstName} {sp.lastName}</option>
                     ))}
                   </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 text-xs">▼</div>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: 'var(--color-text-secondary)' }} />
                 </div>
               </div>
             </div>
@@ -516,25 +503,22 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
 
           {/* Subsection 4: Profile Notes */}
           <div className="space-y-6">
-            <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-              <ChevronRight className="text-amber-500" size={14} />
-              <h3 className="text-xs font-semibold text-slate-400 ">Notes</h3>
-            </div>
+            <h3 className="text-sm font-semibold">Notes</h3>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-400 " htmlFor="notes">Notes</label>
+              <label className="input-label !mb-0" htmlFor="notes">Notes</label>
               <textarea
                 id="notes"
                 value={formData.notes || ''}
                 onChange={handleChange}
-                className="w-full bg-surface-muted border border-white/5 focus:border-brand-primary/50 text-slate-200 p-4 rounded-xl text-xs font-semibold focus:outline-none placeholder:text-slate-600 transition-all duration-150 h-24 resize-none"
-                placeholder="Write any personal notes, service histories, or client preferences here..."
+                className="input-field h-24 resize-none"
+                placeholder="Anything the service team should know"
               />
             </div>
           </div>
 
           {/* Reminders Toggle & Enrollment Submission */}
-          <div className="pt-6 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-6">
+          <div className="pt-5 border-t flex flex-col sm:flex-row justify-between items-center gap-5">
             <label className="flex items-center gap-3 cursor-pointer group w-full sm:w-auto">
               <div className="relative flex items-center">
                 <input
@@ -546,16 +530,16 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                 />
               </div>
               <div className="text-left">
-                <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors block">Send service reminders</span>
-                <span className="text-xs font-semibold text-slate-500 block">First reminder is based on the delivery date</span>
+                <span className="text-sm font-medium block">Send service reminders</span>
+                <span className="crm-label block">First reminder is based on the delivery date</span>
               </div>
             </label>
 
             <button
               type="submit"
-              className="w-full sm:w-auto py-3 px-10 rounded-xl font-semibold text-xs text-black bg-brand-primary hover:bg-brand-primary/90 shadow-xl shadow-brand-primary/10 transition-all duration-200 shrink-0"
+              className="btn-primary w-full sm:w-auto sm:px-10 shrink-0"
             >
-              Add customer
+              Save customer
             </button>
           </div>
         </form>

@@ -20,6 +20,7 @@ import { isPbsSyncDealership } from '../../../lib/pbsSyncScope';
 import { ServiceVisitDetailModal } from '../customers/ServiceVisitDetailModal';
 import { PageHeader } from '../../layout/PageHeader';
 import { EmptyState } from '../../ui/EmptyState';
+import { tidyCase, tidyPersonName } from '../../ui/Panel';
 
 type SortColumn = 'roNumber' | 'advisor' | 'days';
 type SortDirection = 'asc' | 'desc';
@@ -298,11 +299,12 @@ export default function OpenRepairOrders({
         />
       ) : (
         <>
-          {/* Mobile — one card per repair order, all fields visible without horizontal scroll */}
-          <div className="md:hidden space-y-3">
+          {/* Phones: one row per repair order, label/value lines, tap for details. */}
+          <div className="md:hidden list-group">
             {sorted.map((row) => {
               const isLoadingRow = detailLoadingId === row.repairOrderId;
               const hasCrmMatch = Boolean(row.customerId && customerById.has(row.customerId));
+              const ageBadge = row.daysOpen >= 7 ? 'badge-error' : row.daysOpen >= 5 ? 'badge-warning' : null;
               return (
                 <div
                   key={row.repairOrderId}
@@ -315,87 +317,63 @@ export default function OpenRepairOrders({
                       void handleRowClick(row);
                     }
                   }}
-                  className={cn(
-                    'card-base card-interactive rounded-2xl p-4 space-y-3 cursor-pointer',
-                    isLoadingRow && 'opacity-60 pointer-events-none'
-                  )}
+                  className={cn('list-row items-start cursor-pointer', isLoadingRow && 'opacity-60 pointer-events-none')}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 font-mono font-semibold text-white">
-                        {row.roNumber}
-                        {isLoadingRow ? <Loader2 size={12} className="animate-spin text-brand-primary" /> : null}
-                        {row.tag ? (
-                          <span className="text-xs font-sans font-normal text-slate-500">· {row.tag}</span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        {row.customerName ? (
-                          <>
-                            {hasCrmMatch ? (
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[15px] font-semibold text-brand-primary tabular-nums inline-flex items-center gap-2">
+                        RO {row.roNumber}
+                        {isLoadingRow ? <Loader2 size={13} className="animate-spin" /> : null}
+                      </span>
+                      {ageBadge ? (
+                        <span className={cn('badge', ageBadge)}>{row.daysOpen} days open</span>
+                      ) : (
+                        <span className="crm-label tabular-nums">
+                          {row.daysOpen === 0 ? 'Today' : `${row.daysOpen} day${row.daysOpen === 1 ? '' : 's'} open`}
+                        </span>
+                      )}
+                    </div>
+                    <dl className="mt-1 space-y-0.5">
+                      <div className="field-line">
+                        <dt>Customer</dt>
+                        <dd className="truncate" onClick={(e) => hasCrmMatch && e.stopPropagation()}>
+                          {row.customerName ? (
+                            hasCrmMatch ? (
                               <button
                                 type="button"
                                 onClick={(e) => handleCustomerClick(e, row)}
-                                className="text-brand-primary font-medium truncate text-left hover:underline"
+                                className="text-brand-primary text-left hover:underline"
                                 title="Open customer profile"
                               >
-                                {row.customerName}
+                                {tidyPersonName(row.customerName)}
                               </button>
                             ) : (
-                              <span className="text-white font-medium truncate">
-                                {row.customerName}
-                              </span>
-                            )}
-                            {row.isWaiting ? (
-                              <span className="shrink-0 text-xs font-bold bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded">
-                                Wait
-                              </span>
-                            ) : null}
-                            {hasCrmMatch ? (
-                              <span className="shrink-0" title="Matched in customer directory">
-                                <User size={12} className="text-brand-primary opacity-70" />
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          <span className="text-slate-500 ">—</span>
-                        )}
+                              tidyPersonName(row.customerName)
+                            )
+                          ) : (
+                            '—'
+                          )}
+                          {row.isWaiting ? <span className="badge badge-warning ml-2">Waiting</span> : null}
+                        </dd>
                       </div>
-                    </div>
-                    <div className="shrink-0 flex flex-col items-end gap-1">
-                      <span
-                        className={cn(
-                          'font-semibold tabular-nums text-xs',
-                          row.daysOpen >= 5 ? 'text-amber-400' : 'text-slate-300'
-                        )}
-                      >
-                        {row.daysOpen} day{row.daysOpen === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs border-t border-white/5 pt-3">
-                    <div>
-                      <p className="crm-label">Vehicle</p>
-                      <p className="text-slate-200 truncate">{row.vehicleLabel || '—'}</p>
-                      {row.vinLast8 ? (
-                        <p className="text-xs text-slate-500 font-mono">…{row.vinLast8}</p>
+                      <div className="field-line">
+                        <dt>Vehicle</dt>
+                        <dd className="truncate">{tidyCase(row.vehicleLabel) || '—'}</dd>
+                      </div>
+                      <div className="field-line">
+                        <dt>Advisor</dt>
+                        <dd className="truncate">
+                          {tidyCase(row.advisor) || '—'}
+                          {row.techNumber ? <span style={{ color: 'var(--color-text-secondary)' }}> · Tech {row.techNumber}</span> : null}
+                        </dd>
+                      </div>
+                      {row.concern ? (
+                        <div className="field-line">
+                          <dt>Concern</dt>
+                          <dd className="line-clamp-2">{tidyCase(row.concern, 'sentence')}</dd>
+                        </div>
                       ) : null}
-                    </div>
-                    <div>
-                      <p className="crm-label">Advisor</p>
-                      <p className="text-slate-200 truncate">{row.advisor || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="crm-label">Tech</p>
-                      <p className="text-slate-200 truncate">{row.techNumber || '—'}</p>
-                    </div>
-                    {row.concern ? (
-                      <div className="col-span-2">
-                        <p className="crm-label">Concern</p>
-                        <p className="text-slate-200">{row.concern}</p>
-                      </div>
-                    ) : null}
+                    </dl>
                   </div>
                 </div>
               );
@@ -403,7 +381,7 @@ export default function OpenRepairOrders({
           </div>
 
           {/* Desktop / tablet — full data table */}
-          <div className="hidden md:block card-base rounded-2xl border border-white/5 overflow-hidden">
+          <div className="hidden md:block card-base overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs sm:text-sm">
               <thead>
