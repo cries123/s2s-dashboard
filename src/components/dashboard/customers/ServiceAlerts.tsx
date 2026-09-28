@@ -288,8 +288,11 @@ export default function ServiceAlerts({
     <div className="space-y-5">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
+          <p className="crm-label">Service</p>
           <h1 className="crm-page-title">Service alerts</h1>
-          <p className="crm-label mt-1">{modeNote}</p>
+          <p className="crm-label mt-1">
+            {rows.length} {rows.length === 1 ? 'customer' : 'customers'} · {modeNote}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={exportCsv} disabled={rows.length === 0} className="btn-secondary text-sm" title="Download the current list as a CSV call sheet">
@@ -300,27 +303,22 @@ export default function ServiceAlerts({
 
       {/* Toolbar */}
       <div className="card-base p-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="grid grid-cols-4 gap-1 lg:flex lg:items-center lg:gap-1.5" role="group" aria-label="Filter alerts">
+        <div className="seg grid-cols-4 lg:w-[28rem]" role="group" aria-label="Filter alerts">
           {filterChips.map((chip) => (
             <button
               key={chip.id}
               type="button"
               onClick={() => setFilter(chip.id)}
               aria-pressed={filter === chip.id}
-              className={cn(
-                'min-w-0 px-1.5 lg:px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors min-h-[40px]',
-                filter === chip.id ? 'bg-brand-primary text-white' : 'hover:bg-[var(--color-surface-hover)]'
-              )}
-              style={filter === chip.id ? undefined : { color: 'var(--color-text-secondary)' }}
             >
               <span className="lg:hidden">{chip.short}</span>
-              <span className="hidden lg:inline">{chip.label}</span>{' '}
-              <span className="tabular-nums opacity-70">{chip.n}</span>
+              <span className="hidden lg:inline">{chip.label}</span>
+              {chip.n ? <span className="tabular-nums"> {chip.n}</span> : null}
             </button>
           ))}
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-          <label className="relative flex-1 lg:w-64">
+        <div className="flex items-center gap-2">
+          <label className="relative flex-1 min-w-0 lg:w-64">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-text-tertiary)' }} />
             <input
               type="search"
@@ -334,7 +332,7 @@ export default function ServiceAlerts({
           <select
             value={sortKey}
             onChange={(e) => setSortKey(e.target.value as SortKey)}
-            className="input-field sm:w-auto py-2"
+            className="input-field w-auto shrink-0 py-2"
             aria-label="Sort"
           >
             <option value="due">Due soonest</option>
@@ -392,84 +390,95 @@ export default function ServiceAlerts({
             call button off the right edge, so the one thing you came to do was
             the one thing you had to scroll sideways to reach.
           */}
-          <ul className="md:hidden divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
+          <ul className="md:hidden">
             {rows.map(({ customer, alert, lastVisit }) => {
               const open = expandedId === customer.id;
+              const dueColor =
+                alert.tone === 'danger' ? 'var(--color-badge-error-text)' : alert.tone === 'warning' ? 'var(--color-badge-warn-text)' : undefined;
               return (
-                <li key={customer.id} className="p-3">
+                <li key={customer.id} className="px-4 py-3 border-b last:border-b-0" style={{ borderColor: 'var(--color-row-divider)' }}>
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
                       aria-label={`Select ${customer.firstName} ${customer.lastName}`}
                       checked={selected.has(customer.id)}
                       onChange={() => toggleOne(customer.id)}
-                      className="accent-[var(--color-brand-primary)] mt-1 shrink-0"
+                      className="accent-[var(--color-brand-primary)] mt-1.5 shrink-0 w-4 h-4"
                     />
-                    <div className="min-w-0 flex-1">
-                      <button
-                        type="button"
-                        onClick={() => onViewProfile(customer)}
-                        className="font-semibold text-left hover:text-brand-primary block w-full break-words"
-                      >
+                    <button type="button" onClick={() => onViewProfile(customer)} className="min-w-0 flex-1 text-left">
+                      <p className="text-[15px] font-semibold text-brand-primary break-words">
                         {formatCustomerDisplayName(customer.firstName, customer.lastName)}
-                      </button>
-                      <div className="crm-label flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="whitespace-nowrap tabular-nums">{customer.phone || 'No phone number'}</span>
-                        {customer.language === 'Spanish' && (
-                          <span className="badge badge-neutral text-xs shrink-0">Spanish</span>
-                        )}
-                      </div>
-                      <div className="crm-label break-words">
-                        {[customer.year, customer.model].filter(Boolean).join(' ') || 'No vehicle on file'}
-                        {customer.vinLast8 ? ` · ${customer.vinLast8}` : ''}
-                      </div>
-                      <div className="crm-label mt-0.5">
-                        {lastVisit
-                          ? `Last in ${lastVisit.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                          : 'No visits on record'}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <span className={cn('badge whitespace-nowrap', TONE_CLASS[alert.tone])} title={alert.reason}>
-                        {alert.label}
-                      </span>
-                      <div className="crm-label mt-1 tabular-nums whitespace-nowrap">{formatDueDate(alert.dueIso)}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 mt-3">
-                    {customer.phone && (
+                      </p>
+                      <dl className="mt-1 space-y-0.5">
+                        <div className="field-line">
+                          <dt>Vehicle</dt>
+                          <dd className="break-words">
+                            {[customer.year, customer.model].filter(Boolean).join(' ') || 'Not on file'}
+                          </dd>
+                        </div>
+                        <div className="field-line">
+                          <dt>Due</dt>
+                          <dd>
+                            <span className="tabular-nums">
+                              {alert.dueIso
+                                ? new Date(`${alert.dueIso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                : '—'}
+                            </span>
+                            {' · '}
+                            <span className="font-semibold" style={dueColor ? { color: dueColor } : undefined} title={alert.reason}>
+                              {alert.label}
+                            </span>
+                          </dd>
+                        </div>
+                        <div className="field-line">
+                          <dt>Phone</dt>
+                          <dd className="tabular-nums whitespace-nowrap">
+                            {customer.phone || '—'}
+                            {customer.language === 'Spanish' ? <span className="badge badge-neutral ml-2">Spanish</span> : null}
+                          </dd>
+                        </div>
+                        <div className="field-line">
+                          <dt>Last in</dt>
+                          <dd>
+                            {lastVisit
+                              ? lastVisit.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                              : 'No visits on record'}
+                          </dd>
+                        </div>
+                      </dl>
+                    </button>
+                    {customer.phone ? (
                       <a
                         href={`tel:${customer.phone}`}
-                        className="btn-secondary flex-1 justify-center text-sm py-2 whitespace-nowrap"
+                        className="shrink-0 w-11 h-11 rounded-full border flex items-center justify-center text-brand-primary"
+                        style={{ borderColor: 'var(--color-input-border)' }}
+                        aria-label={`Call ${customer.firstName}`}
                       >
-                        <Phone size={14} /> Call
+                        <Phone size={17} />
                       </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onViewLog(customer)}
-                      className="btn-secondary text-sm py-2 px-3 shrink-0"
-                      title="Contact history"
-                      aria-label="Contact history"
-                    >
-                      <History size={14} />
-                    </button>
+                    ) : null}
+                  </div>
+
+                  <div className="flex items-center gap-5 mt-2 pl-7">
                     <button
                       type="button"
                       onClick={() => setExpandedId(open ? null : customer.id)}
-                      className={cn(
-                        'btn-primary flex-1 justify-center text-sm py-2 px-3 whitespace-nowrap',
-                        open && 'bg-brand-secondary'
-                      )}
+                      className="link-text text-sm inline-flex items-center gap-1 min-h-[36px]"
                       aria-expanded={open}
                     >
                       Log call {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => onViewLog(customer)}
+                      className="link-text text-sm inline-flex items-center gap-1 min-h-[36px]"
+                    >
+                      <History size={14} /> History
+                    </button>
                   </div>
 
                   {open && (
-                    <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: 'var(--color-surface-base)' }}>
+                    <div className="mt-2 rounded-md border p-3" style={{ backgroundColor: 'var(--color-surface-base)', borderColor: 'var(--color-row-divider)' }}>
                       <p className="crm-label mb-3">{alert.reason}</p>
                       <ContactLogQuickForm
                         defaultOutcome={preferences.contactWorkflow.defaultOutcome}

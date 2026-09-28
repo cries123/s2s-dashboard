@@ -102,19 +102,13 @@ export default function SalesToService({ customers }: SalesToServiceProps) {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="card-base p-1 grid grid-cols-4 gap-1 w-full sm:w-auto" role="group" aria-label="Time since sale">
+        <div className="seg grid-cols-4 w-full sm:w-[26rem]" role="group" aria-label="Time since sale">
           {HORIZONS.map((h) => (
             <button
               key={h.days}
               type="button"
               onClick={() => setHorizonDays(h.days)}
               aria-pressed={horizonDays === h.days}
-              className={
-                horizonDays === h.days
-                  ? 'min-w-0 px-2 sm:px-3 py-1.5 rounded-md text-sm whitespace-nowrap bg-brand-primary text-white min-h-[40px]'
-                  : 'min-w-0 px-2 sm:px-3 py-1.5 rounded-md text-sm whitespace-nowrap hover:bg-[var(--color-surface-hover)] min-h-[40px]'
-              }
-              style={horizonDays === h.days ? undefined : { color: 'var(--color-text-secondary)' }}
             >
               {h.label}
             </button>

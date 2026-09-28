@@ -3,7 +3,7 @@ import {
   X, Save, Edit2, Trash2, User as UserIcon, Phone, Mail, MapPin, Car, Calendar, 
   Gauge, History, Database, Wrench, Droplet, Activity, Copy, Check, ChevronRight, 
   AlertTriangle, ShieldCheck, MessageSquare, Info, Shield, HelpCircle, ArrowRight,
-  Sparkles, CheckCircle2, Languages, Clock, Loader2
+  Sparkles, CheckCircle2, Languages, Clock, Loader2, ChevronLeft
 } from 'lucide-react';
 import { collection, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -19,6 +19,8 @@ import {
 } from '../dashboard/customers/CustomerTimeline';
 import { ServiceVisitDetailModal } from '../dashboard/customers/ServiceVisitDetailModal';
 import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
+import { Panel } from '../ui/Panel';
+import { DEALERSHIPS } from '../../constants';
 import type { ServiceVisit } from '../../types';
 
 interface ProfileModalProps {
@@ -266,195 +268,149 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
   return (
     <div className="modal-overlay sm:p-4 p-0 !items-start sm:!items-center overflow-y-auto scroll-smooth">
-      <div className="modal-content !max-w-6xl w-full h-auto min-h-[100dvh] sm:min-h-0 sm:h-[90vh] rounded-none sm:rounded-[24px] !bg-surface-base border border-white/5 shadow-2xl relative flex flex-col overflow-visible sm:overflow-hidden animate-zoom-in">
+      <div className="modal-content !max-w-5xl w-full h-auto min-h-[100dvh] sm:min-h-0 sm:h-[90vh] !rounded-none sm:!rounded-lg !bg-surface-base shadow-2xl relative flex flex-col overflow-visible sm:overflow-y-auto animate-zoom-in">
         
-        {/* Banner with gradient accent */}
-        <div className="absolute top-0 left-0 right-0 h-[120px] bg-gradient-to-r from-brand-primary/10 via-brand-secondary/5 to-transparent border-b border-white/5 opacity-50 z-0 pointer-events-none" />
+        {/* Top bar: back on the left, edit and delete on the right. */}
+        <div
+          className="sticky top-0 z-20 flex items-center gap-1 px-2 sm:px-4 min-h-[52px] border-b shrink-0"
+          style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}
+        >
+          <button type="button" onClick={onClose} className="link-text text-sm inline-flex items-center gap-0.5 min-h-[44px] px-2">
+            <ChevronLeft size={18} /> Back
+          </button>
+          <div className="flex-1" />
+          {!isEditing ? (
+            <button type="button" onClick={() => setIsEditing(true)} className="link-text text-sm min-h-[44px] px-3">
+              Edit
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={() => setIsEditing(false)} className="link-text text-sm min-h-[44px] px-3">
+                Cancel
+              </button>
+              <button type="button" onClick={handleSave} disabled={isSaving} className="btn-primary py-2 px-4">
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(customer.id, displayName)}
+            className="icon-btn hover:!text-rose-600"
+            title="Delete customer"
+            aria-label="Delete customer"
+          >
+            <Trash2 size={17} />
+          </button>
+        </div>
 
-        {/* Modal Header Dossier Card */}
-        <div className="p-4 sm:p-6 md:p-8 border-b border-white/5 bg-slate-950/40 relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6 shrink-0">
-          <div className="flex items-center gap-3 sm:gap-5">
-            {/* High-end avatar */}
-            <div className={cn(
-              "w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-gradient-to-br flex items-center justify-center text-white font-sans text-lg sm:text-2xl font-semibold shadow-lg shrink-0",
-              getAvatarGradient(customer.firstName, customer.lastName)
-            )}>
+        {/* Record header: type, name, the four facts that matter, and contact actions. */}
+        <div className="px-4 sm:px-6 md:px-8 pt-4 pb-3 border-b shrink-0" style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-11 h-11 rounded-md flex items-center justify-center shrink-0 text-sm font-semibold"
+              style={{ backgroundColor: '#ece1f9', color: '#5a1ba9' }}
+              aria-hidden="true"
+            >
               {initials}
             </div>
-            
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
-                <h3 className="text-lg sm:text-2xl md:text-3xl font-semibold text-white tracking-tight leading-tight">
-                  {displayName}
-                </h3>
-                <span className={cn(
-                  "badge text-xs sm:text-xs font-semibold py-0.5 sm:py-1 px-1.5 sm:px-2.5 rounded-md sm:rounded-lg",
-                  customer.serviceAlertTriggered ? "badge-success" : "badge-info"
-                )}>
-                  {customer.serviceAlertTriggered
-                    ? "Alert Sourced"
-                    : serviceAlerts.isStandardMode
-                      ? "Standard (6 mo)"
-                      : "Active"}
-                </span>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] sm:text-xs font-medium text-slate-400">
-                <span className="flex items-center gap-1">
-                  <Calendar size={12} className="text-brand-primary" />
-                  Acquired {new Date(customer.createdAt.toMillis()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-                <span className="hidden sm:inline text-slate-700">•</span>
-                <span className="flex items-center gap-1 font-mono text-xs sm:text-[11px] bg-slate-900 border border-white/5 px-1.5 sm:px-2 py-0.5 rounded text-brand-secondary" title={customer.vin ? `Full VIN: ${customer.vin}` : `VIN Last 8: ${customer.vinLast8}`}>
-                  VIN: {customer.vin || customer.vinLast8}
-                </span>
-              </div>
+            <div className="min-w-0">
+              <p className="crm-label">Customer</p>
+              <h3 className="text-xl sm:text-2xl font-semibold leading-tight break-words">{displayName}</h3>
             </div>
+            {serviceAlerts.isServiceAlertActive(customer) ? (
+              <span className="badge badge-warning ml-auto shrink-0">Service due</span>
+            ) : null}
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto self-stretch md:self-auto justify-end mt-2 md:mt-0">
-            {!isEditing ? (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="btn-secondary py-2 px-3.5 sm:py-2.5 sm:px-5 text-xs sm:text-xs font-semibold flex items-center gap-1.5 sm:gap-2"
-              >
-                <Edit2 size={13} /> Edit Profile
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 flex-1 md:flex-none">
-                <button 
-                  onClick={() => setIsEditing(false)}
-                  className="btn-secondary py-2 px-3.5 sm:py-2.5 sm:px-5 text-xs sm:text-xs font-semibold flex-1 md:flex-none"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="btn-primary py-2 px-3.5 sm:py-2.5 sm:px-5 text-xs sm:text-xs font-semibold flex items-center gap-1.5 sm:gap-2 flex-1 md:flex-none"
-                >
-                  {isSaving ? "Saving..." : <><Save size={13} /> Save Profile</>}
-                </button>
-              </div>
-            )}
-            
-            <button 
-              onClick={() => onDelete(customer.id, displayName)}
-              className="p-2 sm:p-3 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg sm:rounded-xl transition-all"
-              title="Delete Customer Profile"
-            >
-              <Trash2 size={16} />
-            </button>
-            
-            <button 
-              onClick={onClose} 
-              className="p-2 sm:p-3 text-slate-400 hover:text-white hover:bg-slate-900 border border-white/5 rounded-lg sm:rounded-xl transition-all ml-1"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Premium Bento Matrix */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 bg-slate-950/80 shrink-0 border-b border-white/5 p-3 sm:p-4 md:px-8 gap-2 sm:gap-3">
-          <div className="p-2.5 sm:p-3.5 bg-slate-900/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2.5 bg-brand-primary/10 rounded-lg sm:rounded-xl text-brand-secondary shrink-0">
-              <Car size={15} />
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 mt-4">
+            <div className="min-w-0">
+              <dt className="crm-label">Vehicle</dt>
+              <dd className="text-sm font-medium truncate">{[customer.year, customer.make, customer.model].filter(Boolean).join(' ') || '—'}</dd>
             </div>
             <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Vehicle</p>
-              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate max-w-[100px] sm:max-w-[150px]">{customer.year || 'N/A'} {customer.make} {customer.model}</p>
-            </div>
-          </div>
-
-          <div className="p-2.5 sm:p-3.5 bg-slate-900/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2.5 bg-cyan-500/10 rounded-lg sm:rounded-xl text-cyan-400 shrink-0">
-              <Gauge size={15} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 font-sans truncate">Mileage</p>
-              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">{customer.mileage ? `${parseInt(customer.mileage).toLocaleString()} mi` : '—'}</p>
-            </div>
-          </div>
-
-          <div className="p-2.5 sm:p-3.5 bg-slate-900/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2.5 bg-emerald-500/10 rounded-lg sm:rounded-xl text-emerald-400 shrink-0">
-              <Calendar size={15} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Ownership</p>
-              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">{customer.soldDate ? new Date(customer.soldDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</p>
-            </div>
-          </div>
-
-          <div className="p-2.5 sm:p-3.5 bg-slate-900/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2.5 bg-amber-500/10 rounded-lg sm:rounded-xl text-amber-400 shrink-0">
-              <Activity size={15} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs sm:text-xs font-semibold text-slate-500 truncate">Next service</p>
-              <p className="text-[11px] sm:text-xs font-semibold text-white mt-0.5 truncate">
+              <dt className="crm-label">Next service</dt>
+              <dd className="text-sm font-medium truncate">
                 {serviceAlerts.isStandardMode
                   ? serviceAlerts.isServiceAlertActive(customer)
-                    ? 'Due Now'
+                    ? 'Due now'
                     : `Due ${serviceAlerts.getNextServiceMilestone(customer)}`
                   : oilAnalysis.hasData
-                    ? `${oilAnalysis.avgMonths} mo`
-                    : 'Building History'}
-              </p>
+                    ? `Every ${oilAnalysis.avgMonths} mo`
+                    : 'Not enough history yet'}
+              </dd>
             </div>
-          </div>
+            <div className="min-w-0">
+              <dt className="crm-label">Mileage</dt>
+              <dd className="text-sm font-medium truncate">{customer.mileage ? `${parseInt(customer.mileage).toLocaleString()} mi` : '—'}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="crm-label">Owned since</dt>
+              <dd className="text-sm font-medium truncate">
+                {customer.soldDate
+                  ? new Date(customer.soldDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
+
+          {customer.phone || customer.email ? (
+            <div className="flex gap-6 mt-4">
+              {[
+                customer.phone ? { label: 'Call', href: `tel:${customer.phone}`, icon: Phone } : null,
+                customer.phone ? { label: 'Text', href: `sms:${customer.phone}`, icon: MessageSquare } : null,
+                customer.email ? { label: 'Email', href: `mailto:${customer.email}`, icon: Mail } : null,
+              ]
+                .filter(Boolean)
+                .map((a) => {
+                  const { label, href, icon: Icon } = a as { label: string; href: string; icon: typeof Phone };
+                  return (
+                    <a key={label} href={href} className="flex flex-col items-center gap-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <span
+                        className="w-11 h-11 rounded-full border flex items-center justify-center text-brand-primary"
+                        style={{ borderColor: 'var(--color-input-border)', backgroundColor: 'var(--color-surface-card)' }}
+                      >
+                        <Icon size={18} />
+                      </span>
+                      {label}
+                    </a>
+                  );
+                })}
+            </div>
+          ) : null}
         </div>
 
-        {/* High-fidelity responsive navigation tabs */}
-        <div className="bg-slate-950/20 shrink-0 border-b border-white/5 px-4 sm:px-6 md:px-8 flex items-center justify-between py-2 sm:py-0">
-          {/* Mobile Tab Select Dropdown */}
-          <div className="block sm:hidden w-full relative">
-            <label htmlFor="mobile-tab-select" className="sr-only">Select Profile Tab</label>
-            <select
-              id="mobile-tab-select"
-              value={activeTab}
-              onChange={(e) => setActiveTab(e.target.value as TabType)}
-              className="w-full bg-surface-muted border border-white/10 text-slate-200 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none focus:border-brand-primary/50 appearance-none cursor-pointer"
+        {/* Underline tabs, same on every screen size. */}
+        <div
+          className="flex overflow-x-auto no-scrollbar border-b shrink-0 px-2 sm:px-6 md:px-8"
+          style={{ backgroundColor: 'var(--color-surface-card)', borderColor: 'var(--color-surface-border)' }}
+          role="tablist"
+        >
+          {[
+            { id: 'overview', label: 'Overview' },
+            { id: 'demographics', label: 'Details' },
+            { id: 'history', label: `History${customer.recentVisits?.length ? ` (${customer.recentVisits.length})` : ''}` },
+            { id: 'campaigns', label: 'Recalls' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id as TabType)}
+              className={cn(
+                'px-3 sm:px-4 min-h-[44px] text-sm whitespace-nowrap transition-colors',
+                activeTab === tab.id ? 'font-semibold' : ''
+              )}
+              style={
+                activeTab === tab.id
+                  ? { boxShadow: 'inset 0 -3px 0 var(--color-brand-primary)', color: 'var(--color-text-primary)' }
+                  : { color: 'var(--color-text-secondary)' }
+              }
             >
-              <option value="overview">General</option>
-              <option value="demographics">Information</option>
-              <option value="history">Service History ({customer.recentVisits?.length || 0})</option>
-              <option value="campaigns">Recalls & campaigns</option>
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none text-slate-400">
-              <span className="text-xs">▼</span>
-            </div>
-          </div>
-
-          {/* Desktop Tabs Layout */}
-          <div className="hidden sm:flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar scroll-smooth py-2 sm:py-3 w-full">
-            {[
-              { id: 'overview', label: 'General', icon: Sparkles },
-              { id: 'demographics', label: 'Information', icon: UserIcon },
-              { id: 'history', label: `Service History (${customer.recentVisits?.length || 0})`, icon: Database },
-              { id: 'campaigns', label: 'Recalls & campaigns', icon: ShieldCheck }
-            ].map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id as TabType);
-                  }}
-                  className={cn(
-                    "flex items-center gap-1.5 sm:gap-2.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-xs font-semibold transition-all duration-200 shrink-0 border",
-                    activeTab === tab.id 
-                      ? "bg-brand-primary text-white border-brand-primary/20 shadow-md shadow-brand-primary/15" 
-                      : "bg-transparent text-slate-400 border-transparent hover:text-white hover:bg-slate-900"
-                  )}
-                >
-                  <Icon size={13} className={activeTab === tab.id ? "text-white" : "text-slate-500"} />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Tab Panel Shell */}
@@ -471,314 +427,149 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               
               {/* TABS 1: SNAPSHOT OVERVIEW */}
               {activeTab === 'overview' && !isEditing && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                  {/* Left bento segment: Vehicle Details */}
-                  <div className="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
-                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-8 opacity-5 text-white pointer-events-none group-hover:scale-110 duration-500 ease">
-                        <Car size={96} />
-                      </div>
-                      
-                      <p className="text-xs font-semibold text-brand-secondary mb-4 flex items-center gap-2">
-                        <Car size={13} /> Vehicle
-                      </p>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-2">
-                        <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-xs font-semibold text-slate-500 ">Model</p>
-                          <p className="text-base sm:text-lg font-semibold text-white mt-1">
-                            {formData.year || 'Not Specified'} {formData.make} {formData.model}
-                          </p>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+                  <div className="lg:col-span-2 space-y-4">
+                    <Panel title="Vehicle" icon={Car} tone="blue">
+                      <dl>
+                        <div className="list-row flex-col items-start gap-0.5 min-h-0 py-2.5">
+                          <dt className="crm-label">Model</dt>
+                          <dd className="text-sm">{[formData.year, formData.make, formData.model].filter(Boolean).join(' ') || '—'}</dd>
                         </div>
-
-                        <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl col-span-1 sm:col-span-2 relative">
-                          <p className="text-xs font-semibold text-slate-500 ">VIN</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                            <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
-                              <p className="text-xs font-semibold text-slate-500 ">Full VIN</p>
-                              <div className="flex items-center justify-between mt-1 gap-2">
-                                <span className="font-mono text-xs sm:text-sm font-semibold text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap ">
-                                  {formData.vin || '—'}
-                                </span>
-                                {formData.vin && (
-                                  <button 
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(formData.vin || '');
-                                      setIsCopied(true);
-                                      setTimeout(() => setIsCopied(false), 2000);
-                                    }}
-                                    className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors"
-                                    title="Copy Full VIN"
-                                  >
-                                    {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                            <div className="bg-slate-900/55 p-2.5 rounded-xl border border-white/5">
-                              <p className="text-xs font-semibold text-slate-500 ">VIN Last 8</p>
-                              <div className="flex items-center justify-between mt-1 gap-2">
-                                <span className="font-mono text-xs sm:text-sm font-semibold text-brand-secondary overflow-hidden text-ellipsis whitespace-nowrap ">
-                                  {formData.vinLast8}
-                                </span>
-                                <button 
-                                  onClick={handleCopyVin}
-                                  className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded transition-colors"
-                                  title="Copy VIN Last 8"
-                                >
-                                  {isCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                                </button>
-                              </div>
-                            </div>
+                        <div className="list-row min-h-0 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <dt className="crm-label">VIN</dt>
+                            <dd className="text-sm truncate">
+                              {formData.vin ? <span className="font-mono">{formData.vin}</span> : formData.vinLast8 ? <>Ends in <span className="font-mono">{formData.vinLast8}</span></> : '—'}
+                            </dd>
                           </div>
+                          {formData.vin || formData.vinLast8 ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(formData.vin || formData.vinLast8 || '');
+                                setIsCopied(true);
+                                setTimeout(() => setIsCopied(false), 2000);
+                              }}
+                              className="icon-btn"
+                              title="Copy VIN"
+                              aria-label="Copy VIN"
+                            >
+                              {isCopied ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                            </button>
+                          ) : null}
                         </div>
-
-                        <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-xs font-semibold text-slate-500 ">Mileage</p>
-                          <p className="text-base sm:text-lg font-semibold text-white mt-1">
-                            {formData.mileage ? `${parseInt(formData.mileage).toLocaleString()} mi` : '—'}
-                          </p>
+                        <div className="list-row flex-col items-start gap-0.5 min-h-0 py-2.5">
+                          <dt className="crm-label">Mileage</dt>
+                          <dd className="text-sm">{formData.mileage ? `${parseInt(formData.mileage).toLocaleString()} mi` : '—'}</dd>
                         </div>
-
-                        <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl">
-                          <p className="text-xs font-semibold text-slate-500 ">Preferred Language</p>
-                          <p className="text-base sm:text-lg font-semibold text-white mt-1 flex items-center gap-2">
-                            <Languages size={15} className="text-brand-secondary" />
-                            {formData.language || 'English'}
-                          </p>
+                        <div className="list-row flex-col items-start gap-0.5 min-h-0 py-2.5">
+                          <dt className="crm-label">Preferred language</dt>
+                          <dd className="text-sm">{formData.language || 'English'}</dd>
                         </div>
-                      </div>
-                    </div>
+                      </dl>
+                    </Panel>
 
-                    {/* Oil Analysis Bento Panel */}
-                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-                      <p className="text-xs font-semibold text-brand-primary mb-4 flex items-center gap-2">
-                        <Droplet size={13} className="text-indigo-400" /> Service history
-                      </p>
-
-                      {oilAnalysis ? (
-                        oilAnalysis.hasData ? (
-                          <div className="space-y-4 sm:space-y-6">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                              <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl flex items-center justify-between">
-                                <div>
-                                  <p className="text-xs font-semibold text-slate-500 mb-1">Average time between visits</p>
-                                  <p className="text-sm sm:text-base font-semibold text-white">
-                                    {oilAnalysis.avgMonths} Months
-                                  </p>
-                                </div>
-                                <span className="text-xs font-mono font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded-md border border-white/5 shrink-0">
-                                  {oilAnalysis.avgDays} Days
-                                </span>
-                              </div>
-
-                              <div className="p-4 bg-slate-950/40 border border-white/5 rounded-xl flex items-center justify-between">
-                                <div>
-                                  <p className="text-xs font-semibold text-slate-500 mb-1">Average Service Interval</p>
-                                  <p className="text-sm sm:text-base font-semibold text-white">
-                                    {oilAnalysis.avgMiles?.toLocaleString()} mi
-                                  </p>
-                                </div>
-                                <span className="text-xs font-mono font-bold text-slate-400 bg-slate-900 px-2 py-1 rounded-md border border-white/5 shrink-0">
-                                  Avg Range
-                                </span>
-                              </div>
+                    <Panel title="Service pattern" icon={Droplet} tone="violet">
+                      {oilAnalysis?.hasData ? (
+                        <dl className="grid grid-cols-2 gap-px" style={{ backgroundColor: 'var(--color-row-divider)' }}>
+                          {[
+                            ['Time between visits', `${oilAnalysis.avgMonths} months`],
+                            ['Miles between visits', oilAnalysis.avgMiles ? `${oilAnalysis.avgMiles.toLocaleString()} mi` : '—'],
+                            ['Next oil change (est.)', oilAnalysis.nextDueDateLabel ?? '—'],
+                            ['At about', oilAnalysis.nextMileage ? `${oilAnalysis.nextMileage.toLocaleString()} mi` : '—'],
+                          ].map(([label, value]) => (
+                            <div key={label} className="px-4 py-3" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+                              <dt className="crm-label">{label}</dt>
+                              <dd className="text-sm font-semibold mt-0.5">{value}</dd>
                             </div>
-
-                            <div className="p-4 sm:p-5 bg-gradient-to-br from-indigo-950/40 to-slate-900/40 border border-brand-primary/20 rounded-xl sm:rounded-2xl relative overflow-hidden">
-                              <div className="absolute top-0 right-0 p-4 opacity-10 text-brand-primary">
-                                <Sparkles size={48} />
-                              </div>
-                              
-                              <p className="text-xs font-semibold text-brand-secondary mb-3 flex items-center gap-1.5">
-                                <Activity size={12} /> Next oil change (estimated)
-                              </p>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                <div className="space-y-1">
-                                  <span className="text-xs text-slate-500 font-bold block">Estimated Due Date</span>
-                                  <span className="font-semibold text-base sm:text-lg text-white">{oilAnalysis.nextDueDateLabel ?? 'N/A'}</span>
-                                </div>
-                                <div className="space-y-1">
-                                  <span className="text-xs text-slate-500 font-bold block">Estimated Due Mileage</span>
-                                  <span className="font-semibold text-base sm:text-lg text-white">{oilAnalysis.nextMileage?.toLocaleString()} mi</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-6 bg-slate-950/20 border border-dashed border-white/5 rounded-2xl text-center space-y-2">
-                            <Info size={24} className="text-slate-500 mx-auto" />
-                            <p className="text-sm font-semibold text-slate-300">Statistical Engine Pending</p>
-                            <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                              {oilAnalysis.message} Add more visits to enable predictive analytics.
-                            </p>
-                          </div>
-                        )
+                          ))}
+                        </dl>
                       ) : (
-                        <div className="p-6 bg-slate-950/20 border border-dashed border-white/5 rounded-2xl text-center space-y-2">
-                          <Database size={24} className="text-slate-500 mx-auto" />
-                          <p className="text-sm font-semibold text-slate-300">History Database Empty</p>
-                          <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-                            No service history logs available to compile predictive calendar.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Customer Notes Bento Block */}
-                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 mt-4 sm:mt-6">
-                      <p className="text-xs font-semibold text-amber-400 flex items-center gap-2">
-                        <MessageSquare size={13} className="text-amber-400" /> Notes
-                      </p>
-                      
-                      <div className="space-y-3">
-                        <textarea
-                          value={customerNotes}
-                          onChange={(e) => setCustomerNotes(e.target.value)}
-                          className="w-full bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-primary h-28 resize-none placeholder:text-slate-600 focus:border-transparent transition-all"
-                          placeholder="Record client preferences, custom alerts or special context here..."
-                        />
-                        <div className="flex justify-end">
-                          <button
-                            onClick={handleSaveNotesInline}
-                            disabled={isSavingNotes}
-                            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all disabled:opacity-50"
-                          >
-                            {isSavingNotes ? (
-                              <>
-                                <Loader2 className="animate-spin" size={12} /> Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Save size={12} /> Save Notes
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right side contact pane */}
-                  <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
-                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
-                        <UserIcon size={14} className="text-brand-secondary" /> Contact
-                      </p>
-
-                      <div className="space-y-3.5 sm:space-y-4">
-                        {/* Mobile Phone Card */}
-                        <div className="p-3.5 sm:p-4 bg-slate-950/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between group hover:border-brand-primary/20 transition-all">
-                          <div className="space-y-0.5 truncate pr-2">
-                            <p className="text-xs font-semibold text-slate-500 ">Mobile Phone</p>
-                            <p className="text-sm font-semibold text-white truncate font-mono">{formData.phone || 'Unknown'}</p>
-                          </div>
-                          {formData.phone && (
-                            <a 
-                              href={`tel:${formData.phone}`} 
-                              className="w-8 h-8 rounded-lg bg-brand-primary/10 hover:bg-brand-primary text-brand-secondary hover:text-white flex items-center justify-center transition-all shrink-0 border border-white/5"
-                            >
-                              <Phone size={14} />
-                            </a>
-                          )}
-                        </div>
-
-                        {/* Email Card */}
-                        <div className="p-3.5 sm:p-4 bg-slate-950/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between group hover:border-brand-primary/20 transition-all">
-                          <div className="space-y-0.5 truncate pr-2">
-                            <p className="text-xs font-semibold text-slate-500 ">Email Address</p>
-                            <p className="text-sm font-semibold text-white truncate font-mono">{formData.email || 'Not Provided'}</p>
-                          </div>
-                          {formData.email && (
-                            <a 
-                              href={`mailto:${formData.email}`} 
-                              className="w-8 h-8 rounded-lg bg-brand-primary/10 hover:bg-brand-primary text-brand-secondary hover:text-white flex items-center justify-center transition-all shrink-0 border border-white/5"
-                            >
-                              <Mail size={14} />
-                            </a>
-                          )}
-                        </div>
-
-                        {/* Residential Card */}
-                        <div className="p-3.5 sm:p-4 bg-slate-950/30 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between group hover:border-brand-primary/20 transition-all">
-                          <div className="space-y-0.5 truncate pr-2">
-                            <p className="text-xs font-semibold text-slate-500 ">Primary Address</p>
-                            <p className="text-xs font-semibold text-slate-200 truncate mt-1">
-                              {formData.address ? `${formData.address}, ${formData.city || ''} ${formData.state || ''}` : 'No Address Stored'}
-                            </p>
-                          </div>
-                          {formData.address && (
-                            <a 
-                              href={`https://maps.google.com/?q=${encodeURIComponent(`${formData.address} ${formData.city || ''} ${formData.state || ''} ${formData.zip || ''}`)}`} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              className="w-8 h-8 rounded-lg bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white flex items-center justify-center transition-all shrink-0 border border-white/5"
-                            >
-                              <MapPin size={14} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
-                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
-                        <Wrench size={14} className="text-brand-primary" /> Customer Value
-                      </p>
-
-                      {spendSummary.visitsWithData > 0 ? (
-                        <div className="space-y-3.5">
-                          <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between">
-                            <span className="text-xs font-semibold text-slate-500 ">
-                              Customer Pay Spend
-                            </span>
-                            <span className="text-sm font-semibold text-white tabular-nums">
-                              {formatMoney(spendSummary.customerTotal)}
-                            </span>
-                          </div>
-                          <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex items-center justify-between">
-                            <span className="text-xs font-semibold text-slate-500 ">
-                              Warranty Pay Received
-                            </span>
-                            <span className="text-sm font-semibold text-amber-400 tabular-nums">
-                              {formatMoney(spendSummary.warrantyTotal)}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            From {spendSummary.visitsWithData} of {spendSummary.totalVisits} repair order
-                            {spendSummary.totalVisits === 1 ? '' : 's'} on file with pay-type data synced from PBS.
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          No pay-type data synced for this customer's repair orders yet.
+                        <p className="crm-label px-4 py-5">
+                          {oilAnalysis?.message ? `${oilAnalysis.message} ` : ''}
+                          Estimates appear once there are a few visits on file.
                         </p>
                       )}
-                    </div>
+                    </Panel>
 
-                    <div className="bg-slate-900/40 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
-                      <p className="text-xs font-semibold text-slate-400 flex items-center gap-2 border-b border-white/5 pb-3">
-                        <Shield size={14} className="text-emerald-500" /> Record details
-                      </p>
-                      
-                      <div className="space-y-3.5 text-xs">
-                        <div className="flex justify-between items-center text-slate-400">
-                          <span className="font-bold">Sold by:</span>
-                          <span className="font-semibold text-white">{customer.soldByUsername || 'Imported record'}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-slate-400">
-                          <span className="font-bold">Store:</span>
-                          <span className="font-semibold text-white font-mono">HY-{customer.dealershipId ? customer.dealershipId.slice(-6).toUpperCase() : 'MAIN'}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-slate-400">
-                          <span className="font-bold">Reminders:</span>
-                          <span className="flex items-center gap-1.5 font-semibold text-white">
-                            <CheckCircle2 size={12} className="text-emerald-400" /> On
-                          </span>
-                        </div>
+                    <Panel title="Notes" icon={MessageSquare} tone="amber" bodyClassName="p-4 space-y-3">
+                      <textarea
+                        value={customerNotes}
+                        onChange={(e) => setCustomerNotes(e.target.value)}
+                        className="input-field h-28 resize-none"
+                        placeholder="Preferences, reminders or anything the next person should know"
+                        aria-label="Notes"
+                      />
+                      <div className="flex justify-end">
+                        <button type="button" onClick={handleSaveNotesInline} disabled={isSavingNotes} className="btn-primary">
+                          {isSavingNotes ? <><Loader2 className="animate-spin" size={14} /> Saving…</> : 'Save notes'}
+                        </button>
                       </div>
-                    </div>
+                    </Panel>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Panel title="Contact" icon={UserIcon} tone="violet">
+                      {[
+                        { label: 'Phone', value: formData.phone, href: formData.phone ? `tel:${formData.phone}` : undefined, icon: Phone },
+                        { label: 'Email', value: formData.email, href: formData.email ? `mailto:${formData.email}` : undefined, icon: Mail },
+                        {
+                          label: 'Address',
+                          value: formData.address ? `${formData.address}${formData.city ? `, ${formData.city}` : ''} ${formData.state || ''}`.trim() : '',
+                          href: formData.address
+                            ? `https://maps.google.com/?q=${encodeURIComponent(`${formData.address} ${formData.city || ''} ${formData.state || ''} ${formData.zip || ''}`)}`
+                            : undefined,
+                          icon: MapPin,
+                        },
+                      ].map(({ label, value, href, icon: Icon }) => (
+                        <div key={label} className="list-row min-h-0 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="crm-label">{label}</p>
+                            {href ? (
+                              <a href={href} target={label === 'Address' ? '_blank' : undefined} rel="noreferrer" className="text-sm text-brand-primary break-words">
+                                {value}
+                              </a>
+                            ) : (
+                              <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>—</p>
+                            )}
+                          </div>
+                          {href ? <Icon size={16} className="shrink-0 text-brand-primary" /> : null}
+                        </div>
+                      ))}
+                    </Panel>
+
+                    <Panel title="Customer value" icon={Wrench} tone="teal">
+                      {spendSummary.visitsWithData > 0 ? (
+                        <>
+                          <div className="list-row min-h-0 py-2.5">
+                            <span className="flex-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Customer pay</span>
+                            <span className="text-sm font-semibold tabular-nums">{formatMoney(spendSummary.customerTotal)}</span>
+                          </div>
+                          <div className="list-row min-h-0 py-2.5">
+                            <span className="flex-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Warranty</span>
+                            <span className="text-sm font-semibold tabular-nums">{formatMoney(spendSummary.warrantyTotal)}</span>
+                          </div>
+                          <p className="crm-label px-4 py-2.5">
+                            From {spendSummary.visitsWithData} of {spendSummary.totalVisits} repair orders with pay data from PBS.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="crm-label px-4 py-4">No pay data from PBS for this customer yet.</p>
+                      )}
+                    </Panel>
+
+                    <Panel title="Record" icon={Shield} tone="slate">
+                      {[
+                        ['Sold by', customer.soldByUsername || 'Imported record'],
+                        ['Store', DEALERSHIPS.find((d) => d.id === customer.dealershipId)?.name || '—'],
+                        ['Service reminders', customer.enableServiceAlert === false ? 'Off' : 'On'],
+                      ].map(([label, value]) => (
+                        <div key={label} className="list-row min-h-0 py-2.5">
+                          <span className="flex-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{label}</span>
+                          <span className="text-sm text-right">{value}</span>
+                        </div>
+                      ))}
+                    </Panel>
                   </div>
                 </div>
               )}

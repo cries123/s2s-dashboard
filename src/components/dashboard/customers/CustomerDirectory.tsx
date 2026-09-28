@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Users, ChevronRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { Customer, User } from '../../../types';
-import CustomerCard from './CustomerCard';
 import { cn } from '../../../lib/utils';
 import { PageHeader } from '../../layout/PageHeader';
 import { DataTable } from '../../ui/DataTable';
@@ -13,6 +11,9 @@ import {
   matchesDirectoryMakeFilter,
 } from '../../../lib/directoryMakeFilters';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
+import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
+import { describeCustomerAlert } from '../../../lib/alertPresentation';
+import { tidyCase } from '../../ui/Panel';
 
 interface CustomerDirectoryProps {
   customers: Customer[];
@@ -35,6 +36,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   const [visibleCount, setVisibleCount] = useState(24);
   const [filterCategory, setFilterCategory] = useState<DirectoryMakeFilter>('All');
   const [sortBy, setSortBy] = useState<'Recent' | 'Visits'>('Recent');
+  const serviceAlerts = useServiceAlertHelpers();
 
   const makeFilters = useMemo(
     () => directoryMakeFiltersForDealership(currentDealershipId),
@@ -175,25 +177,21 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       <PageHeader
         title="Customer directory"
-        description="Search and open customer profiles, service history, and contact logs."
+        description={`${customers.length.toLocaleString()} customers · ${stats.totalROs.toLocaleString()} repair orders on file`}
         breadcrumbs={[{ label: 'Service' }, { label: 'Directory' }]}
-        actions={
-          <div className="flex gap-2 text-sm">
-            <span className="badge badge-info">{customers.length} customers</span>
-            <span className="badge badge-info">{stats.totalROs} ROs</span>
-          </div>
-        }
+        className="mb-2"
       />
 
-      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center card-base p-3">
+      <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" size={16} style={{ color: 'var(--color-text-secondary)' }} />
           <input
-            type="text"
-            placeholder="Search name, phone, VIN, model..."
+            type="search"
+            placeholder="Search name, phone, VIN or model"
+            aria-label="Search customers"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -202,110 +200,106 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
             className="input-field pl-9"
           />
         </div>
-
-        <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg border" style={{ borderColor: 'var(--color-surface-border)' }}>
-           <div className="flex items-center gap-1">
-             {['All', 'Hyundai', 'Other'].map(cat => (
-               <button 
-                 key={cat} 
-                 onClick={() => setFilterCategory(cat as any)}
-                 className={cn(
-                   "px-4 py-2.5 rounded-[1rem] text-xs font-semibold transition-all whitespace-nowrap",
-                   filterCategory === cat 
-                     ? "bg-brand-primary text-white shadow-xl shadow-brand-primary/20" 
-                     : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-                 )}
-               >
-                 {cat}
-               </button>
-             ))}
-           </div>
-
-           <div className="hidden lg:block w-px h-6 bg-white/5 mx-1" />
-           <div className="lg:hidden w-full h-px bg-white/5 my-0.5" />
-
-           <div className="flex items-center gap-1">
-             {[
-               { id: 'Recent', label: 'Recently Visited' },
-               { id: 'Visits', label: 'Most Visited' }
-             ].map(sort => (
-               <button 
-                 key={sort.id} 
-                 onClick={() => setSortBy(sort.id as any)}
-                 className={cn(
-                   "px-4 py-2.5 rounded-[1rem] text-xs font-semibold transition-all whitespace-nowrap",
-                   sortBy === sort.id 
-                     ? "bg-brand-secondary text-white shadow-xl shadow-brand-secondary/20" 
-                     : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-                 )}
-               >
-                 {sort.label}
-               </button>
-             ))}
-           </div>
+        <div className="flex gap-2">
+          <div
+            className="seg flex-1 lg:flex-none"
+            style={{ gridTemplateColumns: `repeat(${makeFilters.length}, minmax(0, 1fr))` }}
+            role="group"
+            aria-label="Filter by make"
+          >
+            {makeFilters.map((cat) => (
+              <button key={cat} type="button" aria-pressed={filterCategory === cat} onClick={() => setFilterCategory(cat)}>
+                {cat}
+              </button>
+            ))}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'Recent' | 'Visits')}
+            className="input-field w-auto shrink-0"
+            aria-label="Sort"
+          >
+            <option value="Recent">Recent</option>
+            <option value="Visits">Most visits</option>
+          </select>
         </div>
       </div>
 
-      {/* Results Grid */}
-      <AnimatePresence mode="wait">
-        {filteredCustomers.length === 0 ? (
-          <EmptyState
-            title="No customers match your search"
-            description="Try a different name, phone number, or VIN. Clear filters to see the full directory."
-            action={
-              <button type="button" onClick={() => { setSearchQuery(''); setFilterCategory('All'); }} className="btn-secondary">
-                Clear filters
-              </button>
-            }
-          />
-        ) : (
-          <div className="space-y-6">
-            <div className="hidden lg:block">
-              <DataTable
-                columns={tableColumns}
-                data={displayCustomers}
-                rowKey={(c) => c.id}
-                onRowClick={onViewProfile}
-              />
-              <p className="crm-label mt-2 px-1">
-                Showing {displayCustomers.length} of {filteredCustomers.length} matches
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:hidden">
-              {displayCustomers.map((c, idx) => (
-                <motion.div
-                  key={c.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(idx * 0.05, 1) }}
-                >
-                  <CustomerCard 
-                    customer={c} 
-                    currentUser={currentUser}
-                    onViewProfile={onViewProfile}
-                    onViewLog={onViewLog}
-                    onRefresh={onRefresh}
-                  />
-                </motion.div>
-              ))}
-            </div>
+      {filteredCustomers.length === 0 ? (
+        <EmptyState
+          title="No customers match"
+          description="Try a different name, phone number or VIN."
+          action={
+            <button type="button" onClick={() => { setSearchQuery(''); setFilterCategory('All'); }} className="btn-secondary">
+              Clear filters
+            </button>
+          }
+        />
+      ) : (
+        <div className="space-y-3">
+          <div className="hidden lg:block">
+            <DataTable columns={tableColumns} data={displayCustomers} rowKey={(c) => c.id} onRowClick={onViewProfile} />
+          </div>
 
-            {filteredCustomers.length > visibleCount && (
-              <div className="flex justify-center pt-8 pb-12">
-                <button 
-                  onClick={() => setVisibleCount(prev => prev + 24)}
-                  className="group relative px-12 py-5 bg-slate-950 border border-white/10 rounded-2xl overflow-hidden shadow-2xl hover:border-brand-primary/50 transition-all"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-brand-primary/0 via-brand-primary/5 to-brand-primary/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                  <span className="relative z-10 flex items-center gap-3 text-[11px] font-semibold text-white ">
-                    Expand Database <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+          {/* Phones and tablets: one row per customer. Calls, history and edits live on the profile. */}
+          <div className="list-group lg:hidden">
+            {displayCustomers.map((c) => {
+              const alert = describeCustomerAlert(c, serviceAlerts.config);
+              const showAlert = alert.tone === 'danger' || alert.tone === 'warning';
+              const last = c.recentVisits?.[0]?.date;
+              const lastLabel = last
+                ? new Date(`${String(last).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : null;
+              const initials = `${c.firstName?.[0] ?? ''}${c.lastName?.[0] ?? ''}`.toUpperCase() || '?';
+              return (
+                <button key={c.id} type="button" className="list-row" onClick={() => onViewProfile(c)}>
+                  <span
+                    className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
+                    style={{ backgroundColor: '#ece1f9', color: '#5a1ba9' }}
+                    aria-hidden="true"
+                  >
+                    {initials}
                   </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-brand-primary truncate">
+                      {formatCustomerDisplayName(c.firstName, c.lastName)}
+                    </p>
+                    <p className="crm-label truncate">
+                      {[c.year, tidyCase(c.model)].filter(Boolean).join(' ') || 'No vehicle on file'}
+                    </p>
+                    <p className="crm-label truncate">
+                      {showAlert ? (
+                        <span
+                          className="font-semibold"
+                          style={{ color: alert.tone === 'danger' ? 'var(--color-badge-error-text)' : 'var(--color-badge-warn-text)' }}
+                        >
+                          Service {alert.label}
+                        </span>
+                      ) : lastLabel ? (
+                        `Last in ${lastLabel}`
+                      ) : (
+                        'No visits on record'
+                      )}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="shrink-0" style={{ color: 'var(--color-text-tertiary)' }} />
                 </button>
-              </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col items-center gap-2 pt-2 pb-6">
+            <p className="crm-label">
+              Showing {displayCustomers.length.toLocaleString()} of {filteredCustomers.length.toLocaleString()}
+            </p>
+            {filteredCustomers.length > visibleCount && (
+              <button type="button" onClick={() => setVisibleCount((prev) => prev + 24)} className="btn-secondary">
+                Show more
+              </button>
             )}
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };

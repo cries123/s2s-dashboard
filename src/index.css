@@ -274,6 +274,26 @@
   }
   .icon-btn:hover { background-color: var(--color-surface-hover); color: var(--color-text-primary); }
 
+  /* Segmented control: one bordered strip, the chosen segment filled blue. */
+  .seg {
+    @apply grid rounded-md overflow-hidden;
+    border: 1px solid var(--color-input-border);
+    background-color: var(--color-surface-card);
+  }
+  .seg > button {
+    @apply min-w-0 px-2 min-h-[38px] text-sm font-medium whitespace-nowrap transition-colors;
+    border-right: 1px solid var(--color-input-border);
+    color: var(--color-text-primary);
+  }
+  .seg > button:last-child { border-right: 0; }
+  .seg > button:hover { background-color: var(--color-surface-hover); }
+  .seg > button[aria-pressed='true'] { background-color: var(--color-brand-primary); color: #fff; font-weight: 600; }
+
+  /* Label/value line inside a record row: "Vehicle   2024 Tucson Hybrid". */
+  .field-line { @apply flex gap-2 text-[13px] leading-5; }
+  .field-line > dt { @apply w-16 shrink-0; color: var(--color-text-secondary); }
+  .field-line > dd { @apply min-w-0; color: var(--color-text-primary); }
+
   .section-container {
     @apply w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6;
   }
@@ -330,14 +350,17 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
-.modal-overlay {
-  @apply fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4;
-}
+/* In a layer so a modal can override its padding and radius with utilities (full-screen on phones). */
+@layer components {
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/40 flex items-center justify-center z-[100] p-4;
+  }
 
-.modal-content {
-  background-color: var(--color-surface-card);
-  border: 1px solid var(--color-surface-border);
-  @apply rounded-lg shadow-xl w-full max-w-3xl overflow-hidden animate-zoom-in;
+  .modal-content {
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-surface-border);
+    @apply rounded-lg shadow-xl w-full max-w-3xl overflow-hidden animate-zoom-in;
+  }
 }
 
 @media print {
