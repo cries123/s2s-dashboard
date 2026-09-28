@@ -137,6 +137,11 @@
 [class~="rounded-2xl"], [class~="rounded-3xl"], [class~="rounded-[16px]"], [class~="rounded-[20px]"],
 [class~="rounded-[24px]"], [class~="rounded-[2rem]"] { border-radius: 0.5rem !important; }
 [class~="rounded-xl"] { border-radius: 0.375rem !important; }
+[class*="rounded-[1."], [class~="rounded-[1rem]"], [class*="rounded-[2"], [class*="rounded-[3"] { border-radius: 0.5rem !important; }
+/* Dark hex backgrounds hard-coded into older screens: in light mode they become panels. */
+:root[data-theme="light"] [class*="bg-[#0"], :root[data-theme="light"] [class*="bg-[#1"] {
+  background-color: var(--color-surface-card) !important;
+}
 
 @layer base {
   body {

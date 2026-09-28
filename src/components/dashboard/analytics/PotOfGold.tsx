@@ -397,12 +397,12 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
               <div className="w-12 h-12 rounded-2xl bg-brand-primary/20 flex items-center justify-center border border-brand-primary/30">
                 <Trophy className="text-brand-primary" size={24} />
               </div>
-              <span className="text-xs font-semibold text-brand-primary ">Incentive Program</span>
+              <span className="text-xs font-semibold text-brand-primary ">Incentive program</span>
             </div>
 
             {/* Local Month/Archive Switcher */}
             <div className="flex items-center gap-2">
-              <span className="crm-label text-xs leading-none">View Period:</span>
+              <span className="crm-label text-xs leading-none">Period</span>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
@@ -500,9 +500,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                   {activeSubTab === 'upsells' && <Settings size={14} className="text-brand-primary" />}
                 </div>
                 <span>
-                  {activeSubTab === 'advisors' && 'Advisors View'}
-                  {activeSubTab === 'technicians' && 'Technician View'}
-                  {activeSubTab === 'performance' && 'Data Graph View'}
+                  {activeSubTab === 'advisors' && 'Advisors'}
+                  {activeSubTab === 'technicians' && 'Technicians'}
+                  {activeSubTab === 'performance' && 'Charts'}
                   {activeSubTab === 'upsells' && 'Incentive Pricing'}
                 </span>
               </div>
@@ -526,9 +526,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                       <span className="crm-label text-xs ">Switch View</span>
                     </div>
                     {[
-                      { id: 'advisors', label: 'Advisors View', icon: Users },
-                      { id: 'technicians', label: 'Technician View', icon: Shield },
-                      { id: 'performance', label: 'Data Graph View', icon: BarChart3 },
+                      { id: 'advisors', label: 'Advisors', icon: Users },
+                      { id: 'technicians', label: 'Technicians', icon: Shield },
+                      { id: 'performance', label: 'Charts', icon: BarChart3 },
                       { id: 'upsells', label: 'Incentive Pricing', icon: Settings },
                     ].map(tab => (
                       <button
@@ -559,7 +559,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           {[
             { id: 'advisors', label: 'Advisors', icon: Users },
             { id: 'technicians', label: 'Technicians', icon: Shield },
-            { id: 'performance', label: 'Graph View', icon: BarChart3 },
+            { id: 'performance', label: 'Charts', icon: BarChart3 },
             { id: 'upsells', label: 'Incentive Payouts', icon: Settings },
           ].map(tab => (
             <button

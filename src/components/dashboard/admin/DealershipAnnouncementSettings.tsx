@@ -59,17 +59,14 @@ export function DealershipAnnouncementSettings({
   };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-amber-500/20 bg-amber-950/10 p-4">
+    <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <label className="text-xs font-semibold text-amber-300/90 flex items-center gap-2">
-            <Megaphone size={12} />
-            Live announcement — {dealershipName}
-          </label>
-          <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1 max-w-xl">
-            Publishes a banner at the top of the app for all logged-in users at this store. Updates
-            appear instantly without a refresh.
+          <p className="text-sm font-medium flex items-center gap-2">
+            <Megaphone size={14} style={{ color: 'var(--color-text-secondary)' }} />
+            {dealershipName}
           </p>
+          <p className="crm-label mt-0.5 max-w-xl">A banner at the top of the app for everyone signed in at this store.</p>
         </div>
         <button
           type="button"
@@ -77,13 +74,18 @@ export function DealershipAnnouncementSettings({
           disabled={saving || !(draft.trim() || announcement?.message?.trim())}
           className={cn(
             'w-11 h-6 rounded-full transition-colors relative shrink-0 disabled:opacity-40',
-            enabled ? 'bg-amber-500' : 'bg-slate-800'
+            enabled ? 'bg-brand-primary' : ''
           )}
+          style={enabled ? undefined : { backgroundColor: 'var(--color-input-border)' }}
+          role="switch"
+          aria-checked={enabled}
+          aria-label={enabled ? 'Hide banner' : 'Show banner'}
           title={enabled ? 'Hide banner' : 'Show banner'}
         >
           <span
+            style={{ backgroundColor: '#fff' }}
             className={cn(
-              'absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all shadow-md',
+              'absolute top-1 left-1 w-4 h-4 rounded-full transition-all shadow',
               enabled ? 'translate-x-5' : 'translate-x-0'
             )}
           />
@@ -94,12 +96,13 @@ export function DealershipAnnouncementSettings({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         rows={3}
-        placeholder="e.g. Dispatch board layout updated — Tech Display is now available next to Display Preview."
-        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-slate-600 resize-y min-h-[4.5rem] focus:outline-none focus:ring-2 focus:ring-amber-500/25"
+        placeholder="Service drive closes at 4 PM on Friday."
+        aria-label="Announcement text"
+        className="input-field resize-y min-h-[4.5rem]"
       />
 
       {announcement?.updatedAt ? (
-        <p className="text-xs text-slate-600">
+        <p className="crm-label">
           Last published{' '}
           {new Date(announcement.updatedAt).toLocaleString()}
           {announcement.updatedBy ? ` · ${announcement.updatedBy}` : ''}
@@ -111,15 +114,15 @@ export function DealershipAnnouncementSettings({
           type="button"
           onClick={publish}
           disabled={saving || !draft.trim()}
-          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-xs font-semibold text-slate-950 transition-colors"
+          className="btn-primary disabled:opacity-40"
         >
-          Publish announcement
+          Publish
         </button>
         <button
           type="button"
           onClick={clear}
           disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-700 text-xs font-semibold text-slate-400 hover:text-rose-300 hover:border-rose-900/40 transition-colors"
+          className="btn-secondary"
         >
           <Trash2 size={12} />
           Clear

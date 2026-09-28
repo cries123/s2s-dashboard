@@ -803,12 +803,13 @@ export default function AdminPanel({
 
       {panelMode === 'admin' && subTab === 'master-users' && (
         <div className="space-y-4 mb-8 animate-in fade-in duration-300">
-          <PageHeader
-            title="Dealership announcements"
-            description="A banner shown to signed-in staff at each store."
-          />
-          <div className="grid grid-cols-1 gap-4">
+          <div>
+            <h2 className="crm-section-title">Store announcements</h2>
+            <p className="crm-label mt-0.5">A banner shown to signed-in staff at each store.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
             {DEALERSHIPS.map((d) => (
+              <div key={`announcement-card-${d.id}`} className="card-base p-4">
               <DealershipAnnouncementSettings
                 key={`announcement-${d.id}`}
                 dealershipId={d.id}
@@ -817,6 +818,7 @@ export default function AdminPanel({
                 currentUserEmail={currentUser?.email}
                 onSave={(announcement) => saveAnnouncement(d.id, announcement)}
               />
+              </div>
             ))}
           </div>
         </div>
