@@ -193,7 +193,7 @@ export function SystemLogs({ dealershipId, tenantScope = false }: SystemLogsProp
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
-                  "shrink-0 flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg text-xs font-semibold transition-colors justify-center border whitespace-nowrap",
+                  "shrink-0 flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-xs font-semibold transition-colors justify-center border whitespace-nowrap",
                   isSelected
                     ? "bg-brand-primary/15 text-brand-primary border-brand-primary/40"
                     : "border-surface-border text-text-secondary hover:text-text-primary"

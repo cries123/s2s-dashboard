@@ -21,8 +21,8 @@ export function DispatchPromiseTimeInput({
   showHint = true,
 }: DispatchPromiseTimeInputProps) {
   const inputClass = compact
-    ? 'w-full min-w-0 bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-2 py-1.5 text-[11px] text-white font-semibold tabular-nums [color-scheme:dark]'
-    : 'w-full bg-slate-950/70 border border-slate-800/80 focus:border-indigo-400/50 outline-none rounded-lg px-3 py-2.5 text-sm text-white font-semibold tabular-nums [color-scheme:dark]';
+    ? 'input-field min-w-0 !px-2 text-xs font-semibold tabular-nums'
+    : 'input-field font-semibold tabular-nums';
 
   return (
     <div className="space-y-1.5">
@@ -33,6 +33,7 @@ export function DispatchPromiseTimeInput({
           </span>
           <input
             type="date"
+            aria-label="Promise date"
             value={date}
             onChange={(e) => onDateChange(e.target.value)}
             className={inputClass}
@@ -44,6 +45,7 @@ export function DispatchPromiseTimeInput({
           </span>
           <input
             type="time"
+            aria-label="Promise time"
             value={time}
             min={PROMISE_TIME_MIN}
             max={PROMISE_TIME_MAX}

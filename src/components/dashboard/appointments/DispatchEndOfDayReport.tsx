@@ -6,6 +6,7 @@ import { countOverdueOrders, formatDispatchPromiseClock } from '../../../lib/dis
 import { printDispatchEndOfDayReport } from '../../../lib/dispatchEndOfDayPrint';
 import { sortDispatchOrdersByRoNumber } from '../../../lib/dispatchRoSort';
 import { isOvernightRo } from '../../../lib/dispatchTransitions';
+import { tidyPersonName } from '../../ui/Panel';
 
 interface DispatchEndOfDayReportProps {
   dealershipName: string;
@@ -126,7 +127,7 @@ export function DispatchEndOfDayReport({
                   className="flex justify-between gap-2 border-b border-white/5 pb-1"
                 >
                   <span className="font-bold text-white">
-                    RO {ro.roNumber} · {ro.customerLastName || ro.customerName || '—'}
+                    RO {ro.roNumber} · {tidyPersonName(ro.customerLastName || ro.customerName) || '—'}
                   </span>
                   <span className="text-slate-500 shrink-0">
                     {ro.techNumber ? `Tech ${ro.techNumber}` : '—'}

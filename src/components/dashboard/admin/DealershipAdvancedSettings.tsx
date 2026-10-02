@@ -68,7 +68,7 @@ function FeatureToggle({
         type="button"
         onClick={onToggle}
         className={cn(
-          'w-11 h-6 rounded-full transition-colors relative shrink-0',
+          'tap-expand w-11 h-6 rounded-full transition-colors relative shrink-0',
           enabled ? 'bg-brand-primary' : 'bg-slate-800'
         )}
       >

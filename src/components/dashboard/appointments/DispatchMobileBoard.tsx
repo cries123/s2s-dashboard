@@ -61,7 +61,7 @@ export function DispatchMobileBoard({
               aria-selected={on}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'shrink-0 px-3.5 min-h-[36px] rounded-full text-sm border transition-colors whitespace-nowrap',
+                'shrink-0 px-3.5 min-h-[44px] rounded-full text-sm border transition-colors whitespace-nowrap',
                 on ? 'bg-brand-primary border-brand-primary font-semibold' : ''
               )}
               style={
@@ -82,7 +82,7 @@ export function DispatchMobileBoard({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">New repair order</h2>
-              <button type="button" onClick={() => setIntakeOpen(false)} className="link-text text-sm inline-flex items-center gap-1 min-h-[36px]">
+              <button type="button" onClick={() => setIntakeOpen(false)} className="link-text text-sm inline-flex items-center gap-1 min-h-[44px]">
                 <X size={15} /> Close
               </button>
             </div>

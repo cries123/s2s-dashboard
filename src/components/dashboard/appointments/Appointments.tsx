@@ -780,9 +780,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         description="Appointment volume, gross forecast, and daily shop performance."
         breadcrumbs={[{ label: 'Reports' }, { label: 'Operations' }]}
         actions={
-          <span className="badge badge-info inline-flex items-center gap-1.5">
+          <span className="badge badge-neutral inline-flex items-center gap-1.5">
             <Target size={12} />
-            Daily goal: {targetValue}
+            Goal {targetValue}/day
           </span>
         }
       />
@@ -963,7 +963,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               <button
                 type="button"
                 onClick={handlePrevDay}
-                className="absolute left-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                className="absolute left-0 top-1/2 -translate-y-1/2 icon-btn"
                 aria-label="Previous day"
               >
                 <ChevronLeft size={14} />
@@ -982,7 +982,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               <button
                 type="button"
                 onClick={handleNextDay}
-                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+                className="absolute right-0 top-1/2 -translate-y-1/2 icon-btn"
                 aria-label="Next day"
               >
                 <ChevronRight size={14} />
@@ -1137,14 +1137,10 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
                     <span>Archive editing enabled</span>
                   </span>
                 ) : (
-                  <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold normal-case tracking-normal rounded-full flex items-center gap-1">
-                    <span>Historical view</span>
-                  </span>
+                  <span className="badge badge-neutral">Past month</span>
                 )
               ) : (
-                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold normal-case tracking-normal rounded-full flex items-center gap-1">
-                  <span>Current month</span>
-                </span>
+                <span className="badge badge-neutral">Current month</span>
               )}
             </div>
             <div className="mt-2">
@@ -1188,7 +1184,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
             {selectedMonth === 'active' && showArchiveTools && (
               <button
                 onClick={() => setShowArchiveModal(true)}
-                className="h-11 px-2.5 sm:px-6 bg-brand-primary/10 hover:bg-brand-primary/15 border border-brand-primary/20 text-brand-primary hover:text-brand-primary/95 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2"
+                className="btn-secondary text-sm whitespace-nowrap"
                 title="Configure custom destination archive period and restart workspace"
               >
                 <Archive size={13} />
@@ -1198,7 +1194,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
  
             <button
               onClick={() => setIsPrintModalOpen(true)}
-              className="h-11 px-2.5 sm:px-6 bg-slate-800 hover:bg-slate-750 border border-white/5 text-slate-300 hover:text-white rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5 sm:gap-2"
+              className="btn-secondary text-sm whitespace-nowrap"
             >
               <Printer size={13} />
               Print report

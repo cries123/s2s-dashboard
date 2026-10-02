@@ -114,7 +114,7 @@ function Toggle({
         type="button"
         onClick={onToggle}
         className={cn(
-          'w-11 h-6 rounded-full transition-colors relative shrink-0',
+          'tap-expand w-11 h-6 rounded-full transition-colors relative shrink-0',
           enabled ? 'bg-brand-primary' : 'bg-slate-800'
         )}
       >
@@ -356,8 +356,8 @@ export function ManagerOperationsConfig({
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
           <div>
-            <label className="text-xs font-semibold text-slate-500">Daily appointments</label>
-            <input
+            <label htmlFor="managerope-daily-appointments" className="text-xs font-semibold text-slate-500">Daily appointments</label>
+            <input id="managerope-daily-appointments"
               type="number"
               min={1}
               value={apptTarget}
@@ -366,8 +366,8 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500">Labor gross target</label>
-            <input
+            <label htmlFor="managerope-labor-gross-target" className="text-xs font-semibold text-slate-500">Labor gross target</label>
+            <input id="managerope-labor-gross-target"
               type="number"
               min={0}
               step={1000}
@@ -377,8 +377,8 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500">Parts sales target</label>
-            <input
+            <label htmlFor="managerope-parts-sales-target" className="text-xs font-semibold text-slate-500">Parts sales target</label>
+            <input id="managerope-parts-sales-target"
               type="number"
               min={0}
               step={1000}
@@ -526,8 +526,8 @@ export function ManagerOperationsConfig({
         icon={BarChart3}
       >
         <div className="max-w-xs">
-          <label className="text-xs font-semibold text-slate-500">Report period</label>
-          <select
+          <label htmlFor="managerope-report-period" className="text-xs font-semibold text-slate-500">Report period</label>
+          <select id="managerope-report-period"
             value={forecast.reportPeriod ?? DEFAULT_FORECAST_REPORT_PERIOD}
             onChange={(e) =>
               onUpdate({
@@ -580,8 +580,8 @@ export function ManagerOperationsConfig({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
           <div>
-            <label className="text-xs font-semibold text-slate-500">Grace minutes</label>
-            <input
+            <label htmlFor="managerope-grace-minutes" className="text-xs font-semibold text-slate-500">Grace minutes</label>
+            <input id="managerope-grace-minutes"
               type="number"
               min={0}
               max={120}
@@ -598,8 +598,8 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500">Alert display</label>
-            <select
+            <label htmlFor="managerope-alert-display" className="text-xs font-semibold text-slate-500">Alert display</label>
+            <select id="managerope-alert-display"
               value={overdue.alertDisplay ?? DEFAULT_OVERDUE_ALERT_DISPLAY}
               onChange={(e) =>
                 onUpdate({
@@ -628,10 +628,10 @@ export function ManagerOperationsConfig({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
           <div>
-            <label className="text-xs font-semibold text-slate-500">
+            <label htmlFor="managerope-default-promise-time-in-hour" className="text-xs font-semibold text-slate-500">
               Default promise time, in hours (0 for none)
             </label>
-            <input
+            <input id="managerope-default-promise-time-in-hour"
               type="number"
               min={0}
               max={12}
@@ -648,8 +648,8 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500">Business hours label</label>
-            <input
+            <label htmlFor="managerope-business-hours-label" className="text-xs font-semibold text-slate-500">Business hours label</label>
+            <input id="managerope-business-hours-label"
               type="text"
               value={promise.businessHoursLabel ?? '7:30 AM – 5:00 PM'}
               onChange={(e) =>
@@ -664,8 +664,8 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500">Open (HH:MM)</label>
-            <input
+            <label htmlFor="managerope-open-hh-mm" className="text-xs font-semibold text-slate-500">Open (HH:MM)</label>
+            <input id="managerope-open-hh-mm"
               type="text"
               placeholder="07:30"
               value={promise.businessHoursOpen ?? '07:30'}
@@ -681,8 +681,8 @@ export function ManagerOperationsConfig({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-500">Close (HH:MM)</label>
-            <input
+            <label htmlFor="managerope-close-hh-mm" className="text-xs font-semibold text-slate-500">Close (HH:MM)</label>
+            <input id="managerope-close-hh-mm"
               type="text"
               placeholder="17:00"
               value={promise.businessHoursClose ?? '17:00'}
@@ -720,8 +720,8 @@ export function ManagerOperationsConfig({
           }
         />
         <div className="max-w-xs mt-2">
-          <label className="text-xs font-semibold text-slate-500">Refresh interval (seconds)</label>
-          <input
+          <label htmlFor="managerope-refresh-interval-seconds" className="text-xs font-semibold text-slate-500">Refresh interval (seconds)</label>
+          <input id="managerope-refresh-interval-seconds"
             type="number"
             min={10}
             max={300}

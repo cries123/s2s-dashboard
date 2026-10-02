@@ -22,6 +22,7 @@ import {
   Plus,
   AlertTriangle,
 } from 'lucide-react';
+import { ConfirmModal } from '../../ui/ConfirmModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../../../firebase';
 import { cn } from '../../../lib/utils';
@@ -104,6 +105,14 @@ export function RecallCampaignOutreach({
   const [emailSubject, setEmailSubject] = useState(DEFAULT_EMAIL_SUBJECT);
   const [outreachChannel, setOutreachChannel] = useState<'sms' | 'email'>('sms');
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Browser confirm() boxes read as "localhost says" on a phone; these bulk
+  // actions go through the app's own dialog instead.
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    run: () => void | Promise<void>;
+  } | null>(null);
   const [manualFormOpen, setManualFormOpen] = useState(false);
   const [defaultCampaign, setDefaultCampaign] = useState('9C2');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -402,17 +411,18 @@ export function RecallCampaignOutreach({
       await copyOutreachList(pool, channel);
       await openNativeOutreach(pool[0]!, channel);
 
-      if (
-        window.confirm(
-          `Opened the first customer. Mark all ${pool.length} as contacted after you finish outreach?`
-        )
-      ) {
-        await markLeadsContacted(
-          pool.map((l) => l.id),
-          channel
-        );
-      }
-      clearSelection();
+      setPendingConfirm({
+        title: `Mark all ${pool.length} as contacted?`,
+        description: 'Do this once you have finished working through the list.',
+        confirmLabel: 'Mark contacted',
+        run: async () => {
+          await markLeadsContacted(
+            pool.map((l) => l.id),
+            channel
+          );
+          clearSelection();
+        },
+      });
     } catch (err: unknown) {
       notify(err instanceof Error ? err.message : 'Outreach failed', true);
     } finally {
@@ -425,24 +435,33 @@ export function RecallCampaignOutreach({
     await sendToRecipients(selected, outreachChannel);
   };
 
-  const handleSendToAll = async (channel: 'sms' | 'email') => {
+  const handleSendToAll = (channel: 'sms' | 'email') => {
     const pool =
       channel === 'sms'
         ? leads.filter((l) => l.phone)
         : leads.filter((l) => l.email);
-    if (
-      !window.confirm(
-        `Send ${channel === 'sms' ? 'SMS' : 'email'} to ALL ${pool.length} customers with ${channel === 'sms' ? 'a phone number' : 'an email'}?`
-      )
-    ) {
-      return;
-    }
-    await sendToRecipients(pool, channel);
+    setPendingConfirm({
+      title: `${channel === 'sms' ? 'Text' : 'Email'} all ${pool.length} customers?`,
+      description:
+        channel === 'sms'
+          ? 'Everyone on this list with a phone number.'
+          : 'Everyone on this list with an email address.',
+      confirmLabel: channel === 'sms' ? 'Start texting' : 'Start emailing',
+      run: () => sendToRecipients(pool, channel),
+    });
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Remove ${selectedIds.size} selected recall entries from this list?`)) return;
+    setPendingConfirm({
+      title: `Remove ${selectedIds.size} ${selectedIds.size === 1 ? 'entry' : 'entries'}?`,
+      description: 'They come off this recall list. The customer records are not touched.',
+      confirmLabel: 'Remove',
+      run: () => runDeleteSelected(),
+    });
+  };
+
+  const runDeleteSelected = async () => {
     const colRef = collection(
       db,
       'artifacts',
@@ -822,6 +841,19 @@ export function RecallCampaignOutreach({
         }
         .toolbar-btn:hover { color: white; border-color: rgb(100 116 139); }
       `}</style>
+
+      <ConfirmModal
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ''}
+        description={pendingConfirm?.description}
+        confirmLabel={pendingConfirm?.confirmLabel}
+        onConfirm={() => {
+          const action = pendingConfirm?.run;
+          setPendingConfirm(null);
+          void action?.();
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </div>
   );
 }

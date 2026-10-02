@@ -149,10 +149,10 @@ export function DispatchTechSelector({
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          'w-full text-left rounded border transition-colors',
+          'w-full text-left rounded-md border transition-colors min-h-[44px] flex items-center',
           compact
-            ? 'px-1.5 py-0.5 bg-slate-950/40 border-slate-800/50 hover:border-indigo-500/40'
-            : 'px-2 py-1.5 bg-slate-950/50 border-slate-800/60 hover:border-indigo-500/40 hover:bg-indigo-950/20'
+            ? 'px-2 py-1 border-[var(--color-input-border)] hover:border-brand-primary/40'
+            : 'px-2.5 py-1.5 border-[var(--color-input-border)] hover:border-brand-primary/40'
         )}
       >
         <span

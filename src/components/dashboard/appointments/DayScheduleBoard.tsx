@@ -1,6 +1,7 @@
 import React from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { tidyCase, tidyPersonName } from '../../ui/Panel';
 import type { PerformanceAdvisorSlot, ScheduledAppointmentSlot } from '../../../types';
 import {
   buildScheduleTechColumns,
@@ -201,7 +202,7 @@ export function DayScheduleBoard({
   if (selectedAppt) {
     return (
       <div className={cn('space-y-3', className)}>
-        <p className="text-sm font-semibold text-slate-200">{formatDisplayDate(date)}</p>
+        <p className="text-sm font-semibold">{formatDisplayDate(date)}</p>
         <AppointmentDetail appt={selectedAppt} onBack={() => setSelectedAppt(null)} />
       </div>
     );
@@ -218,22 +219,60 @@ export function DayScheduleBoard({
   return (
     <div className={cn('space-y-3', className)}>
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <p className="text-sm font-bold text-white tracking-tight">{formatDisplayDate(date)}</p>
+        <p className="text-sm font-semibold">{formatDisplayDate(date)}</p>
         <div className="flex flex-wrap items-center gap-4">
-          {LEGEND.map((item) => (
-            <span key={item.key} className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
-              <span className={cn('w-2.5 h-2.5 rounded-full', categoryScheduleLegendClass(item.key))} />
-              {item.label}
-            </span>
-          ))}
-          <span className="text-xs text-slate-500 font-bold">
-            {appointments.length} appts
+          <span className="hidden md:flex flex-wrap items-center gap-4">
+            {LEGEND.map((item) => (
+              <span key={item.key} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                <span className={cn('w-2.5 h-2.5 rounded-full', categoryScheduleLegendClass(item.key))} />
+                {item.label}
+              </span>
+            ))}
+          </span>
+          <span className="crm-label tabular-nums">
+            {appointments.length} {appointments.length === 1 ? 'appointment' : 'appointments'}
           </span>
         </div>
       </div>
 
+      <div className="md:hidden list-group">
+        {[...appointments]
+          .sort((a, b) => a.startMinutes - b.startMinutes)
+          .map((appt) => (
+            <button
+              key={`m-${appt.id}-${appt.startMinutes}`}
+              type="button"
+              onClick={() => setSelectedAppt(appt)}
+              className="list-row items-start"
+            >
+              <span className="w-[4.75rem] shrink-0 text-sm font-semibold tabular-nums pt-px">
+                {formatScheduleTimeDetail(appt.startMinutes)}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span
+                    className={cn('w-2 h-2 rounded-full shrink-0', categoryScheduleLegendClass(appt.category))}
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm font-semibold text-brand-primary">
+                    {tidyPersonName(displayCustomerName(appt))}
+                  </span>
+                  {appt.isWaiter ? <span className="badge badge-warning shrink-0">Waiter</span> : null}
+                </span>
+                <span className="crm-label block truncate mt-0.5">
+                  {tidyCase(displayVehicleLabel(appt)) || 'Vehicle not on file'}
+                </span>
+                {appt.concern ? (
+                  <span className="crm-label block line-clamp-2">{tidyCase(appt.concern, 'sentence')}</span>
+                ) : null}
+              </span>
+              <ChevronRight size={16} className="shrink-0 mt-1" style={{ color: 'var(--color-text-tertiary)' }} />
+            </button>
+          ))}
+      </div>
+
       <div
-        className="rounded-lg border overflow-hidden bg-surface-base shadow-inner"
+        className="hidden md:block rounded-lg border overflow-hidden bg-surface-base"
         style={{ borderColor: 'var(--color-surface-border)' }}
       >
         <div className="overflow-x-auto">
@@ -372,8 +411,8 @@ export function DayScheduleBoard({
         </div>
       </div>
 
-      <p className="text-xs text-slate-600 px-1">
-        Shop lunch blocked 12:00 PM – 1:00 PM · Tap an appointment for full details
+      <p className="crm-label px-1">
+        Lunch 12:00–1:00 PM · Tap an appointment for details
       </p>
     </div>
   );

@@ -344,13 +344,13 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
             Week at a glance
           </h3>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setWeekOffset((p) => p - 1)} className="btn-secondary p-2" aria-label="Previous week">
+            <button type="button" onClick={() => setWeekOffset((p) => p - 1)} className="icon-btn border" style={{ borderColor: 'var(--color-btn-neutral-border)' }} aria-label="Previous week">
               <ChevronLeft size={14} />
             </button>
             <button type="button" onClick={() => setWeekOffset(0)} className="btn-secondary px-3 py-2 text-xs">
               This week
             </button>
-            <button type="button" onClick={() => setWeekOffset((p) => p + 1)} className="btn-secondary p-2" aria-label="Next week">
+            <button type="button" onClick={() => setWeekOffset((p) => p + 1)} className="icon-btn border" style={{ borderColor: 'var(--color-btn-neutral-border)' }} aria-label="Next week">
               <ChevronRight size={14} />
             </button>
           </div>
@@ -457,7 +457,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
             <button
               type="button"
               onClick={handlePrevDay}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              className="icon-btn"
               aria-label="Previous day"
             >
               <ChevronLeft size={16} />
@@ -472,7 +472,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
             <button
               type="button"
               onClick={handleNextDay}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              className="icon-btn"
               aria-label="Next day"
             >
               <ChevronRight size={16} />

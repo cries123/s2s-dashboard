@@ -118,10 +118,10 @@ export function DispatchIntakeForm({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-500 block pl-0.5">
+        <label htmlFor="dispatchin-phone-number" className="text-xs font-semibold text-slate-500 block pl-0.5">
           Phone Number
         </label>
-        <input
+        <input id="dispatchin-phone-number"
           type="tel"
           placeholder="(805) 555-0100"
           value={phoneNumber}

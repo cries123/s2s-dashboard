@@ -97,12 +97,14 @@ export function ForecastSlider({
       </div>
       <input
         type="range"
+        aria-label={label}
+        aria-valuetext={valueLabel}
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        className={cn('w-full h-1.5 rounded-full appearance-none bg-slate-800 cursor-pointer', accentClass)}
+        className={cn('range-touch w-full cursor-pointer', accentClass)}
       />
     </div>
   );
@@ -161,8 +163,7 @@ export function ForecastField({
   );
 }
 
-export const forecastInputClass =
-  'w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white text-center font-semibold tabular-nums focus:outline-none focus:ring-1 focus:ring-brand-primary/40 focus:border-brand-primary/40';
+export const forecastInputClass = 'input-field text-center font-semibold tabular-nums';
 
 export const forecastReadonlyClass =
-  'w-full bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-2 text-sm text-brand-primary text-center font-semibold tabular-nums';
+  'input-field text-center font-semibold tabular-nums bg-surface-muted';

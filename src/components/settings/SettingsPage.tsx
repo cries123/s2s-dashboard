@@ -50,7 +50,7 @@ function ToggleRow({
         disabled={disabled}
         onClick={() => !disabled && onChange(!checked)}
         className={cn(
-          'inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
+          'tap-expand inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
           checked ? 'bg-brand-primary' : '',
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         )}

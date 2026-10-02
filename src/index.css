@@ -6,8 +6,9 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-brand-primary: #3b82f6;
-  --color-brand-secondary: #60a5fa;
+  --color-brand-primary: #3069cf;
+  --color-brand-secondary: #4f8ae0;
+  --color-link: #60a5fa;
   --color-surface-base: #0f172a;
   --color-surface-card: #1e293b;
   --color-surface-border: rgba(255, 255, 255, 0.08);
@@ -72,15 +73,16 @@
   --color-slate-100: #181818;
   --color-slate-50: #0b0b0b;
   --color-white: #181818;
-  --color-brand-primary: #0176d3;
+  --color-brand-primary: #0170c8;
   --color-brand-secondary: #014486;
-  --color-emerald-300: #2e844a;
-  --color-emerald-400: #2e844a;
-  --color-emerald-500: #2e844a;
+  --color-link: #0170c8;
+  --color-emerald-300: #2b7c46;
+  --color-emerald-400: #2b7c46;
+  --color-emerald-500: #2b7c46;
   --color-amber-200: #8c4b02;
   --color-amber-300: #8c4b02;
   --color-amber-400: #8c4b02;
-  --color-amber-500: #a96404;
+  --color-amber-500: #8c5204;
   --color-rose-300: #ba0517;
   --color-rose-400: #ba0517;
   --color-rose-500: #ba0517;
@@ -103,7 +105,7 @@
   --color-surface-hover: rgba(0, 0, 0, 0.04);
   --color-text-primary: #181818;
   --color-text-secondary: #5c6570;
-  --color-text-tertiary: #747474;
+  --color-text-tertiary: #6e6e6e;
   --color-sidebar: #ffffff;
   --color-sidebar-border: #dddbda;
   --color-input-border: #c9c9c9;
@@ -114,13 +116,13 @@
   --color-badge-neutral-bg: #f3f3f3;
   --color-badge-neutral-text: #3e4955;
   --color-badge-info-bg: #d8edff;
-  --color-badge-info-text: #014486;
+  --color-badge-info-text: #016bc0;
   --color-badge-warn-bg: #fff3d6;
-  --color-badge-warn-text: #8c4b02;
+  --color-badge-warn-text: #985a04;
   --color-badge-error-bg: #fddde3;
   --color-badge-error-text: #ba0517;
   --color-badge-success-bg: #e3f5dc;
-  --color-badge-success-text: #22683e;
+  --color-badge-success-text: #2b7c46;
 }
 
 /*
@@ -139,7 +141,12 @@
 [class~="rounded-xl"] { border-radius: 0.375rem !important; }
 [class*="rounded-[1."], [class~="rounded-[1rem]"], [class*="rounded-[2"], [class*="rounded-[3"] { border-radius: 0.5rem !important; }
 /* Dark hex backgrounds hard-coded into older screens: in light mode they become panels. */
-:root[data-theme="light"] [class*="bg-[#0"], :root[data-theme="light"] [class*="bg-[#1"] {
+/* The specific near-black panels older screens hard-coded. Listed one by one:
+   a prefix match also swallowed deliberate colours like bg-[#00875a]. */
+:root[data-theme="light"] :is(
+  [class*="bg-[#0a0e1a]"], [class*="bg-[#0a0f1d]"], [class*="bg-[#080c14]"], [class*="bg-[#050811]"],
+  [class*="bg-[#0e1011]"], [class*="bg-[#141617]"], [class*="bg-[#0f172a]"], [class*="bg-[#1e293b]"]
+) {
   background-color: var(--color-surface-card) !important;
 }
 
@@ -215,7 +222,7 @@
     background-color: var(--color-surface-card);
     border: 1px solid var(--color-input-border);
     color: var(--color-text-primary);
-    @apply w-full rounded-md px-3 py-2.5 text-sm
+    @apply w-full rounded-md px-3 py-2.5 text-sm min-h-[44px]
            placeholder:text-slate-400 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15
            outline-none transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
@@ -227,13 +234,13 @@
 
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-brand-primary hover:bg-brand-secondary
-           text-white text-sm font-semibold rounded-md transition-colors duration-150
+           text-white text-sm font-semibold rounded-md min-h-[44px] transition-colors duration-150
            disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-md
-           transition-colors duration-150 border;
+           min-h-[44px] transition-colors duration-150 border;
     background-color: var(--color-btn-neutral-bg);
     border-color: var(--color-btn-neutral-border);
     color: var(--color-btn-neutral-text);
@@ -271,8 +278,61 @@
     letter-spacing: 0.04em;
     color: var(--color-text-secondary);
   }
-  .link-text { color: var(--color-brand-primary); @apply font-semibold; }
+  .link-text { color: var(--color-link); @apply font-semibold; }
+
+  /*
+    Touch sizing. Apple's guidance is 44x44; the audit found 208 controls under
+    it, 40 of them under 32px. Rather than chase each one, the shared controls
+    carry the minimum here, and .tap-expand grows the hit area of the few that
+    must stay visually small (switches, chips) without changing how they look.
+  */
+  .tap-expand { position: relative; }
+
+  /* A 6px-tall slider is unusable with a thumb; the control keeps a thin track
+     but takes a full 44px of height so it can be grabbed. */
+  .range-touch {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 44px;
+    background: transparent;
+  }
+  .range-touch::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-input-border);
+  }
+  .range-touch::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    margin-top: -8px;
+    border-radius: 50%;
+    background: var(--color-brand-primary);
+    border: 2px solid var(--color-surface-card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  .range-touch::-moz-range-track { height: 6px; border-radius: 999px; background: var(--color-input-border); }
+  .range-touch::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--color-brand-primary); border: 2px solid var(--color-surface-card);
+  }
+  .tap-expand::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    height: 100%;
+  }
   /* Icon-only header buttons: no box, just the glyph with a quiet hover. */
+  button.link-text, a.link-text { min-height: 44px; }
+  /* Inside a dense row the label keeps its size; the row is already 52px tall. */
+  .list-row button.link-text, .list-row a.link-text, td button.link-text { min-height: 0; }
+
   .icon-btn {
     @apply inline-flex items-center justify-center rounded-md min-w-[44px] min-h-[44px] transition-colors relative;
     color: var(--color-text-secondary);
@@ -286,7 +346,7 @@
     background-color: var(--color-surface-card);
   }
   .seg > button {
-    @apply min-w-0 px-2 min-h-[38px] text-sm font-medium whitespace-nowrap transition-colors;
+    @apply min-w-0 px-2 min-h-[44px] text-sm font-medium whitespace-nowrap transition-colors;
     border-right: 1px solid var(--color-input-border);
     color: var(--color-text-primary);
   }
@@ -394,10 +454,24 @@
   [class~="bg-red-500"], [class~="bg-red-600"],
   [class~="bg-emerald-500"], [class~="bg-emerald-600"],
   [class~="bg-green-500"], [class~="bg-green-600"],
-  [class~="bg-amber-500"], [class~="bg-orange-500"] {
+  [class~="bg-amber-500"], [class~="bg-amber-600"], [class~="bg-orange-500"],
+  [class~="bg-indigo-400"], [class~="bg-slate-800"], [class~="bg-sky-500"], [class~="bg-sky-600"],
+  [class~="bg-violet-500"], [class~="bg-violet-600"], [class~="bg-purple-500"], [class~="bg-purple-600"],
+  [class~="bg-teal-500"], [class~="bg-teal-600"] {
     --color-white: #ffffff;
   }
   .bg-white { background-color: #ffffff; }
+
+  /*
+    One token cannot be both a fill and a label: the fill blue has to be dark
+    enough for white text on a button, which makes it too dark to read as text
+    on a dark card (2.82:1). Dark mode therefore draws brand-coloured TEXT in the
+    lighter link blue; fills keep --color-brand-primary.
+  */
+  :root[data-theme="dark"] .text-brand-primary,
+  :root[data-theme="dark"] .text-brand-secondary {
+    color: var(--color-link);
+  }
 }
 
 @layer base {

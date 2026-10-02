@@ -885,7 +885,7 @@ export default function AdminPanel({
             aria-checked={on}
             aria-label={label}
             onClick={onClick}
-            className={cn('w-11 h-6 rounded-full transition-colors relative shrink-0', on ? 'bg-brand-primary' : 'bg-slate-300')}
+            className={cn('tap-expand w-11 h-6 rounded-full transition-colors shrink-0', on ? 'bg-brand-primary' : 'bg-slate-300')}
             style={on ? undefined : { backgroundColor: 'var(--color-input-border)' }}
           >
             <span

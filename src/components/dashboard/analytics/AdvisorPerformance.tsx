@@ -788,7 +788,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               title="Clear all advisors and technicians for this view period"
             >
               <RotateCcw size={14} className={cn("shrink-0", showResetConfirm ? "animate-spin" : "")} />
-              {showResetConfirm ? "Confirm Reset?" : "Reset Data"}
+              {showResetConfirm ? 'Tap again to clear' : 'Clear data'}
             </button>
 
             <button
@@ -796,7 +796,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
               className="btn-secondary w-full md:w-auto px-4 py-3 md:py-2.5 rounded-xl text-xs font-semibold normal-case tracking-normal shadow-lg cursor-pointer touch-manipulation min-h-[44px] hover:opacity-80"
             >
               <Keyboard size={14} className="shrink-0" />
-              Manual Entry
+              Enter by hand
             </button>
             
             {!isPbsDealership && (
@@ -953,12 +953,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                     <div className="grid grid-cols-2 gap-3 md:gap-4 lg:gap-6">
                       <div className="p-3 md:p-4 rounded-2xl border relative overflow-hidden" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
                         <div className="absolute top-0 right-0 p-2 opacity-10"><DollarSign size={20} /></div>
-                        <p className="crm-label text-xs font-semibold normal-case mb-1">Labor Sales</p>
+                        <p className="crm-label text-xs font-semibold normal-case mb-1">Labor sales</p>
                         <p className="text-base md:text-lg font-semibold leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.laborSold.toLocaleString()}</p>
                       </div>
                       <div className="p-3 md:p-4 bg-brand-secondary/5 rounded-2xl border border-brand-secondary/10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 p-2 opacity-10 text-brand-secondary"><TrendingUp size={20} /></div>
-                        <p className="text-xs font-semibold text-brand-secondary normal-case mb-1">Gross Labor</p>
+                        <p className="text-xs font-semibold text-brand-secondary normal-case mb-1">Gross labor</p>
                         <p className="text-base md:text-lg font-semibold leading-none tracking-tighter" style={{ color: 'var(--color-text-primary)' }}>${advisor.grossLabor.toLocaleString()}</p>
                       </div>
                     </div>
@@ -967,7 +967,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                        <div className="flex justify-between items-end">
                          <div className="flex items-center gap-1.5">
                             <Target size={12} className="text-slate-600" />
-                            <p className="crm-label text-xs font-semibold normal-case tracking-normal">Labor Gross Profit</p>
+                            <p className="crm-label text-xs font-semibold normal-case tracking-normal">Labor gross profit</p>
                          </div>
                          <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{Math.round((advisor.grossLabor / (advisor.laborSold || 1)) * 100)}% GP</p>
                        </div>

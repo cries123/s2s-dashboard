@@ -756,6 +756,11 @@ export default function FixedOpsForecast({
   const [mtdTelemetry, setMtdTelemetry] = useState(INITIAL_MTD_TELEMETRY);
   // Same object identity until a real report is loaded or imported.
   const isSampleTelemetry = mtdTelemetry === INITIAL_MTD_TELEMETRY;
+  // 60% of this page's 4,600px on a phone is the inputs. Folded away by default
+  // there; on a wide screen there is room to show them.
+  const [showAssumptions, setShowAssumptions] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 768
+  );
 
   // Input states aligned exactly with spreadsheet layout in mockup
   const [inputs, setInputs] = useState(getInitialInputs());
@@ -1643,7 +1648,7 @@ export default function FixedOpsForecast({
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto min-h-screen text-slate-200">
+    <div className="space-y-6 max-w-7xl mx-auto min-h-[100dvh] text-slate-200">
       <PageHeader
         className="no-print"
         title="Fixed ops forecast"
@@ -1778,18 +1783,14 @@ export default function FixedOpsForecast({
           <ForecastSectionHeader
             title="Assumptions"
             action={
-              <div className="bg-slate-950/50 p-1 rounded-xl border border-white/5 flex gap-1 select-none">
+              <div className="hidden sm:flex seg" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
                 {(['conservative', 'balanced', 'aggressive'] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => applyPreset(p)}
-                    className={cn(
-                      'text-xs font-semibold py-1.5 px-3 rounded-lg transition-all',
-                      activePreset === p
-                        ? 'bg-brand-primary text-white'
-                        : 'text-slate-400 hover:text-white'
-                    )}
+                    aria-pressed={activePreset === p}
+                    className="capitalize"
                   >
                     {p}
                   </button>
@@ -1798,7 +1799,16 @@ export default function FixedOpsForecast({
             }
           />
 
-          <div className="space-y-6">
+          <button
+            type="button"
+            onClick={() => setShowAssumptions((v) => !v)}
+            className="btn-secondary w-full md:hidden"
+            aria-expanded={showAssumptions}
+          >
+            {showAssumptions ? 'Hide assumptions' : 'Edit assumptions'}
+          </button>
+
+          <div className={cn('space-y-6', !showAssumptions && 'hidden')}>
             <div className="space-y-3">
               <p className="crm-label">Shop capacity</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

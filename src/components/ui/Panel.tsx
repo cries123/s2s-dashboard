@@ -48,7 +48,7 @@ export function Panel({
         ) : null}
         <h2 className="flex-1 min-w-0 text-sm font-semibold truncate">{title}</h2>
         {action ? (
-          <button type="button" onClick={action.onClick} className="link-text text-sm shrink-0 min-h-[36px] px-1">
+          <button type="button" onClick={action.onClick} className="link-text text-sm shrink-0 min-h-[44px] px-1">
             {action.label}
           </button>
         ) : null}
@@ -77,7 +77,7 @@ export function ListRowButton({
   return (
     <button type="button" onClick={onClick} className="list-row">
       <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-semibold truncate', titleClassName ?? 'text-brand-primary')}>{title}</p>
+        <p className={cn('text-sm font-semibold', titleClassName ?? 'text-brand-primary truncate')}>{title}</p>
         {subtitle ? <p className="crm-label mt-0.5 truncate">{subtitle}</p> : null}
       </div>
       {right ? <div className="shrink-0 text-right">{right}</div> : null}

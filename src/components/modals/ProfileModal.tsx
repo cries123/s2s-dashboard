@@ -20,6 +20,8 @@ import {
 import { ServiceVisitDetailModal } from '../dashboard/customers/ServiceVisitDetailModal';
 import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
 import { Panel } from '../ui/Panel';
+import { ConfirmModal } from '../ui/ConfirmModal';
+import { useToast } from '../../context/ToastContext';
 import { DEALERSHIPS } from '../../constants';
 import type { ServiceVisit } from '../../types';
 
@@ -39,6 +41,9 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   const [formData, setFormData] = useState({ ...customer });
   const [isCopied, setIsCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const { showToast } = useToast();
+  // Browser alert()/confirm() boxes announce "localhost says" on a phone.
+  const [confirmReinstate, setConfirmReinstate] = useState(false);
   const [customerNotes, setCustomerNotes] = useState(customer.notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
@@ -79,7 +84,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       setFormData(prev => ({ ...prev, notes: customerNotes }));
     } catch (err) {
       console.error(err);
-      alert("Failed to save customer notes. Please try again.");
+      showToast("Couldn't save the notes. Try again.", 'error');
     } finally {
       setIsSavingNotes(false);
     }
@@ -144,14 +149,14 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       setSuspendNotes('');
     } catch (err) {
       console.error(err);
-      alert("Failed to suspend alerts. Please try again.");
+      showToast("Couldn't pause the reminders. Try again.", 'error');
     } finally {
       setIsProcessingAction(false);
     }
   };
 
   const handleReinstateAlerts = async () => {
-    if (!confirm("Are you sure you want to reinstate automated service reminders for this customer?")) return;
+    setConfirmReinstate(false);
     setIsProcessingAction(true);
     try {
       const customerRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', formData.id);
@@ -180,7 +185,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       customer.enableServiceAlert = true;
     } catch (err) {
       console.error(err);
-      alert("Failed to reinstate alerts. Please try again.");
+      showToast("Couldn't turn the reminders back on. Try again.", 'error');
     } finally {
       setIsProcessingAction(false);
     }
@@ -245,7 +250,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       setIsEditing(false);
     } catch (err) {
       console.error(err);
-      alert("Failed to update profile changes. Please try again.");
+      showToast("Couldn't save the changes. Try again.", 'error');
     } finally {
       setIsSaving(false);
     }
@@ -585,12 +590,12 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-xs font-semibold text-slate-500">First Name</span>
+                        <span className="crm-label">First name</span>
                         <p className="text-sm font-semibold mt-1">{formData.firstName || 'Not Recorded'}</p>
                       </div>
 
                       <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl text-slate-200">
-                        <span className="text-xs font-semibold text-slate-500">Last Name</span>
+                        <span className="crm-label">Last name</span>
                         <p className="text-sm font-semibold mt-1">{formData.lastName || 'Not Recorded'}</p>
                       </div>
 
@@ -791,7 +796,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           
                           <button
                             type="button"
-                            onClick={handleReinstateAlerts}
+                            onClick={() => setConfirmReinstate(true)}
                             disabled={isProcessingAction}
                             className="self-start sm:self-auto py-1 px-3 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-300 transition-all"
                           >
@@ -876,12 +881,12 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       <p className="text-xs font-semibold text-brand-primary ">Name</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="input-label">First Name</label>
-                          <input name="firstName" value={formData.firstName} onChange={handleChange} className="input-field" placeholder="First Name" />
+                          <label htmlFor="profilemod-first-name" className="input-label">First name</label>
+                          <input id="profilemod-first-name" name="firstName" value={formData.firstName} onChange={handleChange} className="input-field" placeholder="Liam" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="input-label">Last Name</label>
-                          <input name="lastName" value={formData.lastName} onChange={handleChange} className="input-field" placeholder="Last Name" />
+                          <label htmlFor="profilemod-last-name" className="input-label">Last name</label>
+                          <input id="profilemod-last-name" name="lastName" value={formData.lastName} onChange={handleChange} className="input-field" placeholder="Cooper" />
                         </div>
                       </div>
                     </div>
@@ -891,12 +896,12 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       <p className="text-xs font-semibold text-brand-primary ">Contact</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="input-label">Phone Connection</label>
-                          <input name="phone" value={formData.phone} onChange={handleChange} className="input-field font-mono" placeholder="Mobile Phone" />
+                          <label htmlFor="profilemod-phone-connection" className="input-label">Phone Connection</label>
+                          <input id="profilemod-phone-connection" name="phone" value={formData.phone} onChange={handleChange} className="input-field font-mono" placeholder="(805) 555-0100" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="input-label">Email System Address</label>
-                          <input name="email" value={formData.email} onChange={handleChange} className="input-field font-mono" placeholder="Email Communication Address" />
+                          <label htmlFor="profilemod-email-system-address" className="input-label">Email System Address</label>
+                          <input id="profilemod-email-system-address" name="email" value={formData.email} onChange={handleChange} className="input-field font-mono" placeholder="name@example.com" />
                         </div>
                       </div>
                     </div>
@@ -906,23 +911,23 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       <p className="text-xs font-semibold text-indigo-400 ">Vehicle</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
-                          <label className="input-label">Model Year</label>
-                          <input name="year" value={formData.year || ''} onChange={handleChange} className="input-field font-mono" placeholder="e.g. 2024" />
+                          <label htmlFor="profilemod-model-year" className="input-label">Model Year</label>
+                          <input id="profilemod-model-year" name="year" value={formData.year || ''} onChange={handleChange} className="input-field font-mono" placeholder="e.g. 2024" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="input-label">Vehicle Make</label>
-                          <input name="make" value={formData.make} onChange={handleChange} className="input-field" placeholder="e.g. Hyundai" />
+                          <label htmlFor="profilemod-vehicle-make" className="input-label">Vehicle Make</label>
+                          <input id="profilemod-vehicle-make" name="make" value={formData.make} onChange={handleChange} className="input-field" placeholder="e.g. Hyundai" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="input-label">Vehicle Model</label>
-                          <input name="model" value={formData.model} onChange={handleChange} className="input-field" placeholder="e.g. Tucson" />
+                          <label htmlFor="profilemod-vehicle-model" className="input-label">Vehicle Model</label>
+                          <input id="profilemod-vehicle-model" name="model" value={formData.model} onChange={handleChange} className="input-field" placeholder="e.g. Tucson" />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div className="space-y-1.5 sm:col-span-2">
-                          <label className="input-label">Full Chassis VIN (17 Characters)</label>
-                          <input 
+                          <label htmlFor="profilemod-full-chassis-vin-17-characte" className="input-label">Full Chassis VIN (17 Characters)</label>
+                          <input id="profilemod-full-chassis-vin-17-characte" 
                             name="vin" 
                             value={formData.vin || ''} 
                             onChange={(e) => {
@@ -939,19 +944,19 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                           />
                         </div>
                         <div className="space-y-1.5 col-span-1">
-                          <label className="input-label">Global VIN (Last 8)</label>
-                          <input name="vinLast8" value={formData.vinLast8} onChange={handleChange} className="input-field font-mono text-brand-secondary" placeholder="Last 8 alphanumeric" maxLength={8} />
+                          <label htmlFor="profilemod-global-vin-last-8" className="input-label">Global VIN (Last 8)</label>
+                          <input id="profilemod-global-vin-last-8" name="vinLast8" value={formData.vinLast8} onChange={handleChange} className="input-field font-mono text-brand-secondary" placeholder="ABC12345" maxLength={8} />
                         </div>
                         <div className="space-y-1.5 col-span-1">
-                          <label className="input-label">Mileage</label>
-                          <input name="mileage" value={formData.mileage || ''} onChange={handleChange} className="input-field font-mono" placeholder="e.g. 24500" inputMode="numeric" />
+                          <label htmlFor="profilemod-mileage" className="input-label">Mileage</label>
+                          <input id="profilemod-mileage" name="mileage" value={formData.mileage || ''} onChange={handleChange} className="input-field font-mono" placeholder="e.g. 24500" inputMode="numeric" />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="input-label font-bold text-slate-300">Delivery Date</label>
-                          <input name="soldDate" type="date" value={formData.soldDate} onChange={handleChange} className="input-field" />
+                          <label htmlFor="profilemod-delivery-date" className="input-label font-bold text-slate-300">Delivery Date</label>
+                          <input id="profilemod-delivery-date" name="soldDate" type="date" value={formData.soldDate} onChange={handleChange} className="input-field" />
                         </div>
                       </div>
                     </div>
@@ -961,21 +966,21 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       <p className="text-xs font-semibold text-rose-400 ">Address</p>
                       <div className="space-y-3">
                         <div className="space-y-1.5">
-                          <label className="input-label">Street address</label>
-                          <input name="address" value={formData.address || ''} onChange={handleChange} className="input-field" placeholder="Street address" />
+                          <label htmlFor="profilemod-street-address" className="input-label">Street address</label>
+                          <input id="profilemod-street-address" name="address" value={formData.address || ''} onChange={handleChange} className="input-field" placeholder="Street address" />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                           <div className="space-y-1.5">
-                            <label className="input-label">City</label>
-                            <input name="city" value={formData.city || ''} onChange={handleChange} className="input-field" placeholder="City" />
+                            <label htmlFor="profilemod-city" className="input-label">City</label>
+                            <input id="profilemod-city" name="city" value={formData.city || ''} onChange={handleChange} className="input-field" placeholder="City" />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="input-label">State Code</label>
-                            <input name="state" value={formData.state || ''} onChange={handleChange} className="input-field" placeholder="State" />
+                            <label htmlFor="profilemod-state-code" className="input-label">State Code</label>
+                            <input id="profilemod-state-code" name="state" value={formData.state || ''} onChange={handleChange} className="input-field" placeholder="State" />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="input-label">Zip Blueprint Code</label>
-                            <input name="zip" value={formData.zip || ''} onChange={handleChange} className="input-field font-mono" placeholder="ZIP" />
+                            <label htmlFor="profilemod-zip-blueprint-code" className="input-label">Zip Blueprint Code</label>
+                            <input id="profilemod-zip-blueprint-code" name="zip" value={formData.zip || ''} onChange={handleChange} className="input-field font-mono" placeholder="ZIP" />
                           </div>
                         </div>
                       </div>
@@ -986,8 +991,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       <p className="text-xs font-semibold text-emerald-400 ">Service reminders</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="input-label">Communication Dialect</label>
-                          <input name="language" value={formData.language || ''} onChange={handleChange} className="input-field" placeholder="e.g. English, Spanish" />
+                          <label htmlFor="profilemod-communication-dialect" className="input-label">Communication Dialect</label>
+                          <input id="profilemod-communication-dialect" name="language" value={formData.language || ''} onChange={handleChange} className="input-field" placeholder="e.g. English, Spanish" />
                         </div>
                         
                         <div className="p-3.5 sm:p-4 bg-slate-950/40 border border-white/5 rounded-xl sm:rounded-2xl flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
@@ -1013,8 +1018,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     <div className="space-y-4">
                       <p className="text-xs font-semibold text-amber-500 ">Notes</p>
                       <div className="space-y-1.5">
-                        <label className="input-label">Customer Profile Notes</label>
-                        <textarea
+                        <label htmlFor="profilemod-customer-profile-notes" className="input-label">Customer Profile Notes</label>
+                        <textarea id="profilemod-customer-profile-notes"
                           name="notes"
                           value={formData.notes || ''}
                           onChange={handleChange}
@@ -1043,6 +1048,16 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
           onClose={() => setSelectedServiceVisit(null)}
         />
       )}
+
+      <ConfirmModal
+        open={confirmReinstate}
+        title="Turn service reminders back on?"
+        description="This customer will start receiving service reminders again."
+        confirmLabel="Turn on"
+        onConfirm={handleReinstateAlerts}
+        onCancel={() => setConfirmReinstate(false)}
+        loading={isProcessingAction}
+      />
     </div>
   );
 }

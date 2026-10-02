@@ -178,7 +178,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
 
                   <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-6 mt-2">
                     <div className="md:col-span-2">
-                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Advisor Name</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Advisor name</label>
                       <input
                         type="text"
                         required
@@ -200,7 +200,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Hours Sold</label>
+                      <label className="text-xs font-semibold text-slate-500 mb-2 block">Hours sold</label>
                       <input
                         type="number"
                         step="0.1"
@@ -255,7 +255,7 @@ export const ManualPerformanceEntry: React.FC<ManualPerformanceEntryProps> = ({ 
                     </div>
 
                     <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col justify-center">
-                       <p className="text-xs font-semibold text-slate-600 mb-1">Total Sales</p>
+                       <p className="text-xs font-semibold text-slate-600 mb-1">Total sales</p>
                        <p className="text-sm font-semibold text-white">${advisor.totalSales?.toLocaleString()}</p>
                     </div>
 

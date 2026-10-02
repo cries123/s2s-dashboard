@@ -110,7 +110,7 @@ export function ServiceBundleMenuBoard({
     <div
       className={cn(
         'flex flex-col h-full bg-[#0e1011] text-[#eef6f7]',
-        tvMode && 'min-h-screen',
+        tvMode && 'min-h-[100dvh]',
         className
       )}
     >

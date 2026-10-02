@@ -55,10 +55,10 @@ export function ContactLogQuickForm({
     <form onSubmit={handleSubmit} className={cn('space-y-3', className)}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs font-semibold text-slate-500 mb-1 block">
+          <label htmlFor="contactlog-outcome" className="text-xs font-semibold text-slate-500 mb-1 block">
             Outcome
           </label>
-          <select
+          <select id="contactlog-outcome"
             value={outcome}
             onChange={(e) => setOutcome(e.target.value)}
             className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
@@ -83,11 +83,12 @@ export function ContactLogQuickForm({
         </label>
       </div>
       <textarea
+        aria-label="Call notes"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Call notes…"
         rows={2}
-        className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-slate-600 resize-none"
+        className="input-field resize-none"
       />
       <button
         type="submit"

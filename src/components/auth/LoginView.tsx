@@ -170,7 +170,7 @@ export default function LoginView() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-base flex items-center justify-center p-4 selection:bg-brand-primary selection:text-white">
+    <div className="min-h-[100dvh] bg-surface-base flex items-center justify-center p-4 selection:bg-brand-primary selection:text-white">
       <div className="w-full max-w-[420px] animate-fade-in">
         <div className="flex flex-col items-center mb-10 text-center">
           <BrandMark size={56} className="mb-5" />
@@ -185,8 +185,10 @@ export default function LoginView() {
             <button 
               onClick={() => setMode('login')}
               className={cn(
-                "flex-1 py-4 text-sm font-bold transition-all", 
-                mode === 'login' ? "text-brand-primary bg-brand-primary/5" : "text-text-secondary hover:text-slate-300"
+                "flex-1 min-h-[52px] text-sm font-semibold transition-colors",
+                mode === 'login'
+                  ? "text-brand-primary shadow-[inset_0_-3px_0_var(--color-brand-primary)]"
+                  : "text-text-secondary"
               )}
             >
               Sign in
@@ -194,8 +196,10 @@ export default function LoginView() {
             <button 
               onClick={() => setMode('signup')}
               className={cn(
-                "flex-1 py-4 text-sm font-bold transition-all", 
-                mode === 'signup' ? "text-brand-primary bg-brand-primary/5" : "text-text-secondary hover:text-slate-300"
+                "flex-1 min-h-[52px] text-sm font-semibold transition-colors",
+                mode === 'signup'
+                  ? "text-brand-primary shadow-[inset_0_-3px_0_var(--color-brand-primary)]"
+                  : "text-text-secondary"
               )}
             >
               Request access
@@ -215,22 +219,22 @@ export default function LoginView() {
             {mode === 'login' && (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="input-label">Email address</label>
+                  <label htmlFor="loginview-email-address" className="input-label">Email address</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="email" autoComplete="username" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
+                    <input id="loginview-email-address" type="email" autoComplete="username" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-baseline justify-between">
-                    <label className="input-label mb-0">Password</label>
-                    <button type="button" onClick={() => setMode('reset')} className="text-xs font-medium text-text-secondary hover:text-brand-primary transition-colors">
+                    <label htmlFor="loginview-password" className="input-label mb-0">Password</label>
+                    <button type="button" onClick={() => setMode('reset')} className="link-text text-xs min-h-[44px] px-1 inline-flex items-center">
                       Forgot password?
                     </button>
                   </div>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field pl-12" />
+                    <input id="loginview-password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required className="input-field pl-12" />
                   </div>
                 </div>
                 <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 mt-2">
@@ -248,24 +252,24 @@ export default function LoginView() {
             {mode === 'signup' && (
               <form onSubmit={handleSignup} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="input-label">Full name</label>
+                  <label htmlFor="loginview-full-name" className="input-label">Full name</label>
                   <div className="relative">
                     <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="text" autoComplete="name" value={username} onChange={e => setUsername(e.target.value)} required className="input-field pl-12" placeholder="Jane Smith" />
+                    <input id="loginview-full-name" type="text" autoComplete="name" value={username} onChange={e => setUsername(e.target.value)} required className="input-field pl-12" placeholder="Jane Smith" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Work email</label>
+                  <label htmlFor="loginview-work-email" className="input-label">Work email</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
+                    <input id="loginview-work-email" type="email" autoComplete="email" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Dealership</label>
+                  <label htmlFor="loginview-dealership" className="input-label">Dealership</label>
                   <div className="relative">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <select
+                    <select id="loginview-dealership"
                       value={tenantId}
                       onChange={e => setTenantId(e.target.value)}
                       required
@@ -279,10 +283,10 @@ export default function LoginView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Department</label>
+                  <label htmlFor="loginview-department" className="input-label">Department</label>
                   <div className="relative">
                     <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <select 
+                    <select id="loginview-department" 
                       value={department} 
                       onChange={e => setDepartment(e.target.value as UserDepartment)} 
                       required 
@@ -296,8 +300,8 @@ export default function LoginView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Store access code</label>
-                  <input
+                  <label htmlFor="loginview-store-access-code" className="input-label">Store access code</label>
+                  <input id="loginview-store-access-code"
                     type="text"
                     autoComplete="off"
                     autoCapitalize="characters"
@@ -309,10 +313,10 @@ export default function LoginView() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="input-label">Create password</label>
+                  <label htmlFor="loginview-create-password" className="input-label">Create password</label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="input-field pl-12" placeholder="At least 6 characters" />
+                    <input id="loginview-create-password" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} className="input-field pl-12" placeholder="At least 6 characters" />
                   </div>
                 </div>
                 <p className="crm-label leading-relaxed flex items-start gap-2">
@@ -328,10 +332,10 @@ export default function LoginView() {
             {mode === 'reset' && (
               <form onSubmit={handleReset} className="space-y-5">
                 <div className="space-y-1.5">
-                  <label className="input-label">Work email</label>
+                  <label htmlFor="loginview-work-email-2" className="input-label">Work email</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-                    <input type="email" autoComplete="username" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
+                    <input id="loginview-work-email-2" type="email" autoComplete="username" inputMode="email" value={email} onChange={e => setEmail(e.target.value)} required className="input-field pl-12" placeholder="name@dealership.com" />
                   </div>
                 </div>
                 <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 mt-2">

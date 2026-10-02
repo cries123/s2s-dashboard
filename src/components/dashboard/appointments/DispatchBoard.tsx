@@ -1532,7 +1532,7 @@ export function DispatchBoard({
               </span>
               <span
                 className="badge"
-                style={{ color: statusInfo.hex, backgroundColor: `${statusInfo.hex}1f` }}
+                style={{ color: statusInfo.ink, backgroundColor: `${statusInfo.hex}1f` }}
               >
                 {statusInfo.label}
               </span>
@@ -1559,7 +1559,7 @@ export function DispatchBoard({
                 e.stopPropagation();
                 setEditingRo(ro);
               }}
-              className="link-text text-sm px-1.5 min-h-[32px]"
+              className="link-text text-sm px-2 min-h-[44px]"
               title="Edit RO"
             >
               Edit
@@ -1570,7 +1570,7 @@ export function DispatchBoard({
                 const card = e.currentTarget.closest('[data-dispatch-card]') as HTMLElement | null;
                 toggleMoveMenu(ro.id, card ?? e.currentTarget, e);
               }}
-              className="link-text text-sm px-1.5 min-h-[32px]"
+              className="link-text text-sm px-2 min-h-[44px]"
             >
               Move
             </button>
@@ -1612,7 +1612,7 @@ export function DispatchBoard({
                   setConfirmDeleteId(ro.id);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="icon-btn !min-w-[32px] !min-h-[32px] hover:!text-rose-600 relative z-20"
+                className="icon-btn hover:!text-rose-600 relative z-20"
                 title="Delete from board"
                 aria-label="Delete from board"
               >

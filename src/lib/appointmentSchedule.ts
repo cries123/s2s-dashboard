@@ -304,17 +304,22 @@ export function categoryScheduleColor(category: ScheduledAppointmentSlot['catego
   return categoryScheduleCardClass(category);
 }
 
-/** Solid PBS-style appointment block colors. */
+/**
+ * Solid appointment block colours. Literal hex on purpose: the theme remaps the
+ * slate/emerald scales, which turned the "general" block's text near-black on a
+ * mid grey. Each fill is dark enough for white text to clear 4.5:1.
+ */
 export function categoryScheduleCardClass(category: ScheduledAppointmentSlot['category']): string {
+  const base = 'text-[#fff] border-black/20 shadow-sm';
   switch (category) {
     case 'oilChange':
-      return 'bg-emerald-600 border-emerald-800 text-white shadow-sm shadow-emerald-950/40';
+      return `bg-[#00875a] ${base}`;
     case 'recall':
-      return 'bg-amber-700 border-amber-900 text-amber-50 shadow-sm shadow-amber-950/40';
+      return `bg-[#b45309] ${base}`;
     case 'diagnosis':
-      return 'bg-sky-600 border-sky-800 text-white shadow-sm shadow-sky-950/40';
+      return `bg-[#027cbb] ${base}`;
     default:
-      return 'bg-slate-600 border-slate-800 text-slate-100 shadow-sm shadow-slate-950/40';
+      return `bg-[#475569] ${base}`;
   }
 }
 

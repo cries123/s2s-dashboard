@@ -1,5 +1,6 @@
 import React from 'react';
 import { DispatchRepairOrder } from '../../../types';
+import { tidyPersonName } from '../../ui/Panel';
 
 interface TelemetryCardProps {
   roData: DispatchRepairOrder;
@@ -32,7 +33,7 @@ export function TelemetryCard({ roData }: TelemetryCardProps) {
             /* Retail Customer Top View */
             <>
               <h3 className="text-lg font-bold tracking-tight text-white ">
-                {roData.customerName || `RO #${roData.roNumber} Guest`}
+                {tidyPersonName(roData.customerName) || `RO #${roData.roNumber} Guest`}
               </h3>
               {(roData.year || roData.model) && (
                 <p className="text-xs text-slate-400">{roData.year || ''} {roData.model || ''}</p>

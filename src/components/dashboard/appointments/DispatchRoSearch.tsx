@@ -4,6 +4,7 @@ import type { DispatchRepairOrder } from '../../../types';
 import { dispatchLaneLabel } from '../../../lib/dispatchConfig';
 import { searchDispatchOrders } from '../../../lib/dispatchRoSearch';
 import { cn } from '../../../lib/utils';
+import { tidyPersonName } from '../../ui/Panel';
 
 interface DispatchRoSearchProps {
   orders: DispatchRepairOrder[];
@@ -134,7 +135,7 @@ export function DispatchRoSearch({
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-3 text-xs">
                       <span className="text-slate-400 truncate">
-                        {ro.customerName || ro.customerLastName || 'Guest'}
+                        {tidyPersonName(ro.customerName || ro.customerLastName) || 'Guest'}
                         {ro.tagNumber ? ` · TAG ${ro.tagNumber}` : ''}
                       </span>
                       <span

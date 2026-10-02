@@ -13,6 +13,7 @@ import {
 import { db } from '../../../firebase';
 import { Lightbulb, Loader2, CheckCircle2, Eye, Trash2 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { ConfirmModal } from '../../ui/ConfirmModal';
 import type { Suggestion, SuggestionStatus } from '../../../types';
 import { DEALERSHIPS } from '../../../constants';
 
@@ -44,6 +45,8 @@ export function SuggestionsPanel() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | SuggestionStatus>('all');
+  // The browser's own confirm box reads as "localhost says" on a phone.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const ref = collection(db, SUGGESTIONS_PATH);
@@ -73,7 +76,6 @@ export function SuggestionsPanel() {
   };
 
   const removeSuggestion = async (id: string) => {
-    if (!window.confirm('Delete this suggestion permanently?')) return;
     try {
       await deleteDoc(doc(db, SUGGESTIONS_PATH, id));
     } catch (err) {
@@ -103,7 +105,7 @@ export function SuggestionsPanel() {
               type="button"
               onClick={() => setFilter(id)}
               className={cn(
-                'px-3 min-h-[36px] rounded-lg text-xs font-semibold border transition-colors capitalize',
+                'px-3 min-h-[44px] rounded-lg text-xs font-semibold border transition-colors capitalize',
                 filter === id
                   ? 'bg-brand-primary/15 text-brand-primary border-brand-primary/40'
                   : 'border-surface-border text-text-secondary hover:text-text-primary'
@@ -176,7 +178,7 @@ export function SuggestionsPanel() {
                     )}
                     <button
                       type="button"
-                      onClick={() => removeSuggestion(s.id)}
+                      onClick={() => setConfirmDeleteId(s.id)}
                       className="btn-secondary px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300"
                       title="Delete"
                     >
@@ -189,6 +191,20 @@ export function SuggestionsPanel() {
           })
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmDeleteId !== null}
+        title="Delete this suggestion?"
+        description="It is removed for everyone and cannot be brought back."
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => {
+          const id = confirmDeleteId;
+          setConfirmDeleteId(null);
+          if (id) void removeSuggestion(id);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

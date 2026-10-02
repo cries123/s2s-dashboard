@@ -36,11 +36,11 @@ export function mergeLaneCapacity(
 }
 
 export const DISPATCH_STATUS_COLORS = {
-  WIP: { label: 'In Progress', hex: '#F97316', text: '#FFFFFF' },
-  PRT: { label: 'In Parts', hex: '#3B82F6', text: '#FFFFFF' },
-  POO: { label: 'Parts on Order', hex: '#0EA5E9', text: '#FFFFFF' },
-  WFA: { label: 'Waiting Advisor', hex: '#9333EA', text: '#FFFFFF' },
-  SBL: { label: 'Sublet', hex: '#14B8A6', text: '#FFFFFF' },
+  WIP: { label: 'In Progress', hex: '#F97316', text: '#FFFFFF', ink: '#AE510F' },
+  PRT: { label: 'In Parts', hex: '#3B82F6', text: '#FFFFFF', ink: '#2F68C5' },
+  POO: { label: 'Parts on Order', hex: '#0EA5E9', text: '#FFFFFF', ink: '#0A73A3' },
+  WFA: { label: 'Waiting Advisor', hex: '#9333EA', text: '#FFFFFF', ink: '#9032E5' },
+  SBL: { label: 'Sublet', hex: '#14B8A6', text: '#FFFFFF', ink: '#0D796E' },
 } as const;
 
 export const DISPATCH_INTAKE_FLAG_STYLES = {

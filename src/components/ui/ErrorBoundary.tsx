@@ -53,7 +53,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] flex items-center justify-center p-6">
         <div className="card-base p-8 max-w-md text-center">
           <AlertTriangle size={24} className="mx-auto mb-4 text-amber-400" />
           <h1 className="crm-page-title mb-2">The dashboard hit an unexpected error</h1>

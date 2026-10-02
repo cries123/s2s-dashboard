@@ -526,7 +526,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   id="enableServiceAlert"
                   checked={formData.enableServiceAlert}
                   onChange={handleChange}
-                  className="peer h-5 w-5 bg-slate-900 border-white/10 rounded-md text-brand-primary focus:ring-offset-slate-900 transition-all"
+                  className="tap-expand peer h-5 w-5 rounded-md text-brand-primary accent-[var(--color-brand-primary)] transition-all"
                 />
               </div>
               <div className="text-left">

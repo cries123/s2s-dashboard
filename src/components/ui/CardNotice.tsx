@@ -6,13 +6,13 @@ export type NoticeTone = 'warn' | 'info' | 'good';
 
 const TONES: Record<NoticeTone, { chip: string; body: string; Icon: React.ElementType }> = {
   warn: {
-    chip: 'border-amber-500/25 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15',
-    body: 'text-amber-200/80',
+    chip: 'border-amber-500/25 bg-[var(--color-badge-warn-bg)] text-[var(--color-badge-warn-text)]',
+    body: 'text-[var(--color-badge-warn-text)]',
     Icon: AlertTriangle,
   },
   good: {
-    chip: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15',
-    body: 'text-emerald-200/80',
+    chip: 'border-emerald-500/25 bg-[var(--color-badge-success-bg)] text-[var(--color-badge-success-text)]',
+    body: 'text-[var(--color-badge-success-text)]',
     Icon: CheckCircle2,
   },
   info: {
@@ -45,7 +45,7 @@ export function CardNotice({ tone = 'info', summary, children, className }: Card
     return (
       <span
         className={cn(
-          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
+          'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium',
           chip,
           className
         )}
@@ -60,7 +60,7 @@ export function CardNotice({ tone = 'info', summary, children, className }: Card
     <details className={cn('group min-w-0', className)}>
       <summary
         className={cn(
-          'inline-flex max-w-full cursor-pointer list-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors [&::-webkit-details-marker]:hidden',
+          'tap-expand inline-flex max-w-full cursor-pointer list-none items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-colors [&::-webkit-details-marker]:hidden',
           chip
         )}
       >

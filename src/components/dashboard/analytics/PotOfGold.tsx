@@ -19,6 +19,7 @@ import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
 import { PageSkeleton } from '../../ui/Skeleton';
 import { applyUpsellReport } from '../../../lib/potOfGoldImport';
 import { buildOperationsViewPeriodOptions, formatArchiveDisplayLabel } from '../../../lib/operationsViewPeriod';
+import { tidyCase } from '../../ui/Panel';
 
 interface PerformanceRow {
   code: string;
@@ -350,7 +351,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                 <div className="w-20 h-20 rounded-3xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20 mb-6">
                   <Trash2 className="text-rose-500" size={32} />
                 </div>
-                <h3 className="text-2xl font-semibold tracking-tighter mb-4 " style={{ color: 'var(--color-text-primary)' }}>Clear All Data?</h3>
+                <h3 className="text-2xl font-semibold tracking-tighter mb-4 " style={{ color: 'var(--color-text-primary)' }}>Clear all data?</h3>
                 <p className="crm-label text-sm leading-relaxed mb-8">
                   Are you sure you want to clear all current advisor and technician statistics?
                   <span className="block mt-2 text-rose-400/80 font-bold text-xs ">
@@ -404,7 +405,8 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
             <div className="flex items-center gap-2">
               <span className="crm-label text-xs leading-none">Period</span>
               <select
-                value={selectedMonth}
+                    aria-label="Month"
+                    value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="h-9 px-3 input-field w-auto text-xs font-semibold py-0 cursor-pointer"
               >
@@ -523,7 +525,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     className="absolute top-full left-0 right-0 mt-2 z-50 card-base rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
                   >
                     <div className="px-6 py-3 border-b" style={{ borderColor: 'var(--color-surface-border)', backgroundColor: 'var(--color-surface-muted)' }}>
-                      <span className="crm-label text-xs ">Switch View</span>
+                      <span className="crm-label text-xs ">Switch view</span>
                     </div>
                     {[
                       { id: 'advisors', label: 'Advisors', icon: Users },
@@ -539,7 +541,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                         }}
                         className={cn(
                           "w-full flex items-center gap-4 px-6 py-4.5 text-xs font-semibold text-left transition-colors border-b last:border-0",
-                          activeSubTab === tab.id ? "bg-brand-primary/10 text-brand-primary" : "hover:bg-slate-800/50"
+                          activeSubTab === tab.id ? "bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)]" : "hover:bg-slate-800/50"
                         )}
                         style={activeSubTab === tab.id ? { borderColor: 'var(--color-surface-border)' } : { borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}
                       >
@@ -606,10 +608,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     <li key={row.code} className="p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <span className="px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded text-xs font-semibold">
+                          <span className="px-2 py-0.5 bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] rounded text-xs font-semibold">
                             {row.code}
                           </span>
-                          <p className="crm-label mt-1">{row.desc}</p>
+                          <p className="crm-label mt-1">{tidyCase(row.desc)}</p>
                         </div>
                         <div className="shrink-0 text-right">
                           <p className="text-lg font-semibold tabular-nums leading-none">{total}</p>
@@ -667,10 +669,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     {advData.map((row, i) => (
                       <tr key={row.code} className="hover:bg-slate-800/20 transition-colors group">
                         <td className="px-6 py-4">
-                          <span className="px-2 py-1 bg-brand-primary/10 text-brand-primary rounded text-xs font-semibold">{row.code}</span>
+                          <span className="px-2 py-1 bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] rounded text-xs font-semibold">{row.code}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <p className="text-xs font-bold" style={{ color: 'var(--color-text-secondary)' }}>{row.desc}</p>
+                          <p className="text-xs font-bold" style={{ color: 'var(--color-text-secondary)' }}>{tidyCase(row.desc)}</p>
                         </td>
                         <td className="px-6 py-2 text-center">
                           <input 
@@ -712,7 +714,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2" style={{ backgroundColor: 'var(--color-surface-muted)', borderColor: 'var(--color-surface-border)' }}>
-                      <td colSpan={2} className="px-6 py-6 text-xs font-semibold " style={{ color: 'var(--color-text-primary)' }}>Advisor Grand Totals</td>
+                      <td colSpan={2} className="px-6 py-6 text-xs font-semibold " style={{ color: 'var(--color-text-primary)' }}>Totals</td>
                       <td className="px-6 py-6 text-center text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{advTotals.frank}</td>
                       <td className="px-6 py-6 text-center text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{advTotals.lemmy}</td>
                       <td className="px-6 py-6 text-center text-lg font-semibold text-brand-primary">{advTotals.grand}</td>
@@ -732,7 +734,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                      "p-6 rounded-3xl border flex flex-col items-center text-center",
                      earn.primary ? "bg-brand-primary/10 border-brand-primary" : "card-base"
                    )}>
-                      <p className="crm-label text-xs mb-2 leading-none">{earn.name} Earnings</p>
+                      <p className="crm-label text-xs mb-2 leading-none">{earn.name} earnings</p>
                       <p className={cn("text-3xl font-semibold", earn.primary ? "text-brand-primary" : "")} style={!earn.primary ? { color: 'var(--color-text-primary)' } : undefined}>
                         ${earn.val.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
@@ -765,10 +767,10 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     <li key={row.code} className="p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <span className="px-2 py-0.5 bg-brand-primary/10 text-brand-primary rounded text-xs font-semibold">
+                          <span className="px-2 py-0.5 bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] rounded text-xs font-semibold">
                             {row.code}
                           </span>
-                          <p className="crm-label mt-1">{row.desc}</p>
+                          <p className="crm-label mt-1">{tidyCase(row.desc)}</p>
                         </div>
                         <p className="shrink-0 text-lg font-semibold tabular-nums leading-none">{rowTotal}</p>
                       </div>

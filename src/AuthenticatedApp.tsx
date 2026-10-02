@@ -501,7 +501,7 @@ function DashboardShell({ user }: { user: User }) {
 
   if (!isUserApproved(user) && !isPrimaryAdmin(user)) {
     return (
-      <div className="min-h-screen bg-surface-base flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-surface-base flex items-center justify-center p-4">
         <div className="w-full max-w-md text-center space-y-8 animate-fade-in">
           <div className="w-24 h-24 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto ring-1 ring-amber-500/20">
             <Shield className="text-amber-500" size={40} />
@@ -525,7 +525,7 @@ function DashboardShell({ user }: { user: User }) {
       dealershipId={currentDealershipId || 'hyundai'}
       settings={mergedDealershipSettings}
     >
-    <div className="min-h-screen flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
+    <div className="min-h-[100dvh] flex" style={{ backgroundColor: 'var(--color-surface-base)' }}>
       <AppSidebar
         dealershipName={currentDealership.name}
         activeTab={activeTab}
@@ -546,7 +546,7 @@ function DashboardShell({ user }: { user: User }) {
         onNavigate={handleSidebarNavigate}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 min-h-[100dvh]">
       <AppTopBar
         user={currentUser}
         dealershipName={currentDealership.name}

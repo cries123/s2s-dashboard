@@ -243,6 +243,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
               <input
                 type="text"
                 placeholder="Search salesperson or model"
+                  aria-label="Search salespeople"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="input-field pl-10 text-xs py-2"

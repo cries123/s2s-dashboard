@@ -358,7 +358,7 @@ export default function ServiceAlerts({
               {bulkBusy ? <Loader2 size={14} className="animate-spin" /> : <Phone size={14} />} {outcome}
             </button>
           ))}
-          <button type="button" onClick={() => setSelected(new Set())} className="crm-label ml-auto hover:text-brand-primary">
+          <button type="button" onClick={() => setSelected(new Set())} className="link-text text-sm ml-auto min-h-[44px] px-1">
             Clear selection
           </button>
         </div>
@@ -403,7 +403,7 @@ export default function ServiceAlerts({
                       aria-label={`Select ${customer.firstName} ${customer.lastName}`}
                       checked={selected.has(customer.id)}
                       onChange={() => toggleOne(customer.id)}
-                      className="accent-[var(--color-brand-primary)] mt-1.5 shrink-0 w-4 h-4"
+                      className="tap-expand accent-[var(--color-brand-primary)] mt-1 shrink-0 w-5 h-5"
                     />
                     <button type="button" onClick={() => onViewProfile(customer)} className="min-w-0 flex-1 text-left">
                       <p className="text-[15px] font-semibold text-brand-primary break-words">
@@ -463,7 +463,7 @@ export default function ServiceAlerts({
                     <button
                       type="button"
                       onClick={() => setExpandedId(open ? null : customer.id)}
-                      className="link-text text-sm inline-flex items-center gap-1 min-h-[36px]"
+                      className="link-text text-sm inline-flex items-center gap-1 min-h-[44px]"
                       aria-expanded={open}
                     >
                       Log call {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -471,7 +471,7 @@ export default function ServiceAlerts({
                     <button
                       type="button"
                       onClick={() => onViewLog(customer)}
-                      className="link-text text-sm inline-flex items-center gap-1 min-h-[36px]"
+                      className="link-text text-sm inline-flex items-center gap-1 min-h-[44px]"
                     >
                       <History size={14} /> History
                     </button>
@@ -498,7 +498,7 @@ export default function ServiceAlerts({
               <thead>
                 <tr>
                   <th className="w-10">
-                    <input type="checkbox" aria-label="Select all" checked={allVisibleSelected} onChange={toggleAll} className="accent-[var(--color-brand-primary)]" />
+                    <input type="checkbox" aria-label="Select all" checked={allVisibleSelected} onChange={toggleAll} className="tap-expand accent-[var(--color-brand-primary)] w-5 h-5" />
                   </th>
                   <th>Customer</th>
                   <th>Vehicle</th>
@@ -519,7 +519,7 @@ export default function ServiceAlerts({
                             aria-label={`Select ${customer.firstName} ${customer.lastName}`}
                             checked={selected.has(customer.id)}
                             onChange={() => toggleOne(customer.id)}
-                            className="accent-[var(--color-brand-primary)]"
+                            className="tap-expand accent-[var(--color-brand-primary)] w-5 h-5"
                           />
                         </td>
                         <td>
@@ -588,7 +588,7 @@ export default function ServiceAlerts({
               type="button"
               onClick={() => setShowResetConfirm(true)}
               disabled={isResetting}
-              className="crm-label hover:text-rose-400 inline-flex items-center gap-1"
+              className="crm-label hover:text-rose-400 inline-flex items-center gap-1 min-h-[44px] px-1"
               title="Push every customer's reminder forward one full cycle"
             >
               <History size={12} /> Reset all reminders…

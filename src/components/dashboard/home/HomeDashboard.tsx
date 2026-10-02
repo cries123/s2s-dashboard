@@ -197,6 +197,7 @@ export function HomeDashboard({
                   key={customer.id}
                   onClick={() => onViewProfile(customer)}
                   title={formatCustomerDisplayName(customer.firstName, customer.lastName)}
+                  titleClassName="text-brand-primary break-words"
                   subtitle={[customer.year, tidyCase(customer.model)].filter(Boolean).join(' ') || 'No vehicle on file'}
                   right={<span className={cn('badge', TONE_CLASS[alert.tone])} title={`Due ${formatDueDate(alert.dueIso)}`}>{alert.label}</span>}
                   chevron={false}

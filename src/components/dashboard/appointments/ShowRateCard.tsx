@@ -16,9 +16,8 @@ interface ShowRateCardProps {
 }
 
 function toneFor(percent: number | null): string {
-  if (percent === null) return '';
-  if (percent >= 85) return 'text-emerald-400';
-  if (percent >= 70) return 'text-amber-400';
+  if (percent === null || percent >= 70) return '';
+  if (percent >= 60) return 'text-amber-400';
   return 'text-rose-400';
 }
 
