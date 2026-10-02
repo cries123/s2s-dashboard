@@ -274,7 +274,7 @@ export default function InjectModal({ onClose, currentUser, customers, onSuccess
                 "p-4 rounded-xl border flex items-center gap-4 text-sm font-medium animate-zoom-in shadow-sm",
                 status.includes("Error") 
                   ? "bg-rose-500/10 text-rose-400 border-rose-500/20" 
-                  : "bg-brand-primary/10 text-brand-primary border-brand-primary/20"
+                  : "bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] border-brand-primary/20"
               )}>
                 {isProcessing ? (
                   <Loader2 className="animate-spin shrink-0" size={18} />

@@ -150,7 +150,7 @@ export function AppSidebar({
                       className={cn(
                         'flex items-center rounded-lg text-sm font-medium transition-colors',
                         collapsed ? 'justify-center py-2.5 relative' : 'gap-2.5 px-2.5 py-2',
-                        active && 'bg-brand-primary/10 text-brand-primary'
+                        active && 'bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)]'
                       )}
                       style={!active ? { color: 'var(--color-text-primary)' } : undefined}
                       onMouseEnter={(e) => {

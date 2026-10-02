@@ -555,7 +555,7 @@ export function ManagerOperationsConfig({
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-xs font-semibold border',
                     on
-                      ? 'border-brand-primary/40 bg-brand-primary/15 text-brand-primary'
+                      ? 'border-brand-primary/40 bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)]'
                       : 'border-slate-700 bg-slate-900 text-slate-500'
                   )}
                 >

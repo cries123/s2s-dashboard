@@ -295,7 +295,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                                   className={cn(
                                     "w-6 h-6 rounded-lg flex items-center justify-center font-semibold text-xs border shrink-0",
                                     isTopRank
-                                      ? "bg-brand-primary/10 text-brand-primary border-brand-primary/30 animate-pulse"
+                                      ? "bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] border-brand-primary/30 animate-pulse"
                                       : "border-transparent"
                                   )}
                                   style={!isTopRank ? { backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-text-tertiary)' } : undefined}
@@ -394,7 +394,7 @@ export default function SalesPerformance({ customers, currentUser, currentDealer
                         className={cn(
                           "w-8 h-8 rounded-lg flex items-center justify-center font-semibold text-xs border shrink-0",
                           isTopRank
-                            ? "bg-brand-primary/10 text-brand-primary border-brand-primary/30"
+                            ? "bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] border-brand-primary/30"
                             : "border-transparent"
                         )}
                         style={!isTopRank ? { backgroundColor: 'var(--color-surface-muted)', color: 'var(--color-text-tertiary)' } : undefined}

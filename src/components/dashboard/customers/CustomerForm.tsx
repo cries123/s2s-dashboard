@@ -288,7 +288,7 @@ export default function CustomerForm({ currentUser, onSuccess, onError }: Custom
                   dragActive ? 'border-brand-primary bg-brand-primary/5' : 'border-white/10 hover:border-white/20 bg-surface-base/80'
                 }`}
               >
-                <div className={`p-4 rounded-full mb-4 transition-all ${dragActive ? 'bg-brand-primary/10 text-brand-primary' : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-brand-primary'}`}>
+                <div className={`p-4 rounded-full mb-4 transition-all ${dragActive ? 'bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)]' : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-brand-primary'}`}>
                   {isProcessing ? (
                     <Loader2 className="animate-spin" size={24} />
                   ) : (

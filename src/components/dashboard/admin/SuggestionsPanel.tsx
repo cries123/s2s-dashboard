@@ -107,7 +107,7 @@ export function SuggestionsPanel() {
               className={cn(
                 'px-3 min-h-[44px] rounded-lg text-xs font-semibold border transition-colors capitalize',
                 filter === id
-                  ? 'bg-brand-primary/15 text-brand-primary border-brand-primary/40'
+                  ? 'bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] border-brand-primary/40'
                   : 'border-surface-border text-text-secondary hover:text-text-primary'
               )}
             >
