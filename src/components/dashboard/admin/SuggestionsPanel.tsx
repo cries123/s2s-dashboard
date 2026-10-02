@@ -105,7 +105,7 @@ export function SuggestionsPanel() {
               type="button"
               onClick={() => setFilter(id)}
               className={cn(
-                'px-3 min-h-[44px] rounded-lg text-xs font-semibold border transition-colors capitalize',
+                'px-4 min-h-[44px] rounded-lg text-xs font-semibold border transition-colors capitalize',
                 filter === id
                   ? 'bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] border-brand-primary/40'
                   : 'border-surface-border text-text-secondary hover:text-text-primary'

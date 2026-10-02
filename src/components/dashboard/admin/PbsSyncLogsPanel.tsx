@@ -152,7 +152,7 @@ export function PbsSyncLogsPanel({ dealershipId, settings }: PbsSyncLogsPanelPro
           type="button"
           onClick={refreshStatus}
           disabled={statusLoading}
-          className="text-xs font-semibold text-slate-500 hover:text-white transition-colors"
+          className="link-text text-xs min-h-[44px] px-2 inline-flex items-center"
         >
           Refresh
         </button>

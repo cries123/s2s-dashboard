@@ -1000,7 +1000,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                             <span className="text-xs font-bold text-slate-400 block">S2S Campaign Subscriptions</span>
                             <span className="text-xs text-slate-500 font-medium">Allow automated retention alerts</span>
                           </div>
-                          <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1 sm:mt-0">
+                          <label className="tap-expand relative inline-flex items-center cursor-pointer shrink-0 mt-1 sm:mt-0">
                             <input 
                               type="checkbox" 
                               name="enableServiceAlert" 

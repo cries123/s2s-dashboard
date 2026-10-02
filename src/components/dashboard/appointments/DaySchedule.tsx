@@ -429,7 +429,7 @@ export default function DaySchedule({ currentDealershipId, onError }: DaySchedul
                   </p>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] truncate" style={{ color: 'var(--color-text-secondary)' }}>
+                  <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
                     {parts.length > 0 ? parts.join(' · ') : 'No appointments'}
                   </p>
                 </div>

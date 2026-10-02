@@ -1559,7 +1559,7 @@ export function DispatchBoard({
                 e.stopPropagation();
                 setEditingRo(ro);
               }}
-              className="link-text text-sm px-2 min-h-[44px]"
+              className="link-text text-sm px-3 min-h-[44px]"
               title="Edit RO"
             >
               Edit
@@ -1570,7 +1570,7 @@ export function DispatchBoard({
                 const card = e.currentTarget.closest('[data-dispatch-card]') as HTMLElement | null;
                 toggleMoveMenu(ro.id, card ?? e.currentTarget, e);
               }}
-              className="link-text text-sm px-2 min-h-[44px]"
+              className="link-text text-sm px-3 min-h-[44px]"
             >
               Move
             </button>

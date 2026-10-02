@@ -61,7 +61,7 @@ export function ContactLogQuickForm({
           <select id="contactlog-outcome"
             value={outcome}
             onChange={(e) => setOutcome(e.target.value)}
-            className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+            className="input-field"
           >
             {CONTACT_OUTCOMES.map((o) => (
               <option key={o} value={o}>
@@ -70,12 +70,12 @@ export function ContactLogQuickForm({
             ))}
           </select>
         </div>
-        <label className="flex items-center gap-2 self-end pb-2 cursor-pointer">
+        <label className="flex items-center gap-2 self-end min-h-[44px] cursor-pointer">
           <input
             type="checkbox"
             checked={appointmentSet}
             onChange={(e) => setAppointmentSet(e.target.checked)}
-            className="rounded border-slate-600"
+            className="tap-expand w-5 h-5 rounded accent-[var(--color-brand-primary)]"
           />
           <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
             <CalendarCheck size={12} /> Appointment set
@@ -93,7 +93,7 @@ export function ContactLogQuickForm({
       <button
         type="submit"
         disabled={isLogging}
-        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white text-xs font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+        className="btn-primary w-full sm:w-auto sm:px-6"
       >
         {isLogging ? <Loader2 size={14} className="animate-spin" /> : null}
         {submitLabel}
