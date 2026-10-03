@@ -19,7 +19,8 @@
     "test:webdcs": "node scripts/webdcs.test.mjs",
     "test:dates": "node scripts/service-dates.test.mjs",
     "test:months": "node scripts/month-keys.test.mjs",
-    "test:forecast": "node scripts/forecast-model.test.mjs"
+    "test:forecast": "node scripts/forecast-model.test.mjs",
+    "test:visits": "node scripts/visit-merge.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

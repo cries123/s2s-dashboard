@@ -76,8 +76,29 @@ import {
   toPbsPacificCriteriaIso,
 } from './pbsIncrementalCriteria.js';
 
-const MAX_RECENT_VISITS = 100;
+/*
+  Visits are trimmed to this many, newest first. It has to be comfortably more
+  than a frequent customer accumulates over the PBS window plus their imported
+  history, or the oldest rows — exactly the imported years being kept for
+  reference — fall off the end of the list.
+*/
+const MAX_RECENT_VISITS = 300;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
+
+/**
+ * The date from which PBS is the authority on service history.
+ *
+ * A full refresh pulls every cashiered repair order back to here, so imported
+ * rows in this window are replaced by the real thing. Earlier than this, the
+ * imported history is all there is, and it stays.
+ */
+export function pbsHistoryCutoffDate(reference = new Date()): string {
+  const d = new Date(reference);
+  d.setFullYear(d.getFullYear() - REPAIR_ORDER_LOOKBACK_YEARS);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
 
 export interface RunPbsSyncOptions {
   dealershipId?: string;
@@ -543,6 +564,7 @@ async function processRepairOrdersBatch(
       id: `pbs-${visit.soNumber}`,
       soNumber: visit.soNumber,
       date: visit.date,
+      openedDate: visit.openedDate,
       mileage: visit.mileage,
       advisor: visit.advisor,
       requests: visit.requests,
@@ -569,7 +591,9 @@ async function processRepairOrdersBatch(
       existing.recentVisits as Array<Record<string, unknown>> | undefined,
       incomingVisits,
       vehicleRef,
-      MAX_RECENT_VISITS
+      MAX_RECENT_VISITS,
+      // Only a full refresh has actually fetched the window it would supersede.
+      watermark ? undefined : pbsHistoryCutoffDate()
     );
     if (merged.length === 0) continue;
 

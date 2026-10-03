@@ -232,18 +232,38 @@ export function isPbsImportedServiceVisit(visit: { id?: unknown }): boolean {
   return String(visit.id || '').startsWith('pbs-');
 }
 
-/** Keep manual visits and PBS visits for this vehicle only. */
+/**
+ * Keep manual visits and PBS visits for this vehicle only.
+ *
+ * `supersedeImportedFrom` is a YYYY-MM-DD date from which PBS is the authority.
+ * Hand-imported rows on or after it are dropped, because the full refresh has
+ * just fetched the real repair order for that visit — with its parts, pricing
+ * and hours — and keeping both would show the same visit twice, once properly
+ * and once as the thinner imported copy. Rows before that date are kept as the
+ * only record of those years.
+ *
+ * It is only ever passed on a full refresh. On an incremental pull PBS returns
+ * just what changed recently, so dropping imported rows across the window would
+ * delete history that nothing had replaced.
+ */
 export function mergeVehiclePbsServiceVisits(
   existing: Array<Record<string, unknown>> | undefined,
   incoming: Array<Record<string, unknown>>,
   vehicleRef: string,
-  maxVisits = 25
+  maxVisits = 25,
+  supersedeImportedFrom?: string
 ): Array<Record<string, unknown>> {
   const normalizedVehicleRef = vehicleRef.trim();
   const refreshingVehicle = incoming.length > 0;
 
   const retainedExisting = (existing || []).filter((visit) => {
-    if (!isPbsImportedServiceVisit(visit)) return true;
+    if (!isPbsImportedServiceVisit(visit)) {
+      if (!supersedeImportedFrom) return true;
+      const visitDate = String(visit.date || '').slice(0, 10);
+      // No date at all: keep it. It cannot be shown to be superseded.
+      if (!visitDate) return true;
+      return visitDate < supersedeImportedFrom;
+    }
 
     const visitVehicleRef = String(visit.pbsVehicleRef || '').trim();
     if (!visitVehicleRef) {
@@ -380,6 +400,8 @@ export function mapRepairOrderPayTypeTotals(ro: PbsRepairOrder): RepairOrderPayT
 export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   soNumber: string;
   date: string;
+  /** The day the car came in. The date above is the day it was cashiered. */
+  openedDate?: string;
   mileage: number;
   advisor: string;
   requests: string;
@@ -396,6 +418,14 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
     null;
   if (!date) return null;
 
+  /*
+    Kept apart from `date` on purpose. `date` is the cashier date, which is what
+    service reminders and last-service-date are anchored to and must not move.
+    But "did they turn up for their appointment?" is a question about the day the
+    car arrived, and most work is not cashiered the day it comes in.
+  */
+  const openedDate = pbsIsoToDateString(ro.DateOpened) || undefined;
+
   const mileage = ro.MileageOut || ro.MileageIn || 0;
   const lines = mapRepairOrderRequestLines(ro);
   const requests =
@@ -407,6 +437,7 @@ export function mapRepairOrderToVisit(ro: PbsRepairOrder): {
   return {
     soNumber,
     date,
+    openedDate,
     mileage,
     advisor: (ro.CSR || '').trim(),
     requests,

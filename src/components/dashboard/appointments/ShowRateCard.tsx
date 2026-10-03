@@ -94,19 +94,29 @@ export function ShowRateCard({
             <>
               <CardNoticeRow>
                 <CardNotice tone="info" summary="How a show is counted">
-                  An appointment counts as kept when that customer has a repair order dated the
-                  same day. PBS does send an appointment status, but nothing here establishes
-                  which of its values mean "arrived", so the repair order is used instead.
+                  An appointment counts as kept when that customer has a repair order that opened
+                  on the same day — the day the car came in, not the day it was paid for.
+                  Appointments we have no way to judge are left out rather than counted against
+                  the rate.
                 </CardNotice>
-                {result.unmatchedNames > 0 && (
+                {result.unmatchedNames + result.noVisitHistory > 0 && (
                   <CardNotice
                     tone="warn"
-                    summary={`${result.unmatchedNames} not counted`}
+                    summary={`${result.unmatchedNames + result.noVisitHistory} not counted`}
                   >
-                    {result.unmatchedNames} appointment
-                    {result.unmatchedNames === 1 ? '' : 's'} named someone with no customer record,
-                    so there is no way to tell whether they came in. They are left out of the rate
-                    rather than counted against it.
+                    {result.unmatchedNames > 0 && (
+                      <>
+                        {result.unmatchedNames} named someone with no customer record.{' '}
+                      </>
+                    )}
+                    {result.noVisitHistory > 0 && (
+                      <>
+                        {result.noVisitHistory} belong to a customer with no service history yet,
+                        usually because their car has not been matched to PBS.{' '}
+                      </>
+                    )}
+                    Either way there is no evidence of whether they came in, so they are left out
+                    of the rate rather than counted against it.
                   </CardNotice>
                 )}
               </CardNoticeRow>
@@ -126,7 +136,9 @@ export function ShowRateCard({
 
               {result.byAdvisor.length > 0 && (
                 <div>
-                  <p className="crm-label mb-2">By advisor</p>
+                  {/* These are booking sources, not advisors — logins, the BDC
+                      and PBS itself all book appointments here. */}
+                  <p className="crm-label mb-2">By who booked it</p>
                   <ul className="divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
                     {result.byAdvisor.slice(0, 8).map((b) => (
                       <li key={b.key} className="py-2 flex items-center justify-between gap-3">

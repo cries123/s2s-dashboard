@@ -1,11 +1,19 @@
 /**
  * Appointment show rate — did the people who booked actually turn up?
  *
- * PBS gives every appointment a free-form `status` string, but nothing in this
- * codebase establishes which values mean "arrived" versus "booked", so relying
- * on it would be guessing. Instead an appointment counts as shown when that
- * customer has a repair order dated the same day. Visit dates are data we know
- * we have, and an RO on the day is the thing that actually matters.
+ * An appointment counts as shown when that customer has a repair order that
+ * **opened** on the appointment date. The opened date is the day the car came
+ * in; a visit's `date` is the day it was cashiered, which is usually later and
+ * for bigger jobs much later. Matching on the cashier date scored every car not
+ * paid for the same day as a no-show, which read as a 7% show rate when the
+ * truth was closer to the opposite.
+ *
+ * Two things are deliberately not counted rather than guessed at:
+ *
+ *   - an appointment whose name matches no customer record, and
+ *   - an appointment for a customer with no visit history at all, whose car was
+ *     never linked to PBS. There is no evidence either way for those, and
+ *     scoring them as no-shows invents a problem out of a gap in the data.
  *
  * Names arrive in different orders from the two sources — "MENDOZA, JOSE" on an
  * appointment, "Jose Mendoza" on the customer record — so matching is done on a
@@ -24,7 +32,7 @@ export interface ShowRateAppointment {
 export interface ShowRateCustomer {
   firstName?: string;
   lastName?: string;
-  recentVisits?: Array<{ date?: string }> | null;
+  recentVisits?: Array<{ date?: string; openedDate?: string }> | null;
 }
 
 export interface ShowRateBucket {
@@ -42,6 +50,8 @@ export interface ShowRateResult {
   showRate: number | null;
   /** Appointments we could not judge because the name matched no customer record. */
   unmatchedNames: number;
+  /** Appointments for a known customer who has no service history to judge against. */
+  noVisitHistory: number;
   byDate: ShowRateBucket[];
   byAdvisor: ShowRateBucket[];
   byWeekday: ShowRateBucket[];
@@ -73,7 +83,7 @@ export function computeShowRate(
   appointments: ShowRateAppointment[],
   customers: ShowRateCustomer[]
 ): ShowRateResult {
-  // customer name -> the set of dates they have a repair order on
+  // customer name -> the days they had a car in the shop
   const visitsByName = new Map<string, Set<string>>();
   // A name we know about at all, so an unmatched appointment can be told apart
   // from a customer who simply did not come in.
@@ -85,7 +95,10 @@ export function computeShowRate(
     knownNames.add(key);
     const dates = visitsByName.get(key) ?? new Set<string>();
     for (const v of c.recentVisits ?? []) {
-      if (v?.date) dates.add(String(v.date).slice(0, 10));
+      // The day it opened is the day they turned up. Older records predate that
+      // field, so fall back to the cashier date rather than ignoring them.
+      const arrived = v?.openedDate || v?.date;
+      if (arrived) dates.add(String(arrived).slice(0, 10));
     }
     visitsByName.set(key, dates);
   }
@@ -97,6 +110,7 @@ export function computeShowRate(
   let scheduled = 0;
   let showed = 0;
   let unmatchedNames = 0;
+  let noVisitHistory = 0;
 
   const bump = (
     m: Map<string, { scheduled: number; showed: number }>,
@@ -121,7 +135,14 @@ export function computeShowRate(
       continue;
     }
 
-    const didShow = visitsByName.get(key)?.has(date) ?? false;
+    // Nothing on record for this customer, so there is nothing to judge against.
+    const seen = visitsByName.get(key);
+    if (!seen || seen.size === 0) {
+      noVisitHistory += 1;
+      continue;
+    }
+
+    const didShow = seen.has(date);
     scheduled += 1;
     if (didShow) showed += 1;
 
@@ -142,6 +163,7 @@ export function computeShowRate(
     noShow: scheduled - showed,
     showRate: rate(showed, scheduled),
     unmatchedNames,
+    noVisitHistory,
     byDate: toBuckets(byDate),
     byAdvisor: toBuckets(byAdvisor).sort((a, b) => b.scheduled - a.scheduled),
     byWeekday: weekdayBuckets,
