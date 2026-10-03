@@ -1,12 +1,9 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, FileText, RefreshCw } from 'lucide-react';
-import { DEALERSHIPS } from '../../../constants';
-import type { DealershipSettings, DmsImportFailureEntry } from '../../../types';
-import { dmsImportKindLabel } from '../../../lib/dmsImportHealth';
+import { AlertTriangle, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
+import type { DealershipSettings } from '../../../types';
 import { fetchPbsSyncStatus, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
-import { isPbsSyncDealership } from '../../../lib/pbsSyncScope';
+import { PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
-import { cn } from '../../../lib/utils';
 
 interface DmsImportHealthPanelProps {
   dealershipSettings: Record<string, Partial<DealershipSettings>>;
@@ -19,175 +16,202 @@ function formatWhen(iso?: string): string {
   return d.toLocaleString();
 }
 
-function FailureRow({ entry }: { entry: DmsImportFailureEntry }) {
-  return (
-    <li className="py-2.5 border-b border-white/5 last:border-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold text-rose-400">
-          {dmsImportKindLabel(entry.importKind)}
-        </span>
-        <span className="text-xs text-slate-600 font-mono">{formatWhen(entry.at)}</span>
-      </div>
-      <p className="text-xs text-white font-medium truncate mt-0.5">{entry.filename}</p>
-      <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{entry.error}</p>
-      {entry.userEmail ? (
-        <p className="text-xs text-slate-600 mt-1">{entry.userEmail}</p>
-      ) : null}
-    </li>
-  );
+/** "2 hours ago", "8 days ago" — the thing you actually want to know here. */
+function ago(iso?: string): string | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-/**
- * The automatic PBS sync is the other half of how data gets in, and until now it
- * reported only inside the PBS Sync panel — so "import health" was answering for
- * hand-uploaded PDFs and silent about the job that runs every morning.
- */
-function PbsSyncHealth() {
-  const [status, setStatus] = React.useState<PbsSyncStatusResponse | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+function hoursSince(iso?: string): number | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  return (Date.now() - then) / 3_600_000;
+}
 
-  React.useEffect(() => {
-    let cancelled = false;
-    // The endpoint answers for the one store PBS is configured against, so it
-    // takes no argument — the caller gates on isPbsSyncDealership instead.
-    fetchPbsSyncStatus()
-      .then((res) => {
-        if (!cancelled) setStatus(res);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Sync status unavailable');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const state = status?.state;
-  const ok = state?.lastSyncOk === true;
-  const running = state?.syncInProgress === true;
-
+function Row({ label, value, tone }: { label: string; value: React.ReactNode; tone?: 'danger' | 'warning' }) {
   return (
-    <div
-      className={cn(
-        'rounded-lg border p-4 md:col-span-2',
-        error || (state && !ok)
-          ? 'border-rose-500/25 bg-rose-950/15'
-          : 'border-surface-border'
-      )}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <RefreshCw size={14} className={cn('text-brand-primary', running && 'animate-spin')} />
-        <span className="text-xs font-semibold text-slate-200">Automatic PBS sync</span>
-      </div>
-
-      {error ? (
-        <p className="text-xs text-rose-300">{error}</p>
-      ) : !status ? (
-        <p className="text-xs text-slate-500">Checking…</p>
-      ) : !status.configured ? (
-        <p className="text-xs text-slate-500">PBS sync is not configured for this store.</p>
-      ) : !state?.lastSyncAt ? (
-        <p className="text-xs text-slate-500">No sync has run yet.</p>
-      ) : (
-        <>
-          <p className="text-xs font-bold text-white">
-            {running ? 'Running now' : ok ? 'Last run succeeded' : 'Last run failed'}
-            {state.triggeredBy ? ` · ${state.triggeredBy === 'cron' ? 'scheduled' : 'manual'}` : ''}
-          </p>
-          <p className="text-xs text-slate-600 mt-1">{formatWhen(state.lastSyncAt)}</p>
-          {state.summary ? (
-            <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{state.summary}</p>
-          ) : null}
-          {!ok && state.lastError ? (
-            <p className="text-[11px] text-rose-300 mt-1 line-clamp-3">{state.lastError}</p>
-          ) : null}
-          {!ok && state.lastSuccessfulSyncAt ? (
-            <p className="text-xs text-slate-600 mt-1">
-              Last good run {formatWhen(state.lastSuccessfulSyncAt)}
-            </p>
-          ) : null}
-        </>
-      )}
+    <div className="list-row min-h-0 py-2.5">
+      <span className="flex-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+        {label}
+      </span>
+      <span
+        className="text-sm text-right font-medium"
+        style={
+          tone === 'danger'
+            ? { color: 'var(--color-badge-error-text)' }
+            : tone === 'warning'
+              ? { color: 'var(--color-badge-warn-text)' }
+              : undefined
+        }
+      >
+        {value}
+      </span>
     </div>
   );
 }
 
+/**
+ * The automatic PBS pull, and nothing else.
+ *
+ * This page used to double as a log of hand-uploaded PDF imports, which buried
+ * the one thing worth watching: whether the overnight pull is still running.
+ * A pull that silently stops looks identical to a quiet night unless the page
+ * says how long it has been.
+ */
 export function DmsImportHealthPanel({ dealershipSettings }: DmsImportHealthPanelProps) {
+  const [status, setStatus] = React.useState<PbsSyncStatusResponse | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [reloadKey, setReloadKey] = React.useState(0);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchPbsSyncStatus()
+      .then((res) => {
+        if (!cancelled) {
+          setStatus(res);
+          setError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Sync status unavailable');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  const state = status?.state;
+  const heartbeat = (dealershipSettings?.hyundai as { pbsCronHeartbeat?: { lastInvokedAt?: string; lastOutcome?: string } } | undefined)
+    ?.pbsCronHeartbeat;
+  const ok = state?.lastSyncOk === true;
+  const running = state?.syncInProgress === true;
+  const lastGood = state?.lastSuccessfulSyncAt ?? (ok ? state?.lastSyncAt : undefined);
+  const staleHours = hoursSince(lastGood);
+  const stale = staleHours !== null && staleHours >= 26;
+
   return (
     <div className="space-y-4">
-      <div>
-        <CardNoticeRow>
-          <CardNotice tone="info" summary="What is tracked here">
-            Two routes. Staff uploading appointment, performance, technician, forecast or Pot of
-            Gold PDFs, and the automatic PBS sync that runs every morning at 6:00 AM Pacific.
-            A failure on either shows up here.
-          </CardNotice>
-        </CardNoticeRow>
-      </div>
-      <div className="grid grid-cols-1 gap-4">
-        {DEALERSHIPS.map((d) => {
-          const health = dealershipSettings[d.id]?.dmsImportHealth;
-          const last = health?.lastSuccess;
-          const failures = health?.recentFailures ?? [];
+      <CardNoticeRow>
+        <CardNotice tone="info" summary="What this watches">
+          The automatic pull from PBS PartnerHUB for {PBS_SYNC_DEALERSHIP_NAME}, which runs every
+          morning at 6:00 AM Pacific. If a morning is missed, the next hourly check catches up.
+        </CardNotice>
+      </CardNoticeRow>
 
-          return (
-            <div key={d.id} className="card-base p-4 sm:p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <FileText size={16} style={{ color: 'var(--color-text-secondary)' }} />
-                <h3 className="crm-section-title">{d.name}</h3>
+      {stale && !running ? (
+        <div
+          role="alert"
+          className="card-base p-4 flex items-start gap-3"
+          style={{ boxShadow: 'inset 3px 0 0 var(--color-badge-error-text)' }}
+        >
+          <AlertTriangle size={18} className="shrink-0 mt-0.5" style={{ color: 'var(--color-badge-error-text)' }} />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">No successful pull in {Math.floor(staleHours! / 24)} days</p>
+            <p className="crm-label mt-0.5">
+              Last good pull {ago(lastGood)}. Open Admin → PBS sync and press Pull changes, and check that the
+              scheduled job is still running.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      <section className="card-base overflow-hidden">
+        <header className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: 'var(--color-row-divider)' }}>
+          <span
+            className="w-7 h-7 rounded-md flex items-center justify-center shrink-0"
+            style={{ backgroundColor: '#d8edff', color: '#014486' }}
+            aria-hidden="true"
+          >
+            <RefreshCw size={15} className={running ? 'animate-spin' : undefined} />
+          </span>
+          <h2 className="flex-1 text-sm font-semibold">{PBS_SYNC_DEALERSHIP_NAME}</h2>
+          <button
+            type="button"
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="link-text text-sm min-h-[44px] px-2"
+          >
+            Refresh
+          </button>
+        </header>
+
+        {loading ? (
+          <p className="crm-label px-4 py-6 text-center">Checking…</p>
+        ) : error ? (
+          <p className="px-4 py-6 text-center text-sm" style={{ color: 'var(--color-badge-error-text)' }}>
+            {error}
+          </p>
+        ) : !status?.configured ? (
+          <p className="crm-label px-4 py-6 text-center">PBS is not connected for this store.</p>
+        ) : (
+          <>
+            <Row
+              label="Status"
+              value={
+                running ? (
+                  'Running now'
+                ) : ok ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-500" /> Last pull succeeded
+                  </span>
+                ) : (
+                  'Last pull failed'
+                )
+              }
+              tone={!running && !ok ? 'danger' : undefined}
+            />
+            <Row
+              label="Last successful pull"
+              value={lastGood ? `${ago(lastGood)} · ${formatWhen(lastGood)}` : 'Never'}
+              tone={stale ? 'danger' : undefined}
+            />
+            <Row label="Started by" value={state?.triggeredBy === 'cron' ? 'Schedule' : state?.triggeredBy === 'manual' ? state.triggeredByUsername || 'Someone at the store' : '—'} />
+            <Row
+              label="Scheduler last checked in"
+              value={
+                heartbeat?.lastInvokedAt
+                  ? `${ago(heartbeat.lastInvokedAt)}${heartbeat.lastOutcome === 'pulled' ? ' · pulled' : ''}`
+                  : 'No check-in recorded yet'
+              }
+              tone={
+                heartbeat?.lastInvokedAt && (hoursSince(heartbeat.lastInvokedAt) ?? 0) > 3 ? 'warning' : undefined
+              }
+            />
+            <Row label="Next window" value={status.nextScheduledWindow || 'Daily at 6:00 AM Pacific'} />
+            {state?.summary ? (
+              <div className="px-4 py-3 border-t" style={{ borderColor: 'var(--color-row-divider)' }}>
+                <p className="crm-label">What the last pull brought in</p>
+                <p className="text-sm mt-0.5 leading-snug">{state.summary}</p>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {isPbsSyncDealership(d.id) && <PbsSyncHealth />}
-                <div
-                  className={cn(
-                    'rounded-lg border p-4',
-                    last ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-surface-border'
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 size={14} className={last ? 'text-emerald-400' : undefined} style={last ? undefined : { color: 'var(--color-text-secondary)' }} />
-                    <span className={cn('text-xs font-semibold', last ? 'text-emerald-400' : 'crm-label')}>Last successful import</span>
-                  </div>
-                  {last ? (
-                    <>
-                      <p className="text-sm font-semibold">{dmsImportKindLabel(last.importKind)}</p>
-                      <p className="crm-label truncate mt-1">{last.filename}</p>
-                      <p className="crm-label mt-2">{formatWhen(last.at)}</p>
-                      {last.userEmail ? <p className="crm-label">{last.userEmail}</p> : null}
-                    </>
-                  ) : (
-                    <p className="crm-label">None yet</p>
-                  )}
-                </div>
-
-                <div
-                  className={cn(
-                    'rounded-lg border p-4',
-                    failures.length ? 'border-rose-500/25 bg-rose-500/5' : 'border-surface-border'
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle size={14} className={failures.length ? 'text-rose-400' : undefined} style={failures.length ? undefined : { color: 'var(--color-text-secondary)' }} />
-                    <span className={cn('text-xs font-semibold', failures.length ? 'text-rose-400' : 'crm-label')}>
-                      Recent failures{failures.length ? ` (${failures.length})` : ''}
-                    </span>
-                  </div>
-                  {failures.length === 0 ? (
-                    <p className="crm-label">No failed imports</p>
-                  ) : (
-                    <ul className="max-h-40 overflow-y-auto pr-1">
-                      {failures.slice(0, 8).map((f, idx) => (
-                        <FailureRow key={`${f.at}-${idx}`} entry={f} />
-                      ))}
-                    </ul>
-                  )}
-                </div>
+            ) : null}
+            {!ok && state?.lastError ? (
+              <div className="px-4 py-3 border-t" style={{ borderColor: 'var(--color-row-divider)' }}>
+                <p className="crm-label">Error</p>
+                <p className="text-sm mt-0.5 leading-snug" style={{ color: 'var(--color-badge-error-text)' }}>
+                  {state.lastError}
+                </p>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            ) : null}
+          </>
+        )}
+      </section>
+
+      <p className="crm-label flex items-center gap-1.5">
+        <Clock size={13} /> Full history is under Admin → Audit logs.
+      </p>
     </div>
   );
 }

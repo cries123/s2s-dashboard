@@ -257,6 +257,11 @@ service cloud.firestore {
 
     match /artifacts/hyundai-sales-to-service/public/data/appointmentSchedule/{docId} {
       allow get: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+      // The show-rate card asks for a date range, which is a list, not a get.
+      // Without this the whole query is refused — the same shape as the
+      // appointmentTracker rule above, which is why daily counts worked and
+      // the schedule did not.
+      allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
       allow create: if isAdmin() || isSystemWorker() || (isApproved() && incoming().dealershipId == userDealershipId());
       allow update: if isAdmin() || isSystemWorker() ||
                        (isApproved() &&
