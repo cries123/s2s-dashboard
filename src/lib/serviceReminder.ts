@@ -2,28 +2,56 @@ import type { Customer } from '../types';
 
 export const SERVICE_REMINDER_MONTHS = 6;
 
+/**
+ * A year under 100 is a two-digit year that lost its century somewhere upstream
+ * — an import that read "6/30/26" as year 26. Nothing in a dealership database
+ * predates the car, so the only sane reading is 2026. Left alone, a 2026 F-150
+ * delivered in June showed up "730396 days overdue".
+ */
+export function normalizeCenturyYear(d: Date | null): Date | null {
+  if (!d) return null;
+  const year = d.getFullYear();
+  if (year >= 100) return d;
+  const fixed = new Date(d);
+  fixed.setFullYear(year + 2000);
+  return fixed;
+}
+
 /** Format a Date as YYYY-MM-DD in local time (avoids UTC shift from toISOString). */
 export function formatLocalDateOnly(d: Date): string {
-  const y = d.getFullYear();
+  // Zero-pad the year: a year-26 date used to serialise as "26-12-30", which is
+  // not a date any parser here accepts.
+  const y = String(d.getFullYear()).padStart(4, '0');
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 
 function parseAnchorDate(from: string | Date): Date | null {
-  const d =
-    typeof from === 'string'
-      ? new Date(from.includes('T') ? from : `${from.trim()}T00:00:00`)
-      : new Date(from);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (typeof from === 'string') {
+    const trimmed = from.trim();
+    if (!trimmed) return null;
+    // Date-only strings go through the same reader as reminder dates, so a
+    // two-digit year is salvaged here too instead of falling back to today.
+    if (!trimmed.includes('T')) return parseReminderDate(trimmed);
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : normalizeCenturyYear(parsed);
+  }
+  const d = new Date(from);
+  return Number.isNaN(d.getTime()) ? null : normalizeCenturyYear(d);
+}
+
+/** Parse a stored delivery or visit date the way every screen should. */
+export function parseCustomerDate(value: string | Date | null | undefined): Date | null {
+  if (!value) return null;
+  return parseAnchorDate(value);
 }
 
 export function getLastServiceDate(customer: Customer): Date | null {
   const visits = customer.recentVisits || [];
   if (visits.length === 0) {
     if (customer.soldDate) {
-      const sd = new Date(customer.soldDate + 'T00:00:00');
-      return isNaN(sd.getTime()) ? null : sd;
+      return parseCustomerDate(customer.soldDate);
     }
     return null;
   }
@@ -31,8 +59,7 @@ export function getLastServiceDate(customer: Customer): Date | null {
   const sorted = [...visits].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
-  const d = new Date(sorted[0].date + 'T00:00:00');
-  return isNaN(d.getTime()) ? null : d;
+  return parseCustomerDate(sorted[0].date);
 }
 
 /** Next service reminder date (YYYY-MM-DD), six months after the anchor date. */
@@ -54,10 +81,16 @@ export function parseReminderDate(dateStr: string): Date | null {
   const isoPrefix = trimmed.slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(isoPrefix)) {
     const d = new Date(`${isoPrefix}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? null : normalizeCenturyYear(d);
+  }
+  // "26-12-30" — a year that lost its century on the way out of an import.
+  const short = trimmed.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+  if (short) {
+    const d = new Date(`20${short[1]}-${short[2]}-${short[3]}T00:00:00`);
     return Number.isNaN(d.getTime()) ? null : d;
   }
   const d = new Date(`${trimmed}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return Number.isNaN(d.getTime()) ? null : normalizeCenturyYear(d);
 }
 
 export function formatReminderDate(dateStr: string): string {

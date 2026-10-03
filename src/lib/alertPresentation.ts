@@ -27,7 +27,18 @@ function startOfDay(d: Date): Date {
 /** Overdue by more than this many days shows red; up to it, amber. */
 export const OVERDUE_DANGER_DAYS = 30;
 
+/**
+ * Past this, the date is wrong rather than the customer being late. A stored
+ * year that lost its century produced "730396 days overdue" on screen; no real
+ * reminder is two millennia old, and a number like that teaches staff to
+ * distrust the column.
+ */
+const IMPLAUSIBLE_DAYS = 7300; // 20 years
+
 function labelFor(daysPastDue: number): { label: string; tone: AlertTone } {
+  if (Math.abs(daysPastDue) > IMPLAUSIBLE_DAYS) {
+    return { label: 'Check the delivery date', tone: 'muted' };
+  }
   if (daysPastDue < 0) {
     const n = Math.abs(daysPastDue);
     return { label: n === 1 ? 'Due tomorrow' : `Due in ${n} days`, tone: 'info' };

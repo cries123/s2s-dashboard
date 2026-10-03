@@ -19,6 +19,7 @@ import {
 } from '../dashboard/customers/CustomerTimeline';
 import { ServiceVisitDetailModal } from '../dashboard/customers/ServiceVisitDetailModal';
 import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
+import { parseCustomerDate } from '../../lib/serviceReminder';
 import { Panel } from '../ui/Panel';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
@@ -353,7 +354,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
               <dt className="crm-label">Owned since</dt>
               <dd className="text-sm font-medium truncate">
                 {customer.soldDate
-                  ? new Date(customer.soldDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  ? (parseCustomerDate(customer.soldDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) ?? '—')
                   : '—'}
               </dd>
             </div>
