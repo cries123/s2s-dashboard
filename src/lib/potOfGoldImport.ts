@@ -33,6 +33,11 @@ export interface ImportResult<Row> {
   totals: Record<string, number>;
   /** Names in the report that matched no known advisor — surfaced, never swallowed. */
   ignoredNames: string[];
+  /**
+   * Op codes the report counted that the board has no row for. These cannot be
+   * shown or paid, so they are reported rather than dropped in silence.
+   */
+  unknownCodes: string[];
 }
 
 /** Op codes differ in case and stray whitespace between reports. */
@@ -100,5 +105,13 @@ export function applyUpsellReport<Row extends { code: string }>(
     return next as Row;
   });
 
-  return { rows: nextRows, matchedAdvisors: [...matched.keys()], totals, ignoredNames };
+  const boardCodes = new Set(rows.map((row) => normalizeOpCode(row.code)));
+  const unknownCodes: string[] = [];
+  for (const byCode of matched.values()) {
+    for (const [code, count] of byCode) {
+      if (count > 0 && !boardCodes.has(code) && !unknownCodes.includes(code)) unknownCodes.push(code);
+    }
+  }
+
+  return { rows: nextRows, matchedAdvisors: [...matched.keys()], totals, ignoredNames, unknownCodes };
 }

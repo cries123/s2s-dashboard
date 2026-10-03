@@ -32,6 +32,11 @@ import {
   type PbsSyncStageName,
 } from '../pbs/pbsSync.js';
 import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
+import {
+  findEmptyPastMonths,
+  isMonthKey,
+  rebuildPbsMonth,
+} from '../pbs/pbsMonthRebuild.js';
 import { getPbsEnvDiagnostics, getPbsCronDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -273,6 +278,70 @@ export function registerPbsRoutes(app: Express) {
         fullRefresh,
         force,
       });
+      return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * Which past months have no figures stored.
+   *
+   * The Operations month dropdown offers twelve months whether or not anything
+   * was ever saved for them, so this is what tells the screen which of those
+   * choices would come up blank — and can be filled in.
+   */
+  app.get('/api/pbs/months/empty', async (req: Request, res: Response) => {
+    const caller = await resolveApprovedUser(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    const db = getAdminFirestore();
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore is not configured.' });
+    }
+    try {
+      const months = await findEmptyPastMonths(
+        db,
+        PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        new Date(),
+        12
+      );
+      return res.json({ ok: true, months });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * Rebuild one past month from PBS.
+   *
+   * A month that nobody closed by hand is blank for ever otherwise. This writes
+   * only that month's archive documents, never the live sheet.
+   */
+  app.post('/api/pbs/months/rebuild', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized PBS sync request.' });
+    }
+    if (!isPbsPartnerHubConfigured()) {
+      return res.status(503).json({ error: 'PBS PartnerHUB credentials are not configured.' });
+    }
+    const month = req.body?.month;
+    if (!isMonthKey(month)) {
+      return res.status(400).json({ error: 'Pass a month as YYYY-MM.' });
+    }
+    const db = getAdminFirestore();
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore is not configured.' });
+    }
+    try {
+      const result = await rebuildPbsMonth(
+        db,
+        PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        month,
+        new Date().toISOString()
+      );
       return res.status(result.ok ? 200 : 500).json(result);
     } catch (err) {
       return handlePbsError(res, err);

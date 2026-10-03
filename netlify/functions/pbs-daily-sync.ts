@@ -5,6 +5,7 @@ import { isPacificMorningSyncHour, runPbsSync } from '../../server/pbs/pbsSync.j
 import { dealershipSettingsDoc } from '../../server/pbs/pbsFirestore.js';
 import { PBS_AUTOMATED_SYNC_DEALERSHIP_ID } from '../../server/pbs/pbsDealershipScope.js';
 import { recordPbsCronHeartbeat, shouldRunCatchUp } from '../../server/pbs/pbsCronHeartbeat.js';
+import { backfillOnePastMonth } from '../../server/pbs/pbsMonthRebuild.js';
 
 /**
  * Netlify scheduled function — cron is configured in netlify.toml (@hourly).
@@ -61,6 +62,20 @@ export const handler: Handler = async (_event, context: HandlerContext) => {
   );
   const result = await runPbsSync({ triggeredBy: 'cron' });
   console.log(`[pbs-daily-sync] Finished: ok=${result.ok} — ${result.summary}`);
+
+  // Close a month nobody closed by hand. One per run: a month is a full pull of
+  // repair orders, and the hourly schedule fills a year of gaps within a day.
+  // A failure here must not fail the night's sync, which has already succeeded.
+  let monthBackfill: unknown;
+  if (result.ok) {
+    try {
+      monthBackfill =
+        (await backfillOnePastMonth(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID, new Date().toISOString())) ??
+        undefined;
+    } catch (err) {
+      console.error('[pbs-daily-sync] Past-month backfill failed:', err);
+    }
+  }
   await recordPbsCronHeartbeat(
     db,
     result.ok ? 'pulled' : 'failed',
@@ -68,6 +83,6 @@ export const handler: Handler = async (_event, context: HandlerContext) => {
   );
   return {
     statusCode: result.ok ? 200 : 500,
-    body: JSON.stringify(result),
+    body: JSON.stringify({ ...result, monthBackfill }),
   };
 };

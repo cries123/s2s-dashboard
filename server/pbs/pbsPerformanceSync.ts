@@ -168,7 +168,13 @@ export async function syncPbsAdvisorPerformance(
   dealershipId: string,
   monthStart: string,
   monthEnd: string,
-  syncedAt: string
+  syncedAt: string,
+  /**
+   * Which month's document to write. Omitted or 'active' means the live sheet;
+   * a 'YYYY-MM' key rebuilds that month's archive from PBS, which is how a month
+   * nobody closed by hand can still be filled in afterwards.
+   */
+  targetMonth?: string
 ): Promise<{
   advisors: number;
   repairOrdersProcessed: number;
@@ -219,7 +225,8 @@ export async function syncPbsAdvisorPerformance(
     .filter((row) => !matchesPerformanceAdvisorRoster(row.name, roster))
     .map((row) => row.name);
 
-  const existingSnap = await advisorPerformanceDoc(db, dealershipId).get();
+  const isArchive = Boolean(targetMonth) && targetMonth !== 'active';
+  const existingSnap = await advisorPerformanceDoc(db, dealershipId, targetMonth).get();
   const existing = existingSnap.exists ? existingSnap.data() : undefined;
   const preserveImportedLabor =
     existing &&
@@ -235,8 +242,11 @@ export async function syncPbsAdvisorPerformance(
       }
     : aggregate.totals;
 
-  await advisorPerformanceDoc(db, dealershipId).set(
+  await advisorPerformanceDoc(db, dealershipId, targetMonth).set(
     stripUndefinedDeep({
+      isArchive: isArchive || undefined,
+      archiveMonth: isArchive ? targetMonth : undefined,
+      rebuiltFromPbsAt: isArchive ? syncedAt : undefined,
       advisors: aggregate.advisors,
       totals: totalsToWrite,
       reportStartDate: aggregate.reportStartDate,
@@ -253,7 +263,7 @@ export async function syncPbsAdvisorPerformance(
   );
 
   console.log(
-    `[PBS Sync] Advisor performance written: ${aggregate.advisors.length} advisors, labor gross $${aggregate.totals.totalGross}, parts gross $${aggregate.totals.totalGrossParts}`
+    `[PBS Sync] Advisor performance written to ${targetMonth ?? 'active'}: ${aggregate.advisors.length} advisors, labor gross $${aggregate.totals.totalGross}, parts gross $${aggregate.totals.totalGrossParts}`
   );
 
   return {

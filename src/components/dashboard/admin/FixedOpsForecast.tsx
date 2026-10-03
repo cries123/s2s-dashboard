@@ -3,6 +3,7 @@ import { cn } from '../../../lib/utils';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { resolveForecastDefaults } from '../../../lib/operationsConfig';
+import { monthKeyOf } from '../../../lib/operationsMonthKeys';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { useAuth } from '../../../hooks/useAuth';
@@ -848,7 +849,7 @@ export default function FixedOpsForecast({
       const docId = currentDealershipId === 'hyundai' ? 'forecastReport' : `forecastReport_${currentDealershipId}`;
       const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
 
-      await setDoc(docRef, {
+      const payload = {
         inputs: nextInputs,
         rawCounts: nextCounts,
         mtdTelemetry: nextTelemetry,
@@ -856,8 +857,28 @@ export default function FixedOpsForecast({
         ...(operationsSeedMonth ? { operationsSeedMonth } : {}),
         updatedAt: new Date().toISOString(),
         updatedBy: user.uid
-      }, { merge: true });
-      console.log("[Forecast] Saved successfully to Firestore.");
+      };
+
+      /*
+        Keep a copy under this month's key as well as the live document.
+
+        The live document is overwritten all month and then reused for the next
+        one, so a forecast only ever existed for the month in progress — pick an
+        earlier month and there was nothing to show, for ever. Unlike the actual
+        numbers, a forecast cannot be recomputed from PBS afterwards: it is a
+        plan somebody typed, and if it is not kept at the time it is gone. So
+        every save stamps the month it belongs to, and history accumulates from
+        here on with nobody having to remember a month-end step.
+      */
+      const monthKey = monthKeyOf(new Date());
+      const monthDocId = `${docId}_archive_${monthKey}`;
+      const monthRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', monthDocId);
+
+      await Promise.all([
+        setDoc(docRef, payload, { merge: true }),
+        setDoc(monthRef, { ...payload, isArchive: true, archiveMonth: monthKey }, { merge: true }),
+      ]);
+      console.log(`[Forecast] Saved to Firestore (live + ${monthKey} copy).`);
     } catch (err) {
       console.error("[Forecast] Failed to save forecast to Firestore:", err);
     }

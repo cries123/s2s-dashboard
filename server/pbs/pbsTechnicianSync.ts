@@ -126,7 +126,9 @@ export async function syncPbsTechnicianPerformance(
   dealershipId: string,
   monthStart: string,
   monthEnd: string,
-  syncedAt: string
+  syncedAt: string,
+  /** See syncPbsAdvisorPerformance — 'YYYY-MM' rebuilds that month's archive. */
+  targetMonth?: string
 ): Promise<{
   technicians: number;
   clockActivities: number;
@@ -166,7 +168,7 @@ export async function syncPbsTechnicianPerformance(
 
   const reportEndDate = performanceReportEndDate(monthEnd);
 
-  const existingSnap = await technicianPerformanceDoc(db, dealershipId).get();
+  const existingSnap = await technicianPerformanceDoc(db, dealershipId, targetMonth).get();
   const existing = existingSnap.exists ? existingSnap.data() : undefined;
   const preserveImported =
     existing &&
@@ -180,8 +182,11 @@ export async function syncPbsTechnicianPerformance(
       ? `Employee names unavailable: ${employeeResult.skippedReason}`
       : undefined;
 
-  await technicianPerformanceDoc(db, dealershipId).set(
+  await technicianPerformanceDoc(db, dealershipId, targetMonth).set(
     stripUndefinedDeep({
+      isArchive: targetMonth && targetMonth !== 'active' ? true : undefined,
+      archiveMonth: targetMonth && targetMonth !== 'active' ? targetMonth : undefined,
+      rebuiltFromPbsAt: targetMonth && targetMonth !== 'active' ? syncedAt : undefined,
       technicians: preserveImported ? existing.technicians : technicians,
       reportStartDate: aggregate.reportStartDate,
       reportEndDate,

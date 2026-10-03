@@ -17,8 +17,12 @@ import { PageHeader } from '../../layout/PageHeader';
 import { KpiStrip } from '../../ui/KpiStrip';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
 import { PageSkeleton } from '../../ui/Skeleton';
-import { applyUpsellReport } from '../../../lib/potOfGoldImport';
-import { buildOperationsViewPeriodOptions, formatArchiveDisplayLabel } from '../../../lib/operationsViewPeriod';
+import { applyUpsellReport, type ParsedAdvisor } from '../../../lib/potOfGoldImport';
+import {
+  buildOperationsViewPeriodOptions,
+  formatArchiveDisplayLabel,
+  performanceDocId,
+} from '../../../lib/operationsViewPeriod';
 import { tidyCase } from '../../ui/Panel';
 
 interface PerformanceRow {
@@ -76,6 +80,18 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
   const [isLoading, setIsLoading] = useState(true);
 
   const [advData, setAdvData] = useState<PerformanceRow[]>(INITIAL_PERFORMANCE_DATA);
+  /**
+   * Where the advisor counts come from.
+   *
+   * PBS already counts these op codes on cashiered repair orders for
+   * Operations → Service sales. This board used to be typed in by hand, which
+   * is how Frank showed 106 upsells here and 2 there. Reading the same numbers
+   * makes the two screens agree by construction instead of by discipline.
+   */
+  const [countSource, setCountSource] = useState<'operations' | 'manual'>('operations');
+  const [opsAdvisors, setOpsAdvisors] = useState<ParsedAdvisor[]>([]);
+  const [opsSyncedAt, setOpsSyncedAt] = useState<string | null>(null);
+  const [opsReportSource, setOpsReportSource] = useState<string | null>(null);
   const [techData, setTechData] = useState<TechPerformanceRow[]>(() => 
     INITIAL_PERFORMANCE_DATA.map(d => {
       const base: TechPerformanceRow = { code: d.code, desc: d.desc };
@@ -103,6 +119,9 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
         if (data.advData) setAdvData(data.advData);
         if (data.techData) setTechData(data.techData);
         if (data.prices) setPrices(data.prices);
+        if (data.countSource === 'manual' || data.countSource === 'operations') {
+          setCountSource(data.countSource);
+        }
       } else {
         // Reset to initial if no data yet for this dealership
         setAdvData(INITIAL_PERFORMANCE_DATA);
@@ -120,7 +139,30 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     return () => unsubscribe();
   }, [user, currentDealershipId, selectedMonth]);
 
-  const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any }) => {
+  // The same document Operations → Service sales reads, for the same month.
+  useEffect(() => {
+    if (!user || !currentDealershipId) return;
+    const docId = performanceDocId('advisorReports', currentDealershipId, selectedMonth);
+    const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
+    const unsubscribe = onSnapshot(
+      docRef,
+      (docSnap) => {
+        const data = docSnap.data();
+        setOpsAdvisors(Array.isArray(data?.advisors) ? (data!.advisors as ParsedAdvisor[]) : []);
+        setOpsSyncedAt(typeof data?.pbsSyncedAt === 'string' ? data!.pbsSyncedAt : null);
+        setOpsReportSource(typeof data?.source === 'string' ? data!.source : null);
+      },
+      (error) => {
+        // A missing or unreadable report is not an error for this page — the
+        // board simply falls back to the typed-in numbers.
+        console.warn('Pot of Gold could not read the Operations report:', error);
+        setOpsAdvisors([]);
+      }
+    );
+    return () => unsubscribe();
+  }, [user, currentDealershipId, selectedMonth]);
+
+  const saveToFirestore = async (updates: { advData?: any, techData?: any, prices?: any, countSource?: 'operations' | 'manual' }) => {
     if (!user || !currentDealershipId) return;
     const docId = currentDealershipId === 'hyundai' ? 'potOfGold' : `potOfGold_${currentDealershipId}`;
     const docRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', docId);
@@ -143,10 +185,30 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     }
   }, [successMessage, showToast]);
 
+  /**
+   * The board as Operations sees it: the typed rows and payouts, with every
+   * count replaced by what PBS counted for that advisor. Codes PBS counted that
+   * have no row here come back as unknownCodes rather than vanishing.
+   */
+  const operationsBoard = useMemo(
+    () => applyUpsellReport(advData, opsAdvisors, ADVISORS),
+    [advData, opsAdvisors]
+  );
+  const operationsHasCounts = operationsBoard.matchedAdvisors.length > 0;
+  const usingOperations = countSource === 'operations' && operationsHasCounts;
+  /** Every number on this page is counted from this. */
+  const boardData = usingOperations ? operationsBoard.rows : advData;
+  const countsLocked = usingOperations || selectedMonth !== 'active';
+
+  const applyCountSource = (next: 'operations' | 'manual') => {
+    setCountSource(next);
+    void saveToFirestore({ countSource: next });
+  };
+
   // Calculations
   const calculateAdvisorTotals = () => {
     let frank = 0, lemmy = 0, grand = 0;
-    advData.forEach(row => {
+    boardData.forEach(row => {
       frank += row.frank;
       lemmy += row.lemmy;
       grand += row.frank + row.lemmy;
@@ -156,7 +218,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
 
   const calculateAdvisorEarnings = () => {
     let frank = 0, lemmy = 0, grand = 0;
-    advData.forEach(row => {
+    boardData.forEach(row => {
       const price = prices[row.code] || 0;
       frank += row.frank * price;
       lemmy += row.lemmy * price;
@@ -204,7 +266,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
    * Hyundai board that silently swallowed 51 of 114 upsells — including the
    * single biggest category — so the totals looked low for no visible reason.
    */
-  const unpricedCodes = advData.filter(
+  const unpricedCodes = boardData.filter(
     (row) => row.frank + row.lemmy > 0 && !(prices[row.code] > 0)
   );
   const unpricedUpsells = unpricedCodes.reduce((n, row) => n + row.frank + row.lemmy, 0);
@@ -313,7 +375,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
     setShowClearConfirm(false);
   };
 
-  const chartData = advData.map(d => ({
+  const chartData = boardData.map(d => ({
     name: d.code,
     Frank: d.frank,
     Lemmy: d.lemmy
@@ -595,13 +657,65 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
           {activeSubTab === 'advisors' && (
             <div className="space-y-6">
               {/*
+                One line for where the counts come from, and one tap to change
+                it. The explanation of what each choice means lives in the
+                collapsed notice below rather than in a paragraph here.
+              */}
+              <div className="card-base p-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className="crm-label shrink-0">Counts from</span>
+                <div className="seg grid-cols-2 shrink-0 w-[13rem]" role="group" aria-label="Where advisor counts come from">
+                  <button
+                    type="button"
+                    aria-pressed={countSource === 'operations'}
+                    onClick={() => applyCountSource('operations')}
+                  >
+                    Operations
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={countSource === 'manual'}
+                    onClick={() => applyCountSource('manual')}
+                  >
+                    Typed in
+                  </button>
+                </div>
+                <span className="crm-label flex-1 min-w-0">
+                  {usingOperations
+                    ? `${operationsBoard.matchedAdvisors.length} advisor${operationsBoard.matchedAdvisors.length === 1 ? '' : 's'} from the ${opsReportSource === 'pbs-sync' ? 'PBS pull' : 'Operations report'}${opsSyncedAt ? ` · ${new Date(opsSyncedAt).toLocaleDateString()}` : ''}`
+                    : countSource === 'operations'
+                      ? 'Operations has no service sales for this month yet — showing typed-in numbers'
+                      : 'Typed in by hand on this board'}
+                </span>
+              </div>
+
+              <CardNoticeRow>
+                <CardNotice tone="info" summary="Where these numbers come from">
+                  Operations counts the op codes below on repair orders PBS has
+                  cashiered, so choosing Operations makes this board and
+                  Operations → Service sales show the same figure. Typed in keeps
+                  whatever was entered here by hand.
+                </CardNotice>
+                {usingOperations && operationsBoard.ignoredNames.length > 0 && (
+                  <CardNotice tone="warn" summary={`${operationsBoard.ignoredNames.length} advisor not on this board`}>
+                    Operations has sales for {operationsBoard.ignoredNames.join(', ')}, who has no
+                    column here, so those upsells are not counted or paid.
+                  </CardNotice>
+                )}
+                {usingOperations && operationsBoard.unknownCodes.length > 0 && (
+                  <CardNotice tone="warn" summary={`${operationsBoard.unknownCodes.length} op code has no row`}>
+                    Operations counted {operationsBoard.unknownCodes.join(', ')} this month, and this
+                    board has no row for it. Add the row to pay it.
+                  </CardNotice>
+                )}
+              </CardNoticeRow>
+              {/*
                 Phones get a stacked list. The table below is five columns with
                 px-6 padding and two 64px inputs — roughly 500px before the
                 description has any room — so at 375px it scrolled sideways and
                 the Total column sat off screen.
               */}
               <ul className="md:hidden card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-surface-border)' }}>
-                {advData.map((row, i) => {
+                {boardData.map((row, i) => {
                   const price = prices[row.code] || 0;
                   const total = row.frank + row.lemmy;
                   return (
@@ -627,7 +741,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                             <input
                               type="number"
                               value={row[who]}
-                              disabled={selectedMonth !== 'active'}
+                              disabled={countsLocked}
                               onChange={(e) => {
                                 const val = Number(e.target.value) || 0;
                                 const newData = advData.map((d, index) =>
@@ -666,7 +780,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/50">
-                    {advData.map((row, i) => (
+                    {boardData.map((row, i) => (
                       <tr key={row.code} className="hover:bg-slate-800/20 transition-colors group">
                         <td className="px-6 py-4">
                           <span className="px-2 py-1 bg-[var(--color-badge-info-bg)] text-[var(--color-badge-info-text)] rounded text-xs font-semibold">{row.code}</span>
@@ -678,7 +792,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           <input 
                             type="number"
                             value={row.frank}
-                            disabled={selectedMonth !== 'active'}
+                            disabled={countsLocked}
                             onChange={(e) => {
                               const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 
@@ -694,7 +808,7 @@ export const PotOfGold: React.FC<PotOfGoldProps> = ({ currentDealershipId }) => 
                           <input 
                             type="number"
                             value={row.lemmy}
-                            disabled={selectedMonth !== 'active'}
+                            disabled={countsLocked}
                             onChange={(e) => {
                               const val = Number(e.target.value) || 0;
                               const newData = advData.map((d, index) => 

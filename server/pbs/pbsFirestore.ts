@@ -26,14 +26,22 @@ export function dealershipSettingsDoc(db: Firestore, dealershipId: string) {
   return db.doc(`${DATA_ROOT}/dealershipSettings/${dealershipId}`);
 }
 
-export function advisorPerformanceDoc(db: Firestore, dealershipId: string) {
-  const docId = dealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${dealershipId}`;
-  return db.doc(`${DATA_ROOT}/performance/${docId}`);
+/**
+ * A past month lives in its own document, suffixed `_archive_YYYY-MM`. This has
+ * to produce byte-identical ids to performanceDocId() on the client, which is
+ * what the Operations month dropdown reads.
+ */
+function performanceDocIdFor(baseName: string, dealershipId: string, targetMonth?: string): string {
+  const baseId = dealershipId === 'hyundai' ? baseName : `${baseName}_${dealershipId}`;
+  return !targetMonth || targetMonth === 'active' ? baseId : `${baseId}_archive_${targetMonth}`;
 }
 
-export function technicianPerformanceDoc(db: Firestore, dealershipId: string) {
-  const docId = dealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${dealershipId}`;
-  return db.doc(`${DATA_ROOT}/performance/${docId}`);
+export function advisorPerformanceDoc(db: Firestore, dealershipId: string, targetMonth?: string) {
+  return db.doc(`${DATA_ROOT}/performance/${performanceDocIdFor('advisorReports', dealershipId, targetMonth)}`);
+}
+
+export function technicianPerformanceDoc(db: Firestore, dealershipId: string, targetMonth?: string) {
+  return db.doc(`${DATA_ROOT}/performance/${performanceDocIdFor('technicianReports', dealershipId, targetMonth)}`);
 }
 
 export function dispatchOrdersCollection(db: Firestore) {

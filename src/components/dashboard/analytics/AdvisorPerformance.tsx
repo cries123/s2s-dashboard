@@ -678,7 +678,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   if (loading) {
     return (
       <div className="space-y-6">
-        <KpiStripSkeleton count={5} />
+        <KpiStripSkeleton count={6} />
         <TableSkeleton rows={6} cols={5} />
       </div>
     );
@@ -891,7 +891,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
           >
             {metrics && (
               <KpiStrip
-                columns={5}
+                columns={6}
                 tiles={[
                   {
                     label: 'Labor sales MTD',
@@ -921,10 +921,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
                   },
                   {
                     label: 'Store throughput',
-                    value: `$${metrics.totalSales.toLocaleString()}`,
+                    value: `${metrics.totalSales.toLocaleString()}`,
                     sublabel: 'Forecast pace',
-                    subvalue: `$${metrics.salesForecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    subvalue: `${metrics.salesForecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
                     tone: 'info',
+                  },
+                  {
+                    // Hours sold with the rate it implies: the two numbers a fixed-ops
+                    // manager reads together, and the pair that says whether the labor
+                    // dollars above came from volume or from pricing.
+                    label: 'Hours sold',
+                    value: metrics.totalHrs.toLocaleString(undefined, { maximumFractionDigits: 1 }),
+                    sublabel: 'Eff. labor rate',
+                    subvalue: metrics.totalHrs
+                      ? `${(metrics.totalLabor / metrics.totalHrs).toLocaleString(undefined, { maximumFractionDigits: 0 })}/hr`
+                      : '—',
                   },
                 ]}
               />

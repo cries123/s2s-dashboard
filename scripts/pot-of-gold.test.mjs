@@ -119,6 +119,76 @@ check('missing op code is empty', normalizeOpCode(undefined), '');
   check('a non-numeric count becomes zero', r.totals.lemmy, 0);
 }
 
+// --- reading the board from Operations -------------------------------------
+// The PBS sync writes advisors as { name, upsells: [{code, description, count,
+// revenue}] } — the same shape the PDF parser returns, which is why this board
+// can read Operations without a second code path. Pot of Gold showed Frank 106
+// while Operations showed 2; these lock in that the two now agree.
+{
+  const pbsAdvisors = [
+    { name: 'FRANK LV1182', upsells: [{ code: 'AF', description: 'ENGINE AIR FILTER', count: 2, revenue: 118 }] },
+    { name: 'RAMOS, LEMMY', upsells: [{ code: 'FSC', description: 'MOC ENHANCE FUEL SYSTEM', count: 2, revenue: 310 }] },
+  ];
+  const typedIn = [
+    { code: 'AF', desc: 'ENGINE AIR FILTER', frank: 106, lemmy: 0 },
+    { code: 'FSC', desc: 'MOC ENHANCE FUEL SYSTEM', frank: 0, lemmy: 8 },
+    { code: 'CAF', desc: 'CABIN AIR FILTER', frank: 0, lemmy: 0 },
+  ];
+  const r = applyUpsellReport(typedIn, pbsAdvisors, ADVISORS);
+  check('a hand-typed 106 is replaced by what PBS counted', r.rows[0].frank, 2);
+  check('the other advisor is replaced too', r.rows[1].lemmy, 2);
+  check('both advisors are accounted for', r.matchedAdvisors.sort(), ['frank', 'lemmy']);
+  check('the totals match Operations', r.totals, { frank: 2, lemmy: 2 });
+  check('a code neither advisor sold reads zero', [r.rows[2].frank, r.rows[2].lemmy], [0, 0]);
+  check('nothing is reported missing', [r.ignoredNames, r.unknownCodes], [[], []]);
+}
+
+// --- codes Operations counted that the board cannot pay --------------------
+{
+  const r = applyUpsellReport(
+    board(),
+    [{ name: 'FRANK', upsells: [{ code: 'AF', count: 1 }, { code: 'WIPER', count: 4 }] }],
+    ADVISORS
+  );
+  check('a counted code with no row is surfaced', r.unknownCodes, ['WIPER']);
+  check('the codes that do have rows still count', r.totals.frank, 1);
+}
+{
+  const r = applyUpsellReport(
+    board(),
+    [{ name: 'FRANK', upsells: [{ code: 'WIPER', count: 0 }] }],
+    ADVISORS
+  );
+  check('a zero count on an unknown code is not worth reporting', r.unknownCodes, []);
+}
+{
+  const r = applyUpsellReport(
+    board(),
+    [{ name: 'FRANK', upsells: [{ code: 'WIPER', count: 2 }] }, { name: 'LEMMY', upsells: [{ code: 'WIPER', count: 3 }] }],
+    ADVISORS
+  );
+  check('an unknown code is listed once, not per advisor', r.unknownCodes, ['WIPER']);
+}
+
+// --- an advisor Operations knows about and this board does not -------------
+{
+  const r = applyUpsellReport(
+    board(),
+    [{ name: 'FRANK', upsells: [{ code: 'AF', count: 1 }] }, { name: 'CRYSTAL RAMOS', upsells: [{ code: 'AF', count: 9 }] }],
+    ADVISORS
+  );
+  check('the unknown advisor is named, not silently dropped', r.ignoredNames, ['CRYSTAL RAMOS']);
+  check('their upsells do not land on anyone else', r.rows[0].frank, 1);
+}
+
+// --- no Operations data at all --------------------------------------------
+{
+  const typedIn = [{ code: 'AF', desc: 'ENGINE AIR FILTER', frank: 106, lemmy: 0 }];
+  const r = applyUpsellReport(typedIn, [], ADVISORS);
+  check('an empty report matches no advisor, so the board is left alone', r.matchedAdvisors, []);
+  check('the typed numbers survive', r.rows[0].frank, 106);
+}
+
 rmSync(outDir, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
