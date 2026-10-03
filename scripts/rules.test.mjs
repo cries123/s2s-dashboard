@@ -66,6 +66,14 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'artifacts/hyundai-sales-to-service/public/audit/systemLogs/log1'), {
     dealershipId: 'hyundai', userEmail: 'advisor@hyundai.test', action: 'enrolled customer',
   });
+
+  // Performance documents, one per store, to check month-by-month reads.
+  await setDoc(doc(db, `${ROOT}/performance/advisorReports`), {
+    dealershipId: 'hyundai', advisors: [{ name: 'Frank' }],
+  });
+  await setDoc(doc(db, `${ROOT}/performance/advisorReports_nissan`), {
+    dealershipId: 'nissan', advisors: [{ name: 'Roque' }],
+  });
 });
 
 const advisor = testEnv.authenticatedContext('hyundai-advisor', { email: 'advisor@hyundai.test' }).firestore();
@@ -200,6 +208,37 @@ for (const path of [SYSTEM_LOGS, TENANT_LOGS]) {
 }
 await check('System logs: reject mismatched dealership and tenant',
   assertFails(setDoc(doc(advisor, `${SYSTEM_LOGS}/mismatch`), logPayload({ dealershipId: 'ford' }))));
+
+// ---- Performance: months that were never saved ---------------------------------
+// Every Operations screen offers twelve months in its dropdown whether or not
+// anything was ever stored for them. Reading a month with nothing in it has to
+// come back empty, not as a permission error — resource is null for a document
+// that does not exist, and the rule used to read resource.data straight off it.
+const PERF = `${ROOT}/performance`;
+await check("Performance: own store's live report is readable",
+  assertSucceeds(getDoc(doc(advisor, `${PERF}/advisorReports`))));
+await check('Performance: a month never saved reads as empty, not denied',
+  assertSucceeds(getDoc(doc(advisor, `${PERF}/advisorReports_archive_2019-01`))));
+await check('Performance: a forecast month never saved reads as empty',
+  assertSucceeds(getDoc(doc(advisor, `${PERF}/forecastWorkbook_2026-11`))));
+await check('Performance: a Pot of Gold month never saved reads as empty',
+  assertSucceeds(getDoc(doc(advisor, `${PERF}/potOfGold_archive_2019-01`))));
+await check("Performance: another store's report is still refused",
+  assertFails(getDoc(doc(advisor, `${PERF}/advisorReports_nissan`))));
+await check('Performance: and in the other direction',
+  assertFails(getDoc(doc(nissanMgr, `${PERF}/advisorReports`))));
+await check('Performance: a pending account reads nothing, existing or not',
+  assertFails(getDoc(doc(pending, `${PERF}/advisorReports`))));
+await check('Performance: a pending account cannot read a missing month either',
+  assertFails(getDoc(doc(pending, `${PERF}/forecastWorkbook_2026-11`))));
+await check('Performance: writing a month for your own store is allowed',
+  assertSucceeds(setDoc(doc(advisor, `${PERF}/forecastWorkbook_2026-11`), {
+    dealershipId: 'hyundai', inputs: { efficiencyPercent: 92 },
+  })));
+await check('Performance: writing a month under another store is refused',
+  assertFails(setDoc(doc(advisor, `${PERF}/forecastWorkbook_2026-12`), {
+    dealershipId: 'nissan', inputs: { efficiencyPercent: 92 },
+  })));
 
 await testEnv.cleanup();
 console.log(`\n${passed} passed, ${failed} failed\n`);

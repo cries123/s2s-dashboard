@@ -27,6 +27,7 @@ const ManagerDashboard = React.lazy(() => import('./components/dashboard/admin/M
 const VinLookup = React.lazy(() => import('./components/dashboard/vin/VinLookup').then(m => ({ default: m.VinLookup })));
 const PotOfGold = React.lazy(() => import('./components/dashboard/analytics/PotOfGold').then(m => ({ default: m.PotOfGold })));
 const FixedOpsForecast = React.lazy(() => import('./components/dashboard/admin/FixedOpsForecast'));
+const ForecastWorkbook = React.lazy(() => import('./components/dashboard/admin/ForecastWorkbook'));
 const DispatchBoard = React.lazy(() => import('./components/dashboard/appointments/DispatchBoard').then(m => ({ default: m.DispatchBoard })));
 const OpenRepairOrders = React.lazy(() => import('./components/dashboard/service/OpenRepairOrders'));
 import ProfileModal from './components/modals/ProfileModal';
@@ -186,6 +187,8 @@ function DashboardShell({ user }: { user: User }) {
     return route;
   }, []);
   const [activeTab, setActiveTab] = useState<AppTab>(initialRoute.activeTab);
+  /** Which Forecast layout is showing: the store's spreadsheet, or the planner. */
+  const [forecastView, setForecastView] = useState<'workbook' | 'planner'>('workbook');
   const [adminSubTab, setAdminSubTab] = useState<AdminSubTab>(initialRoute.adminSubTab ?? 'logs');
   const [managerSubTab, setManagerSubTab] = useState<ManagerSubTab>(initialRoute.managerSubTab ?? 'operations');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
@@ -671,12 +674,44 @@ function DashboardShell({ user }: { user: User }) {
           )}
 
           {activeTab === 'forecast' && (
-            <FixedOpsForecast
-              key={currentDealershipId || 'hyundai'}
-              currentDealershipId={currentDealershipId || 'hyundai'}
-              onSuccess={(msg) => showNotification(msg)}
-              onError={(msg) => showNotification(msg, true)}
-            />
+            <div className="space-y-4">
+              {/*
+                The workbook view is the store's own forecast spreadsheet, so it
+                leads. The planner is the earlier screen, kept because it holds
+                the PDF import, the presets and the MTD tracking that the
+                spreadsheet layout has no place for.
+              */}
+              <div className="seg grid-cols-2 w-full sm:w-[22rem]" role="group" aria-label="Forecast view">
+                <button
+                  type="button"
+                  aria-pressed={forecastView === 'workbook'}
+                  onClick={() => setForecastView('workbook')}
+                >
+                  Workbook
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={forecastView === 'planner'}
+                  onClick={() => setForecastView('planner')}
+                >
+                  Planner
+                </button>
+              </div>
+
+              {forecastView === 'workbook' ? (
+                <ForecastWorkbook
+                  key={currentDealershipId || 'hyundai'}
+                  currentDealershipId={currentDealershipId || 'hyundai'}
+                />
+              ) : (
+                <FixedOpsForecast
+                  key={currentDealershipId || 'hyundai'}
+                  currentDealershipId={currentDealershipId || 'hyundai'}
+                  onSuccess={(msg) => showNotification(msg)}
+                  onError={(msg) => showNotification(msg, true)}
+                />
+              )}
+            </div>
           )}
 
           {activeTab === 'sales-performance' && (

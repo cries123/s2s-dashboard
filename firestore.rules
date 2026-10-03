@@ -309,7 +309,12 @@ service cloud.firestore {
     // doc id — never listed as a collection — so a single docBelongsToActor
     // check on get()/write() is sufficient here). ---
     match /artifacts/hyundai-sales-to-service/public/data/performance/{docId} {
-      allow get: if isAdmin() || (isApproved() && docBelongsToActor(resource.data));
+      // resource is null for a document that does not exist, and reading
+      // resource.data on null denies the request. That turned "no forecast saved
+      // for September" into "Missing or insufficient permissions" on screen —
+      // every month a store had not filled in yet. A document that is not there
+      // has nothing to leak, so allow the read and let the screen show empty.
+      allow get: if isAdmin() || (isApproved() && (resource == null || docBelongsToActor(resource.data)));
       allow create: if isAdmin() || (isApproved() && docBelongsToActor(incoming()));
       allow update: if isAdmin() || (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()));
       allow delete: if isAdmin() || (isApproved() && docBelongsToActor(resource.data));
