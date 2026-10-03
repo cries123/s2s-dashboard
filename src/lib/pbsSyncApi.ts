@@ -232,13 +232,24 @@ export async function runPbsSyncNow(
     throw new Error(start.error || 'Failed to start PBS sync.');
   }
 
+  /**
+   * A stage that times out at the gateway is safe to repeat. Each stage records
+   * what it finished in Firestore before returning, and the stage endpoint is
+   * idempotent — asking for a completed stage just reports the next pending one.
+   * So a slow window retries rather than killing the whole run.
+   */
+  const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+  const MAX_STAGE_RETRIES = 4;
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
   const stageLabels = start.stageLabels || {};
   let stage: string | undefined = start.nextStage;
   let stageIndex = 1;
   let detail: string | undefined;
   const totalStages = start.totalStages || 5;
   // Chunked stages repeat — cap total requests to protect against server bugs.
-  const MAX_STAGE_REQUESTS = 60;
+  // Three years of monthly repair-order windows is 36 of them on its own.
+  const MAX_STAGE_REQUESTS = 120;
 
   for (let i = 0; stage && i < MAX_STAGE_REQUESTS; i += 1) {
     onProgress?.({
@@ -249,16 +260,52 @@ export async function runPbsSyncNow(
       detail,
     });
 
-    const stageRes = await fetch('/api/pbs/sync/stage', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ runId: start.runId, stage }),
-    });
-    const outcome = await parseJson<StagedStageResponse>(stageRes);
+    let outcome: StagedStageResponse | null = null;
+    let lastFailure: string | null = null;
 
-    if (!stageRes.ok || !outcome.ok) {
-      if (outcome.result) return outcome.result;
-      throw new Error(outcome.error || `PBS sync failed during ${stageLabels[stage] || stage}.`);
+    for (let attempt = 0; attempt <= MAX_STAGE_RETRIES; attempt += 1) {
+      if (attempt > 0) {
+        onProgress?.({
+          stage,
+          stageLabel: stageLabels[stage] || stage,
+          stageIndex,
+          totalStages,
+          detail: `taking a while — retrying (${attempt} of ${MAX_STAGE_RETRIES})`,
+        });
+        await sleep(3000 * attempt);
+      }
+
+      let res: Response;
+      try {
+        res = await fetch('/api/pbs/sync/stage', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ runId: start.runId, stage }),
+        });
+      } catch (err) {
+        // The connection dropped. The server may still be finishing the stage.
+        lastFailure = err instanceof Error ? err.message : 'Network error';
+        continue;
+      }
+
+      if (RETRYABLE_STATUS.has(res.status)) {
+        lastFailure = `The server took too long on ${stageLabels[stage] || stage}.`;
+        continue;
+      }
+
+      const parsed = await parseJson<StagedStageResponse>(res);
+      if (!res.ok || !parsed.ok) {
+        if (parsed.result) return parsed.result;
+        throw new Error(parsed.error || `PBS sync failed during ${stageLabels[stage] || stage}.`);
+      }
+      outcome = parsed;
+      break;
+    }
+
+    if (!outcome) {
+      throw new Error(
+        `${lastFailure || 'PBS sync stalled.'} Press the button again — it picks up where it left off.`
+      );
     }
 
     if (outcome.done) {

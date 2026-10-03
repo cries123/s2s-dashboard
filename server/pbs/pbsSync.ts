@@ -319,8 +319,17 @@ async function fetchAllContactVehicles(
   return pbsContactVehicleItems(response) as PbsContactVehicle[];
 }
 
-/** Months per full-history window — keeps each PBS RepairOrderGet small enough for one request. */
-const RO_HISTORY_WINDOW_MONTHS = 6;
+/**
+ * Months per full-history window.
+ *
+ * Six months was too much: the first window of a full refresh asked PBS for
+ * roughly half a year of cashiered repair orders with every labour and part
+ * line, then wrote them all, and the request was cut off at the gateway before
+ * it finished. The whole point of windowing is that one window fits in one
+ * request, so a window is now a single month — 36 short requests across three
+ * years rather than 6 long ones.
+ */
+const RO_HISTORY_WINDOW_MONTHS = 1;
 
 export interface RoHistoryWindow {
   sinceIso: string;
