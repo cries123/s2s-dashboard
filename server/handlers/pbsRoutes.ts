@@ -37,6 +37,7 @@ import {
   isMonthKey,
   rebuildPbsMonth,
 } from '../pbs/pbsMonthRebuild.js';
+import { probePbsCapabilities } from '../pbs/pbsCapabilityProbe.js';
 import { getPbsEnvDiagnostics, getPbsCronDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -279,6 +280,33 @@ export function registerPbsRoutes(app: Express) {
         force,
       });
       return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * Which PartnerHUB operations these credentials are actually allowed to call.
+   *
+   * On demand only — nothing schedules it. Read operations only, one at a time,
+   * and the response bodies are cancelled unread; see pbsCapabilityProbe.
+   */
+  app.get('/api/pbs/capabilities', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized PBS request.' });
+    }
+    if (!isPbsPartnerHubConfigured()) {
+      return res.status(503).json({ error: 'PBS PartnerHUB credentials are not configured.' });
+    }
+    const offset = Number(req.query.offset ?? 0);
+    const limit = Number(req.query.limit ?? 8);
+    try {
+      const probe = await probePbsCapabilities(
+        Number.isFinite(offset) ? offset : 0,
+        Number.isFinite(limit) ? limit : 8
+      );
+      return res.json({ ok: true, ...probe });
     } catch (err) {
       return handlePbsError(res, err);
     }
