@@ -1,12 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  CheckCircle2,
   Database,
+  KeyRound,
   Loader2,
   RefreshCw,
+  XCircle,
 } from 'lucide-react';
 import type { DealershipSettings } from '../../../types';
-import { fetchPbsSyncStatus, runPbsSyncNow, waitForPbsSyncCompletion, type PbsSyncStatusResponse } from '../../../lib/pbsSyncApi';
+import {
+  fetchPbsSyncStatus,
+  probePbsCapabilities,
+  runPbsSyncNow,
+  waitForPbsSyncCompletion,
+  type PbsCapability,
+  type PbsSyncStatusResponse,
+} from '../../../lib/pbsSyncApi';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
@@ -67,6 +77,11 @@ function PbsSyncPanelInner({
 }: PbsSyncPanelProps) {
   const [syncing, setSyncing] = useState(false);
   const [fullRefreshing, setFullRefreshing] = useState(false);
+  /** The PBS permission check: which operations this serial may actually call. */
+  const [caps, setCaps] = useState<PbsCapability[] | null>(null);
+  const [capsBusy, setCapsBusy] = useState(false);
+  const [capsProgress, setCapsProgress] = useState<string | null>(null);
+  const [capsError, setCapsError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
@@ -116,6 +131,23 @@ function PbsSyncPanelInner({
   const firebaseUsageUrl = diagnostics?.firebaseProjectId
     ? `https://console.firebase.google.com/project/${diagnostics.firebaseProjectId}/usage`
     : 'https://console.firebase.google.com/';
+
+  const handleCheckPermissions = async () => {
+    setCapsBusy(true);
+    setCapsError(null);
+    setCaps(null);
+    try {
+      const results = await probePbsCapabilities((done, total) =>
+        setCapsProgress(`Asked PBS about ${done} of ${total} operations…`)
+      );
+      setCaps(results);
+    } catch (err) {
+      setCapsError(err instanceof Error ? err.message : 'Could not check PBS permissions.');
+    } finally {
+      setCapsBusy(false);
+      setCapsProgress(null);
+    }
+  };
 
   const handleSync = async (fullRefresh = false) => {
     if (!canPullFromPbs) {
@@ -301,6 +333,114 @@ function PbsSyncPanelInner({
         {!canPullFromPbs && !statusLoading && statusHealthy ? (
           <p className="crm-label">Pulling is off until the PBS connection is set up.</p>
         ) : null}
+
+        {/*
+          What PBS will and will not serve these credentials.
+
+          Being wired is not the same as being granted: two of the operations
+          this app already calls come back 401. PBS publishes its catalogue but
+          not who may use what, so the only way to know is to ask each one and
+          read the status back.
+        */}
+        <div className="border-t pt-4" style={{ borderColor: 'var(--color-row-divider)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <KeyRound size={14} style={{ color: 'var(--color-text-secondary)' }} />
+                PBS permissions
+              </h4>
+              <p className="crm-label mt-0.5">
+                {capsProgress || 'Which PartnerHUB operations this store is allowed to call.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCheckPermissions}
+              disabled={capsBusy || !canPullFromPbs}
+              className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {capsBusy ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+              {capsBusy ? 'Checking…' : 'Check permissions'}
+            </button>
+          </div>
+
+          {capsError ? (
+            <p className="text-sm mt-3" style={{ color: 'var(--color-badge-error-text)' }}>
+              {cleanErrorText(capsError)}
+            </p>
+          ) : null}
+
+          {caps && caps.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              <CardNoticeRow>
+                <CardNotice
+                  tone="info"
+                  summary={`${caps.filter((c) => c.granted).length} of ${caps.length} granted`}
+                >
+                  Read operations only, asked once each. A granted operation we do not use yet is
+                  something you could build on without asking PBS for anything; a refused one is a
+                  support request.
+                </CardNotice>
+              </CardNoticeRow>
+
+              {(
+                [
+                  ['Granted, not used yet', caps.filter((c) => c.granted && !c.inUse)],
+                  ['Granted, already used', caps.filter((c) => c.granted && c.inUse)],
+                  ['Refused by PBS', caps.filter((c) => c.denied)],
+                  ['No answer', caps.filter((c) => !c.granted && !c.denied)],
+                ] as Array<[string, typeof caps]>
+              )
+                .filter(([, rows]) => rows.length > 0)
+                .map(([label, rows]) => (
+                  <div key={label}>
+                    <p className="crm-label mb-1.5">
+                      {label} ({rows.length})
+                    </p>
+                    <ul
+                      className="card-base rounded-lg divide-y"
+                      style={{ borderColor: 'var(--color-row-divider)' }}
+                    >
+                      {rows.map((row) => (
+                        <li key={row.operation} className="flex items-center gap-2 px-3 py-2">
+                          {row.granted ? (
+                            <CheckCircle2
+                              size={13}
+                              className="shrink-0"
+                              style={{ color: 'var(--color-badge-success-text)' }}
+                            />
+                          ) : row.denied ? (
+                            <XCircle
+                              size={13}
+                              className="shrink-0"
+                              style={{ color: 'var(--color-badge-error-text)' }}
+                            />
+                          ) : (
+                            <AlertTriangle
+                              size={13}
+                              className="shrink-0"
+                              style={{ color: 'var(--color-badge-warn-text)' }}
+                            />
+                          )}
+                          <span className="text-sm flex-1 min-w-0 truncate font-mono">
+                            {row.operation}
+                          </span>
+                          <span
+                            className="crm-label shrink-0 tabular-nums"
+                            style={
+                              row.denied ? { color: 'var(--color-badge-error-text)' } : undefined
+                            }
+                          >
+                            {row.note || (row.status === null ? '—' : row.status)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+            </div>
+          ) : null}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">

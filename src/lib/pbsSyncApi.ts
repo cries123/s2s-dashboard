@@ -329,6 +329,52 @@ export async function runPbsSyncNow(
   throw new Error('PBS sync ended unexpectedly without a result.');
 }
 
+export interface PbsCapability {
+  operation: string;
+  status: number | null;
+  granted: boolean;
+  denied: boolean;
+  inUse: boolean;
+  ms: number;
+  note?: string;
+}
+
+/**
+ * Ask PBS which operations these credentials are allowed to call.
+ *
+ * Walks the catalogue a page at a time because 53 sequential calls to a third
+ * party do not fit in one request. Read-only on both sides: the server probes
+ * reads only and never downloads a response body.
+ */
+export async function probePbsCapabilities(
+  onProgress?: (done: number, total: number) => void
+): Promise<PbsCapability[]> {
+  const headers = await bearerHeaders();
+  const all: PbsCapability[] = [];
+  let offset: number | null = 0;
+  let guard = 0;
+
+  while (offset !== null && guard++ < 20) {
+    const res: Response = await fetch(`/api/pbs/capabilities?offset=${offset}&limit=8`, {
+      method: 'GET',
+      headers,
+    });
+    const page = await parseJson<{
+      ok?: boolean;
+      error?: string;
+      results?: PbsCapability[];
+      nextOffset?: number | null;
+      total?: number;
+    }>(res);
+    if (!res.ok || !page.ok) throw new Error(page.error || 'Could not check PBS permissions.');
+    all.push(...(page.results || []));
+    onProgress?.(all.length, page.total || 53);
+    offset = page.nextOffset ?? null;
+  }
+
+  return all;
+}
+
 /** Poll Firestore until an in-flight sync finishes (does not start a new sync). */
 export async function waitForPbsSyncCompletion(
   startedAfter?: string
