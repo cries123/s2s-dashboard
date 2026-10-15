@@ -17,8 +17,8 @@ import {
 } from './pbsMappers.js';
 import {
   mergeIntoSummary,
+  refreshSummaryFromEmbedded,
   SERVICE_VISITS_COLLECTION,
-  summarizeVisits,
   type StoredVisit,
   type VisitSummary,
 } from '../../src/lib/visitStore.js';
@@ -826,10 +826,13 @@ async function processRepairOrdersBatch(
     // Build on the summary the customer already has. One not yet migrated has
     // none, so start from their old array: the summary always covers every
     // visit, old and new, whichever state the customer is in.
-    const base: VisitSummary =
-      (existing.visitSummary as VisitSummary | undefined)?.entries
-        ? (existing.visitSummary as VisitSummary)
-        : summarizeVisits((existing.recentVisits as StoredVisit[] | undefined) ?? [], now);
+    // Imported entries are recomputed every time, so a summary written under
+    // older date rules heals itself on the next sync that touches it.
+    const base: VisitSummary = refreshSummaryFromEmbedded(
+      existing.visitSummary as VisitSummary | undefined,
+      (existing.recentVisits as StoredVisit[] | undefined) ?? [],
+      now
+    );
     const summary = mergeIntoSummary(base, assigned, now);
 
     const latestDate = summary.entries.find((e) => e.date)?.date;

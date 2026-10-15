@@ -6,18 +6,12 @@ import {
 } from 'firebase-admin/firestore';
 import { customersCollection, stripUndefinedDeep } from './pbsFirestore.js';
 import {
-  assignVisitDocIds,
-  buildVisitSummary,
-  newerLast,
   planVisitMigration,
+  refreshSummaryFromEmbedded,
   SERVICE_VISITS_COLLECTION,
-  summarizeVisits,
-  toSummaryEntry,
-  toSummaryLast,
   verifyVisitMigration,
   type StoredVisit,
   type VisitSummary,
-  type VisitSummaryEntry,
 } from '../../src/lib/visitStore.js';
 
 /**
@@ -163,14 +157,9 @@ async function copyVisits(
  * replaces a newer synced entry.
  */
 function summaryAfterMove(existing: VisitSummary | undefined, embedded: StoredVisit[], now: string): VisitSummary {
-  if (!existing?.entries) return summarizeVisits(embedded, now);
-  const entries = new Map<string, VisitSummaryEntry>(existing.entries.map((e) => [e.id, e]));
-  let last = existing.last ?? null;
-  for (const { docId, visit } of assignVisitDocIds(embedded)) {
-    if (!entries.has(docId)) entries.set(docId, toSummaryEntry(docId, visit));
-    last = newerLast(last, toSummaryLast(docId, visit));
-  }
-  return buildVisitSummary([...entries.values()], last, now);
+  // Recomputes the array's imported visits, so a summary written before the
+  // import's dates could be read is healed by the move rather than kept stale.
+  return refreshSummaryFromEmbedded(existing, embedded, now);
 }
 
 function belongsTo(data: Record<string, unknown>, dealershipId: string): boolean {

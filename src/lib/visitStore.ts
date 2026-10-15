@@ -329,6 +329,32 @@ export function summarizeVisits(visits: readonly StoredVisit[], now: string): Vi
 }
 
 /**
+ * An existing summary, with every visit from the customer's old array worked out
+ * again from scratch.
+ *
+ * A summary can outlive the rules it was built with: ones written before the
+ * import's "09/09/2025 1:29:30 PM" dates could be read have those visits
+ * undated. Imported visits only ever live in the old array, so recomputing them
+ * from it heals that. Synced (pbs-) entries the summary already has are kept —
+ * the sync's copy is newer than the array's.
+ */
+export function refreshSummaryFromEmbedded(
+  existing: VisitSummary | null | undefined,
+  embedded: readonly StoredVisit[],
+  now: string
+): VisitSummary {
+  if (!existing?.entries) return summarizeVisits(embedded, now);
+  const entries = new Map<string, VisitSummaryEntry>(existing.entries.map((e) => [e.id, e]));
+  let last = existing.last ?? null;
+  for (const { docId, visit } of assignVisitDocIds(embedded)) {
+    if (isSynced(docId) && entries.has(docId)) continue;
+    entries.set(docId, toSummaryEntry(docId, visit));
+    last = newerLast(last, toSummaryLast(docId, visit));
+  }
+  return buildVisitSummary([...entries.values()], last, now);
+}
+
+/**
  * Add newly synced visits to an existing summary without rereading every visit.
  *
  * Entries are matched by document id, and a re-pulled repair order replaces its

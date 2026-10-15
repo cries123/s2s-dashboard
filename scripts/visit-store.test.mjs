@@ -244,6 +244,33 @@ check('nonsense is not a date', store.visitDay('soon'), '');
   check('different RO numbers on one day are different visits', shown.length, 3);
 }
 
+// --- a summary written under the old date rules heals --------------------------------
+{
+  // Susan Vick, as this morning's sync left her: two imported visits undated in
+  // the summary because it was built before the import's dates could be read.
+  const embedded = [
+    pbs('900', '2026-10-14'),
+    { id: 'csv-a', soNumber: '700', date: '03/04/2024 10:00:00 AM' },
+    { id: 'csv-b', soNumber: '701', date: '05/06/2023 2:00:00 PM' },
+  ];
+  const stale = {
+    version: 1,
+    entries: [
+      { id: 'pbs-900', date: '2026-10-14', so: '900', rev: 99 },
+      { id: 'csv-a', date: '' },
+      { id: 'csv-b', date: '' },
+    ],
+    last: null,
+    updatedAt: 'x',
+  };
+  const healed = store.refreshSummaryFromEmbedded(stale, embedded, NOW);
+  check('stale imported entries get their dates back', healed.entries.map((e) => e.date), ['2026-10-14', '2024-03-04', '2023-05-06']);
+  check('nothing is lost in the refresh', healed.entries.length, 3);
+  check("the sync's synced entry is kept as it was", healed.entries[0].rev, 99);
+  check('and the customer has a real last visit date again', access.lastVisitDate({ visitSummary: healed }), '2026-10-14');
+  check('no summary yet: built from the array', store.refreshSummaryFromEmbedded(null, embedded, NOW).entries.length, 3);
+}
+
 check('no history at all reads as none, not an error', access.visitCount({}), 0);
 check('a null array reads as none', access.visitCount({ recentVisits: null }), 0);
 check('no history has no last visit', access.lastVisitDate({}), null);
