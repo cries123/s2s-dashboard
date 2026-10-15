@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from 'firebase/firestore';
 import { getAnalytics } from 'firebase/analytics';
 import appletConfig from '../firebase-applet-config.json';
 
@@ -41,9 +47,34 @@ if (!firebaseConfig.apiKey) {
 }
 
 const app = initializeApp(firebaseConfig);
-export const db = firebaseConfig.databaseId
-  ? getFirestore(app, firebaseConfig.databaseId)
-  : getFirestore(app);
+
+/**
+ * Firestore with an on-device cache.
+ *
+ * Without it, every open downloaded every record the screens listen to from
+ * scratch, and the app sat blank until that finished. With it, data from the
+ * last visit is shown immediately and only what changed comes over the network.
+ * The multi-tab manager lets two tabs share one cache instead of the second
+ * one failing to get it.
+ *
+ * Some browsers refuse on-device storage — private windows, a full disk, a
+ * locked-down device. The app then falls back to the old behaviour, slower but
+ * working, rather than not starting at all.
+ */
+function createFirestore(): Firestore {
+  try {
+    return initializeFirestore(
+      app,
+      { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) },
+      firebaseConfig.databaseId
+    );
+  } catch (err) {
+    console.warn('[Firebase] On-device cache unavailable; using memory only.', err);
+    return firebaseConfig.databaseId ? getFirestore(app, firebaseConfig.databaseId) : getFirestore(app);
+  }
+}
+
+export const db = createFirestore();
 export const auth = getAuth(app);
 
 let analytics: ReturnType<typeof getAnalytics> | null = null;

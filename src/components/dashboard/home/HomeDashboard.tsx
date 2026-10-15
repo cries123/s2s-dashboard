@@ -8,6 +8,7 @@ import { describeCustomerAlert, formatDueDate, type AlertTone } from '../../../l
 import { filterDispatchOrdersForDealership } from '../../../lib/dispatchDealershipScope';
 import { normalizeDispatchOrder } from '../../../lib/dispatchTransitions';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
+import { visitDates } from '../../../lib/customerVisits';
 import { isPreviewMode } from '../../../lib/previewMode';
 import { getDispatchDatePst } from '../../../lib/dispatchPst';
 import { useTodayAppointments } from '../../../hooks/useTodayAppointments';
@@ -116,12 +117,11 @@ export function HomeDashboard({
   const visitsThisMonth = useMemo(() => {
     const y = now.getFullYear();
     const m = now.getMonth();
+    // Compare as text: every date here is YYYY-MM-DD, so the month is a prefix.
+    const prefix = `${y}-${String(m + 1).padStart(2, '0')}-`;
     let n = 0;
     for (const c of customers) {
-      for (const v of c.recentVisits || []) {
-        const d = new Date(`${String(v.date).slice(0, 10)}T00:00:00`);
-        if (!Number.isNaN(d.getTime()) && d.getFullYear() === y && d.getMonth() === m) n++;
-      }
+      for (const date of visitDates(c)) if (date.startsWith(prefix)) n++;
     }
     return n;
   }, [customers, now]);

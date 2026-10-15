@@ -48,6 +48,12 @@ export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        // With the on-device cache, the first answer comes from the device. An
+        // empty one on a first visit just means nothing is cached yet, not that
+        // the store has no customers — wait for the server rather than flash
+        // an empty list and every "0" that follows from it.
+        if (snapshot.empty && snapshot.metadata.fromCache) return;
+
         let list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Customer));
 
         if (dealershipId) {

@@ -38,6 +38,7 @@ import {
   rebuildPbsMonth,
 } from '../pbs/pbsMonthRebuild.js';
 import { probePbsCapabilities } from '../pbs/pbsCapabilityProbe.js';
+import { migrateCustomerVisitsPage } from '../pbs/pbsVisitMigration.js';
 import { getPbsEnvDiagnostics, getPbsCronDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -280,6 +281,45 @@ export function registerPbsRoutes(app: Express) {
         force,
       });
       return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * Move customers' old visit arrays into the serviceVisits subcollection.
+   *
+   * Dry run unless the body says `dryRun: false` in so many words — a request
+   * that forgets the flag only reports. One page per request; the browser
+   * walks the cursor. See pbsVisitMigration for the archive → copy → verify →
+   * clear order that keeps every visit in at least one place throughout.
+   */
+  app.post('/api/pbs/visits/migrate', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    const db = getAdminFirestore();
+    if (!db) {
+      return res.status(503).json({ error: 'Firestore is not configured.' });
+    }
+    const dryRun = req.body?.dryRun !== false;
+    const cursor = typeof req.body?.cursor === 'string' ? req.body.cursor : null;
+    const limit = Number(req.body?.limit ?? 20);
+    try {
+      const page = await migrateCustomerVisitsPage(db, {
+        dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        cursor,
+        limit: Number.isFinite(limit) ? limit : 20,
+        dryRun,
+      });
+      if (!dryRun) {
+        console.log(
+          `[Visits] Migration page by ${caller.email}: ${page.results.filter((r) => r.status === 'migrated').length} migrated, ` +
+            `${page.results.filter((r) => r.status !== 'migrated').length} held back, ${page.scanned} scanned`
+        );
+      }
+      return res.json({ ok: true, ...page });
     } catch (err) {
       return handlePbsError(res, err);
     }

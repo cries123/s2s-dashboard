@@ -10,6 +10,7 @@ import { ContactLogQuickForm } from '../../forms/ContactLogQuickForm';
 import { usePreferences } from '../../../context/PreferencesContext';
 import { logCustomerContact } from '../../../lib/contactLog';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
+import { hasVisitHistory, lastVisitDate } from '../../../lib/customerVisits';
 
 interface CustomerCardProps {
   customer: Customer;
@@ -32,7 +33,9 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
   const serviceAlerts = useServiceAlertHelpers();
   const [showMaintenance, setShowMaintenance] = useState(false);
 
-  const lastVisit = customer.recentVisits?.[0];
+  const lastVisitOn = lastVisitDate(customer);
+  const lastVisit = lastVisitOn ? { date: lastVisitOn } : null;
+  const synced = hasVisitHistory(customer);
 
   const handleLogCall = async ({ outcome, notes, appointmentSet }: { outcome: string; notes: string; appointmentSet: boolean }) => {
     const path = `customers/${customer.id}/contactLog`;
@@ -77,7 +80,7 @@ const CustomerCard: React.FC<CustomerCardProps> = ({
                )}>
                  {customer.language || 'English'}
                </span>
-               {customer.recentVisits && customer.recentVisits.length > 0 && (
+               {synced && (
                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
                     <Database size={8} /> Synced
                  </span>

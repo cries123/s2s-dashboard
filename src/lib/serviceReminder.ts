@@ -1,4 +1,5 @@
 import type { Customer } from '../types';
+import { lastVisitDate, visitCount } from './customerVisits';
 
 export const SERVICE_REMINDER_MONTHS = 6;
 
@@ -48,18 +49,15 @@ export function parseCustomerDate(value: string | Date | null | undefined): Date
 }
 
 export function getLastServiceDate(customer: Customer): Date | null {
-  const visits = customer.recentVisits || [];
-  if (visits.length === 0) {
+  // Read through the visit accessors: a customer's history is either in the
+  // compact summary or, before they are moved, in the old embedded array.
+  if (visitCount(customer) === 0) {
     if (customer.soldDate) {
       return parseCustomerDate(customer.soldDate);
     }
     return null;
   }
-
-  const sorted = [...visits].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-  return parseCustomerDate(sorted[0].date);
+  return parseCustomerDate(lastVisitDate(customer));
 }
 
 /** Next service reminder date (YYYY-MM-DD), six months after the anchor date. */

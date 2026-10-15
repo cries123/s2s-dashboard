@@ -20,6 +20,8 @@ import {
 import { ServiceVisitDetailModal } from '../dashboard/customers/ServiceVisitDetailModal';
 import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
 import { parseCustomerDate } from '../../lib/serviceReminder';
+import { visitCount } from '../../lib/customerVisits';
+import { useCustomerVisits } from '../../hooks/useServiceVisits';
 import { Panel } from '../ui/Panel';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
@@ -34,6 +36,16 @@ interface ProfileModalProps {
 }
 
 type TabType = 'overview' | 'demographics' | 'history' | 'campaigns';
+
+/** Fields the sync and the system maintain. A profile edit never writes them. */
+const SYSTEM_OWNED_FIELDS = new Set([
+  'id',
+  'recentVisits',
+  'visitSummary',
+  'visitsMigratedAt',
+  'lastServiceDate',
+  'createdAt',
+]);
 
 export default function ProfileModal({ customer, currentUser, onClose, onDelete }: ProfileModalProps) {
   const serviceAlerts = useServiceAlertHelpers();
@@ -50,6 +62,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [selectedServiceVisit, setSelectedServiceVisit] = useState<ServiceVisit | null>(null);
+  // Full visits load when the profile opens — lists only carry the summary.
+  const { visits: serviceVisits, loading: visitsLoading, error: visitsError } = useCustomerVisits(customer);
 
   useEffect(() => {
     setFormData({ ...customer });
@@ -59,10 +73,12 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   useEffect(() => {
     if (activeTab !== 'history') return;
 
-    const serviceEvents: TimelineEvent[] = (customer.recentVisits || []).map((visit, idx) => ({
+    const serviceEvents: TimelineEvent[] = serviceVisits.map((visit, idx) => ({
       id: `service-${visit.id || idx}`,
       type: 'service' as const,
-      date: new Date(visit.date),
+      // A bare "2026-07-07" parses as midnight UTC — the evening before in
+      // California — so every visit showed a day early. Read it as local.
+      date: new Date(`${String(visit.date).slice(0, 10)}T00:00:00`),
       title: `Repair order #${visit.soNumber}`,
       subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
       body: visit.requests,
@@ -71,8 +87,8 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
     }));
 
     setTimelineEvents(serviceEvents);
-    setTimelineLoading(false);
-  }, [activeTab, customer.id, customer.recentVisits]);
+    setTimelineLoading(visitsLoading && serviceEvents.length === 0);
+  }, [activeTab, serviceVisits, visitsLoading]);
 
   const handleSaveNotesInline = async () => {
     setIsSavingNotes(true);
@@ -217,7 +233,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
   // before pay-type totals existed won't have this data, so we're honest below about
   // how many visits actually contributed.
   const spendSummary = React.useMemo(() => {
-    const visits = customer.recentVisits || [];
+    const visits = serviceVisits;
     let customerTotal = 0;
     let warrantyTotal = 0;
     let internalTotal = 0;
@@ -237,17 +253,38 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       visitsWithData,
       totalVisits: visits.length,
     };
-  }, [customer.recentVisits]);
+  }, [serviceVisits]);
 
   const formatMoney = (value: number) =>
     `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+  /*
+    Write only what the form changed.
+
+    This used to write the whole record back as it was when the profile opened.
+    If the PBS sync added service visits while it was open, saving put the old
+    list back and those visits were gone — logged in CODE_AUDIT.md. Visits now
+    live in their own collection, out of reach of this save, but the same
+    overwrite would still undo any other field the sync updated meanwhile. So:
+    only fields that differ from what was loaded, and never the ones the system
+    owns.
+  */
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { id, ...updates } = formData;
-      await updateDoc(doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', id), updates as any);
-      Object.assign(customer, updates);
+      const updates: Record<string, unknown> = {};
+      const original = customer as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(formData)) {
+        if (SYSTEM_OWNED_FIELDS.has(key) || key.startsWith('pbs')) continue;
+        if (JSON.stringify(value) !== JSON.stringify(original[key])) updates[key] = value;
+      }
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(
+          doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'customers', customer.id),
+          updates
+        );
+        Object.assign(customer, updates);
+      }
       setIsEditing(false);
     } catch (err) {
       console.error(err);
@@ -395,7 +432,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
           {[
             { id: 'overview', label: 'Overview' },
             { id: 'demographics', label: 'Details' },
-            { id: 'history', label: `History${customer.recentVisits?.length ? ` (${customer.recentVisits.length})` : ''}` },
+            { id: 'history', label: `History${visitCount(customer) ? ` (${visitCount(customer)})` : ''}` },
             { id: 'campaigns', label: 'Recalls' },
           ].map((tab) => (
             <button
@@ -673,6 +710,11 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                     </span>
                   </div>
 
+                  {visitsError ? (
+                    <p className="crm-label mb-3" role="status" style={{ color: 'var(--color-badge-warn-text)' }}>
+                      {visitsError}
+                    </p>
+                  ) : null}
                   <CustomerTimeline
                     events={timelineEvents}
                     loading={timelineLoading}
@@ -841,7 +883,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                         <div className="p-3.5 bg-slate-950/40 border border-white/5 rounded-xl">
                           <span className="text-xs font-semibold text-slate-500 block">Total Visits</span>
                           <span className="text-xs font-semibold text-white mt-1 block">
-                            {formData.recentVisits?.length || 0} Logs
+                            {visitCount(customer)} Logs
                           </span>
                         </div>
 

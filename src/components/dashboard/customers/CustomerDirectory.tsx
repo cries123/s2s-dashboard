@@ -11,6 +11,7 @@ import {
   matchesDirectoryMakeFilter,
 } from '../../../lib/directoryMakeFilters';
 import { formatCustomerDisplayName } from '../../../lib/customerName';
+import { lastVisitDate, visitCount } from '../../../lib/customerVisits';
 import { useServiceAlertHelpers } from '../../../context/ServiceAlertContext';
 import { describeCustomerAlert } from '../../../lib/alertPresentation';
 import { tidyCase } from '../../ui/Panel';
@@ -87,8 +88,8 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
       }
       
       if (sortBy === 'Visits') {
-        const countA = a.recentVisits?.length || 0;
-        const countB = b.recentVisits?.length || 0;
+        const countA = visitCount(a);
+        const countB = visitCount(b);
         if (countB !== countA) return countB - countA; // Most visited first
         
         // Priority Tie-breaker: Who was here most recently?
@@ -121,7 +122,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
     };
 
     customers.forEach(c => {
-      const visits = c.recentVisits?.length || 0;
+      const visits = visitCount(c);
       totalROs += visits;
       
       // Better Top Visitor logic with tie-breakers
@@ -165,7 +166,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
       key: 'visits',
       header: 'Visits',
       className: 'text-right',
-      render: (c: Customer) => <span className="tabular-nums">{c.recentVisits?.length || 0}</span>,
+      render: (c: Customer) => <span className="tabular-nums">{visitCount(c)}</span>,
     },
     {
       key: 'last',
@@ -246,7 +247,7 @@ export const CustomerDirectory: React.FC<CustomerDirectoryProps> = ({
             {displayCustomers.map((c) => {
               const alert = describeCustomerAlert(c, serviceAlerts.config);
               const showAlert = alert.tone === 'danger' || alert.tone === 'warning';
-              const last = c.recentVisits?.[0]?.date;
+              const last = lastVisitDate(c);
               const lastLabel = last
                 ? new Date(`${String(last).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 : null;

@@ -498,7 +498,15 @@ function DashboardShell({ user }: { user: User }) {
     }
   };
 
-  if (customersLoading || prefsLoading) {
+  /*
+    Only preferences gate the app now — they are one small document and decide
+    which tabs exist. Customers used to gate it too, so every screen, including
+    ones that never read a customer (Forecast, Pot of Gold, Schedule, Admin),
+    sat behind a full-screen spinner until every customer had downloaded. Now
+    the shell appears at once, and only the screens built from the customer
+    list show a placeholder while it arrives.
+  */
+  if (prefsLoading) {
     return <LoadingScreen />;
   }
 
@@ -599,7 +607,8 @@ function DashboardShell({ user }: { user: User }) {
             />
           )}
 
-          {activeTab === 'search' && (
+          {activeTab === 'search' && customersLoading && <PageSkeleton />}
+          {activeTab === 'search' && !customersLoading && (
             <CustomerDirectory
               customers={customers}
               currentUser={currentUser}
@@ -714,7 +723,11 @@ function DashboardShell({ user }: { user: User }) {
             </div>
           )}
 
-          {activeTab === 'sales-performance' && (
+          {/* Built entirely from the customer list: a placeholder beats a page of zeros. */}
+          {(activeTab === 'sales-performance' || activeTab === 'sales-to-service') && customersLoading && (
+            <PageSkeleton />
+          )}
+          {activeTab === 'sales-performance' && !customersLoading && (
             <SalesPerformance
               customers={customers}
               currentUser={currentUser}
@@ -722,7 +735,7 @@ function DashboardShell({ user }: { user: User }) {
             />
           )}
 
-          {activeTab === 'sales-to-service' && <SalesToService customers={customers} />}
+          {activeTab === 'sales-to-service' && !customersLoading && <SalesToService customers={customers} />}
 
           {activeTab === 'webdcs' && canSeeManagerPanel(currentUser) && currentDealershipId === 'hyundai' && (
             <WebDcsPanel />

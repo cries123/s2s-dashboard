@@ -1233,7 +1233,11 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       </AnimatePresence>
 
       {customers && customers.length > 0 && (
-        <TopMovingPartsCard customers={customers} selectedMonth={selectedMonth} />
+        <TopMovingPartsCard
+          customers={customers}
+          dealershipId={currentDealershipId || 'hyundai'}
+          selectedMonth={selectedMonth}
+        />
       )}
 
       {showAdvisorPerformance && (

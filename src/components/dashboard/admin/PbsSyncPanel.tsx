@@ -13,10 +13,13 @@ import {
   fetchPbsSyncStatus,
   probePbsCapabilities,
   runPbsSyncNow,
+  runVisitMigration,
   waitForPbsSyncCompletion,
   type PbsCapability,
   type PbsSyncStatusResponse,
+  type VisitMigrationReport,
 } from '../../../lib/pbsSyncApi';
+import { ConfirmModal } from '../../ui/ConfirmModal';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
@@ -82,6 +85,11 @@ function PbsSyncPanelInner({
   const [capsBusy, setCapsBusy] = useState(false);
   const [capsProgress, setCapsProgress] = useState<string | null>(null);
   const [capsError, setCapsError] = useState<string | null>(null);
+  /** Moving service history out of customer records. Dry run first, always. */
+  const [moveReport, setMoveReport] = useState<VisitMigrationReport | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [confirmMove, setConfirmMove] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
@@ -146,6 +154,20 @@ function PbsSyncPanelInner({
     } finally {
       setCapsBusy(false);
       setCapsProgress(null);
+    }
+  };
+
+  const handleMoveHistory = async (dryRun: boolean) => {
+    setMoveBusy(true);
+    setMoveError(null);
+    setConfirmMove(false);
+    try {
+      const report = await runVisitMigration(dryRun, (partial) => setMoveReport(partial));
+      setMoveReport(report);
+    } catch (err) {
+      setMoveError(err instanceof Error ? err.message : 'Could not move service history.');
+    } finally {
+      setMoveBusy(false);
     }
   };
 
@@ -333,6 +355,124 @@ function PbsSyncPanelInner({
         {!canPullFromPbs && !statusLoading && statusHealthy ? (
           <p className="crm-label">Pulling is off until the PBS connection is set up.</p>
         ) : null}
+
+        {/*
+          Moving service history out of the customer records.
+
+          Every visit used to sit inside its customer, so opening the app
+          downloaded every customer's whole history before it showed anything.
+          This moves each customer's visits into their own collection. It is
+          always shown as a dry run first, and the real run is behind a
+          confirmation: it archives, copies, verifies, and only then clears
+          each customer's old list, and holds back any customer that does not
+          verify.
+        */}
+        <div className="border-t pt-4" style={{ borderColor: 'var(--color-row-divider)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Database size={14} style={{ color: 'var(--color-text-secondary)' }} />
+                Service history storage
+              </h4>
+              <p className="crm-label mt-0.5">
+                {moveBusy
+                  ? moveReport
+                    ? `Checked ${moveReport.scanned.toLocaleString()} customer records…`
+                    : 'Starting…'
+                  : 'Move visit history out of customer records so the app opens faster.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleMoveHistory(true)}
+                disabled={moveBusy}
+                className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {moveBusy && moveReport?.dryRun !== false ? <Loader2 size={14} className="animate-spin" /> : null}
+                Check what will move
+              </button>
+              {moveReport?.dryRun && moveReport.customers > 0 && !moveBusy ? (
+                <button type="button" onClick={() => setConfirmMove(true)} className="btn-primary">
+                  Move {moveReport.customers.toLocaleString()} customers
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {moveError ? (
+            <p className="text-sm mt-3" style={{ color: 'var(--color-badge-error-text)' }}>
+              {cleanErrorText(moveError)}
+            </p>
+          ) : null}
+
+          {moveReport && !moveBusy ? (
+            <div className="mt-3 space-y-3">
+              <div className="card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-row-divider)' }}>
+                {(
+                  moveReport.dryRun
+                    ? [
+                        ['Customers with history to move', moveReport.customers],
+                        ['Visits in those records', moveReport.visits],
+                        ['Would be copied', moveReport.copied],
+                        ['Already stored by the sync', moveReport.alreadyStored],
+                      ]
+                    : [
+                        ['Customers moved and verified', moveReport.migrated],
+                        ['Visits copied', moveReport.copied],
+                        ['Already stored by the sync', moveReport.alreadyStored],
+                        ['Held back, left untouched', moveReport.heldBack.length],
+                      ]
+                ).map(([label, value]) => (
+                  <div key={label as string} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      {label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">{(value as number).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+
+              {moveReport.dryRun ? (
+                <p className="crm-label">
+                  {moveReport.customers === 0
+                    ? 'Nothing left to move — every customer is already on the new storage.'
+                    : 'Nothing has been changed. This is what a real run would do.'}
+                </p>
+              ) : moveReport.heldBack.length > 0 ? (
+                <CardNoticeRow>
+                  <CardNotice
+                    tone="warn"
+                    summary={`${moveReport.heldBack.length} customer${moveReport.heldBack.length === 1 ? '' : 's'} held back`}
+                  >
+                    These were left exactly as they were — their visits are still in the original
+                    record. Usually it means the record changed during the run (the sync was writing
+                    to it). Run it again and they will be picked up.
+                    {' '}
+                    {moveReport.heldBack
+                      .slice(0, 5)
+                      .map((r) => `${r.customerId} (${r.status.replace(/-/g, ' ')})`)
+                      .join(', ')}
+                    {moveReport.heldBack.length > 5 ? '…' : ''}
+                  </CardNotice>
+                </CardNoticeRow>
+              ) : (
+                <p className="crm-label">
+                  Every customer moved and verified. The original lists are archived on the server.
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <ConfirmModal
+            open={confirmMove}
+            title="Move service history?"
+            description={`This moves ${moveReport?.visits.toLocaleString() ?? 0} visits for ${moveReport?.customers.toLocaleString() ?? 0} customers into their own storage. Each customer's original list is archived first, and only cleared once every visit is confirmed copied. Any customer that does not confirm is left untouched.`}
+            confirmLabel="Move history"
+            onConfirm={() => handleMoveHistory(false)}
+            onCancel={() => setConfirmMove(false)}
+          />
+        </div>
 
         {/*
           What PBS will and will not serve these credentials.

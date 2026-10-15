@@ -231,12 +231,27 @@ service cloud.firestore {
     }
 
     // --- Customer & Operations Data ---
+    // Service history is written by the server alone (the PBS sync and the
+    // visit migration, both through the admin SDK, which these rules do not
+    // apply to). No browser may set or clear it — not an advisor, not an admin.
+    // A profile save used to write the whole customer record back as it was
+    // when the profile opened, wiping any visits the sync had added meanwhile;
+    // this makes that impossible from any client, including an old copy of the
+    // app still open in someone's tab.
+    function visitHistoryFields() {
+      return ['recentVisits', 'visitSummary', 'visitsMigratedAt'];
+    }
+
     match /artifacts/hyundai-sales-to-service/public/data/customers/{customerId} {
       allow get: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
       allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
-      allow create: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(incoming()));
-      allow update: if isAdmin() || isSystemWorker() ||
-                       (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()));
+      allow create: if isSystemWorker() ||
+                       (!incoming().keys().hasAny(visitHistoryFields()) &&
+                        (isAdmin() || (isApproved() && docBelongsToActor(incoming()))));
+      allow update: if isSystemWorker() ||
+                       (!incoming().diff(resource.data).affectedKeys().hasAny(visitHistoryFields()) &&
+                        (isAdmin() ||
+                         (isApproved() && docBelongsToActor(resource.data) && docBelongsToActor(incoming()))));
       allow delete: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
 
       match /contactLog/{logId} {
@@ -244,6 +259,26 @@ service cloud.firestore {
           (isApproved() &&
            docBelongsToActor(get(/databases/$(database)/documents/artifacts/hyundai-sales-to-service/public/data/customers/$(customerId)).data));
       }
+
+      // One document per service visit. Readable by the store it belongs to;
+      // never writable from a browser.
+      match /serviceVisits/{visitId} {
+        allow get: if isAdmin() || isSystemWorker() || (isApproved() && docBelongsToActor(resource.data));
+        allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+        allow write: if false;
+      }
+    }
+
+    // A month of visits across every customer, for the parts report. The query
+    // must filter on dealershipId, which is what lets this rule be proved.
+    match /{path=**}/serviceVisits/{visitId} {
+      allow list: if isAdmin() || isSystemWorker() || (isApproved() && resource.data.dealershipId == userDealershipId());
+    }
+
+    // The untouched copy of each customer's old visit array, kept by the
+    // migration as a recovery point. Server only — no client reads or writes.
+    match /artifacts/hyundai-sales-to-service/public/data/customerVisitArchive/{archiveId} {
+      allow read, write: if false;
     }
 
     match /artifacts/hyundai-sales-to-service/public/data/appointmentTracker/{docId} {

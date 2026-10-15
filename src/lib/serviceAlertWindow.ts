@@ -1,5 +1,6 @@
-import type { Customer, ServiceVisit } from '../types';
+import type { Customer } from '../types';
 import { analyzeOilChangeInterval, visitIsOilChange } from './serviceIntervalAnalytics';
+import { visitDates } from './customerVisits';
 
 export { visitIsOilChange };
 
@@ -91,8 +92,8 @@ function daysBetween(from: Date, to: Date): number {
 /** Most recent visit date of any kind, used for the "is this a live customer" test. */
 export function getLastVisitDate(customer: Customer): Date | null {
   let latest: Date | null = null;
-  for (const visit of customer.recentVisits || []) {
-    const d = parseIsoDate(visit.date);
+  for (const date of visitDates(customer)) {
+    const d = parseIsoDate(date);
     if (d && (!latest || d > latest)) latest = d;
   }
   return latest;

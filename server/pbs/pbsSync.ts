@@ -11,13 +11,17 @@ import {
 import { isPbsPartnerHubConfigured } from './partnerHubConfig.js';
 import {
   aggregateAppointmentsByDay,
-  latestVisitDate,
   mapContactVehicleToCustomerFields,
   mapRepairOrderToVisit,
-  mergeServiceVisits,
-  mergeVehiclePbsServiceVisits,
   normalizePhone,
 } from './pbsMappers.js';
+import {
+  mergeIntoSummary,
+  SERVICE_VISITS_COLLECTION,
+  summarizeVisits,
+  type StoredVisit,
+  type VisitSummary,
+} from '../../src/lib/visitStore.js';
 import {
   customerBelongsToPbsSyncDealership,
   PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
@@ -76,29 +80,7 @@ import {
   toPbsPacificCriteriaIso,
 } from './pbsIncrementalCriteria.js';
 
-/*
-  Visits are trimmed to this many, newest first. It has to be comfortably more
-  than a frequent customer accumulates over the PBS window plus their imported
-  history, or the oldest rows — exactly the imported years being kept for
-  reference — fall off the end of the list.
-*/
-const MAX_RECENT_VISITS = 300;
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
-
-/**
- * The date from which PBS is the authority on service history.
- *
- * A full refresh pulls every cashiered repair order back to here, so imported
- * rows in this window are replaced by the real thing. Earlier than this, the
- * imported history is all there is, and it stays.
- */
-export function pbsHistoryCutoffDate(reference = new Date()): string {
-  const d = new Date(reference);
-  d.setFullYear(d.getFullYear() - REPAIR_ORDER_LOOKBACK_YEARS);
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-}
 
 export interface RunPbsSyncOptions {
   dealershipId?: string;
@@ -588,37 +570,52 @@ async function processRepairOrdersBatch(
     visitsByCustomer.set(customerId, list);
   }
 
+  /*
+    Each visit is its own document under the customer, and the customer record
+    gets a compact summary. This replaces writing the whole history back into
+    the customer, which is what made the app slow to open — and it removes the
+    two ways a visit used to be lost here: the trim to the newest 300, and the
+    rule that dropped imported rows inside the PBS window.
+
+    Nothing below deletes. A re-pulled repair order lands on its own document,
+    pbs-{soNumber}, and is updated in place. Visits still sitting in a
+    customer's old array are left exactly where they are; the migration moves
+    those, and only after verifying the copy.
+  */
   const visitWrites: Array<(batch: WriteBatch) => void> = [];
+  const now = new Date().toISOString();
   for (const [customerId, incomingVisits] of visitsByCustomer) {
     const existing = index.dataById.get(customerId) || {};
-    const vehicleRef = String(
-      existing.pbsVehicleId || incomingVisits[0]?.pbsVehicleRef || ''
-    ).trim();
-    if (!vehicleRef) continue;
+    const customerDealership = String(existing.dealershipId || dealershipId);
+    const customerRef = customersCollection(db).doc(customerId);
 
-    const merged = mergeVehiclePbsServiceVisits(
-      existing.recentVisits as Array<Record<string, unknown>> | undefined,
-      incomingVisits,
-      vehicleRef,
-      MAX_RECENT_VISITS,
-      // Only a full refresh has actually fetched the window it would supersede.
-      watermark ? undefined : pbsHistoryCutoffDate()
-    );
-    if (merged.length === 0) continue;
+    const assigned = incomingVisits.map((visit) => ({ docId: String(visit.id), visit }));
+    for (const { docId, visit } of assigned) {
+      const visitRef = customerRef.collection(SERVICE_VISITS_COLLECTION).doc(docId);
+      // dealershipId on every visit is what the security rules check, and
+      // what lets a report query a month of visits across customers.
+      const data = stripUndefinedDeep({ ...visit, customerId, dealershipId: customerDealership });
+      visitWrites.push((batch) => batch.set(visitRef, data, { merge: true }));
+    }
 
-    const latestDate = latestVisitDate(merged as Array<{ date?: string }>);
-    const latestMileage = merged[0]?.mileage;
+    // Build on the summary the customer already has. One not yet migrated has
+    // none, so start from their old array: the summary always covers every
+    // visit, old and new, whichever state the customer is in.
+    const base: VisitSummary =
+      (existing.visitSummary as VisitSummary | undefined)?.entries
+        ? (existing.visitSummary as VisitSummary)
+        : summarizeVisits((existing.recentVisits as StoredVisit[] | undefined) ?? [], now);
+    const summary = mergeIntoSummary(base, assigned, now);
+
+    const latestDate = summary.entries.find((e) => e.date)?.date;
+    const latestMileage = summary.last?.mileage ?? 0;
     const patch = stripUndefinedDeep({
-      recentVisits: merged,
+      visitSummary: summary,
       pbsSyncedAt: startedAt,
       ...(latestDate ? { lastServiceDate: latestDate } : {}),
-      ...(typeof latestMileage === 'number' && latestMileage > 0
-        ? { mileage: String(latestMileage) }
-        : {}),
+      ...(latestMileage > 0 ? { mileage: String(latestMileage) } : {}),
     });
-
-    const ref = customersCollection(db).doc(customerId);
-    visitWrites.push((batch) => batch.set(ref, patch, { merge: true }));
+    visitWrites.push((batch) => batch.set(customerRef, patch, { merge: true }));
     counts.visitsMerged += incomingVisits.length;
   }
 

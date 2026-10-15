@@ -12,7 +12,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, collection, getDocs, query, where, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, collectionGroup, getDocs, query, where, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const ROOT = 'artifacts/hyundai-sales-to-service/public/data';
 const userPath = (uid) => `${ROOT}/users/${uid}`;
@@ -239,6 +239,83 @@ await check('Performance: writing a month under another store is refused',
   assertFails(setDoc(doc(advisor, `${PERF}/forecastWorkbook_2026-12`), {
     dealershipId: 'nissan', inputs: { efficiencyPercent: 92 },
   })));
+
+// ---- Service history: server-written only ---------------------------------------
+// The instruction behind this was "don't delete any service visits". A profile
+// save used to write the whole customer back, wiping visits the sync had added
+// while it was open. These check that no browser can set, change or clear visit
+// history — and that ordinary edits still work.
+const CUST = `${ROOT}/customers`;
+await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, `${CUST}/cust-visits`), {
+    firstName: 'Jose', lastName: 'Mendoza', dealershipId: 'hyundai',
+    recentVisits: [{ id: 'pbs-1', soNumber: '1', date: '2026-01-01' }],
+    visitSummary: { version: 1, entries: [{ id: 'pbs-1', date: '2026-01-01' }], last: null, updatedAt: 'x' },
+  });
+  await setDoc(doc(db, `${CUST}/cust-visits/serviceVisits/pbs-1`), {
+    soNumber: '1', date: '2026-01-01', dealershipId: 'hyundai', customerId: 'cust-visits',
+  });
+  await setDoc(doc(db, `${CUST}/cust-nissan`), { firstName: 'N', lastName: 'One', dealershipId: 'nissan' });
+  await setDoc(doc(db, `${CUST}/cust-nissan/serviceVisits/pbs-9`), {
+    soNumber: '9', date: '2026-02-01', dealershipId: 'nissan', customerId: 'cust-nissan',
+  });
+  await setDoc(doc(db, `${ROOT}/customerVisitArchive/cust-visits`), {
+    customerId: 'cust-visits', dealershipId: 'hyundai', visits: [],
+  });
+});
+const adminDb = testEnv.authenticatedContext('admin', { email: 'admin@hyundai.com', email_verified: true }).firestore();
+
+await check('Visits: an ordinary profile edit still saves',
+  assertSucceeds(updateDoc(doc(advisor, `${CUST}/cust-visits`), { firstName: 'José' })));
+await check('Visits: a profile save cannot replace the visit list',
+  assertFails(updateDoc(doc(advisor, `${CUST}/cust-visits`), { recentVisits: [] })));
+await check('Visits: nor rewrite the summary',
+  assertFails(updateDoc(doc(advisor, `${CUST}/cust-visits`), { visitSummary: { version: 1, entries: [] } })));
+await check('Visits: nor mark the customer migrated',
+  assertFails(updateDoc(doc(advisor, `${CUST}/cust-visits`), { visitsMigratedAt: 'now' })));
+await check('Visits: an admin cannot rewrite visit history from a browser either',
+  assertFails(updateDoc(doc(adminDb, `${CUST}/cust-visits`), { recentVisits: [] })));
+await check('Visits: but an admin edit to another field still saves',
+  assertSucceeds(updateDoc(doc(adminDb, `${CUST}/cust-visits`), { lastName: 'Mendoza-Ruiz' })));
+await check('Visits: a new customer cannot arrive with visit history attached',
+  assertFails(setDoc(doc(advisor, `${CUST}/cust-new-1`), {
+    firstName: 'A', lastName: 'B', dealershipId: 'hyundai', recentVisits: [{ id: 'x', date: '2026-01-01' }],
+  })));
+await check('Visits: a new customer without history is fine',
+  assertSucceeds(setDoc(doc(advisor, `${CUST}/cust-new-2`), {
+    firstName: 'A', lastName: 'B', dealershipId: 'hyundai',
+  })));
+
+await check("Visits: a customer's own visits are readable by their store",
+  assertSucceeds(getDocs(query(collection(advisor, `${CUST}/cust-visits/serviceVisits`), where('dealershipId', '==', 'hyundai')))));
+await check("Visits: another store's visits are not",
+  assertFails(getDocs(query(collection(advisor, `${CUST}/cust-nissan/serviceVisits`), where('dealershipId', '==', 'nissan')))));
+await check('Visits: a pending account reads none',
+  assertFails(getDocs(query(collection(pending, `${CUST}/cust-visits/serviceVisits`), where('dealershipId', '==', 'hyundai')))));
+await check('Visits: no browser can write a visit',
+  assertFails(setDoc(doc(advisor, `${CUST}/cust-visits/serviceVisits/fake`), {
+    soNumber: 'fake', date: '2026-01-01', dealershipId: 'hyundai',
+  })));
+await check('Visits: or delete one',
+  assertFails(deleteDoc(doc(advisor, `${CUST}/cust-visits/serviceVisits/pbs-1`))));
+await check('Visits: not even an admin',
+  assertFails(deleteDoc(doc(adminDb, `${CUST}/cust-visits/serviceVisits/pbs-1`))));
+
+await check("Visits: a month across the store, filtered to your store, is readable",
+  assertSucceeds(getDocs(query(collectionGroup(advisor, 'serviceVisits'),
+    where('dealershipId', '==', 'hyundai'), where('date', '>=', '2026-01-01'), where('date', '<=', '2026-01-31')))));
+await check('Visits: the same query for another store is refused',
+  assertFails(getDocs(query(collectionGroup(advisor, 'serviceVisits'), where('dealershipId', '==', 'nissan')))));
+await check('Visits: and an unfiltered sweep of every store is refused',
+  assertFails(getDocs(query(collectionGroup(advisor, 'serviceVisits')))));
+
+await check('Visits: the migration archive cannot be read from a browser',
+  assertFails(getDoc(doc(advisor, `${ROOT}/customerVisitArchive/cust-visits`))));
+await check('Visits: not even by an admin',
+  assertFails(getDoc(doc(adminDb, `${ROOT}/customerVisitArchive/cust-visits`))));
+await check('Visits: and cannot be overwritten',
+  assertFails(setDoc(doc(adminDb, `${ROOT}/customerVisitArchive/cust-visits`), { visits: [] })));
 
 await testEnv.cleanup();
 console.log(`\n${passed} passed, ${failed} failed\n`);

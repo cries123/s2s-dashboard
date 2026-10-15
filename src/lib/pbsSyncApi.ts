@@ -375,6 +375,98 @@ export async function probePbsCapabilities(
   return all;
 }
 
+export type VisitMigrationStatus =
+  | 'migrated'
+  | 'would-migrate'
+  | 'verify-failed'
+  | 'changed-during-run'
+  | 'error';
+
+export interface VisitMigrationRow {
+  customerId: string;
+  status: VisitMigrationStatus;
+  total: number;
+  copied: number;
+  alreadyStored: number;
+  missing?: string[];
+  error?: string;
+}
+
+export interface VisitMigrationReport {
+  dryRun: boolean;
+  /** Customers read, including ones with nothing to move. */
+  scanned: number;
+  /** Customers with an old visit array — the ones this is about. */
+  customers: number;
+  /** Visits in those arrays. */
+  visits: number;
+  /** Visits copied (or, on a dry run, that would be). */
+  copied: number;
+  /** Visits already stored, usually by the sync. Left untouched. */
+  alreadyStored: number;
+  migrated: number;
+  /** Customers left exactly as they were — see `rows` for why. */
+  heldBack: VisitMigrationRow[];
+}
+
+/**
+ * Move service history out of customer records, a page at a time.
+ *
+ * `dryRun: true` reads and counts and writes nothing. The real run archives,
+ * copies, verifies, and only then clears each customer's old array; any
+ * customer that does not verify is left exactly as it was and listed in
+ * `heldBack`. Running it twice is safe — moved customers have nothing left
+ * to move.
+ */
+export async function runVisitMigration(
+  dryRun: boolean,
+  onProgress?: (report: VisitMigrationReport) => void
+): Promise<VisitMigrationReport> {
+  const headers = await bearerHeaders();
+  const report: VisitMigrationReport = {
+    dryRun,
+    scanned: 0,
+    customers: 0,
+    visits: 0,
+    copied: 0,
+    alreadyStored: 0,
+    migrated: 0,
+    heldBack: [],
+  };
+
+  let cursor: string | null = null;
+  let guard = 0;
+  do {
+    const res: Response = await fetch('/api/pbs/visits/migrate', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ dryRun, cursor, limit: 20 }),
+    });
+    const page = await parseJson<{
+      ok?: boolean;
+      error?: string;
+      results?: VisitMigrationRow[];
+      nextCursor?: string | null;
+      scanned?: number;
+    }>(res);
+    if (!res.ok || !page.ok) throw new Error(page.error || 'Could not move service history.');
+
+    report.scanned += page.scanned || 0;
+    for (const row of page.results || []) {
+      report.customers += 1;
+      report.visits += row.total;
+      report.copied += row.copied;
+      report.alreadyStored += row.alreadyStored;
+      if (row.status === 'migrated') report.migrated += 1;
+      else if (row.status !== 'would-migrate') report.heldBack.push(row);
+    }
+    onProgress?.({ ...report, heldBack: [...report.heldBack] });
+    cursor = page.nextCursor ?? null;
+  } while (cursor && ++guard < 2000);
+
+  return report;
+}
+
 /** Poll Firestore until an in-flight sync finishes (does not start a new sync). */
 export async function waitForPbsSyncCompletion(
   startedAfter?: string

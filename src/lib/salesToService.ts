@@ -14,6 +14,9 @@
  *     coverage figure is what tells you whether to trust it.
  */
 
+import { visitEntries } from './customerVisits';
+import type { VisitSummary } from './visitStore';
+
 export interface SalesToServiceVisit {
   date?: string;
   lines?: Array<{
@@ -30,6 +33,7 @@ export interface SalesToServiceCustomer {
   /** Who onboarded them, for a per-salesperson breakdown. */
   addedByUsername?: string;
   recentVisits?: SalesToServiceVisit[] | null;
+  visitSummary?: VisitSummary | null;
 }
 
 export interface SoldCustomerOutcome {
@@ -79,26 +83,6 @@ function daysBetween(fromDay: string, toDayStr: string): number {
   const a = new Date(`${fromDay}T00:00:00`).getTime();
   const b = new Date(`${toDayStr}T00:00:00`).getTime();
   return Math.round((b - a) / DAY_MS);
-}
-
-function visitRevenue(visit: SalesToServiceVisit): { total: number; hasData: boolean } {
-  let total = 0;
-  let hasData = false;
-  for (const line of visit.lines ?? []) {
-    for (const l of line?.labourLines ?? []) {
-      if (typeof l?.price === 'number' && Number.isFinite(l.price)) {
-        total += l.price;
-        hasData = true;
-      }
-    }
-    for (const p of line?.partLines ?? []) {
-      if (typeof p?.price === 'number' && Number.isFinite(p.price)) {
-        total += p.price;
-        hasData = true;
-      }
-    }
-  }
-  return { total, hasData };
 }
 
 function median(values: number[]): number | null {
@@ -161,15 +145,18 @@ export function computeSalesToService<C extends SalesToServiceCustomer>(
     let withData = 0;
     let firstVisitDate: string | null = null;
 
-    for (const v of c.recentVisits ?? []) {
-      const day = toDay(v?.date);
+    // Read through the summary: each entry carries its date and, when the visit
+    // had prices, its revenue — so this works without every line of every visit.
+    for (const v of visitEntries(c)) {
+      const day = toDay(v.date);
       if (!day || day < soldDate) continue;
       if (withinDays !== undefined && daysBetween(soldDate, day) > withinDays) continue;
 
       visits += 1;
-      const { total, hasData } = visitRevenue(v);
-      revenue += total;
-      if (hasData) withData += 1;
+      if (v.rev !== undefined) {
+        revenue += v.rev;
+        withData += 1;
+      }
       if (!firstVisitDate || day < firstVisitDate) firstVisitDate = day;
     }
 

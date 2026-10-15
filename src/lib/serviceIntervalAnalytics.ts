@@ -1,4 +1,5 @@
-import type { Customer, ServiceVisit } from '../types';
+import type { Customer } from '../types';
+import { oilChangeVisits, visitCount } from './customerVisits';
 
 export interface OilChangeIntervalAnalysis {
   hasData: boolean;
@@ -14,43 +15,9 @@ export interface OilChangeIntervalAnalysis {
   message?: string;
 }
 
-export function isOilChangeServiceText(text: string): boolean {
-  if (!text) return false;
-  const lower = text.toLowerCase();
-  return (
-    lower.includes('oil change') ||
-    lower.includes('oil & filter') ||
-    lower.includes('oil/filter') ||
-    lower.includes(' lof') ||
-    lower.startsWith('lof ') ||
-    lower === 'lof' ||
-    lower.includes('lube, oil') ||
-    lower.includes('lube oil') ||
-    lower.includes('synthetic oil') ||
-    lower.includes('engine oil') ||
-    lower.includes('0w-20') ||
-    lower.includes('5w-20') ||
-    lower.includes('5w-30')
-  );
-}
-
-/**
- * A visit is an oil change if its summary says so, or any of its structured job
- * lines do. Records synced from PBS often carry a generic summary with the real
- * work described on the lines.
- */
-export function visitIsOilChange(visit: ServiceVisit): boolean {
-  if (isOilChangeServiceText(visit.requests || '')) return true;
-  for (const line of visit.lines || []) {
-    if (isOilChangeServiceText(line.correction || '')) return true;
-    if (isOilChangeServiceText(line.concern || '')) return true;
-    for (const labour of line.labourLines || []) {
-      if (isOilChangeServiceText(labour.description || '')) return true;
-      if (isOilChangeServiceText(labour.opCode || '')) return true;
-    }
-  }
-  return false;
-}
+// Oil-change classification lives with the visit summary now, which is where it
+// is decided once per visit. Re-exported so existing imports keep working.
+export { isOilChangeServiceText, visitIsOilChange } from './visitStore';
 
 function addDaysIso(from: Date, days: number): string {
   const next = new Date(from.getTime());
@@ -70,14 +37,13 @@ function formatDueLabel(isoDate: string): string {
 
 /** Computes average days between oil-change visits (needs at least 2 oil visits). */
 export function analyzeOilChangeInterval(customer: Customer): OilChangeIntervalAnalysis {
-  const visits = customer.recentVisits || [];
-  if (visits.length === 0) {
+  if (visitCount(customer) === 0) {
     return { hasData: false, count: 0, avgDays: 0, avgMonths: 0, message: 'No service history on file.' };
   }
 
-  const oilVisits = [...visits]
-    .filter((v) => visitIsOilChange(v))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Oldest first, classified once when the visit was summarised rather than by
+  // rescanning every line of every visit here.
+  const oilVisits = oilChangeVisits(customer);
 
   if (oilVisits.length === 0) {
     return {

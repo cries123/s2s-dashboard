@@ -1,13 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Package } from 'lucide-react';
 import type { Customer } from '../../../types';
-import { computeTopMovingParts, movingPartsWindowForMonth } from '../../../lib/topMovingParts';
+import { computeTopMovingPartsFromVisits, movingPartsWindowForMonth } from '../../../lib/topMovingParts';
+import { useVisitsInRange } from '../../../hooks/useServiceVisits';
 import { formatPeriodRange } from '../../../lib/reportPeriodLabel';
 import { EmptyState } from '../../ui/EmptyState';
 import { cn } from '../../../lib/utils';
 
 interface TopMovingPartsCardProps {
   customers: Customer[];
+  /** Whose visits to read. Visits carry it, and the security rules check it. */
+  dealershipId: string;
   /** 'active' or a YYYY-MM archive key — matches the Operations view period. */
   selectedMonth: string;
   /** How many rows to rank. The list scrolls, so this can be generous. */
@@ -22,13 +25,17 @@ function money(n: number): string {
 
 export function TopMovingPartsCard({
   customers,
+  dealershipId,
   selectedMonth,
   limit = 50,
   defaultOpen = false,
 }: TopMovingPartsCardProps) {
   const [open, setOpen] = useState(defaultOpen);
   const window = useMemo(() => movingPartsWindowForMonth(selectedMonth), [selectedMonth]);
-  const parts = useMemo(() => computeTopMovingParts(customers, window, limit), [customers, window, limit]);
+  // Visits now live in their own collection; this reads just the month asked
+  // for, plus any still in customers' old arrays.
+  const { visits, loading } = useVisitsInRange(dealershipId, window.start, window.end, customers);
+  const parts = useMemo(() => computeTopMovingPartsFromVisits(visits, window, limit), [visits, window, limit]);
   const totalUnits = parts.reduce((s, p) => s + p.quantity, 0);
 
   return (
@@ -45,8 +52,10 @@ export function TopMovingPartsCard({
             Top moving parts
           </span>
           <span className="crm-label tabular-nums block mt-0.5 truncate">
-            {formatPeriodRange(window.start, window.end)} · {parts.length} parts ·{' '}
-            {totalUnits.toLocaleString()} units
+            {formatPeriodRange(window.start, window.end)} ·{' '}
+            {loading && parts.length === 0
+              ? 'loading…'
+              : `${parts.length} parts · ${totalUnits.toLocaleString()} units`}
           </span>
         </span>
         {open ? <ChevronUp size={16} className="shrink-0" /> : <ChevronDown size={16} className="shrink-0" />}

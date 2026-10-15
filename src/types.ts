@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import type { VisitSummary } from "./lib/visitStore";
 
 export type Role = 'admin' | 'Manager' | 'Salesperson' | 'Service Advisor' | 'Staff';
 export type UserStatus = 'pending' | 'approved' | 'rejected';
@@ -419,6 +420,8 @@ export interface ServiceVisit {
   id: string;
   soNumber: string;
   date: string;
+  /** The day the car came in; `date` is the day it was cashiered. */
+  openedDate?: string;
   mileage: number;
   advisor: string;
   requests: string;
@@ -465,7 +468,16 @@ export interface Customer {
   lastContactUsername?: string;
   lastAcknowledgedCycle?: number;
   lastServiceDate?: string;
-  recentVisits?: ServiceVisit[]; // Last few for quick display
+  /**
+   * The old home of service history: every visit, embedded in the customer.
+   * Being moved out to customers/{id}/serviceVisits. Read through
+   * lib/customerVisits, never directly — a migrated customer no longer has it.
+   */
+  recentVisits?: ServiceVisit[];
+  /** Compact per-visit summary — what lists, alerts and reports read. */
+  visitSummary?: VisitSummary;
+  /** When this customer's old visit array was verified moved and cleared. */
+  visitsMigratedAt?: string;
   stopAlertInfo?: {
     reason: string;
     notes: string;
