@@ -199,6 +199,51 @@ const priced = (labour, part) => ({ lines: [{ labourLines: [{ price: labour }], 
   check('a customer whose only visit is undated has no last date, not an empty one', access.lastVisitDate({ visitSummary: store.summarizeVisits([imported('u', '')], NOW) }), null);
   check('and the count is the same before the move as after', access.visitCount({ recentVisits: visits }), 3);
 }
+// --- the spreadsheet import's dates ----------------------------------------------
+check('an import date with a time reads', store.visitDay('09/09/2025 1:29:30 PM'), '2025-09-09');
+check('without a time', store.visitDay('12/11/2023'), '2023-12-11');
+check('single-digit month and day', store.visitDay('9/9/2025'), '2025-09-09');
+check('ISO still reads', store.visitDay('2026-07-07'), '2026-07-07');
+check('an impossible month is not a date', store.visitDay('13/01/2025'), '');
+check('nonsense is not a date', store.visitDay('soon'), '');
+{
+  const c = { recentVisits: [{ id: 'csv-1', soNumber: '113835', date: '09/09/2025 1:29:30 PM' }] };
+  check('an imported customer now has a last visit date', access.lastVisitDate(c), '2025-09-09');
+}
+
+// --- one repair order, two copies: shown once, as PBS's -------------------------------
+{
+  // Steven Reyes: the thin imported row and PBS's full copy of RO 113835.
+  const visits = [
+    { id: 'csv-7', soNumber: '113835', date: '09/09/2025 1:29:30 PM', requests: 'FS99 - OIL' },
+    pbs('113835', '2025-09-09', priced(80, 40)),
+    { id: 'csv-8', soNumber: '100001', date: '01/05/2024 9:00:00 AM' },
+  ];
+  const s = store.summarizeVisits(visits, NOW);
+  check('the imported copy of a PBS repair order is counted once', s.entries.length, 2);
+  check('as the PBS one', s.entries.some((e) => e.id === 'pbs-113835') && !s.entries.some((e) => e.id === 'csv-7'), true);
+  check('an imported visit PBS does not have still counts', s.entries.some((e) => e.id === 'csv-8'), true);
+  const shown = store.foldImportedDuplicates(visits, (v) => v.id);
+  check('the history list shows PBS’s copy, not both', shown.map((v) => v.id), ['pbs-113835', 'csv-8']);
+  check('folding only hides — the input list is untouched', visits.length, 3);
+}
+{
+  // The RO number matches even with stray zeros or spaces.
+  const shown = store.foldImportedDuplicates(
+    [{ id: 'csv-1', soNumber: ' 0113835 ' }, pbs('113835', '2025-09-09')],
+    (v) => v.id
+  );
+  check('RO numbers match despite padding', shown.length, 1);
+}
+{
+  // Two different imported ROs on the day PBS has a third: all kept.
+  const shown = store.foldImportedDuplicates(
+    [{ id: 'csv-1', soNumber: '500', date: '2025-01-01' }, { id: 'csv-2', soNumber: '501', date: '2025-01-01' }, pbs('502', '2025-01-01')],
+    (v) => v.id
+  );
+  check('different RO numbers on one day are different visits', shown.length, 3);
+}
+
 check('no history at all reads as none, not an error', access.visitCount({}), 0);
 check('a null array reads as none', access.visitCount({ recentVisits: null }), 0);
 check('no history has no last visit', access.lastVisitDate({}), null);

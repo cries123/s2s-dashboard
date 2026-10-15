@@ -23,6 +23,15 @@ import {
   type VisitSummary,
 } from '../../src/lib/visitStore.js';
 import {
+  indexCustomersByVinLast8,
+  planVehicleLinks,
+  type LinkableCustomer,
+  type PbsVehicleFacts,
+  type UnlinkedVehicle,
+  type VehicleLinkPlan,
+} from './pbsVehicleLinkPlan.js';
+import { fetchContactVehicleDisplayByRefs } from './pbsContactVehicleFallback.js';
+import {
   customerBelongsToPbsSyncDealership,
   PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
   pbsAutomatedSyncScopeError,
@@ -526,6 +535,176 @@ async function stageCustomers(ctx: PbsSyncStageContext): Promise<PbsSyncStageOut
   return {};
 }
 
+/** The customers in an index, in the shape the link planner reads. */
+function linkableCustomersFrom(index: CustomerIndex): LinkableCustomer[] {
+  return [...index.dataById.entries()].map(([id, d]) => ({
+    id,
+    vinLast8: String(d.vinLast8 || ''),
+    vin: d.vin ? String(d.vin) : undefined,
+    make: d.make ? String(d.make) : undefined,
+    pbsVehicleId: d.pbsVehicleId ? String(d.pbsVehicleId) : undefined,
+  }));
+}
+
+/** Ask PBS for the VIN behind each vehicle a set of repair orders names. */
+async function vehicleFactsFor(repairOrders: readonly PbsRepairOrder[]): Promise<{
+  vehicles: UnlinkedVehicle[];
+  facts: Map<string, PbsVehicleFacts>;
+}> {
+  const vehicles = repairOrders
+    .map((ro) => ({
+      vehicleRef: String(ro.VehicleRef || '').trim(),
+      contactRef: String(ro.ContactRef || '').trim() || undefined,
+    }))
+    .filter((v) => v.vehicleRef);
+  const refs = [...new Set(vehicles.map((v) => v.vehicleRef))];
+  const { byVehicleRef } = await fetchContactVehicleDisplayByRefs(refs, []);
+  const facts = new Map<string, PbsVehicleFacts>();
+  for (const [key, info] of byVehicleRef) facts.set(key, { vin: info.vin, make: info.make });
+  return { vehicles, facts };
+}
+
+/**
+ * Link customers to the PBS vehicles their repair orders name, and record it.
+ * Only ever adds a link to a customer that has none; never moves one.
+ */
+async function linkVehiclesFromRepairOrders(
+  db: Firestore,
+  index: CustomerIndex,
+  repairOrders: readonly PbsRepairOrder[],
+  startedAt: string
+): Promise<VehicleLinkPlan> {
+  const { vehicles, facts } = await vehicleFactsFor(repairOrders);
+  const plan = planVehicleLinks(vehicles, facts, indexCustomersByVinLast8(linkableCustomersFrom(index)));
+  if (plan.links.length === 0) return plan;
+
+  const writes: Array<(batch: WriteBatch) => void> = [];
+  for (const link of plan.links) {
+    const existing = index.dataById.get(link.customerId) || {};
+    const patch = stripUndefinedDeep({
+      pbsVehicleId: link.vehicleRef,
+      // Fill gaps only — never overwrite something the customer already has.
+      ...(existing.pbsContactId || !link.contactRef ? {} : { pbsContactId: link.contactRef }),
+      ...(String(existing.vin || '').length === 17 ? {} : { vin: link.vin }),
+      pbsLinkedAt: startedAt,
+      pbsLinkedFrom: 'repair-order',
+    });
+    const ref = customersCollection(db).doc(link.customerId);
+    writes.push((batch) => batch.set(ref, patch, { merge: true }));
+    registerCustomerInIndex(index, link.customerId, { ...existing, ...patch });
+  }
+  // Committed before the repair orders are retried, so a later window in the
+  // same run sees these customers as linked.
+  await commitBatches(db, writes);
+  console.log(
+    `[PBS Sync] Linked ${plan.links.length} customer(s) to their PBS vehicle from repair orders ` +
+      `(${JSON.stringify(plan.outcomes)})`
+  );
+  return plan;
+}
+
+/** Every cashiered repair order in the lookback window for the given vehicles. */
+async function fetchRepairOrderHistoryForVehicles(vehicleRefs: string[]): Promise<PbsRepairOrder[]> {
+  const since = new Date();
+  since.setFullYear(since.getFullYear() - REPAIR_ORDER_LOOKBACK_YEARS);
+  const out: PbsRepairOrder[] = [];
+  for (let i = 0; i < vehicleRefs.length; i += 50) {
+    const response = await pbsRepairOrderGet({
+      VehicleRefList: vehicleRefs.slice(i, i + 50),
+      CashieredSince: toPbsPacificCriteriaIso(since.toISOString()),
+    });
+    out.push(...((response.RepairOrders || []) as PbsRepairOrder[]));
+  }
+  return out;
+}
+
+/**
+ * What linking from repair orders WOULD do, for a month of them — read-only.
+ *
+ * The dry run before any customer is linked: how many repair orders attach
+ * today, how many more would, and why the rest would not. Writes nothing.
+ */
+/** Whether the sync links customers from repair orders. Off until switched on. */
+export async function setRepairOrderLinking(enabled: boolean, by: string): Promise<void> {
+  const db = getAdminFirestore();
+  if (!db) throw new Error('Firestore admin is not configured.');
+  await dealershipSettingsDoc(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID).set(
+    {
+      pbsLinkFromRepairOrders: enabled,
+      pbsLinkFromRepairOrdersChangedAt: new Date().toISOString(),
+      pbsLinkFromRepairOrdersChangedBy: by,
+    },
+    { merge: true }
+  );
+}
+
+export async function previewRepairOrderLinking(monthKey: string): Promise<{
+  /** Whether linking is switched on for the sync right now. */
+  enabled: boolean;
+  month: string;
+  repairOrders: number;
+  attachToday: number;
+  wouldAttach: number;
+  stillUnmatched: number;
+  vehiclesLinked: number;
+  outcomes: VehicleLinkPlan['outcomes'];
+  examples: Array<{ customer: string; vehicle: string; repairOrders: number }>;
+}> {
+  const db = getAdminFirestore();
+  if (!db) throw new Error('Firestore admin is not configured.');
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) throw new Error('Pass a month as YYYY-MM.');
+  const start = `${monthKey}-01`;
+  const end = `${monthKey}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+
+  const response = await pbsRepairOrderGet({
+    CashieredSince: `${start}T00:00:00.0000000-07:00`,
+    CashieredUntil: `${end}T23:59:59.9999999-07:00`,
+  });
+  const repairOrders = ((response.RepairOrders || []) as PbsRepairOrder[]).filter(
+    (ro) => shouldLogRepairOrderVisit(ro, undefined) && String(ro.VehicleRef || '').trim()
+  );
+
+  const index = await loadCustomerIndex(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID);
+  const unmatched = repairOrders.filter(
+    (ro) => !resolveCustomerIdByVehicle(index, { vehicleRef: String(ro.VehicleRef) })
+  );
+  const { vehicles, facts } = await vehicleFactsFor(unmatched);
+  const plan = planVehicleLinks(vehicles, facts, indexCustomersByVinLast8(linkableCustomersFrom(index)));
+
+  const linkedRefs = new Map(plan.links.map((l) => [normalizePbsRef(l.vehicleRef), l]));
+  const wouldAttach = unmatched.filter((ro) => linkedRefs.has(normalizePbsRef(String(ro.VehicleRef))));
+
+  const perLink = new Map<string, number>();
+  for (const ro of wouldAttach) {
+    const key = normalizePbsRef(String(ro.VehicleRef));
+    perLink.set(key, (perLink.get(key) ?? 0) + 1);
+  }
+  const examples = plan.links.slice(0, 15).map((l) => {
+    const c = index.dataById.get(l.customerId) || {};
+    return {
+      customer: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || l.customerId,
+      vehicle: `${c.year ?? ''} ${c.make ?? ''} ${c.model ?? ''} …${l.vin.slice(-8)}`.replace(/\s+/g, ' ').trim(),
+      repairOrders: perLink.get(normalizePbsRef(l.vehicleRef)) ?? 0,
+    };
+  });
+
+  const enabled =
+    (await dealershipSettingsDoc(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID).get()).data()?.pbsLinkFromRepairOrders === true;
+
+  return {
+    enabled,
+    month: monthKey,
+    repairOrders: repairOrders.length,
+    attachToday: repairOrders.length - unmatched.length,
+    wouldAttach: wouldAttach.length,
+    stillUnmatched: unmatched.length - wouldAttach.length,
+    vehiclesLinked: plan.links.length,
+    outcomes: plan.outcomes,
+    examples,
+  };
+}
+
 async function processRepairOrdersBatch(
   ctx: PbsSyncStageContext,
   repairOrders: PbsRepairOrder[]
@@ -534,21 +713,28 @@ async function processRepairOrdersBatch(
   const index = await loadCustomerIndex(db, dealershipId);
 
   const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
-  for (const ro of repairOrders) {
-    if (!shouldLogRepairOrderVisit(ro, watermark)) continue;
+  const seenRepairOrders = new Set<string>();
+
+  /** One repair order → a visit on its customer, if it has one yet. */
+  const collect = (ro: PbsRepairOrder, applyWatermark: boolean): 'added' | 'no-customer' | 'skipped' => {
+    if (!shouldLogRepairOrderVisit(ro, applyWatermark ? watermark : undefined)) return 'skipped';
 
     const vehicleRef = (ro.VehicleRef || '').trim();
-    if (!vehicleRef) continue;
+    if (!vehicleRef) return 'skipped';
 
     const visit = mapRepairOrderToVisit(ro);
-    if (!visit) continue;
+    if (!visit) return 'skipped';
+    if (seenRepairOrders.has(visit.soNumber)) return 'skipped';
 
     const customerId = resolveCustomerIdByVehicle(index, { vehicleRef });
-    if (!customerId) continue;
+    if (!customerId) return 'no-customer';
 
     const existing = index.dataById.get(customerId) || {};
     const customerVehicleRef = String(existing.pbsVehicleId || '').trim();
-    if (customerVehicleRef && customerVehicleRef !== vehicleRef) continue;
+    if (customerVehicleRef && normalizePbsRef(customerVehicleRef) !== normalizePbsRef(vehicleRef)) {
+      return 'skipped';
+    }
+    seenRepairOrders.add(visit.soNumber);
 
     const list = visitsByCustomer.get(customerId) || [];
     list.push({
@@ -568,6 +754,45 @@ async function processRepairOrdersBatch(
     });
     counts.visitsLogged += 1;
     visitsByCustomer.set(customerId, list);
+    return 'added';
+  };
+
+  const unmatched: PbsRepairOrder[] = [];
+  for (const ro of repairOrders) {
+    if (collect(ro, true) === 'no-customer') unmatched.push(ro);
+  }
+
+  /*
+    Repair orders whose vehicle is linked to nobody. Before this, they were
+    dropped — most of every pull, because 7,641 of 9,955 Hyundai customers had
+    never been linked to a PBS vehicle. Look each vehicle's VIN up in PBS, link
+    the customer it belongs to (see pbsVehicleLinkPlan for the refusals), and
+    try those repair orders again.
+  */
+  // Off until someone has looked at the preview and switched it on: linking
+  // writes to customer records, so it does not start on its own.
+  const linkingOn =
+    unmatched.length > 0 &&
+    (await dealershipSettingsDoc(db, dealershipId).get()).data()?.pbsLinkFromRepairOrders === true;
+  if (!linkingOn && unmatched.length > 0) {
+    counts.repairOrdersUnmatched = (counts.repairOrdersUnmatched ?? 0) + unmatched.length;
+  }
+  if (linkingOn) {
+    const plan = await linkVehiclesFromRepairOrders(db, index, unmatched, startedAt);
+    counts.vehiclesLinked = (counts.vehiclesLinked ?? 0) + plan.links.length;
+
+    let stillUnmatched = 0;
+    for (const ro of unmatched) if (collect(ro, true) === 'no-customer') stillUnmatched += 1;
+    counts.repairOrdersUnmatched = (counts.repairOrdersUnmatched ?? 0) + stillUnmatched;
+
+    // A daily pull only sees repair orders paid since the last run. A customer
+    // linked just now has years of history PBS has never sent us; fetch it, so
+    // their record fills in today instead of one visit at a time from now on.
+    // (A full refresh walks the whole history itself, so it skips this.)
+    if (watermark && plan.links.length > 0) {
+      const history = await fetchRepairOrderHistoryForVehicles(plan.links.map((l) => l.vehicleRef));
+      for (const ro of history) collect(ro, false);
+    }
   }
 
   /*

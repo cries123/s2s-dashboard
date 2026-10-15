@@ -3,7 +3,13 @@ import { collection, collectionGroup, getDocs, query, where } from 'firebase/fir
 import { db } from '../firebase';
 import type { Customer, ServiceVisit } from '../types';
 import { isPreviewMode } from '../lib/previewMode';
-import { assignVisitDocIds, SERVICE_VISITS_COLLECTION, type StoredVisit } from '../lib/visitStore';
+import {
+  assignVisitDocIds,
+  foldImportedDuplicates,
+  SERVICE_VISITS_COLLECTION,
+  visitDay,
+  type StoredVisit,
+} from '../lib/visitStore';
 import type { OwnedVisit } from '../lib/topMovingParts';
 
 /**
@@ -23,13 +29,23 @@ const customersPath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data'
 const dealershipOf = (customer: Pick<Customer, 'dealershipId'> | null | undefined): string =>
   (customer as { dealershipId?: string } | null | undefined)?.dealershipId || 'hyundai';
 
-/** Union two lists of visits by document id; the stored one wins a tie. */
+/**
+ * Union two lists of visits by document id; the stored one wins a tie. Then an
+ * imported copy of a repair order PBS also has is hidden in favour of the PBS
+ * one — the detailed version — though both stay stored.
+ */
 function combine(stored: Map<string, ServiceVisit>, embedded: readonly ServiceVisit[]): ServiceVisit[] {
   const out = new Map(stored);
   for (const { docId, visit } of assignVisitDocIds(embedded as unknown as StoredVisit[])) {
-    if (!out.has(docId)) out.set(docId, visit as unknown as ServiceVisit);
+    if (!out.has(docId)) {
+      out.set(docId, { ...(visit as unknown as ServiceVisit), id: String(visit.id || docId) });
+    }
   }
-  return [...out.values()].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const shown = foldImportedDuplicates(
+    [...out.values()] as unknown as StoredVisit[],
+    (v) => String(v.id ?? '')
+  ) as unknown as ServiceVisit[];
+  return shown.sort((a, b) => visitDay(b.date).localeCompare(visitDay(a.date)));
 }
 
 /** Every visit for one customer, newest first. */

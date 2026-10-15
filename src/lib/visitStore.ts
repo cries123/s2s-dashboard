@@ -48,6 +48,8 @@ export interface VisitSummaryEntry {
   miles?: number;
   /** Labour plus parts priced on its lines. Absent when the visit had no prices. */
   rev?: number;
+  /** Repair order number — how an imported copy is matched to the synced original. */
+  so?: string;
 }
 
 /** The most recent visit, for a list row or a card. */
@@ -140,10 +142,31 @@ export function visitRevenue(visit: StoredVisit): { total: number; hasData: bool
 
 // --- identity ----------------------------------------------------------------
 
-const dayOf = (value: unknown): string => {
-  const s = String(value ?? '').slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
-};
+/**
+ * A visit's date as YYYY-MM-DD, or '' when there is no reading it.
+ *
+ * Synced visits are already ISO. The Nov–Dec 2025 spreadsheet import stored US
+ * dates with a time — "09/09/2025 1:29:30 PM" — which nothing here could read,
+ * so every imported customer showed no last-visit date and dropped out of any
+ * report that filters by date.
+ */
+export function visitDay(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  const iso = raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const us = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (us) {
+    const [, m, d, y] = us;
+    const month = Number(m);
+    const day = Number(d);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return '';
+}
+
+const dayOf = visitDay;
 
 /** Firestore ids cannot contain "/" and must not be "." or "..". */
 function safeId(raw: string): string {
@@ -202,7 +225,38 @@ export function toSummaryEntry(docId: string, visit: StoredVisit): VisitSummaryE
   }
   const { total, hasData } = visitRevenue(visit);
   if (hasData) entry.rev = Math.round(total * 100) / 100;
+  const so = soKey(visit.soNumber);
+  if (so) entry.so = so;
   return entry;
+}
+
+/** RO numbers compared as digits: "113835", " 113835 " and 113835 are one RO. */
+function soKey(value: unknown): string {
+  return String(value ?? '').trim().replace(/^0+(?=\d)/, '');
+}
+
+/**
+ * Two copies of one repair order — the thin row from the spreadsheet import and
+ * the full one from PBS — shown once, as the PBS one.
+ *
+ * Matched on the RO number first, which is exact; failing that, an imported row
+ * with no number on the same day as a synced visit. Display only: both copies
+ * stay stored, and nothing here is ever written back.
+ */
+export function foldImportedDuplicates<V extends StoredVisit>(
+  items: readonly V[],
+  idOf: (v: V) => string
+): V[] {
+  const synced = items.filter((v) => isSynced(idOf(v)));
+  const syncedRos = new Set(synced.map((v) => soKey(v.soNumber)).filter(Boolean));
+  const syncedDays = new Set(synced.map((v) => dayOf(v.date)).filter(Boolean));
+  return items.filter((v) => {
+    if (isSynced(idOf(v))) return true;
+    const so = soKey(v.soNumber);
+    if (so) return !syncedRos.has(so);
+    const day = dayOf(v.date);
+    return !day || !syncedDays.has(day);
+  });
 }
 
 export function toSummaryLast(docId: string, visit: StoredVisit): VisitSummaryLast | null {
@@ -235,12 +289,15 @@ export function buildVisitSummary(
   const byId = new Map<string, VisitSummaryEntry>();
   for (const e of entries) if (e?.id) byId.set(e.id, e);
 
-  const syncedDates = new Set(
-    [...byId.values()].filter((e) => isSynced(e.id) && e.date).map((e) => e.date)
-  );
-  const folded = [...byId.values()].filter(
-    (e) => isSynced(e.id) || !e.date || !syncedDates.has(e.date)
-  );
+  // Same rule as foldImportedDuplicates, on summary entries.
+  const all = [...byId.values()];
+  const syncedRos = new Set(all.filter((e) => isSynced(e.id) && e.so).map((e) => e.so as string));
+  const syncedDates = new Set(all.filter((e) => isSynced(e.id) && e.date).map((e) => e.date));
+  const folded = all.filter((e) => {
+    if (isSynced(e.id)) return true;
+    if (e.so) return !syncedRos.has(e.so);
+    return !e.date || !syncedDates.has(e.date);
+  });
 
   // Newest first; undated visits sort to the end rather than to the top.
   folded.sort((a, b) => {

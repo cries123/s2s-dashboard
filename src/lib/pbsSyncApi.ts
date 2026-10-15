@@ -375,6 +375,44 @@ export async function probePbsCapabilities(
   return all;
 }
 
+export interface LinkPreview {
+  /** Whether the sync is linking customers from repair orders right now. */
+  enabled: boolean;
+  month: string;
+  /** Paid repair orders PBS has for the month. */
+  repairOrders: number;
+  /** Already reach a customer today. */
+  attachToday: number;
+  /** Would reach a customer once their vehicle is linked. */
+  wouldAttach: number;
+  /** Still no customer, even after trying. */
+  stillUnmatched: number;
+  vehiclesLinked: number;
+  outcomes: Record<string, number>;
+  examples: Array<{ customer: string; vehicle: string; repairOrders: number }>;
+}
+
+/** Dry run of linking customers from repair orders, for one month. Writes nothing. */
+export async function previewRepairOrderLinking(month: string): Promise<LinkPreview> {
+  const headers = await bearerHeaders();
+  const res = await fetch(`/api/pbs/visits/link-preview?month=${encodeURIComponent(month)}`, { headers });
+  const body = await parseJson<LinkPreview & { ok?: boolean; error?: string }>(res);
+  if (!res.ok || !body.ok) throw new Error(body.error || 'Could not preview the matching.');
+  return body;
+}
+
+/** Turn linking-from-repair-orders on or off for the sync. */
+export async function setRepairOrderLinking(enabled: boolean): Promise<void> {
+  const headers = await bearerHeaders();
+  const res = await fetch('/api/pbs/visits/link-setting', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ enabled }),
+  });
+  const body = await parseJson<{ ok?: boolean; error?: string }>(res);
+  if (!res.ok || !body.ok) throw new Error(body.error || 'Could not change the setting.');
+}
+
 export type VisitMigrationStatus =
   | 'migrated'
   | 'would-migrate'

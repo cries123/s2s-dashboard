@@ -133,6 +133,10 @@ export interface PbsSyncCounts {
   ownerChanges: number;
   visitsMerged: number;
   visitsLogged: number;
+  /** Customers linked to their PBS vehicle from a repair order this run. */
+  vehiclesLinked?: number;
+  /** Repair orders whose vehicle still matched nobody after trying to link it. */
+  repairOrdersUnmatched?: number;
   appointmentDaysUpdated: number;
   appointmentsProcessed: number;
   appointmentScheduleDays: number;

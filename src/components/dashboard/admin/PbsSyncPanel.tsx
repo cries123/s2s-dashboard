@@ -13,8 +13,11 @@ import {
   fetchPbsSyncStatus,
   probePbsCapabilities,
   runPbsSyncNow,
+  previewRepairOrderLinking,
   runVisitMigration,
+  setRepairOrderLinking,
   waitForPbsSyncCompletion,
+  type LinkPreview,
   type PbsCapability,
   type PbsSyncStatusResponse,
   type VisitMigrationReport,
@@ -90,6 +93,16 @@ function PbsSyncPanelInner({
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [confirmMove, setConfirmMove] = useState(false);
+  /** Dry run of linking customers from repair orders. Read-only. */
+  const [linkMonth, setLinkMonth] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [firestoreAdmin, setFirestoreAdmin] = useState(false);
@@ -154,6 +167,35 @@ function PbsSyncPanelInner({
     } finally {
       setCapsBusy(false);
       setCapsProgress(null);
+    }
+  };
+
+  const [linkSwitchBusy, setLinkSwitchBusy] = useState(false);
+  const [confirmLinkOn, setConfirmLinkOn] = useState(false);
+  const handleLinkSwitch = async (enabled: boolean) => {
+    setLinkSwitchBusy(true);
+    setLinkError(null);
+    setConfirmLinkOn(false);
+    try {
+      await setRepairOrderLinking(enabled);
+      setLinkPreview((p) => (p ? { ...p, enabled } : p));
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Could not change the setting.');
+    } finally {
+      setLinkSwitchBusy(false);
+    }
+  };
+
+  const handleLinkPreview = async () => {
+    setLinkBusy(true);
+    setLinkError(null);
+    setLinkPreview(null);
+    try {
+      setLinkPreview(await previewRepairOrderLinking(linkMonth));
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Could not preview the matching.');
+    } finally {
+      setLinkBusy(false);
     }
   };
 
@@ -355,6 +397,130 @@ function PbsSyncPanelInner({
         {!canPullFromPbs && !statusLoading && statusHealthy ? (
           <p className="crm-label">Pulling is off until the PBS connection is set up.</p>
         ) : null}
+
+        {/*
+          Linking customers to their PBS vehicle from repair orders — preview.
+
+          Most customers were never linked to a PBS vehicle, so their repair
+          orders never reached them and they showed thin spreadsheet rows. The
+          sync now links them by VIN. This shows what that would do for a
+          month, before any refresh does it for real. It writes nothing.
+        */}
+        <div className="border-t pt-4" style={{ borderColor: 'var(--color-row-divider)' }}>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <RefreshCw size={14} style={{ color: 'var(--color-text-secondary)' }} />
+                Match repair orders to customers
+              </h4>
+              <p className="crm-label mt-0.5">Preview only — shows who would get their PBS history. Changes nothing.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="sr-only" htmlFor="link-month">
+                Month to preview
+              </label>
+              <input
+                id="link-month"
+                type="month"
+                value={linkMonth}
+                onChange={(e) => setLinkMonth(e.target.value)}
+                className="input-field min-h-[44px] px-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleLinkPreview}
+                disabled={linkBusy || !canPullFromPbs || !linkMonth}
+                className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {linkBusy ? <Loader2 size={14} className="animate-spin" /> : null}
+                {linkBusy ? 'Checking…' : 'Preview'}
+              </button>
+            </div>
+          </div>
+
+          {linkError ? (
+            <p className="text-sm mt-3" style={{ color: 'var(--color-badge-error-text)' }}>
+              {cleanErrorText(linkError)}
+            </p>
+          ) : null}
+
+          {linkPreview ? (
+            <div className="mt-3 space-y-3">
+              <div className="card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-row-divider)' }}>
+                {(
+                  [
+                    ['Paid repair orders in PBS', linkPreview.repairOrders],
+                    ['Reach a customer today', linkPreview.attachToday],
+                    ['Would reach one after matching', linkPreview.wouldAttach],
+                    ['Still no customer', linkPreview.stillUnmatched],
+                  ] as Array<[string, number]>
+                ).map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      {label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">{value.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="crm-label">
+                {linkPreview.repairOrders > 0
+                  ? `${Math.round(((linkPreview.attachToday + linkPreview.wouldAttach) / linkPreview.repairOrders) * 100)}% would reach a customer, up from ${Math.round((linkPreview.attachToday / linkPreview.repairOrders) * 100)}% today. `
+                  : ''}
+                Not matched: {linkPreview.outcomes['no-customer'] ?? 0} no customer with that VIN ·{' '}
+                {linkPreview.outcomes['no-vin'] ?? 0} no VIN from PBS · {linkPreview.outcomes['ambiguous'] ?? 0}{' '}
+                ambiguous · {linkPreview.outcomes['make-mismatch'] ?? 0} make mismatch ·{' '}
+                {linkPreview.outcomes['already-linked-elsewhere'] ?? 0} already linked to another car.
+              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2 card-base rounded-lg px-3 py-2">
+                <span className="text-sm">
+                  Matching is{' '}
+                  <strong>{linkPreview.enabled ? 'on' : 'off'}</strong>
+                  <span className="crm-label block">
+                    {linkPreview.enabled
+                      ? 'The sync links customers as repair orders arrive. Run a Full refresh to fill in past history.'
+                      : 'Nothing is linked until you turn it on.'}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => (linkPreview.enabled ? handleLinkSwitch(false) : setConfirmLinkOn(true))}
+                  disabled={linkSwitchBusy}
+                  className={linkPreview.enabled ? 'btn-secondary' : 'btn-primary'}
+                >
+                  {linkSwitchBusy ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {linkPreview.enabled ? 'Turn off' : 'Turn on matching'}
+                </button>
+              </div>
+              <ConfirmModal
+                open={confirmLinkOn}
+                title="Turn on repair-order matching?"
+                description="From the next sync, customers with no PBS link are matched to their vehicle by VIN, and their repair orders start appearing with full detail. Anything ambiguous is skipped rather than guessed. Run a Full refresh afterwards to fill in each matched customer's past history."
+                confirmLabel="Turn on"
+                onConfirm={() => handleLinkSwitch(true)}
+                onCancel={() => setConfirmLinkOn(false)}
+              />
+              {linkPreview.examples.length > 0 ? (
+                <div>
+                  <p className="crm-label mb-1.5">Would be matched (first {linkPreview.examples.length})</p>
+                  <ul className="card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-row-divider)' }}>
+                    {linkPreview.examples.map((ex) => (
+                      <li key={ex.customer + ex.vehicle} className="flex items-center gap-2 px-3 py-2">
+                        <span className="text-sm flex-1 min-w-0 truncate">
+                          {ex.customer}
+                          <span className="crm-label block truncate">{ex.vehicle}</span>
+                        </span>
+                        <span className="crm-label shrink-0 tabular-nums">
+                          {ex.repairOrders} RO{ex.repairOrders === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
 
         {/*
           Moving service history out of the customer records.

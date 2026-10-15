@@ -24,6 +24,8 @@ import { listOpenRepairOrdersForDealership, getOpenRepairOrderDetail } from '../
 import {
   executePbsSyncStage,
   isPacificMorningSyncHour,
+  previewRepairOrderLinking,
+  setRepairOrderLinking,
   PBS_SYNC_STAGE_LABELS,
   PBS_SYNC_STAGES,
   runPbsSync,
@@ -281,6 +283,48 @@ export function registerPbsRoutes(app: Express) {
         force,
       });
       return res.status(result.ok ? 200 : 500).json(result);
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * What linking customers from repair orders would do, for one month — a dry
+   * run. Reads PBS and Firestore; writes nothing. The number to look at before
+   * a refresh starts linking for real.
+   */
+  app.get('/api/pbs/visits/link-preview', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    if (!isPbsPartnerHubConfigured()) {
+      return res.status(503).json({ error: 'PBS PartnerHUB credentials are not configured.' });
+    }
+    const month = String(req.query.month || '');
+    if (!isMonthKey(month)) {
+      return res.status(400).json({ error: 'Pass a month as YYYY-MM.' });
+    }
+    try {
+      const preview = await previewRepairOrderLinking(month);
+      return res.json({ ok: true, ...preview });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /** Switch linking-from-repair-orders on or off for the sync. */
+  app.post('/api/pbs/visits/link-setting', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    if (typeof req.body?.enabled !== 'boolean') {
+      return res.status(400).json({ error: 'Pass enabled: true or false.' });
+    }
+    try {
+      await setRepairOrderLinking(req.body.enabled, caller.email);
+      return res.json({ ok: true, enabled: req.body.enabled });
     } catch (err) {
       return handlePbsError(res, err);
     }

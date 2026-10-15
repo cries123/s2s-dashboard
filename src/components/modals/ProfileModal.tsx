@@ -21,6 +21,7 @@ import { ServiceVisitDetailModal } from '../dashboard/customers/ServiceVisitDeta
 import { customerDisplayInitials, formatCustomerDisplayName } from '../../lib/customerName';
 import { parseCustomerDate } from '../../lib/serviceReminder';
 import { visitCount } from '../../lib/customerVisits';
+import { visitDay } from '../../lib/visitStore';
 import { useCustomerVisits } from '../../hooks/useServiceVisits';
 import { Panel } from '../ui/Panel';
 import { ConfirmModal } from '../ui/ConfirmModal';
@@ -77,8 +78,11 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       id: `service-${visit.id || idx}`,
       type: 'service' as const,
       // A bare "2026-07-07" parses as midnight UTC — the evening before in
-      // California — so every visit showed a day early. Read it as local.
-      date: new Date(`${String(visit.date).slice(0, 10)}T00:00:00`),
+      // California — so every visit showed a day early. Read it as local, and
+      // read the import's "09/09/2025 1:29:30 PM" form too.
+      // No readable date → an invalid Date, which the timeline shows as
+      // "Unknown date" rather than inventing one.
+      date: visitDay(visit.date) ? new Date(`${visitDay(visit.date)}T00:00:00`) : new Date(NaN),
       title: `Repair order #${visit.soNumber}`,
       subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
       body: visit.requests,
