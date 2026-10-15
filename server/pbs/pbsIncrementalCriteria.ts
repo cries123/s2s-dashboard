@@ -121,6 +121,25 @@ export function repairOrderChangedSince(ro: PbsRepairOrder, watermarkIso: string
   return activity !== null && activity >= watermark;
 }
 
+/** Not paid yet — no cashier date, or PBS's empty 0001-01-01. */
+export function isOpenRepairOrder(ro: PbsRepairOrder): boolean {
+  const cashiered = ro.DateCashiered;
+  return !cashiered || cashiered.startsWith('0001-01-01');
+}
+
+/**
+ * Record a repair order in its car's file — open or paid.
+ *
+ * Jaryn's rule: every repair order belongs in the file, not only paid ones. An
+ * open one is recorded as open and updated in place (same document) when it is
+ * paid. On an incremental pull, only those touched since the last run.
+ */
+export function shouldRecordRepairOrder(ro: PbsRepairOrder, watermarkIso?: string): boolean {
+  if (!ro.DateOpened && isOpenRepairOrder(ro)) return false; // nothing to date it by
+  if (!watermarkIso) return true;
+  return repairOrderChangedSince(ro, watermarkIso);
+}
+
 /** Only log cashiered visits on incremental pulls (completed service visits). */
 export function shouldLogRepairOrderVisit(ro: PbsRepairOrder, watermarkIso?: string): boolean {
   const cashiered = ro.DateCashiered;

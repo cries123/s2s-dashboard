@@ -154,8 +154,12 @@ async function loadCustomerIndexForOpenRos(
     if (!customerBelongsToPbsSyncDealership(data, dealershipId)) continue;
     index.dataById.set(docSnap.id, data);
 
-    const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
-    if (vehicleRef) index.byVehicleRef.set(vehicleRef, docSnap.id);
+    // A profile can be tied to more than one PBS record for its car.
+    const refs = [data.pbsVehicleId, ...(Array.isArray(data.pbsVehicleRefs) ? data.pbsVehicleRefs : [])];
+    for (const raw of refs) {
+      const vehicleRef = normalizePbsRef(String(raw || ''));
+      if (vehicleRef) index.byVehicleRef.set(vehicleRef, docSnap.id);
+    }
 
     const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
     if (contactRef) index.byContactRef.set(contactRef, docSnap.id);

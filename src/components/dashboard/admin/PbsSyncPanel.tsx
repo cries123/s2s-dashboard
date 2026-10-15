@@ -411,9 +411,11 @@ function PbsSyncPanelInner({
             <div className="min-w-0">
               <h4 className="text-sm font-semibold flex items-center gap-2">
                 <RefreshCw size={14} style={{ color: 'var(--color-text-secondary)' }} />
-                Match repair orders to customers
+                Put every repair order in its car’s file
               </h4>
-              <p className="crm-label mt-0.5">Preview only — shows who would get their PBS history. Changes nothing.</p>
+              <p className="crm-label mt-0.5">
+                One profile per VIN. Preview a month first — it changes nothing.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <label className="sr-only" htmlFor="link-month">
@@ -449,10 +451,12 @@ function PbsSyncPanelInner({
               <div className="card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-row-divider)' }}>
                 {(
                   [
-                    ['Paid repair orders in PBS', linkPreview.repairOrders],
-                    ['Reach a customer today', linkPreview.attachToday],
-                    ['Would reach one after matching', linkPreview.wouldAttach],
-                    ['Still no customer', linkPreview.stillUnmatched],
+                    [`Repair orders opened (${linkPreview.open.toLocaleString()} still open)`, linkPreview.repairOrders],
+                    ['Already in a file', linkPreview.inAFileToday],
+                    ['Would join their car’s existing profile', linkPreview.toExistingProfiles],
+                    ['Would go into a new profile for their car', linkPreview.toNewProfiles],
+                    ['New profiles that would be created', linkPreview.newProfiles],
+                    ['Duplicate profiles found (flagged, not removed)', linkPreview.duplicatesFlagged],
                   ] as Array<[string, number]>
                 ).map(([label, value]) => (
                   <div key={label} className="flex items-center justify-between gap-3 px-3 py-2">
@@ -464,13 +468,9 @@ function PbsSyncPanelInner({
                 ))}
               </div>
               <p className="crm-label">
-                {linkPreview.repairOrders > 0
-                  ? `${Math.round(((linkPreview.attachToday + linkPreview.wouldAttach) / linkPreview.repairOrders) * 100)}% would reach a customer, up from ${Math.round((linkPreview.attachToday / linkPreview.repairOrders) * 100)}% today. `
-                  : ''}
-                Not matched: {linkPreview.outcomes['no-customer'] ?? 0} no customer with that VIN ·{' '}
-                {linkPreview.outcomes['no-vin'] ?? 0} no VIN from PBS · {linkPreview.outcomes['ambiguous'] ?? 0}{' '}
-                ambiguous · {linkPreview.outcomes['make-mismatch'] ?? 0} make mismatch ·{' '}
-                {linkPreview.outcomes['already-linked-elsewhere'] ?? 0} already linked to another car.
+                {linkPreview.leftOver === 0
+                  ? 'Every repair order lands in a file — none left over.'
+                  : `${linkPreview.leftOver.toLocaleString()} repair order(s) would still have no file — that should be 0; tell Claude.`}
               </p>
               <div className="flex flex-wrap items-center justify-between gap-2 card-base rounded-lg px-3 py-2">
                 <span className="text-sm">
@@ -478,8 +478,8 @@ function PbsSyncPanelInner({
                   <strong>{linkPreview.enabled ? 'on' : 'off'}</strong>
                   <span className="crm-label block">
                     {linkPreview.enabled
-                      ? 'The sync links customers as repair orders arrive. Run a Full refresh to fill in past history.'
-                      : 'Nothing is linked until you turn it on.'}
+                      ? 'Every repair order, open or paid, goes into its car’s file as it arrives. Run a Full refresh to fill in past history.'
+                      : 'Nothing changes until you turn it on.'}
                   </span>
                 </span>
                 <button
@@ -495,20 +495,23 @@ function PbsSyncPanelInner({
               <ConfirmModal
                 open={confirmLinkOn}
                 title="Turn on repair-order matching?"
-                description="From the next sync, customers with no PBS link are matched to their vehicle by VIN, and their repair orders start appearing with full detail. Anything ambiguous is skipped rather than guessed. Run a Full refresh afterwards to fill in each matched customer's past history."
+                description="From the next sync, every repair order — open or paid — goes into the profile for its car's VIN, and a profile is created for any car that doesn't have one. Each car keeps its own profile. Profiles found to be a second copy of the same car are flagged for merging, never removed. Run a Full refresh afterwards to fill in past history."
                 confirmLabel="Turn on"
                 onConfirm={() => handleLinkSwitch(true)}
                 onCancel={() => setConfirmLinkOn(false)}
               />
               {linkPreview.examples.length > 0 ? (
                 <div>
-                  <p className="crm-label mb-1.5">Would be matched (first {linkPreview.examples.length})</p>
+                  <p className="crm-label mb-1.5">Examples (first {linkPreview.examples.length})</p>
                   <ul className="card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-row-divider)' }}>
                     {linkPreview.examples.map((ex) => (
-                      <li key={ex.customer + ex.vehicle} className="flex items-center gap-2 px-3 py-2">
+                      <li key={ex.owner + ex.vehicle} className="flex items-center gap-2 px-3 py-2">
                         <span className="text-sm flex-1 min-w-0 truncate">
-                          {ex.customer}
-                          <span className="crm-label block truncate">{ex.vehicle}</span>
+                          {ex.owner}
+                          <span className="crm-label block truncate">
+                            {ex.action === 'new' ? 'New profile · ' : 'Existing profile · '}
+                            {ex.vehicle}
+                          </span>
                         </span>
                         <span className="crm-label shrink-0 tabular-nums">
                           {ex.repairOrders} RO{ex.repairOrders === 1 ? '' : 's'}

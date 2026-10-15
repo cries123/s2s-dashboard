@@ -422,6 +422,8 @@ export interface ServiceVisit {
   date: string;
   /** The day the car came in; `date` is the day it was cashiered. */
   openedDate?: string;
+  /** Not paid yet. The same record is updated in place once it is. */
+  open?: boolean;
   mileage: number;
   advisor: string;
   requests: string;

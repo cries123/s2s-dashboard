@@ -1,4 +1,4 @@
-import { Timestamp, type DocumentData, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type DocumentData, type Firestore, type WriteBatch } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
 import {
   pbsAppointmentGet,
@@ -23,14 +23,13 @@ import {
   type VisitSummary,
 } from '../../src/lib/visitStore.js';
 import {
-  indexCustomersByVinLast8,
-  planVehicleLinks,
-  type LinkableCustomer,
-  type PbsVehicleFacts,
-  type UnlinkedVehicle,
-  type VehicleLinkPlan,
-} from './pbsVehicleLinkPlan.js';
-import { fetchContactVehicleDisplayByRefs } from './pbsContactVehicleFallback.js';
+  planVehicleProfiles,
+  type ProfileCandidate,
+  type RepairOrderVehicle,
+  type VehicleFacts,
+  type VehicleProfilePlan,
+} from './pbsVehicleProfilePlan.js';
+import { fetchVehicleOwnerRecords } from './pbsContactVehicleFallback.js';
 import {
   customerBelongsToPbsSyncDealership,
   PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
@@ -83,13 +82,17 @@ import type { PbsCustomerIndexMaps } from './pbsExtendedTypes.js';
 import {
   dedupeAppointments,
   dedupeRepairOrders,
+  isOpenRepairOrder,
   repairOrderChangedSince,
   resolveIncrementalWatermark,
   shouldLogRepairOrderVisit,
+  shouldRecordRepairOrder,
   toPbsPacificCriteriaIso,
 } from './pbsIncrementalCriteria.js';
 
 const REPAIR_ORDER_LOOKBACK_YEARS = 3;
+/** How far back an open repair order is looked for — matches the open-RO board. */
+const OPEN_REPAIR_ORDER_LOOKBACK_DAYS = 90;
 
 export interface RunPbsSyncOptions {
   dealershipId?: string;
@@ -291,8 +294,11 @@ function registerCustomerInIndex(
   if (vin) index.byVin.set(vin, docId);
   const phone = normalizePhone(String(data.phone || ''));
   if (phone) index.byPhone.set(phone, docId);
-  const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
-  if (vehicleRef) index.byVehicleRef.set(vehicleRef, docId);
+  // A profile can be tied to more than one PBS record for its car.
+  for (const ref of vehicleRefsOf(data)) {
+    const vehicleRef = normalizePbsRef(ref);
+    if (vehicleRef) index.byVehicleRef.set(vehicleRef, docId);
+  }
   const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
   if (contactRef) index.byContactRef.set(contactRef, docId);
 }
@@ -535,72 +541,195 @@ async function stageCustomers(ctx: PbsSyncStageContext): Promise<PbsSyncStageOut
   return {};
 }
 
-/** The customers in an index, in the shape the link planner reads. */
-function linkableCustomersFrom(index: CustomerIndex): LinkableCustomer[] {
+/** Every PBS vehicle record a profile is tied to. */
+function vehicleRefsOf(d: DocumentData): string[] {
+  const refs = [d.pbsVehicleId, ...(Array.isArray(d.pbsVehicleRefs) ? d.pbsVehicleRefs : [])]
+    .map((r) => String(r || '').trim())
+    .filter(Boolean);
+  return [...new Set(refs)];
+}
+
+function isoOf(value: unknown): string | undefined {
+  if (value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate().toISOString();
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** The profiles in an index, in the shape the profile planner reads. */
+function profileCandidatesFrom(index: CustomerIndex): ProfileCandidate[] {
   return [...index.dataById.entries()].map(([id, d]) => ({
     id,
     vinLast8: String(d.vinLast8 || ''),
     vin: d.vin ? String(d.vin) : undefined,
     make: d.make ? String(d.make) : undefined,
-    pbsVehicleId: d.pbsVehicleId ? String(d.pbsVehicleId) : undefined,
+    vehicleRefs: vehicleRefsOf(d),
+    visitCount: Array.isArray(d.recentVisits)
+      ? d.recentVisits.length
+      : Array.isArray(d.visitSummary?.entries)
+        ? d.visitSummary.entries.length
+        : 0,
+    createdAt: isoOf(d.createdAt),
   }));
 }
 
-/** Ask PBS for the VIN behind each vehicle a set of repair orders names. */
-async function vehicleFactsFor(repairOrders: readonly PbsRepairOrder[]): Promise<{
-  vehicles: UnlinkedVehicle[];
-  facts: Map<string, PbsVehicleFacts>;
-}> {
-  const vehicles = repairOrders
+function vehiclesOn(repairOrders: readonly PbsRepairOrder[]): RepairOrderVehicle[] {
+  return repairOrders
     .map((ro) => ({
       vehicleRef: String(ro.VehicleRef || '').trim(),
       contactRef: String(ro.ContactRef || '').trim() || undefined,
     }))
     .filter((v) => v.vehicleRef);
-  const refs = [...new Set(vehicles.map((v) => v.vehicleRef))];
-  const { byVehicleRef } = await fetchContactVehicleDisplayByRefs(refs, []);
-  const facts = new Map<string, PbsVehicleFacts>();
-  for (const [key, info] of byVehicleRef) facts.set(key, { vin: info.vin, make: info.make });
-  return { vehicles, facts };
+}
+
+const CONTACT_FIELDS = [
+  'ContactId', 'ContactFirstName', 'ContactLastName', 'ContactMiddleName', 'ContactAddress',
+  'ContactCity', 'ContactState', 'ContactZipCode', 'ContactBusinessPhone', 'ContactHomePhone',
+  'ContactCellPhone', 'ContactEmailAddress',
+] as const;
+
+/**
+ * The owner record for a new profile: the person on the repair order. PBS may
+ * list past owners against the same car, so the row pairing this car with the
+ * repair order's contact wins; failing that, that contact's details are laid
+ * over the car's most recently updated row.
+ */
+function ownerRowFor(
+  vehicleRef: string,
+  contactRef: string | undefined,
+  rowsByVehicle: Map<string, PbsContactVehicle[]>,
+  rowsByContact: Map<string, PbsContactVehicle[]>
+): PbsContactVehicle {
+  const vKey = normalizePbsRef(vehicleRef);
+  const cKey = normalizePbsRef(contactRef || '');
+  const rows = rowsByVehicle.get(vKey) ?? [];
+  const exact = cKey ? rows.find((r) => normalizePbsRef(String(r.ContactId || '')) === cKey) : undefined;
+  if (exact) return exact;
+  const latest = [...rows].sort((a, b) =>
+    String(b.ContactLastUpdate || b.VehicleLastUpdate || '').localeCompare(String(a.ContactLastUpdate || a.VehicleLastUpdate || ''))
+  )[0];
+  const contactRow = cKey ? (rowsByContact.get(cKey) ?? [])[0] : undefined;
+  const merged: PbsContactVehicle = { ...(latest ?? {}), VehicleId: vehicleRef };
+  if (contactRow) for (const f of CONTACT_FIELDS) (merged as Record<string, unknown>)[f] = contactRow[f];
+  return merged;
+}
+
+export interface PlacementResult {
+  plan: VehicleProfilePlan;
+  /** Real ids of profiles created, keyed by the plan's temp id. */
+  created: Map<string, string>;
+  /** Owner name per created profile, for the preview. */
+  owners: Map<string, string>;
 }
 
 /**
- * Link customers to the PBS vehicles their repair orders name, and record it.
- * Only ever adds a link to a customer that has none; never moves one.
+ * Give every vehicle a set of repair orders names a profile: tie it to the
+ * profile for its VIN, or create one. Duplicate profiles of one car are flagged,
+ * never removed. With `dryRun`, plans and names everything and writes nothing.
  */
-async function linkVehiclesFromRepairOrders(
+async function placeRepairOrderVehicles(
   db: Firestore,
   index: CustomerIndex,
+  dealershipId: string,
   repairOrders: readonly PbsRepairOrder[],
-  startedAt: string
-): Promise<VehicleLinkPlan> {
-  const { vehicles, facts } = await vehicleFactsFor(repairOrders);
-  const plan = planVehicleLinks(vehicles, facts, indexCustomersByVinLast8(linkableCustomersFrom(index)));
-  if (plan.links.length === 0) return plan;
+  startedAt: string,
+  options: { dryRun?: boolean } = {}
+): Promise<PlacementResult> {
+  const vehicles = vehiclesOn(repairOrders);
+  const { rowsByVehicle, rowsByContact, facts: display } = await fetchVehicleOwnerRecords(
+    [...new Set(vehicles.map((v) => v.vehicleRef))],
+    [...new Set(vehicles.map((v) => v.contactRef).filter((c): c is string => Boolean(c)))]
+  );
+  const facts = new Map<string, VehicleFacts>();
+  for (const [key, info] of display) facts.set(key, { vin: info.vin, make: info.make });
+
+  const plan = planVehicleProfiles(vehicles, facts, profileCandidatesFrom(index));
+  const created = new Map<string, string>();
+  const owners = new Map<string, string>();
+
+  // New profiles, built the same way the customer sync builds them.
+  const newProfiles = new Map<string, Record<string, unknown>>();
+  for (const c of plan.creates) {
+    const row = ownerRowFor(c.vehicleRef, c.contactRef, rowsByVehicle, rowsByContact);
+    const mapped = mapContactVehicleToCustomerFields(row, dealershipId);
+    const fact = display.get(normalizePbsRef(c.vehicleRef));
+    const vin = String(mapped.vin || c.vin || fact?.vin || '');
+    const payload: Record<string, unknown> = {
+      ...mapped,
+      make: mapped.make === 'Hyundai' && fact?.make ? fact.make : mapped.make,
+      model: mapped.model === 'Unknown' && fact?.model ? fact.model : mapped.model,
+      year: mapped.year || fact?.year,
+      vin: vin || undefined,
+      vinLast8: vin ? vin.slice(-8) : mapped.vinLast8,
+      pbsVehicleId: c.vehicleRef,
+      pbsVehicleRefs: [c.vehicleRef],
+      pbsContactId: c.contactRef || mapped.pbsContactId,
+      addedBy: 'pbs-sync',
+      addedByUsername: 'PBS Sync',
+      pbsCreatedFrom: 'repair-order',
+      pbsSyncedAt: startedAt,
+    };
+    newProfiles.set(c.tempId, payload);
+    owners.set(c.tempId, `${payload.firstName ?? ''} ${payload.lastName ?? ''}`.trim());
+  }
+  // A second PBS record for a car just given a profile joins it.
+  for (const a of plan.attaches) {
+    const fresh = newProfiles.get(a.customerId);
+    if (fresh && a.addRef) (fresh.pbsVehicleRefs as string[]).push(a.vehicleRef);
+  }
+
+  if (options.dryRun) return { plan, created, owners };
 
   const writes: Array<(batch: WriteBatch) => void> = [];
-  for (const link of plan.links) {
-    const existing = index.dataById.get(link.customerId) || {};
-    const patch = stripUndefinedDeep({
-      pbsVehicleId: link.vehicleRef,
-      // Fill gaps only — never overwrite something the customer already has.
-      ...(existing.pbsContactId || !link.contactRef ? {} : { pbsContactId: link.contactRef }),
-      ...(String(existing.vin || '').length === 17 ? {} : { vin: link.vin }),
-      pbsLinkedAt: startedAt,
-      pbsLinkedFrom: 'repair-order',
-    });
-    const ref = customersCollection(db).doc(link.customerId);
-    writes.push((batch) => batch.set(ref, patch, { merge: true }));
-    registerCustomerInIndex(index, link.customerId, { ...existing, ...patch });
+  for (const [tempId, payload] of newProfiles) {
+    const ref = customersCollection(db).doc();
+    created.set(tempId, ref.id);
+    const doc = stripUndefinedDeep({ ...payload, createdAt: Timestamp.now() });
+    writes.push((batch) => batch.set(ref, doc));
+    registerCustomerInIndex(index, ref.id, doc);
   }
+  const realId = (id: string) => created.get(id) ?? id;
+
+  for (const a of plan.attaches) {
+    if (!a.addRef || newProfiles.has(a.customerId)) continue;
+    const id = realId(a.customerId);
+    const existing = index.dataById.get(id) || {};
+    const patch: Record<string, unknown> = {
+      ...stripUndefinedDeep({
+        // The first PBS car a profile gets is also its main one.
+        ...(existing.pbsVehicleId ? {} : { pbsVehicleId: a.vehicleRef }),
+        // Fill gaps only — never overwrite what the profile already has.
+        ...(existing.pbsContactId || !a.contactRef ? {} : { pbsContactId: a.contactRef }),
+        ...(a.fillVin ? { vin: a.fillVin } : {}),
+        pbsLinkedAt: startedAt,
+        pbsLinkedFrom: 'repair-order',
+      }),
+      pbsVehicleRefs: FieldValue.arrayUnion(a.vehicleRef),
+    };
+    const ref = customersCollection(db).doc(id);
+    writes.push((batch) => batch.set(ref, patch, { merge: true }));
+    registerCustomerInIndex(index, id, {
+      ...existing,
+      ...patch,
+      pbsVehicleRefs: [...vehicleRefsOf(existing), a.vehicleRef],
+    });
+  }
+
+  for (const d of plan.duplicates) {
+    const ref = customersCollection(db).doc(realId(d.customerId));
+    writes.push((batch) =>
+      batch.set(ref, { duplicateOfCustomerId: realId(d.duplicateOf), duplicateFlaggedAt: startedAt }, { merge: true })
+    );
+  }
+
   // Committed before the repair orders are retried, so a later window in the
-  // same run sees these customers as linked.
+  // same run sees these profiles.
   await commitBatches(db, writes);
   console.log(
-    `[PBS Sync] Linked ${plan.links.length} customer(s) to their PBS vehicle from repair orders ` +
-      `(${JSON.stringify(plan.outcomes)})`
+    `[PBS Sync] Repair-order vehicles placed: ${plan.attaches.length} tied to existing profiles, ` +
+      `${plan.creates.length} new profiles, ${plan.duplicates.length} duplicates flagged`
   );
-  return plan;
+  return { plan, created, owners };
 }
 
 /** Every cashiered repair order in the lookback window for the given vehicles. */
@@ -638,18 +767,37 @@ export async function setRepairOrderLinking(enabled: boolean, by: string): Promi
   );
 }
 
-export async function previewRepairOrderLinking(monthKey: string): Promise<{
-  /** Whether linking is switched on for the sync right now. */
+export interface RepairOrderPlacementPreview {
+  /** Whether matching is switched on for the sync right now. */
   enabled: boolean;
   month: string;
+  /** Repair orders opened in the month, open and paid. */
   repairOrders: number;
-  attachToday: number;
-  wouldAttach: number;
-  stillUnmatched: number;
-  vehiclesLinked: number;
-  outcomes: VehicleLinkPlan['outcomes'];
-  examples: Array<{ customer: string; vehicle: string; repairOrders: number }>;
-}> {
+  open: number;
+  /** Reach a profile already, before any change. */
+  inAFileToday: number;
+  /** Would join an existing profile for their car. */
+  toExistingProfiles: number;
+  /** Would go into a profile created for their car. */
+  toNewProfiles: number;
+  /** Profiles that would be created. */
+  newProfiles: number;
+  /** Profiles found to be a second copy of another car's profile. */
+  duplicatesFlagged: number;
+  /** Must be 0 — every repair order lands in a file. */
+  leftOver: number;
+  examples: Array<{ owner: string; vehicle: string; repairOrders: number; action: 'existing' | 'new' }>;
+}
+
+/**
+ * What placing a month of repair orders WOULD do — read-only.
+ *
+ * Every repair order opened that month, open and paid, run through the same
+ * plan the sync uses, and nothing written: how many reach a file today, how
+ * many would join an existing profile, how many profiles would be created, and
+ * who. The number to look at before switching matching on.
+ */
+export async function previewRepairOrderLinking(monthKey: string): Promise<RepairOrderPlacementPreview> {
   const db = getAdminFirestore();
   if (!db) throw new Error('Firestore admin is not configured.');
   const [year, month] = monthKey.split('-').map(Number);
@@ -658,36 +806,62 @@ export async function previewRepairOrderLinking(monthKey: string): Promise<{
   const end = `${monthKey}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
 
   const response = await pbsRepairOrderGet({
-    CashieredSince: `${start}T00:00:00.0000000-07:00`,
-    CashieredUntil: `${end}T23:59:59.9999999-07:00`,
+    OpenDateSince: `${start}T00:00:00.0000000-07:00`,
+    OpenDateUntil: `${end}T23:59:59.9999999-07:00`,
   });
-  const repairOrders = ((response.RepairOrders || []) as PbsRepairOrder[]).filter(
-    (ro) => shouldLogRepairOrderVisit(ro, undefined) && String(ro.VehicleRef || '').trim()
+  const repairOrders = dedupeRepairOrders((response.RepairOrders || []) as PbsRepairOrder[]).filter(
+    (ro) => shouldRecordRepairOrder(ro, undefined) && String(ro.VehicleRef || '').trim()
   );
 
   const index = await loadCustomerIndex(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID);
-  const unmatched = repairOrders.filter(
+  const unplaced = repairOrders.filter(
     (ro) => !resolveCustomerIdByVehicle(index, { vehicleRef: String(ro.VehicleRef) })
   );
-  const { vehicles, facts } = await vehicleFactsFor(unmatched);
-  const plan = planVehicleLinks(vehicles, facts, indexCustomersByVinLast8(linkableCustomersFrom(index)));
+  const { plan, owners } = await placeRepairOrderVehicles(
+    db,
+    index,
+    PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+    unplaced,
+    new Date().toISOString(),
+    { dryRun: true }
+  );
 
-  const linkedRefs = new Map(plan.links.map((l) => [normalizePbsRef(l.vehicleRef), l]));
-  const wouldAttach = unmatched.filter((ro) => linkedRefs.has(normalizePbsRef(String(ro.VehicleRef))));
+  const destination = new Map<string, string>();
+  for (const a of plan.attaches) destination.set(normalizePbsRef(a.vehicleRef), a.customerId);
+  for (const c of plan.creates) destination.set(normalizePbsRef(c.vehicleRef), c.tempId);
+  const isNew = (id: string) => plan.creates.some((c) => c.tempId === id);
 
-  const perLink = new Map<string, number>();
-  for (const ro of wouldAttach) {
-    const key = normalizePbsRef(String(ro.VehicleRef));
-    perLink.set(key, (perLink.get(key) ?? 0) + 1);
+  let toExisting = 0;
+  let toNew = 0;
+  let leftOver = 0;
+  const perDestination = new Map<string, number>();
+  for (const ro of unplaced) {
+    const dest = destination.get(normalizePbsRef(String(ro.VehicleRef)));
+    if (!dest) {
+      leftOver += 1;
+      continue;
+    }
+    if (isNew(dest)) toNew += 1;
+    else toExisting += 1;
+    perDestination.set(dest, (perDestination.get(dest) ?? 0) + 1);
   }
-  const examples = plan.links.slice(0, 15).map((l) => {
-    const c = index.dataById.get(l.customerId) || {};
-    return {
-      customer: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || l.customerId,
-      vehicle: `${c.year ?? ''} ${c.make ?? ''} ${c.model ?? ''} …${l.vin.slice(-8)}`.replace(/\s+/g, ' ').trim(),
-      repairOrders: perLink.get(normalizePbsRef(l.vehicleRef)) ?? 0,
-    };
-  });
+
+  const examples: RepairOrderPlacementPreview['examples'] = [];
+  for (const [dest, count] of perDestination) {
+    if (examples.length >= 15) break;
+    if (isNew(dest)) {
+      const c = plan.creates.find((x) => x.tempId === dest)!;
+      examples.push({ owner: owners.get(dest) || 'Unknown owner', vehicle: c.vin ? `VIN …${c.vin.slice(-8)}` : 'No VIN from PBS', repairOrders: count, action: 'new' });
+    } else {
+      const d = index.dataById.get(dest) || {};
+      examples.push({
+        owner: `${d.firstName ?? ''} ${d.lastName ?? ''}`.trim() || dest,
+        vehicle: `${d.year ?? ''} ${d.make ?? ''} ${d.model ?? ''} …${String(d.vinLast8 || d.vin || '').slice(-8)}`.replace(/\s+/g, ' ').trim(),
+        repairOrders: count,
+        action: 'existing',
+      });
+    }
+  }
 
   const enabled =
     (await dealershipSettingsDoc(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID).get()).data()?.pbsLinkFromRepairOrders === true;
@@ -696,11 +870,13 @@ export async function previewRepairOrderLinking(monthKey: string): Promise<{
     enabled,
     month: monthKey,
     repairOrders: repairOrders.length,
-    attachToday: repairOrders.length - unmatched.length,
-    wouldAttach: wouldAttach.length,
-    stillUnmatched: unmatched.length - wouldAttach.length,
-    vehiclesLinked: plan.links.length,
-    outcomes: plan.outcomes,
+    open: repairOrders.filter(isOpenRepairOrder).length,
+    inAFileToday: repairOrders.length - unplaced.length,
+    toExistingProfiles: toExisting,
+    toNewProfiles: toNew,
+    newProfiles: plan.creates.length,
+    duplicatesFlagged: plan.duplicates.length,
+    leftOver,
     examples,
   };
 }
@@ -712,12 +888,26 @@ async function processRepairOrdersBatch(
   const { db, dealershipId, startedAt, watermark, counts } = ctx;
   const index = await loadCustomerIndex(db, dealershipId);
 
+  /*
+    Matching is off until someone has looked at the preview and switched it on:
+    it creates profiles and writes to existing ones, so it does not start on its
+    own. Off is exactly the old behaviour — paid repair orders only, and only
+    for profiles already tied to their PBS car. On is Jaryn's rule: every repair
+    order, open or paid, goes into its car's profile, made if need be.
+  */
+  const matchingOn =
+    (await dealershipSettingsDoc(db, dealershipId).get()).data()?.pbsLinkFromRepairOrders === true;
+  const shouldTake = (ro: PbsRepairOrder, applyWatermark: boolean) => {
+    const wm = applyWatermark ? watermark : undefined;
+    return matchingOn ? shouldRecordRepairOrder(ro, wm) : shouldLogRepairOrderVisit(ro, wm);
+  };
+
   const visitsByCustomer = new Map<string, Array<Record<string, unknown>>>();
   const seenRepairOrders = new Set<string>();
 
-  /** One repair order → a visit on its customer, if it has one yet. */
+  /** One repair order → a visit on its car's profile, if it has one yet. */
   const collect = (ro: PbsRepairOrder, applyWatermark: boolean): 'added' | 'no-customer' | 'skipped' => {
-    if (!shouldLogRepairOrderVisit(ro, applyWatermark ? watermark : undefined)) return 'skipped';
+    if (!shouldTake(ro, applyWatermark)) return 'skipped';
 
     const vehicleRef = (ro.VehicleRef || '').trim();
     if (!vehicleRef) return 'skipped';
@@ -729,11 +919,10 @@ async function processRepairOrdersBatch(
     const customerId = resolveCustomerIdByVehicle(index, { vehicleRef });
     if (!customerId) return 'no-customer';
 
+    // A profile can be tied to several PBS records for its car; any of them counts.
     const existing = index.dataById.get(customerId) || {};
-    const customerVehicleRef = String(existing.pbsVehicleId || '').trim();
-    if (customerVehicleRef && normalizePbsRef(customerVehicleRef) !== normalizePbsRef(vehicleRef)) {
-      return 'skipped';
-    }
+    const refs = vehicleRefsOf(existing).map(normalizePbsRef);
+    if (refs.length > 0 && !refs.includes(normalizePbsRef(vehicleRef))) return 'skipped';
     seenRepairOrders.add(visit.soNumber);
 
     const list = visitsByCustomer.get(customerId) || [];
@@ -746,6 +935,8 @@ async function processRepairOrdersBatch(
       advisor: visit.advisor,
       requests: visit.requests,
       status: visit.status,
+      // Not paid yet. The same document is updated in place once it is.
+      open: isOpenRepairOrder(ro),
       lines: visit.lines,
       payTypeTotals: visit.payTypeTotals,
       pbsVehicleRef: vehicleRef,
@@ -763,34 +954,34 @@ async function processRepairOrdersBatch(
   }
 
   /*
-    Repair orders whose vehicle is linked to nobody. Before this, they were
-    dropped — most of every pull, because 7,641 of 9,955 Hyundai customers had
-    never been linked to a PBS vehicle. Look each vehicle's VIN up in PBS, link
-    the customer it belongs to (see pbsVehicleLinkPlan for the refusals), and
-    try those repair orders again.
+    Repair orders whose car has no profile tied to it. They used to be dropped —
+    most of every pull, because 7,641 of 9,955 Hyundai profiles had never been
+    tied to a PBS car. Now each car is put in the profile for its VIN, or one is
+    created for it (pbsVehicleProfilePlan has the rules), and the repair orders
+    are tried again. Nothing is left without a file.
   */
-  // Off until someone has looked at the preview and switched it on: linking
-  // writes to customer records, so it does not start on its own.
-  const linkingOn =
-    unmatched.length > 0 &&
-    (await dealershipSettingsDoc(db, dealershipId).get()).data()?.pbsLinkFromRepairOrders === true;
-  if (!linkingOn && unmatched.length > 0) {
+  if (unmatched.length > 0 && !matchingOn) {
     counts.repairOrdersUnmatched = (counts.repairOrdersUnmatched ?? 0) + unmatched.length;
   }
-  if (linkingOn) {
-    const plan = await linkVehiclesFromRepairOrders(db, index, unmatched, startedAt);
-    counts.vehiclesLinked = (counts.vehiclesLinked ?? 0) + plan.links.length;
+  if (unmatched.length > 0 && matchingOn) {
+    const { plan } = await placeRepairOrderVehicles(db, index, dealershipId, unmatched, startedAt);
+    counts.vehiclesLinked = (counts.vehiclesLinked ?? 0) + plan.attaches.filter((a) => a.addRef).length;
+    counts.profilesCreated = (counts.profilesCreated ?? 0) + plan.creates.length;
 
-    let stillUnmatched = 0;
-    for (const ro of unmatched) if (collect(ro, true) === 'no-customer') stillUnmatched += 1;
-    counts.repairOrdersUnmatched = (counts.repairOrdersUnmatched ?? 0) + stillUnmatched;
+    let leftOver = 0;
+    for (const ro of unmatched) if (collect(ro, true) === 'no-customer') leftOver += 1;
+    counts.repairOrdersUnmatched = (counts.repairOrdersUnmatched ?? 0) + leftOver;
 
-    // A daily pull only sees repair orders paid since the last run. A customer
-    // linked just now has years of history PBS has never sent us; fetch it, so
-    // their record fills in today instead of one visit at a time from now on.
+    // A daily pull only sees what changed since the last run. A car that just
+    // got its profile has years of history PBS has never sent us; fetch it, so
+    // the file fills in today rather than one visit at a time from now on.
     // (A full refresh walks the whole history itself, so it skips this.)
-    if (watermark && plan.links.length > 0) {
-      const history = await fetchRepairOrderHistoryForVehicles(plan.links.map((l) => l.vehicleRef));
+    const newlyPlaced = [
+      ...plan.attaches.filter((a) => a.addRef).map((a) => a.vehicleRef),
+      ...plan.creates.map((c) => c.vehicleRef),
+    ];
+    if (watermark && newlyPlaced.length > 0) {
+      const history = await fetchRepairOrderHistoryForVehicles(newlyPlaced);
       for (const ro of history) collect(ro, false);
     }
   }
@@ -875,7 +1066,23 @@ async function stageRepairOrders(ctx: PbsSyncStageContext): Promise<PbsSyncStage
     `[PBS Sync] Repair orders window ${windowIndex + 1}/${windows.length} (${window.sinceIso.slice(0, 10)}..${window.untilIso.slice(0, 10)}): ${repairOrders.length} ROs`
   );
 
-  await processRepairOrdersBatch(ctx, repairOrders);
+  // The history windows are paid repair orders. With matching on, the first
+  // window also takes everything open right now, so a full refresh puts every
+  // open repair order in its car's file too — not just ones touched later.
+  if (windowIndex === 0) {
+    const matchingOn =
+      (await dealershipSettingsDoc(ctx.db, ctx.dealershipId).get()).data()?.pbsLinkFromRepairOrders === true;
+    if (matchingOn) {
+      const since = new Date();
+      since.setDate(since.getDate() - OPEN_REPAIR_ORDER_LOOKBACK_DAYS);
+      const response = await pbsRepairOrderGet({ OpenDateSince: toPbsPacificCriteriaIso(since.toISOString()) });
+      const open = ((response.RepairOrders || []) as PbsRepairOrder[]).filter(isOpenRepairOrder);
+      console.log(`[PBS Sync] Open repair orders taken with the first window: ${open.length}`);
+      repairOrders.push(...open);
+    }
+  }
+
+  await processRepairOrdersBatch(ctx, dedupeRepairOrders(repairOrders));
 
   const nextIndex = windowIndex + 1;
   if (nextIndex < windows.length) {

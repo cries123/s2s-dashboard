@@ -135,6 +135,8 @@ export interface PbsSyncCounts {
   visitsLogged: number;
   /** Customers linked to their PBS vehicle from a repair order this run. */
   vehiclesLinked?: number;
+  /** Profiles created for cars that had none, from repair orders this run. */
+  profilesCreated?: number;
   /** Repair orders whose vehicle still matched nobody after trying to link it. */
   repairOrdersUnmatched?: number;
   appointmentDaysUpdated: number;

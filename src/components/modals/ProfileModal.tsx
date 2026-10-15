@@ -46,6 +46,8 @@ const SYSTEM_OWNED_FIELDS = new Set([
   'visitsMigratedAt',
   'lastServiceDate',
   'createdAt',
+  'duplicateOfCustomerId',
+  'duplicateFlaggedAt',
 ]);
 
 export default function ProfileModal({ customer, currentUser, onClose, onDelete }: ProfileModalProps) {
@@ -83,7 +85,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       // No readable date → an invalid Date, which the timeline shows as
       // "Unknown date" rather than inventing one.
       date: visitDay(visit.date) ? new Date(`${visitDay(visit.date)}T00:00:00`) : new Date(NaN),
-      title: `Repair order #${visit.soNumber}`,
+      title: `Repair order #${visit.soNumber}${visit.open ? ' · Open' : ''}`,
       subtitle: visit.advisor ? `Advisor: ${visit.advisor}` : undefined,
       body: visit.requests,
       meta: visit.mileage ? `${visit.mileage.toLocaleString()} mi` : undefined,

@@ -376,20 +376,25 @@ export async function probePbsCapabilities(
 }
 
 export interface LinkPreview {
-  /** Whether the sync is linking customers from repair orders right now. */
+  /** Whether matching is switched on for the sync right now. */
   enabled: boolean;
   month: string;
-  /** Paid repair orders PBS has for the month. */
+  /** Repair orders opened in the month, open and paid. */
   repairOrders: number;
-  /** Already reach a customer today. */
-  attachToday: number;
-  /** Would reach a customer once their vehicle is linked. */
-  wouldAttach: number;
-  /** Still no customer, even after trying. */
-  stillUnmatched: number;
-  vehiclesLinked: number;
-  outcomes: Record<string, number>;
-  examples: Array<{ customer: string; vehicle: string; repairOrders: number }>;
+  open: number;
+  /** Already in a file, before any change. */
+  inAFileToday: number;
+  /** Would join an existing profile for their car. */
+  toExistingProfiles: number;
+  /** Would go into a profile created for their car. */
+  toNewProfiles: number;
+  /** Profiles that would be created. */
+  newProfiles: number;
+  /** Profiles found to be a second copy of another car's profile. */
+  duplicatesFlagged: number;
+  /** Should be 0 — every repair order lands in a file. */
+  leftOver: number;
+  examples: Array<{ owner: string; vehicle: string; repairOrders: number; action: 'existing' | 'new' }>;
 }
 
 /** Dry run of linking customers from repair orders, for one month. Writes nothing. */

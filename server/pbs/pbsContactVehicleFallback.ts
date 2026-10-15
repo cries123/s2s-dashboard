@@ -96,6 +96,64 @@ export async function fetchContactVehicleDisplayByRefs(
   return { byVehicleRef, byContactRef };
 }
 
+/**
+ * Everything PBS has on a set of vehicles, for building profiles from repair
+ * orders: the full contact-vehicle rows (to make a new profile with the same
+ * fields the customer sync gives one), and the VIN/make for each vehicle,
+ * filled from VehicleGet where no contact-vehicle row exists.
+ *
+ * A vehicle can have several contact rows — past owners as well as the current
+ * one — so all are kept and the caller picks the one the repair order names.
+ */
+export async function fetchVehicleOwnerRecords(
+  vehicleRefs: string[],
+  contactRefs: string[]
+): Promise<{
+  rowsByVehicle: Map<string, PbsContactVehicle[]>;
+  rowsByContact: Map<string, PbsContactVehicle[]>;
+  facts: Map<string, PbsRefDisplayInfo>;
+}> {
+  const rowsByVehicle = new Map<string, PbsContactVehicle[]>();
+  const rowsByContact = new Map<string, PbsContactVehicle[]>();
+  const facts = new Map<string, PbsRefDisplayInfo>();
+  const add = (map: Map<string, PbsContactVehicle[]>, key: string, cv: PbsContactVehicle) => {
+    if (!key) return;
+    const list = map.get(key) ?? [];
+    list.push(cv);
+    map.set(key, list);
+  };
+
+  const uniqueVehicles = [...new Set(vehicleRefs.map((r) => r.trim()).filter(Boolean))];
+  const vehicleRows = await Promise.all(
+    chunk(uniqueVehicles, BATCH_SIZE).map((batch) => fetchContactVehicleBatch({ VehicleIdList: batch }))
+  );
+  for (const cv of vehicleRows.flat()) {
+    const vKey = normalizePbsRef(String(cv.VehicleId || ''));
+    add(rowsByVehicle, vKey, cv);
+    add(rowsByContact, normalizePbsRef(String(cv.ContactId || '')), cv);
+    if (vKey && !facts.has(vKey)) facts.set(vKey, mapContactVehicleRow(cv));
+  }
+  await enrichVehicleRefsFromVehicleGet(facts, uniqueVehicles);
+
+  const missingContacts = [...new Set(contactRefs.map((r) => r.trim()).filter(Boolean))].filter(
+    (r) => !rowsByContact.has(normalizePbsRef(r))
+  );
+  const contactRows = await Promise.all(
+    chunk(missingContacts, BATCH_SIZE).map((batch) => fetchContactVehicleBatch({ ContactIdList: batch }))
+  );
+  for (const cv of contactRows.flat()) {
+    add(rowsByContact, normalizePbsRef(String(cv.ContactId || '')), cv);
+  }
+
+  return { rowsByVehicle, rowsByContact, facts };
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 interface PbsVehicleRecord {
   VehicleId?: string;
   Year?: string;
