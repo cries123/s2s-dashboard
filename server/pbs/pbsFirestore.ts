@@ -65,6 +65,11 @@ export function appointmentTrackerDocId(dealershipId: string, date: string): str
   return `${dealershipId}_${date}`;
 }
 
+/** What a month held before it was rebuilt from PBS. Server-only; never deleted. */
+export function monthRebuildBackupsCollection(db: Firestore) {
+  return db.collection(`${DATA_ROOT}/monthRebuildBackups`);
+}
+
 export async function commitBatches(
   db: Firestore,
   writes: Array<(batch: WriteBatch) => void>,

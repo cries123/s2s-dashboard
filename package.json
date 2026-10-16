@@ -25,7 +25,8 @@
     "test:visitstore": "node scripts/visit-store.test.mjs",
     "test:migration": "firebase emulators:exec --only firestore \"node scripts/visit-migration.emulator.test.mjs\" --project demo-s2s",
     "test:profiles": "node scripts/vehicle-profile.test.mjs",
-    "test:recording": "node scripts/repair-order-recording.test.mjs"
+    "test:recording": "node scripts/repair-order-recording.test.mjs",
+    "test:showup": "node scripts/show-up.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

@@ -31,6 +31,13 @@ export interface ScheduledAppointmentSlot {
   category: 'diagnosis' | 'oilChange' | 'recall' | 'misc';
   isWaiter: boolean;
   pickupTimeLabel?: string;
+  /** Still Open, but a repair order was opened for this car on the appointment day. */
+  arrived?: boolean;
+}
+
+/** The car-and-day key that ties an appointment to a repair order opened for it. */
+export function appointmentArrivalKey(vehicleRef: string, date: string): string {
+  return `${normalizePbsRef(vehicleRef)}|${date}`;
 }
 
 export interface PbsAppointmentDisplayInfo {
@@ -280,9 +287,12 @@ export async function syncAppointmentSchedule(
   monthEnd: string,
   lookup: AppointmentCustomerLookup,
   syncedAt: string,
-  displayInfoByAppointmentId?: Map<string, PbsAppointmentDisplayInfo>
-): Promise<{ daysWritten: number; slotsWritten: number }> {
+  displayInfoByAppointmentId?: Map<string, PbsAppointmentDisplayInfo>,
+  /** appointmentArrivalKey()s of cars that had a repair order opened that day. */
+  arrivedKeys?: ReadonlySet<string>
+): Promise<{ daysWritten: number; slotsWritten: number; arrivedByRepairOrder: number }> {
   const byDate = new Map<string, ScheduledAppointmentSlot[]>();
+  let arrivedByRepairOrder = 0;
 
   for (const appt of appointments) {
     const date = pbsAppointmentPacificDate(appt.AppointmentTime, appt.AppointmentTimeUTC);
@@ -290,6 +300,15 @@ export async function syncAppointmentSchedule(
 
     const slot = mapPbsAppointmentToSlot(appt, lookup, displayInfoByAppointmentId);
     if (!slot) continue;
+    if (
+      arrivedKeys &&
+      /^open$/i.test(slot.status) &&
+      appt.VehicleRef &&
+      arrivedKeys.has(appointmentArrivalKey(appt.VehicleRef, date))
+    ) {
+      slot.arrived = true;
+      arrivedByRepairOrder += 1;
+    }
 
     const list = byDate.get(date) || [];
     list.push(slot);
@@ -334,8 +353,9 @@ export async function syncAppointmentSchedule(
   await commitBatches(db, writes);
 
   console.log(
-    `[PBS Sync] Appointment schedule written: ${slotsWritten} slots across ${daysWritten} days (${monthStart}..${monthEnd})`
+    `[PBS Sync] Appointment schedule written: ${slotsWritten} slots across ${daysWritten} days (${monthStart}..${monthEnd}); ` +
+      `${arrivedByRepairOrder} open appointment(s) matched to a same-day repair order`
   );
 
-  return { daysWritten, slotsWritten };
+  return { daysWritten, slotsWritten, arrivedByRepairOrder };
 }

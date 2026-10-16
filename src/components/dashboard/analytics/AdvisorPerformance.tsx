@@ -46,6 +46,7 @@ import {
   type AdvisorMixRow,
 } from '../../../lib/operationsPayTypes';
 import { resolvePerformanceTotalsFromDoc, workingDaysThroughIsoDate } from '../../../lib/performanceTotals';
+import { isMonthKey, monthKeyRange } from '../../../lib/operationsMonthKeys';
 
 interface UpsellItem {
   code: string;
@@ -644,34 +645,33 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
     if (!baseTotals) return null;
 
+    // A past month is measured on its own calendar. Measured against today's, its
+    // working days came out as zero, the guard made that 1, and the "daily avg"
+    // showed the whole month as one day ($78,667/d for September).
     const today = new Date();
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    const paceDays = reportEndDate
-      ? Math.max(1, workingDaysThroughIsoDate(reportEndDate, today))
+    const isPastMonth = isMonthKey(selectedMonth);
+    const monthEnd = isPastMonth ? monthKeyRange(selectedMonth).end : undefined;
+    const reference = monthEnd ? new Date(`${monthEnd}T12:00:00`) : today;
+    const daysInMonth = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate();
+    const paceEnd = reportEndDate && workingDaysThroughIsoDate(reportEndDate, reference) > 0 ? reportEndDate : monthEnd;
+    const paceDays = paceEnd
+      ? Math.max(1, workingDaysThroughIsoDate(paceEnd, reference))
       : Math.max(1, today.getDate());
-    
-    // Pace/Forecast calculation (working days through report end when available)
-    const avgDailyGross = (baseTotals.totalGross || 0) / paceDays;
-    const grossForecast = Math.round(avgDailyGross * daysInMonth);
-    
-    const avgDailySales = (baseTotals.totalSales || 0) / paceDays;
-    const salesForecast = Math.round(avgDailySales * daysInMonth);
-
-    const avgDailyParts = (baseTotals.totalParts || 0) / paceDays;
-    const partsForecast = Math.round(avgDailyParts * daysInMonth);
-
-    const avgDailyGrossParts = (baseTotals.totalGrossParts || 0) / paceDays;
-    const grossPartsForecast = Math.round(avgDailyGrossParts * daysInMonth);
+    // Pace is per working day, so the month it projects onto is counted the same way.
+    const lastDayIso = `${reference.getFullYear()}-${String(reference.getMonth() + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    const workingDaysInMonth = Math.max(paceDays, workingDaysThroughIsoDate(lastDayIso, reference));
+    // A finished month's forecast is simply what it did.
+    const project = (total: number) => (isPastMonth ? Math.round(total) : Math.round((total / paceDays) * workingDaysInMonth));
 
     return {
       ...baseTotals,
-      grossForecast,
-      salesForecast,
-      partsForecast,
-      grossPartsForecast,
+      grossForecast: project(baseTotals.totalGross || 0),
+      salesForecast: project(baseTotals.totalSales || 0),
+      partsForecast: project(baseTotals.totalParts || 0),
+      grossPartsForecast: project(baseTotals.totalGrossParts || 0),
       daysInMonth,
       elapsedDays: paceDays,
-      daysRemaining: daysInMonth - today.getDate()
+      daysRemaining: isPastMonth ? 0 : daysInMonth - today.getDate()
     };
   };
 

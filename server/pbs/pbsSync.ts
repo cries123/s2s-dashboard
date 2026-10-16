@@ -14,6 +14,8 @@ import {
   mapContactVehicleToCustomerFields,
   mapRepairOrderToVisit,
   normalizePhone,
+  pbsAppointmentPacificDate,
+  pbsIsoToDateString,
 } from './pbsMappers.js';
 import {
   mergeIntoSummary,
@@ -46,6 +48,7 @@ import {
   stripUndefinedDeep,
 } from './pbsFirestore.js';
 import {
+  appointmentArrivalKey,
   buildAppointmentCustomerLookup,
   buildAppointmentDisplayInfoMap,
   collectUnresolvedContactRefs,
@@ -1095,17 +1098,72 @@ async function stageRepairOrders(ctx: PbsSyncStageContext): Promise<PbsSyncStage
   return {};
 }
 
-async function stageAppointments(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
-  const { db, dealershipId, startedAt, watermark, counts, fetched, monthRange } = ctx;
-  const index = await loadCustomerIndex(db, dealershipId);
+/**
+ * Appointments still Open after their day whose car had a repair order opened
+ * that same day — the customer came in, but the advisor wrote a fresh repair
+ * order instead of converting the appointment. Without this they would read as
+ * no-shows. Keys are appointmentArrivalKey(vehicle, day).
+ */
+async function findSameDayRepairOrders(
+  appointments: readonly PbsAppointment[],
+  start: string,
+  end: string
+): Promise<Set<string>> {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+  const refs = new Set<string>();
+  for (const appt of appointments) {
+    if (!/^(open)?$/i.test(String(appt.Status || '').trim())) continue;
+    const date = pbsAppointmentPacificDate(appt.AppointmentTime, appt.AppointmentTimeUTC);
+    if (!date || date >= today || date < start || date > end) continue;
+    const ref = String(appt.VehicleRef || '').trim();
+    if (ref) refs.add(ref);
+  }
+  const keys = new Set<string>();
+  const list = [...refs];
+  for (let i = 0; i < list.length; i += 50) {
+    const response = await pbsRepairOrderGet({
+      VehicleRefList: list.slice(i, i + 50),
+      OpenDateSince: `${start}T00:00:00.0000000-07:00`,
+      OpenDateUntil: `${end}T23:59:59.9999999-07:00`,
+    });
+    for (const ro of (response.RepairOrders || []) as PbsRepairOrder[]) {
+      const opened = pbsIsoToDateString(ro.DateOpened);
+      if (opened) keys.add(appointmentArrivalKey(String(ro.VehicleRef || ''), opened));
+    }
+  }
+  return keys;
+}
 
-  const { start, end } = monthRange;
+export interface AppointmentMonthResult {
+  appointments: number;
+  daysUpdated: number;
+  scheduleDays?: number;
+  scheduleSlots?: number;
+  scheduleError?: string;
+  /** Open appointments counted as shown because a repair order opened that day. */
+  arrivedByRepairOrder?: number;
+}
+
+/**
+ * One month of PBS appointments → the daily counts and the day-by-day schedule.
+ * The sync runs it for the current month; the month rebuild runs it for a past one.
+ */
+export async function syncAppointmentMonth(
+  db: Firestore,
+  dealershipId: string,
+  start: string,
+  end: string,
+  startedAt: string,
+  watermark?: string
+): Promise<AppointmentMonthResult> {
+  const index = await loadCustomerIndex(db, dealershipId);
+  const result: AppointmentMonthResult = { appointments: 0, daysUpdated: 0 };
+
   const [appointments, appointmentDisplayInfo] = await Promise.all([
     fetchAppointmentsForSync(start, end, watermark),
     fetchMonthAppointmentDisplayInfo(start, end, watermark),
   ]);
-  fetched.appointments = appointments.length;
-  counts.appointmentsProcessed = appointments.length;
+  result.appointments = appointments.length;
   console.log(`[PBS Sync] Appointments for ${start}..${end}: ${appointments.length}`);
 
   const dailyRows = aggregateAppointmentsByDay(appointments, start, end);
@@ -1142,11 +1200,20 @@ async function stageAppointments(ctx: PbsSyncStageContext): Promise<PbsSyncStage
         { merge: true }
       )
     );
-    counts.appointmentDaysUpdated += 1;
+    result.daysUpdated += 1;
     cursor.setDate(cursor.getDate() + 1);
   }
 
   await commitBatches(db, trackerWrites);
+
+  // A failed lookup only costs the show-up rate its correction; the schedule
+  // itself still goes in.
+  let arrivedKeys: Set<string> | undefined;
+  try {
+    arrivedKeys = await findSameDayRepairOrders(appointments, start, end);
+  } catch (err) {
+    console.warn('[PBS Sync] Same-day repair order check failed:', err instanceof Error ? err.message : err);
+  }
 
   const scheduleLookup = buildAppointmentCustomerLookup(index);
   try {
@@ -1170,15 +1237,29 @@ async function stageAppointments(ctx: PbsSyncStageContext): Promise<PbsSyncStage
       end,
       scheduleLookup,
       startedAt,
-      displayInfoWithFallback
+      displayInfoWithFallback,
+      arrivedKeys
     );
-    counts.appointmentScheduleDays = scheduleResult.daysWritten;
-    counts.appointmentScheduleSlots = scheduleResult.slotsWritten;
+    result.scheduleDays = scheduleResult.daysWritten;
+    result.scheduleSlots = scheduleResult.slotsWritten;
+    result.arrivedByRepairOrder = scheduleResult.arrivedByRepairOrder;
   } catch (scheduleErr) {
     const message = scheduleErr instanceof Error ? scheduleErr.message : String(scheduleErr);
     console.error('[PBS Sync] Appointment schedule failed:', scheduleErr);
-    counts.appointmentScheduleError = message;
+    result.scheduleError = message;
   }
+  return result;
+}
+
+async function stageAppointments(ctx: PbsSyncStageContext): Promise<PbsSyncStageOutcome> {
+  const { db, dealershipId, startedAt, watermark, counts, fetched, monthRange } = ctx;
+  const r = await syncAppointmentMonth(db, dealershipId, monthRange.start, monthRange.end, startedAt, watermark);
+  fetched.appointments = r.appointments;
+  counts.appointmentsProcessed = r.appointments;
+  counts.appointmentDaysUpdated += r.daysUpdated;
+  if (r.scheduleDays != null) counts.appointmentScheduleDays = r.scheduleDays;
+  if (r.scheduleSlots != null) counts.appointmentScheduleSlots = r.scheduleSlots;
+  if (r.scheduleError) counts.appointmentScheduleError = r.scheduleError;
   return {};
 }
 

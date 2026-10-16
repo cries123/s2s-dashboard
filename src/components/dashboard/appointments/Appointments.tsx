@@ -6,12 +6,17 @@ import {
 import { db, auth } from '../../../firebase';
 import { Customer, User, DailyStat, UserPreferences } from '../../../types';
 import { TopMovingPartsCard } from './TopMovingPartsCard';
+import { ShowUpRateCard } from './ShowUpRateCard';
+import { useShowUpRate } from '../../../hooks/useShowUpRate';
+import { rebuildMonthFromPbs } from '../../../lib/pbsSyncApi';
+import { ConfirmModal } from '../../ui/ConfirmModal';
+import { monthKeyLabel } from '../../../lib/operationsMonthKeys';
 import { logSystemAction } from '../../../services/loggingService';
 import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp,
-  Target, Clock, X, Printer, Archive, Lock, Unlock
+  Target, Clock, X, RefreshCw
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
@@ -38,13 +43,11 @@ import { resolvePerformanceTotalsFromDoc } from '../../../lib/performanceTotals'
 import { defaultPerformanceAdvisorRoster } from '../../../constants/dealerDefaults';
 import {
   buildOperationsViewPeriodOptions,
-  formatArchiveMonthLabel,
   getActiveMonthDateRange,
   performanceDocId,
   resolveOperationsViewPeriod,
 } from '../../../lib/operationsViewPeriod';
 import { PageHeader } from '../../layout/PageHeader';
-import { CardNotice } from '../../ui/CardNotice';
 import { PageSkeleton } from '../../ui/Skeleton';
 import {
   ResponsiveContainer,
@@ -172,7 +175,6 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
   const showProjections = modulePrefs?.showOperationsProjections !== false;
   const showAdvisorPerformance = modulePrefs?.showAdvisorPerformance !== false;
   const showTechEfficiency = modulePrefs?.showTechEfficiency !== false;
-  const showArchiveTools = modulePrefs?.showArchiveTools !== false;
   const [selectedDate, setSelectedDate] = useState(() => toLocalDateString(new Date()));
   const [dailyCount, setDailyCount] = useState<string>('');
   const [allStats, setAllStats] = useState<DailyStat[]>([]);
@@ -207,6 +209,38 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
     [viewPeriod.isHistorical, viewPeriod.year, viewPeriod.month]
   );
   const periodLabel = viewPeriod.isHistorical ? 'Month' : 'MTD';
+  const viewMonthKey = `${viewPeriod.year}-${String(viewPeriod.month + 1).padStart(2, '0')}`;
+  // Read once, shared by the Appointments tile and the show-up card below.
+  const [showUpReloadKey, setShowUpReloadKey] = useState(0);
+  const showUp = useShowUpRate(currentDealershipId, viewMonthKey, showUpReloadKey);
+
+  // A past month is rebuilt from PBS on demand. The server allows admins and
+  // managers of the PBS-synced store; the button only shows for them.
+  const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false);
+  const [refreshingMonth, setRefreshingMonth] = useState(false);
+  const callerRole = String(currentUser?.role ?? '').toLowerCase();
+  const canRefreshFromPbs =
+    (currentDealershipId || 'hyundai') === 'hyundai' &&
+    (callerRole === 'admin' || callerRole === 'manager' || currentUser?.isManager === true);
+
+  const handleRefreshFromPbs = async () => {
+    setRefreshingMonth(true);
+    try {
+      // Two requests, one per half, so neither runs into the gateway timeout.
+      const performance = await rebuildMonthFromPbs(viewMonthKey, 'performance');
+      const appointments = await rebuildMonthFromPbs(viewMonthKey, 'appointments');
+      setShowUpReloadKey((k) => k + 1);
+      onSuccess?.(
+        `${monthKeyLabel(viewMonthKey)} refreshed from PBS: $${Math.round(performance.laborGross ?? 0).toLocaleString()} labor gross, ` +
+          `${(appointments.appointments ?? 0).toLocaleString()} appointments.`
+      );
+    } catch (err) {
+      onError?.(`Refresh from PBS failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRefreshingMonth(false);
+      setConfirmRefreshOpen(false);
+    }
+  };
 
   const [allowArchiveEditing, setAllowArchiveEditing] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
@@ -802,7 +836,32 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
 
 
         <p className="crm-label">{viewPeriod.isHistorical ? 'Month-end results' : 'Month to date'}</p>
+
+        {viewPeriod.isHistorical && canRefreshFromPbs && (
+          <button
+            type="button"
+            onClick={() => setConfirmRefreshOpen(true)}
+            disabled={refreshingMonth}
+            className="btn-secondary text-sm whitespace-nowrap sm:ml-auto"
+          >
+            {refreshingMonth ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {refreshingMonth ? 'Refreshing…' : 'Refresh from PBS'}
+          </button>
+        )}
       </div>
+
+      <ConfirmModal
+        open={confirmRefreshOpen}
+        title={`Refresh ${monthKeyLabel(viewMonthKey)} from PBS?`}
+        description={
+          `Labor, parts, technician and appointment numbers for ${monthKeyLabel(viewMonthKey)} are pulled again from PBS ` +
+          `and replace what is saved for that month now. The current numbers are kept as a backup. Takes about a minute.`
+        }
+        confirmLabel="Refresh"
+        loading={refreshingMonth}
+        onConfirm={handleRefreshFromPbs}
+        onCancel={() => setConfirmRefreshOpen(false)}
+      />
       {performanceReport.status !== 'ready' && (
         <p role="status" className="card-base p-4 text-sm text-text-secondary">
           {performanceReport.status === 'loading' ? 'Loading the selected performance report…' :
@@ -818,6 +877,26 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           <p className="crm-label mt-1.5">
             {hasAppointmentData ? (viewPeriod.isHistorical ? 'Final volume' : `Trending ${Math.round(metrics.forecast).toLocaleString()}`) : trackerError ? 'Counts unavailable' : 'No counts recorded'}
           </p>
+          <dl className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t" style={{ borderColor: 'var(--color-row-divider)' }}>
+            <div>
+              <dt className="crm-label">Daily pace</dt>
+              <dd className="text-base font-semibold tabular-nums">
+                {hasAppointmentData ? `${Number(metrics.avgDaily).toFixed(1)}/day` : '—'}
+              </dd>
+              <dd className="crm-label tabular-nums">goal {targetValue}/day</dd>
+            </div>
+            <div>
+              <dt className="crm-label">Show-up rate</dt>
+              <dd className="text-base font-semibold tabular-nums">
+                {showUp.current.rate != null ? `${showUp.current.rate}%` : showUp.loading ? '…' : '—'}
+              </dd>
+              <dd className="crm-label tabular-nums">
+                {showUp.previous.rate != null
+                  ? `${monthKeyLabel(showUp.prevKey).slice(0, 3)} ${showUp.previous.rate}%`
+                  : `${showUp.current.noShow.toLocaleString()} no-shows`}
+              </dd>
+            </div>
+          </dl>
         </div>
         <div className="card-base px-4 py-3.5 sm:px-5 sm:py-4">
           <p className="crm-label">Labor gross {periodLabel}</p>
@@ -1118,81 +1197,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
         )}
       </AnimatePresence>
 
-      <div className="card-base p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 no-print">
-        <div>
-          <div className="flex items-center gap-2">
-              <h4 className="crm-section-title">Performance tools & audit</h4>
-              {selectedMonth !== 'active' ? (
-                allowArchiveEditing ? (
-                  <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold normal-case tracking-normal rounded-full flex items-center gap-1 animate-pulse">
-                    <span>Archive editing enabled</span>
-                  </span>
-                ) : (
-                  <span className="badge badge-neutral">Past month</span>
-                )
-              ) : (
-                <span className="badge badge-neutral">Current month</span>
-              )}
-            </div>
-            <div className="mt-2">
-              {selectedMonth === 'active' ? (
-                <CardNotice tone="info" summary="Before you archive">
-                  This is the live workspace for the current month. Save last month's figures before
-                  restarting, or they are lost.
-                </CardNotice>
-              ) : allowArchiveEditing ? (
-                <CardNotice tone="warn" summary="Edits will overwrite the archive">
-                  Any manual entry or PDF import now updates the saved numbers for{' '}
-                  {formatArchiveMonthLabel(selectedMonth)}.
-                </CardNotice>
-              ) : (
-                <CardNotice tone="info" summary="Read-only audit" />
-              )}
-            </div>
-        </div>
-
-        {/* Dynamic Controls Grid */}
-        <div className="w-full lg:w-auto">
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
-            {/* Lock / Unlock Archive Editing */}
-            {selectedMonth !== 'active' && (
-              <button
-                onClick={() => setAllowArchiveEditing(!allowArchiveEditing)}
-                className={cn(
-                  "h-11 px-4 sm:px-6 border text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 rounded-xl",
-                  allowArchiveEditing 
-                    ? "bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30 text-amber-500 shadow-lg shadow-amber-500/5 animate-pulse" 
-                    : "bg-slate-800 hover:bg-slate-750 border-white/5 text-slate-300 hover:text-white"
-                )}
-                title="Unlock editing capability for this historical archive month"
-              >
-                {allowArchiveEditing ? <Unlock size={13} /> : <Lock size={13} />}
-                {allowArchiveEditing ? "Lock archive" : "Unlock to edit"}
-              </button>
-            )}
-
-            {/* Dynamic Custom Archive Option - Only clickable with active tracker */}
-            {selectedMonth === 'active' && showArchiveTools && (
-              <button
-                onClick={() => setShowArchiveModal(true)}
-                className="btn-secondary text-sm whitespace-nowrap"
-                title="Configure custom destination archive period and restart workspace"
-              >
-                <Archive size={13} />
-                Archive &amp; restart
-              </button>
-            )}
- 
-            <button
-              onClick={() => setIsPrintModalOpen(true)}
-              className="btn-secondary text-sm whitespace-nowrap"
-            >
-              <Printer size={13} />
-              Print report
-            </button>
-          </div>
-        </div>
-      </div>
+      <ShowUpRateCard showUp={showUp} />
  
       {/* Refactored Architecture Archive Configuration Picker Modal */}
       <ArchiveControlModal

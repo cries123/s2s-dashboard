@@ -406,6 +406,41 @@ export async function previewRepairOrderLinking(month: string): Promise<LinkPrev
   return body;
 }
 
+export type MonthRebuildPart = 'performance' | 'appointments';
+
+export interface MonthRebuildResult {
+  month: string;
+  ok: boolean;
+  advisors?: number;
+  technicians?: number;
+  repairOrders?: number;
+  laborGross?: number;
+  appointments?: number;
+  advisorError?: string;
+  technicianError?: string;
+  appointmentError?: string;
+  /** Where the month's previous numbers were kept, if it had any. */
+  backupId?: string;
+}
+
+/**
+ * Rebuild one past month from PBS — one half per request, so neither runs into
+ * the gateway timeout. The month's old numbers are kept as a backup on the server.
+ */
+export async function rebuildMonthFromPbs(month: string, part: MonthRebuildPart): Promise<MonthRebuildResult> {
+  const headers = await bearerHeaders();
+  const res = await fetch('/api/pbs/months/rebuild', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ month, part }),
+  });
+  const body = await parseJson<MonthRebuildResult & { error?: string }>(res);
+  if (!res.ok || !body.ok) {
+    throw new Error(body.error || body.advisorError || body.appointmentError || 'Could not rebuild the month from PBS.');
+  }
+  return body;
+}
+
 /** Turn linking-from-repair-orders on or off for the sync. */
 export async function setRepairOrderLinking(enabled: boolean): Promise<void> {
   const headers = await bearerHeaders();

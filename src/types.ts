@@ -551,11 +551,14 @@ export interface ScheduledAppointmentSlot {
   advisor: string;
   customerName: string;
   vehicleLabel: string;
+  /** PBS: 'Open' until the car comes in, 'Transfer' once it is a repair order, 'Void' if cancelled. */
   status: string;
   concern: string;
   category: 'diagnosis' | 'oilChange' | 'recall' | 'misc';
   isWaiter: boolean;
   pickupTimeLabel?: string;
+  /** Still Open, but a repair order was opened for this car on the appointment day. */
+  arrived?: boolean;
 }
 
 export interface DayAppointmentSchedule {

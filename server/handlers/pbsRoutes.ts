@@ -37,6 +37,8 @@ import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
 import {
   findEmptyPastMonths,
   isMonthKey,
+  MONTH_REBUILD_PARTS,
+  pacificToday,
   rebuildPbsMonth,
 } from '../pbs/pbsMonthRebuild.js';
 import { probePbsCapabilities } from '../pbs/pbsCapabilityProbe.js';
@@ -416,7 +418,7 @@ export function registerPbsRoutes(app: Express) {
       const months = await findEmptyPastMonths(
         db,
         PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
-        new Date(),
+        pacificToday(),
         12
       );
       return res.json({ ok: true, months });
@@ -429,7 +431,9 @@ export function registerPbsRoutes(app: Express) {
    * Rebuild one past month from PBS.
    *
    * A month that nobody closed by hand is blank for ever otherwise. This writes
-   * only that month's archive documents, never the live sheet.
+   * only that month's archive documents, never the live sheet, and keeps a copy
+   * of what they held first. `part` ('performance' or 'appointments') does one
+   * half per request so neither runs into the gateway timeout; omitted, both.
    */
   app.post('/api/pbs/months/rebuild', async (req: Request, res: Response) => {
     const caller = await resolvePbsSyncCaller(req);
@@ -443,6 +447,10 @@ export function registerPbsRoutes(app: Express) {
     if (!isMonthKey(month)) {
       return res.status(400).json({ error: 'Pass a month as YYYY-MM.' });
     }
+    const part = req.body?.part;
+    if (part !== undefined && !MONTH_REBUILD_PARTS.includes(part)) {
+      return res.status(400).json({ error: `part must be one of: ${MONTH_REBUILD_PARTS.join(', ')}.` });
+    }
     const db = getAdminFirestore();
     if (!db) {
       return res.status(503).json({ error: 'Firestore is not configured.' });
@@ -452,8 +460,10 @@ export function registerPbsRoutes(app: Express) {
         db,
         PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
         month,
-        new Date().toISOString()
+        new Date().toISOString(),
+        part ? [part] : MONTH_REBUILD_PARTS
       );
+      console.log(`[PBS Month] Rebuild of ${month} (${part ?? 'all'}) requested by ${caller.email}`);
       return res.status(result.ok ? 200 : 500).json(result);
     } catch (err) {
       return handlePbsError(res, err);
