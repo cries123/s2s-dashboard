@@ -887,23 +887,20 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           <p className="crm-label mt-1.5">
             {hasAppointmentData ? (viewPeriod.isHistorical ? 'Final volume' : `Trending ${Math.round(metrics.forecast).toLocaleString()}`) : trackerError ? 'Counts unavailable' : 'No counts recorded'}
           </p>
-          <dl className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t" style={{ borderColor: 'var(--color-row-divider)' }}>
+          {/* Label over value, nothing under either. The goal is already on the chip above the
+              picker, and last month's rate has its own card below. items-end keeps the two values
+              on one line when "Show-up rate" wraps on a phone. */}
+          <dl className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t items-end" style={{ borderColor: 'var(--color-row-divider)' }}>
             <div>
               <dt className="crm-label">Daily pace</dt>
               <dd className="text-base font-semibold tabular-nums">
                 {hasAppointmentData ? `${Number(metrics.avgDaily).toFixed(1)}/day` : '—'}
               </dd>
-              <dd className="crm-label tabular-nums">goal {targetValue}/day</dd>
             </div>
             <div>
               <dt className="crm-label">Show-up rate</dt>
               <dd className="text-base font-semibold tabular-nums">
                 {showUp.current.rate != null ? `${showUp.current.rate}%` : showUp.loading ? '…' : '—'}
-              </dd>
-              <dd className="crm-label tabular-nums">
-                {showUp.previous.rate != null
-                  ? `${monthKeyLabel(showUp.prevKey).slice(0, 3)} ${showUp.previous.rate}%`
-                  : `${showUp.current.noShow.toLocaleString()} no-shows`}
               </dd>
             </div>
           </dl>
