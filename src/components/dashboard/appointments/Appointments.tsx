@@ -725,6 +725,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       mtdGross: resolvedPerformance?.totalGross ?? 0,
       mtdLaborSales: resolvedPerformance?.totalLabor ?? 0,
       mtdPartsGross: resolvedPerformance?.totalGrossParts ?? 0,
+      mtdHoursSold: resolvedPerformance?.totalHrs ?? 0,
       performanceReportEndDate: resolvedPerformance?.reportEndDate,
       referenceDate: viewReferenceDate,
     });
@@ -889,7 +890,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           </p>
           {/* Label over value, nothing under either. The goal is already on the chip above the
               picker, and last month's rate has its own card below. items-end keeps the two values
-              on one line when "Show-up rate" wraps on a phone. */}
+              on one line when a label wraps on a phone. */}
           <dl className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t items-end" style={{ borderColor: 'var(--color-row-divider)' }}>
             <div>
               <dt className="crm-label">Daily pace</dt>
@@ -898,7 +899,7 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
               </dd>
             </div>
             <div>
-              <dt className="crm-label">Show-up rate</dt>
+              <dt className="crm-label">Show-up</dt>
               <dd className="text-base font-semibold tabular-nums">
                 {showUp.current.rate != null ? `${showUp.current.rate}%` : showUp.loading ? '…' : '—'}
               </dd>
@@ -911,6 +912,38 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           <p className="crm-label mt-1.5">
             {performanceReport.status === 'ready' ? `$${Math.round(metrics.laborDailyAvg).toLocaleString()}/day · goal $${Math.round(metrics.laborTarget).toLocaleString()}` : 'Results unavailable'}
           </p>
+          {/* Same shape as the Appointments tile. Projected hours pace like labor gross does, so
+              they agree with its Trending figure; a finished month has nothing left to project. */}
+          <dl
+            className={cn(
+              'grid gap-3 mt-3 pt-3 border-t items-end',
+              viewPeriod.isHistorical ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'
+            )}
+            style={{ borderColor: 'var(--color-row-divider)' }}
+          >
+            <div>
+              <dt className="crm-label">Hours sold</dt>
+              <dd className="text-base font-semibold tabular-nums">
+                {performanceReport.status === 'ready' ? `${Math.round(metrics.mtdHoursSold).toLocaleString()} hrs` : '—'}
+              </dd>
+            </div>
+            {!viewPeriod.isHistorical && (
+              <div>
+                <dt className="crm-label">Projected hrs</dt>
+                <dd className="text-base font-semibold tabular-nums">
+                  {performanceReport.status === 'ready' ? `${metrics.hoursForecast.toLocaleString()} hrs` : '—'}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="crm-label">ELR</dt>
+              <dd className="text-base font-semibold tabular-nums">
+                {performanceReport.status === 'ready' && metrics.effectiveLaborRate > 0
+                  ? `$${Math.round(metrics.effectiveLaborRate).toLocaleString()}/hr`
+                  : '—'}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
 

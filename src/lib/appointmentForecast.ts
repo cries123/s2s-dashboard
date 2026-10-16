@@ -35,6 +35,8 @@ export interface AppointmentForecastInput {
   mtdGross: number;
   mtdLaborSales: number;
   mtdPartsGross: number;
+  /** Hours sold month to date, from the advisor report. */
+  mtdHoursSold?: number;
   /** Last day covered by the imported productivity report (ISO date). Pace uses working days through this date. */
   performanceReportEndDate?: string;
   referenceDate?: Date;
@@ -68,6 +70,12 @@ export interface AppointmentForecastMetrics {
   partsTarget: number;
   partsDailyAvg: number;
   partsVariance: number;
+  mtdHoursSold: number;
+  hoursDailyAvg: number;
+  /** Hours sold so far plus the same working-day pace as labor gross for the days left. */
+  hoursForecast: number;
+  /** Labor sales ÷ hours sold; 0 until any hours are sold. */
+  effectiveLaborRate: number;
   elapsedWorkingDays: number;
   totalWorkingDays: number;
 }
@@ -187,6 +195,14 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
   const laborSalesForecast = Math.round(input.mtdLaborSales + laborSalesDailyAvg * remainingWorkingDays);
   const grossVariance = input.mtdGross - grossPaceTarget;
 
+  // Hours sold pace exactly like labor gross, so projected hours and trending
+  // labor gross always tell the same story.
+  const mtdHoursSold = input.mtdHoursSold ?? 0;
+  const hoursDailyAvg = mtdHoursSold / salesPaceDays;
+  const hoursForecast = Math.round(mtdHoursSold + hoursDailyAvg * remainingWorkingDays);
+  // Effective labor rate: labor sales per hour sold.
+  const effectiveLaborRate = mtdHoursSold > 0 ? input.mtdLaborSales / mtdHoursSold : 0;
+
   const partsDailyAvg = input.mtdPartsGross / salesPaceDays;
   const partsPaceTarget = Math.round((input.partsTarget / totalWorkingDays) * elapsedWorkingDays);
   const partsForecast = Math.round(input.mtdPartsGross + partsDailyAvg * remainingWorkingDays);
@@ -220,6 +236,10 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
     partsTarget: input.partsTarget,
     partsDailyAvg,
     partsVariance,
+    mtdHoursSold,
+    hoursDailyAvg,
+    hoursForecast,
+    effectiveLaborRate,
     elapsedWorkingDays,
     totalWorkingDays,
   };

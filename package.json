@@ -26,7 +26,8 @@
     "test:profiles": "node scripts/vehicle-profile.test.mjs",
     "test:recording": "node scripts/repair-order-recording.test.mjs",
     "test:showup": "node scripts/show-up.test.mjs",
-    "test:advisors": "node scripts/advisor-name.test.mjs"
+    "test:advisors": "node scripts/advisor-name.test.mjs",
+    "test:labortile": "node scripts/labor-tile.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",
