@@ -16,7 +16,7 @@ import { extractTextFromPDF } from '../../../utils/pdfExtractor';
 import { recordDmsImportFailure, recordDmsImportSuccess } from '../../../lib/dmsImportHealth';
 import { 
   ChevronLeft, ChevronRight, Save, Loader2, TrendingUp,
-  Target, Clock, X, RefreshCw
+  Target, Clock, X, RefreshCw, Printer
 } from 'lucide-react';
 import { AdvisorPerformance } from '../analytics/AdvisorPerformance';
 import { TechnicianEfficiency } from './TechnicianEfficiency';
@@ -837,17 +837,27 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
 
         <p className="crm-label">{viewPeriod.isHistorical ? 'Month-end results' : 'Month to date'}</p>
 
-        {viewPeriod.isHistorical && canRefreshFromPbs && (
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {viewPeriod.isHistorical && canRefreshFromPbs && (
+            <button
+              type="button"
+              onClick={() => setConfirmRefreshOpen(true)}
+              disabled={refreshingMonth}
+              className="btn-secondary text-sm whitespace-nowrap"
+            >
+              {refreshingMonth ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {refreshingMonth ? 'Refreshing…' : 'Refresh from PBS'}
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setConfirmRefreshOpen(true)}
-            disabled={refreshingMonth}
-            className="btn-secondary text-sm whitespace-nowrap sm:ml-auto"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="btn-secondary text-sm whitespace-nowrap"
           >
-            {refreshingMonth ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            {refreshingMonth ? 'Refreshing…' : 'Refresh from PBS'}
+            <Printer size={13} />
+            Print report
           </button>
-        )}
+        </div>
       </div>
 
       <ConfirmModal
@@ -1325,8 +1335,9 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
       <PerformancePrintModal 
         isOpen={isPrintModalOpen} 
         onClose={() => setIsPrintModalOpen(false)} 
-        currentDealershipId={currentDealershipId} 
+        currentDealershipId={currentDealershipId}
         selectedMonth={selectedMonth}
+        showUp={showUp.current}
       />
     </div>
   );

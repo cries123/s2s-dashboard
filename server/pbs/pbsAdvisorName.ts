@@ -50,8 +50,9 @@ export function cleanPbsCsrName(
   const trimmed = (raw || '').trim();
   if (!trimmed) return '';
 
+  // An alias onto a junk name would make a real advisor's tickets vanish.
   const directAlias = aliases?.get(normalizePbsAdvisorCode(trimmed));
-  if (directAlias) return directAlias;
+  if (directAlias && isRealPbsAdvisorName(directAlias)) return directAlias;
 
   const upper = trimmed.toUpperCase();
   if (upper.includes('FRANK')) return 'Frank';

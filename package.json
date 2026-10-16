@@ -16,7 +16,6 @@
     "test:parts": "node scripts/top-parts.test.mjs",
     "test:potofgold": "node scripts/pot-of-gold.test.mjs",
     "test:conversion": "node scripts/conversion.test.mjs",
-    "test:webdcs": "node scripts/webdcs.test.mjs",
     "test:dates": "node scripts/service-dates.test.mjs",
     "test:months": "node scripts/month-keys.test.mjs",
     "test:forecast": "node scripts/forecast-model.test.mjs",
@@ -26,7 +25,8 @@
     "test:migration": "firebase emulators:exec --only firestore \"node scripts/visit-migration.emulator.test.mjs\" --project demo-s2s",
     "test:profiles": "node scripts/vehicle-profile.test.mjs",
     "test:recording": "node scripts/repair-order-recording.test.mjs",
-    "test:showup": "node scripts/show-up.test.mjs"
+    "test:showup": "node scripts/show-up.test.mjs",
+    "test:advisors": "node scripts/advisor-name.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

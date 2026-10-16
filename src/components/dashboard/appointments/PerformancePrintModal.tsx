@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { Printer, X, FileText, Loader2, BarChart2, TrendingUp, ShieldAlert, Award } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Printer, X, FileText, Loader2, TrendingUp, Award } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { cn } from '../../../lib/utils';
-import { dedupeDailyStatsByDate } from '../../../lib/appointmentTracker';
+import { performanceDocId } from '../../../lib/operationsViewPeriod';
+import { isMonthKey, monthKeyRange } from '../../../lib/operationsMonthKeys';
+import { toLocalDateString } from '../../../lib/appointmentTracker';
+import type { ShowUpSummary } from '../../../lib/appointmentShowUp';
 
 // Helper: US Federal Holidays definitions
 const isFederalHoliday = (date: Date): boolean => {
-  const y = date.getFullYear();
   const m = date.getMonth(); // 0-indexed: 0=Jan, 11=Dec
   const d = date.getDate();
   const day = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
@@ -41,10 +43,10 @@ const isFederalHoliday = (date: Date): boolean => {
 const getWorkingDaysCount = (startStr: string, endStr: string): number => {
   const start = new Date(startStr + 'T00:00:00');
   const end = new Date(endStr + 'T00:00:00');
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 1;
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return 0;
 
   let count = 0;
-  let current = new Date(start);
+  const current = new Date(start);
   while (current <= end) {
     const dayOfWeek = current.getDay();
     const isWorkingDay = dayOfWeek >= 1 && dayOfWeek <= 5;
@@ -53,25 +55,24 @@ const getWorkingDaysCount = (startStr: string, endStr: string): number => {
     }
     current.setDate(current.getDate() + 1);
   }
-  return count || 1;
+  return count;
 };
 
 // Helper: Format date input string into classic US "M/D/YY" or similar
 const formatDateRangeShort = (startStr: string, endStr: string): string => {
-  try {
-    const start = new Date(startStr + 'T00:00:00');
-    const end = new Date(endStr + 'T00:00:00');
-    const fmt = (d: Date) => {
-      const m = d.getMonth() + 1;
-      const day = d.getDate();
-      const yr = d.getFullYear().toString().substring(2);
-      return `${m}/${day}/${yr}`;
-    };
-    return `${fmt(start)}-${fmt(end)}`;
-  } catch (e) {
-    return `${startStr} - ${endStr}`;
-  }
+  const fmt = (s: string) => {
+    const d = new Date(s + 'T00:00:00');
+    if (isNaN(d.getTime())) return s;
+    return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear().toString().substring(2)}`;
+  };
+  return `${fmt(startStr)}-${fmt(endStr)}`;
 };
+
+/** Names and labels come from PBS; nothing from it goes into the print page as markup. */
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+const money = (n: number) => `$${(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 interface UpsellItem {
   code: string;
@@ -106,6 +107,82 @@ interface PerformancePrintModalProps {
   onClose: () => void;
   currentDealershipId: string;
   selectedMonth?: string;
+  /**
+   * The month's show-up rate, as the Operations card shows it. The report used
+   * to divide repair orders by booked appointments instead — walk-ins counted
+   * as shows — and print 91.5% when it had nothing to divide.
+   */
+  showUp?: ShowUpSummary | null;
+}
+
+/** The dates a month covers when its document does not say: never invented ones. */
+function fallbackRange(selectedMonth: string): { start: string; end: string } {
+  if (isMonthKey(selectedMonth)) return monthKeyRange(selectedMonth);
+  const today = toLocalDateString(new Date());
+  return { start: `${today.slice(0, 8)}01`, end: today };
+}
+
+/** Everything the report prints, worked out once for both the preview and the print page. */
+function buildReport(
+  advisors: AdvisorData[],
+  technicians: TechnicianData[],
+  advisorRange: { start: string; end: string },
+  techRange: { start: string; end: string },
+  showUp: ShowUpSummary | null | undefined
+) {
+  const totalSOs = advisors.reduce((sum, a) => sum + (a.soCount || 0), 0);
+  const totalHrs = advisors.reduce((sum, a) => sum + (a.hrsSold || 0), 0);
+  const totalLabor = advisors.reduce((sum, a) => sum + (a.laborSold || 0), 0);
+  const totalLaborGross = advisors.reduce((sum, a) => sum + (a.grossLabor || 0), 0);
+  const totalParts = advisors.reduce((sum, a) => sum + (a.partsSold || 0), 0);
+  const totalPartsGross = advisors.reduce((sum, a) => sum + (a.grossParts || 0), 0);
+  const totalSales = advisors.reduce((sum, a) => sum + (a.totalSales || 0), 0);
+  const elr = totalHrs > 0 ? Math.round((totalLabor / totalHrs) * 100) / 100 : 0;
+  const gp = totalSales > 0 ? Math.round(((totalLaborGross + totalPartsGross) / totalSales) * 1000) / 10 : 0;
+
+  const workingDays = getWorkingDaysCount(advisorRange.start, advisorRange.end);
+  const avgROsPerDay = workingDays > 0 ? (totalSOs / workingDays).toFixed(1) : '—';
+
+  // Clocked hours of 0 means PBS sent no time clock for that tech, not that they
+  // worked no hours. Efficiency is only worked out where there is a clock.
+  const clocked = technicians.filter((t) => (t.clockedHours || 0) > 0);
+  const totalClocked = clocked.reduce((sum, t) => sum + t.clockedHours, 0);
+  const totalFlagged = technicians.reduce((sum, t) => sum + (t.flaggedHours || 0), 0);
+  const flaggedOnClocked = clocked.reduce((sum, t) => sum + (t.flaggedHours || 0), 0);
+  const shopEfficiency = totalClocked > 0 ? Math.round((flaggedOnClocked / totalClocked) * 100) : null;
+
+  const judged = showUp ? showUp.showed + showUp.noShow : 0;
+  return {
+    totalSOs,
+    totalHrs,
+    totalLabor,
+    totalLaborGross,
+    totalParts,
+    totalPartsGross,
+    elr,
+    gp,
+    workingDays,
+    avgROsPerDay,
+    advisorPeriod: formatDateRangeShort(advisorRange.start, advisorRange.end),
+    techPeriod: formatDateRangeShort(techRange.start, techRange.end),
+    hasClock: clocked.length > 0,
+    totalClocked,
+    totalFlagged,
+    shopEfficiency,
+    showUpRate: showUp?.rate ?? null,
+    showUpDetail: showUp?.rate != null ? `${showUp.showed} of ${judged} came in` : 'No appointment schedule',
+  };
+}
+
+function techRow(tech: TechnicianData) {
+  const hasClock = (tech.clockedHours || 0) > 0;
+  return {
+    clocked: hasClock ? `${tech.clockedHours.toFixed(2)} hrs` : '—',
+    flagged: `${(tech.flaggedHours || 0).toFixed(2)} hrs`,
+    efficiency: hasClock ? `${tech.efficiency}%` : '—',
+    status: hasClock ? (tech.efficiency >= 80 ? 'Above Standard' : 'Below Standard') : 'No clock data',
+    tone: hasClock ? (tech.efficiency >= 80 ? 'good' : 'bad') : 'none',
+  } as const;
 }
 
 export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
@@ -113,99 +190,74 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
   onClose,
   currentDealershipId,
   selectedMonth = 'active',
+  showUp,
 }) => {
   const [advisors, setAdvisors] = useState<AdvisorData[]>([]);
-  const [advisorTotals, setAdvisorTotals] = useState<any>(null);
   const [technicians, setTechnicians] = useState<TechnicianData[]>([]);
   const [loadingAdvisors, setLoadingAdvisors] = useState(true);
   const [loadingTechs, setLoadingTechs] = useState(true);
-  // Empty until the performance document supplies a real range — never invent dates
-  // on a document that goes in front of a customer.
-  const [advisorStartDate, setAdvisorStartDate] = useState("");
-  const [advisorEndDate, setAdvisorEndDate] = useState("");
-  const [techStartDate, setTechStartDate] = useState("");
-  const [techEndDate, setTechEndDate] = useState("");
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [advisorDates, setAdvisorDates] = useState<{ start?: string; end?: string }>({});
+  const [techDates, setTechDates] = useState<{ start?: string; end?: string }>({});
 
   // Capitalize dealership name
-  const dealershipName = currentDealershipId === 'hyundai' 
-    ? 'HYUNDAI OF SANTA MARIA' 
+  const dealershipName = currentDealershipId === 'hyundai'
+    ? 'HYUNDAI OF SANTA MARIA'
     : `${currentDealershipId.toUpperCase()} DEALERSHIP`;
 
   useEffect(() => {
     if (!isOpen || !currentDealershipId) return;
 
+    // A month switched while open must not keep the last month's dates.
     setLoadingAdvisors(true);
     setLoadingTechs(true);
+    setAdvisorDates({});
+    setTechDates({});
 
-    // 1. Subscribe to Advisors
-    const baseAdvId = currentDealershipId === 'hyundai' ? 'advisorReports' : `advisorReports_${currentDealershipId}`;
-    const advDocId = selectedMonth === 'active' ? baseAdvId : `${baseAdvId}_archive_${selectedMonth}`;
-    const advRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', advDocId);
-    
+    const performancePath = ['artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance'] as const;
+    const advRef = doc(db, ...performancePath, performanceDocId('advisorReports', currentDealershipId, selectedMonth));
     const unsubAdvisors = onSnapshot(advRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const filteredAdvisors = (data.advisors || []).filter((a: any) => a.name.toLowerCase().trim() !== 'jay');
-        setAdvisors(filteredAdvisors);
-        setAdvisorTotals(data.totals || null);
-        if (data.reportStartDate) setAdvisorStartDate(data.reportStartDate);
-        if (data.reportEndDate) setAdvisorEndDate(data.reportEndDate);
-      } else {
-        setAdvisors([]);
-        setAdvisorTotals(null);
-      }
+      const data = docSnap.exists() ? docSnap.data() : undefined;
+      // "Jay" was a junk line in the old PDF reports, never an advisor.
+      setAdvisors(((data?.advisors || []) as AdvisorData[]).filter((a) => String(a.name || '').toLowerCase().trim() !== 'jay'));
+      setAdvisorDates({ start: data?.reportStartDate, end: data?.reportEndDate });
       setLoadingAdvisors(false);
     }, (err) => {
       console.error("Print Modal failed to subscribe to advisors:", err);
       setLoadingAdvisors(false);
     });
 
-    // 2. Subscribe to Technicians
-    const baseTechId = currentDealershipId === 'hyundai' ? 'technicianReports' : `technicianReports_${currentDealershipId}`;
-    const techDocId = selectedMonth === 'active' ? baseTechId : `${baseTechId}_archive_${selectedMonth}`;
-    const techRef = doc(db, 'artifacts', 'hyundai-sales-to-service', 'public', 'data', 'performance', techDocId);
-    
+    const techRef = doc(db, ...performancePath, performanceDocId('technicianReports', currentDealershipId, selectedMonth));
     const unsubTechs = onSnapshot(techRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setTechnicians(data.technicians || []);
-        if (data.reportStartDate) setTechStartDate(data.reportStartDate);
-        if (data.reportEndDate) setTechEndDate(data.reportEndDate);
-      } else {
-        setTechnicians([]);
-      }
+      const data = docSnap.exists() ? docSnap.data() : undefined;
+      setTechnicians((data?.technicians || []) as TechnicianData[]);
+      setTechDates({ start: data?.reportStartDate, end: data?.reportEndDate });
       setLoadingTechs(false);
     }, (err) => {
       console.error("Print Modal failed to subscribe to technicians:", err);
       setLoadingTechs(false);
     });
 
-    // 3. Subscribe to Appointments
-    const apptPath = 'artifacts/hyundai-sales-to-service/public/data/appointmentTracker';
-    const apptRef = query(
-      collection(db, apptPath),
-      where('dealershipId', '==', currentDealershipId)
-    );
-    const unsubAppts = onSnapshot(apptRef, (snap) => {
-      let stats = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-      stats = stats.filter(s => {
-        if (currentDealershipId === 'hyundai') {
-          return !s.dealershipId || s.dealershipId === 'hyundai';
-        }
-        return s.dealershipId === currentDealershipId;
-      });
-      setAppointments(stats);
-    }, (err) => {
-      console.error("Print Modal failed to subscribe to appointments:", err);
-    });
-
     return () => {
       unsubAdvisors();
       unsubTechs();
-      unsubAppts();
     };
   }, [isOpen, currentDealershipId, selectedMonth]);
+
+  const report = useMemo(() => {
+    const fallback = fallbackRange(selectedMonth);
+    const advisorRange = { start: advisorDates.start || fallback.start, end: advisorDates.end || fallback.end };
+    const techRange = { start: techDates.start || fallback.start, end: techDates.end || fallback.end };
+    return buildReport(advisors, technicians, advisorRange, techRange, showUp);
+  }, [advisors, technicians, advisorDates, techDates, selectedMonth, showUp]);
+
+  const todayStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
   // Handle direct command to trigger print
   const handlePrint = () => {
@@ -219,62 +271,16 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
       return;
     }
 
-    // Calculations for the printed document
-    const dSOs = advisors.reduce((sum, a) => sum + (a.soCount || 0), 0);
-    const dHrs = advisors.reduce((sum, a) => sum + (a.hrsSold || 0), 0);
-    const dLabor = advisors.reduce((sum, a) => sum + (a.laborSold || 0), 0);
-    const dLaborGross = advisors.reduce((sum, a) => sum + (a.grossLabor || 0), 0);
-    const dParts = advisors.reduce((sum, a) => sum + (a.partsSold || 0), 0);
-    const dPartsGross = advisors.reduce((sum, a) => sum + (a.grossParts || 0), 0);
-    const dDmsSales = advisors.reduce((sum, a) => sum + (a.totalSales || 0), 0);
-    
-    const dElr = dDmsSales > 0 ? Math.round((dLabor / (dHrs || 1)) * 100) / 100 : 0;
-    const dGp = dDmsSales > 0 ? Math.round(((dLaborGross + dPartsGross) / dDmsSales) * 1000) / 10 : 0;
-
-    const dClockedHours = technicians.reduce((sum, t) => sum + (t.clockedHours || 0), 0);
-    const dFlaggedHours = technicians.reduce((sum, t) => sum + (t.flaggedHours || 0), 0);
-    const dAverageTechEfficiency = dClockedHours > 0 
-      ? Math.round((dFlaggedHours / dClockedHours) * 100) 
-      : 0;
-
-    const printStartDateVal = advisorStartDate || "2026-05-01";
-    const printEndDateVal = advisorEndDate || "2026-05-28";
-    const printTechStartDateVal = techStartDate || "2026-05-16";
-    const printTechEndDateVal = techEndDate || "2026-05-28";
-    const printWorkingDays = getWorkingDaysCount(printStartDateVal, printEndDateVal);
-    const printAvgROsPerDay = printWorkingDays > 0 ? (dSOs / printWorkingDays).toFixed(1) : "0.0";
-
-    const printEndSplit = printEndDateVal.split('-');
-    const printMonthPrefix = printEndSplit.length >= 2 ? `${printEndSplit[0]}-${printEndSplit[1]}` : "2026-05";
-    const printScheduledCount = appointments
-      .filter((stat: any) => stat.date && stat.date.startsWith(printMonthPrefix))
-      .reduce((sum: number, stat: any) => sum + (stat.count || 0), 0);
-
-    const printFinalScheduled = printScheduledCount > 0 ? printScheduledCount : Math.round(dSOs * 1.12);
-    const printShowedUpPercent = printFinalScheduled > 0 
-      ? Math.round((dSOs / printFinalScheduled) * 1000) / 10 
-      : 91.5;
-
-    const printTodayStr = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    // Populate Advisor rows HTML
     const advisorRows = advisors.map((advisor) => {
-      const elrVal = advisor.soCount > 0 ? (advisor.laborSold / (advisor.hrsSold || 1)) : 0;
+      const elrVal = (advisor.hrsSold || 0) > 0 ? advisor.laborSold / advisor.hrsSold : 0;
       return `
         <tr class="border-b border-gray-200 text-[11px] text-gray-800">
-          <td class="py-3 px-3 font-bold text-gray-900">${advisor.name}</td>
-          <td class="py-3 px-2 text-right">$${(advisor.laborSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          <td class="py-3 px-2 text-right">$${(advisor.grossLabor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          <td class="py-3 px-2 text-right">$${(advisor.partsSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          <td class="py-3 px-2 text-right">$${(advisor.grossParts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-          <td class="py-3 px-2 text-center font-bold text-gray-950">$${((advisor.elr || elrVal || 0)).toFixed(2)}</td>
+          <td class="py-3 px-3 font-bold text-gray-900">${escapeHtml(advisor.name)}</td>
+          <td class="py-3 px-2 text-right">${money(advisor.laborSold)}</td>
+          <td class="py-3 px-2 text-right">${money(advisor.grossLabor)}</td>
+          <td class="py-3 px-2 text-right">${money(advisor.partsSold)}</td>
+          <td class="py-3 px-2 text-right">${money(advisor.grossParts)}</td>
+          <td class="py-3 px-2 text-center font-bold text-gray-950">$${(advisor.elr || elrVal || 0).toFixed(2)}</td>
           <td class="py-3 px-2 text-center font-bold text-emerald-700">${(advisor.gpPercent || 0).toFixed(1)}%</td>
           <td class="py-3 px-2 text-center text-gray-800 font-medium">${(advisor.hrsSold || 0).toFixed(1)}</td>
           <td class="py-3 px-3 text-center text-gray-800 font-medium">${advisor.soCount || 0}</td>
@@ -282,38 +288,40 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
       `;
     }).join('');
 
-    // Populate Technician rows HTML
     const technicianRows = technicians.map((tech) => {
-      const isAboveStandard = tech.efficiency >= 80;
-      const statusClass = isAboveStandard 
-        ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
-        : "bg-rose-50 text-rose-700 border-rose-200 font-semibold";
-      
+      const row = techRow(tech);
+      const statusClass = row.tone === 'good'
+        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+        : row.tone === 'bad'
+          ? 'bg-rose-50 text-rose-700 border-rose-200 font-semibold'
+          : 'bg-slate-50 text-slate-500 border-slate-200';
       return `
         <tr class="border-b border-gray-200 text-[11px] text-gray-800">
-          <td class="py-3 px-4 font-bold text-gray-900">${tech.techName}</td>
-          <td class="py-3 px-4 text-center font-medium">${tech.clockedHours.toFixed(2)} hrs</td>
-          <td class="py-3 px-4 text-center font-medium">${tech.flaggedHours.toFixed(2)} hrs</td>
-          <td class="py-3 px-4 text-center font-semibold text-gray-900">${tech.efficiency}%</td>
+          <td class="py-3 px-4 font-bold text-gray-900">${escapeHtml(tech.techName)}</td>
+          <td class="py-3 px-4 text-center font-medium">${row.clocked}</td>
+          <td class="py-3 px-4 text-center font-medium">${row.flagged}</td>
+          <td class="py-3 px-4 text-center font-semibold text-gray-900">${row.efficiency}</td>
           <td class="py-3 px-6 text-center">
-            <span class="inline-flex px-2 py-0.5 rounded text-[11px] font-extrabold border ${statusClass}">
-              ${isAboveStandard ? 'Above Standard' : 'Below Standard'}
-            </span>
+            <span class="inline-flex px-2 py-0.5 rounded text-[11px] font-extrabold border ${statusClass}">${row.status}</span>
           </td>
         </tr>
       `;
     }).join('');
 
+    const clockNote = !report.hasClock && technicians.length > 0
+      ? `<p class="text-[11px] text-slate-500 mb-3">PBS sent no time clock for this period, so efficiency can't be worked out. Flagged hours are shown.</p>`
+      : '';
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Fixed Ops Executive Report - ${dealershipName}</title>
+          <title>Fixed Ops Executive Report - ${escapeHtml(dealershipName)}</title>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
             body {
               font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
               -webkit-print-color-adjust: exact;
@@ -328,7 +336,6 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
             th { font-weight: 600; }
             h1 { font-size: 24px; margin: 0 0 4px; }
             h2 { font-size: 15px; margin: 20px 0 8px; }
-            h3 { font-size: 13px; margin: 14px 0 6px; }
 
             @page { margin: 14mm; }
 
@@ -355,52 +362,46 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
         </head>
         <body class="bg-gray-50 text-slate-900 p-8">
           <div class="paper max-w-5xl mx-auto bg-white p-10 rounded-lg border border-gray-200 shadow-xl space-y-8">
-            
-            <!-- Document Header -->
+
             <div class="border-b-2 border-slate-900 pb-6 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <span class="inline-block px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-[11px] font-semibold text-slate-700 mb-2">
                   Dealership Executive Report
                 </span>
-                <h1 class="text-3xl font-semibold tracking-tight text-slate-900 leading-none">${dealershipName}</h1>
+                <h1 class="text-3xl font-semibold tracking-tight text-slate-900 leading-none">${escapeHtml(dealershipName)}</h1>
                 <p class="text-xs text-slate-500 font-bold mt-1.5">Advisor Performance & Technician Efficiency Summary</p>
               </div>
               <div class="text-left md:text-right border-t md:border-t-0 border-slate-100 pt-3 md:pt-0">
                 <p class="text-[11px] font-semibold text-slate-400">Report Generated On</p>
-                <p class="text-xs font-semibold text-slate-800 tracking-tight mt-0.5">${printTodayStr}</p>
+                <p class="text-xs font-semibold text-slate-800 tracking-tight mt-0.5">${todayStr}</p>
                 <p class="text-[11px] text-slate-500 font-semibold mt-1">Fixed operations performance</p>
               </div>
             </div>
 
-            <!-- SECTION I: ADVISOR PERFORMANCE -->
             <div class="space-y-4">
               <div class="flex justify-between items-end border-b border-slate-900 pb-2">
-                <h2 class="text-sm font-semibold text-slate-900">
-                  I. Fixed Ops Performance
-                </h2>
-                <span class="text-[11px] font-semibold text-slate-500">
-                  ${formatDateRangeShort(printStartDateVal, printEndDateVal)}
-                </span>
+                <h2 class="text-sm font-semibold text-slate-900">I. Fixed Ops Performance</h2>
+                <span class="text-[11px] font-semibold text-slate-500">${report.advisorPeriod}</span>
               </div>
-              
+
               <div class="grid grid-cols-4 gap-3 mb-4">
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
                   <p class="text-[11px] font-semibold text-gray-400 truncate">Total Repair Orders</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dSOs}</p>
+                  <p class="text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${report.totalSOs}</p>
                 </div>
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
                   <p class="text-[11px] font-semibold text-gray-400 truncate">Avg ROs / Day</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${printAvgROsPerDay}</p>
-                  <p class="text-[11px] text-gray-400 mt-0.5 font-bold tracking-wide">${printWorkingDays} Working Days</p>
+                  <p class="text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${report.avgROsPerDay}</p>
+                  <p class="text-[11px] text-gray-400 mt-0.5 font-bold tracking-wide">${report.workingDays} working days</p>
                 </div>
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
-                  <p class="text-[11px] font-semibold text-gray-400 truncate">Hours Sold MTD</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dHrs.toFixed(1)} hrs</p>
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Hours Sold</p>
+                  <p class="text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${report.totalHrs.toFixed(1)} hrs</p>
                 </div>
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
-                  <p class="text-[11px] font-semibold text-gray-400 truncate">Showed Up %</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-emerald-800 mt-0.5 truncate">${printShowedUpPercent}%</p>
-                  <p class="text-[11px] text-gray-400 mt-0.5 font-bold tracking-wide">Cross Ref. ${printFinalScheduled} Appts</p>
+                  <p class="text-[11px] font-semibold text-gray-400 truncate">Show-up Rate</p>
+                  <p class="text-[17px] font-semibold text-emerald-800 mt-0.5 truncate">${report.showUpRate != null ? `${report.showUpRate}%` : '—'}</p>
+                  <p class="text-[11px] text-gray-400 mt-0.5 font-bold tracking-wide">${escapeHtml(report.showUpDetail)}</p>
                 </div>
               </div>
 
@@ -423,50 +424,45 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                     ${advisorRows}
                     <tr class="bg-slate-100 border-t-2 border-slate-900 text-[11px] font-semibold text-slate-950">
                       <td class="py-3 px-3">Department Totals</td>
-                      <td class="py-3 px-2 text-right">$${dLabor.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td class="py-3 px-2 text-right">$${dLaborGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td class="py-3 px-2 text-right">$${dParts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td class="py-3 px-2 text-right">$${dPartsGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td class="py-3 px-2 text-center">$${dElr.toFixed(2)}</td>
-                      <td class="py-3 px-2 text-center">${dGp.toFixed(1)}%</td>
-                      <td class="py-3 px-2 text-center">${dHrs.toFixed(1)}</td>
-                      <td class="py-3 px-3 text-center">${dSOs}</td>
+                      <td class="py-3 px-2 text-right">${money(report.totalLabor)}</td>
+                      <td class="py-3 px-2 text-right">${money(report.totalLaborGross)}</td>
+                      <td class="py-3 px-2 text-right">${money(report.totalParts)}</td>
+                      <td class="py-3 px-2 text-right">${money(report.totalPartsGross)}</td>
+                      <td class="py-3 px-2 text-center">$${report.elr.toFixed(2)}</td>
+                      <td class="py-3 px-2 text-center">${report.gp.toFixed(1)}%</td>
+                      <td class="py-3 px-2 text-center">${report.totalHrs.toFixed(1)}</td>
+                      <td class="py-3 px-3 text-center">${report.totalSOs}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              
-              <!-- Page 1 Print Footer Details -->
+
               <div class="border-t border-gray-200 pt-6 mt-8 flex justify-end items-center text-[11px] text-gray-400 font-medium">
                 <p class="italic">Page 1 of 2 — Confidentially Distributed Report</p>
               </div>
             </div>
 
-            <!-- SECTION II: TECHNICIAN EFFICIENCY -->
             <div class="space-y-4 pt-4 page-break" style="page-break-before: always; break-before: page; margin-top: 30px; padding-top: 20px;">
               <div class="flex justify-between items-end border-b border-slate-900 pb-2">
-                <h2 class="text-sm font-semibold text-slate-900">
-                  II. Workshop Technician Efficiency Summary
-                </h2>
-                <span class="text-[11px] font-semibold text-slate-500">
-                  ${formatDateRangeShort(printTechStartDateVal, printTechEndDateVal)}
-                </span>
+                <h2 class="text-sm font-semibold text-slate-900">II. Workshop Technician Efficiency Summary</h2>
+                <span class="text-[11px] font-semibold text-slate-500">${report.techPeriod}</span>
               </div>
 
               <div class="grid grid-cols-3 gap-3 mb-4">
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
                   <p class="text-[11px] font-semibold text-gray-400 truncate">Total Clocked Hours</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dClockedHours.toFixed(2)} hrs</p>
+                  <p class="text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${report.hasClock ? `${report.totalClocked.toFixed(2)} hrs` : '—'}</p>
                 </div>
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
                   <p class="text-[11px] font-semibold text-gray-400 truncate">Total Flagged Hours</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${dFlaggedHours.toFixed(2)} hrs</p>
+                  <p class="text-[17px] font-semibold text-slate-900 mt-0.5 truncate">${report.totalFlagged.toFixed(2)} hrs</p>
                 </div>
                 <div class="bg-slate-50 border border-gray-200 p-3 rounded-md min-w-0">
                   <p class="text-[11px] font-semibold text-gray-400 truncate">Workshop Average Efficiency</p>
-                  <p class="text-base sm:text-[17px] font-semibold text-indigo-700 mt-0.5 truncate">${dAverageTechEfficiency}%</p>
+                  <p class="text-[17px] font-semibold text-indigo-700 mt-0.5 truncate">${report.shopEfficiency != null ? `${report.shopEfficiency}%` : '—'}</p>
                 </div>
               </div>
+              ${clockNote}
 
               <div class="border border-gray-200 rounded-md overflow-hidden">
                 <table class="w-full text-left border-collapse">
@@ -483,9 +479,9 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                     ${technicianRows}
                     <tr class="bg-slate-100 border-t-2 border-slate-900 text-[11px] font-semibold text-slate-950">
                       <td class="py-3 px-4">Workshop Summary</td>
-                      <td class="py-3 px-4 text-center">${dClockedHours.toFixed(2)} hrs</td>
-                      <td class="py-3 px-4 text-center">${dFlaggedHours.toFixed(2)} hrs</td>
-                      <td class="py-3 px-4 text-center text-indigo-900">${dAverageTechEfficiency}%</td>
+                      <td class="py-3 px-4 text-center">${report.hasClock ? `${report.totalClocked.toFixed(2)} hrs` : '—'}</td>
+                      <td class="py-3 px-4 text-center">${report.totalFlagged.toFixed(2)} hrs</td>
+                      <td class="py-3 px-4 text-center text-indigo-900">${report.shopEfficiency != null ? `${report.shopEfficiency}%` : '—'}</td>
                       <td class="py-3 px-6 text-center text-slate-600">Active Staff (${technicians.length})</td>
                     </tr>
                   </tbody>
@@ -493,7 +489,6 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
               </div>
             </div>
 
-            <!-- Footer details -->
             <div class="border-t border-gray-200 pt-6 mt-8 flex justify-end items-center text-[11px] text-gray-400 font-medium">
               <p class="italic">Page 2 of 2 — Confidentially Distributed Report</p>
             </div>
@@ -515,56 +510,10 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
 
   const isLoading = loadingAdvisors || loadingTechs;
 
-  // Calculators for advisor average / totals manually if database totals are stale
-  const totalSOs = advisors.reduce((sum, a) => sum + (a.soCount || 0), 0);
-  const totalHrs = advisors.reduce((sum, a) => sum + (a.hrsSold || 0), 0);
-  const totalLaborStr = advisors.reduce((sum, a) => sum + (a.laborSold || 0), 0);
-  const totalLaborGrossStr = advisors.reduce((sum, a) => sum + (a.grossLabor || 0), 0);
-  const totalPartsStr = advisors.reduce((sum, a) => sum + (a.partsSold || 0), 0);
-  const totalPartsGrossStr = advisors.reduce((sum, a) => sum + (a.grossParts || 0), 0);
-  const totalDmsSales = advisors.reduce((sum, a) => sum + (a.totalSales || 0), 0);
-  
-  const computedElr = totalSOs > 0 ? Math.round((totalLaborStr / (totalHrs || 1)) * 100) / 100 : 0;
-  const computedGp = totalDmsSales > 0 ? Math.round(((totalLaborGrossStr + totalPartsGrossStr) / totalDmsSales) * 1000) / 10 : 0;
-
-  // Calculators for technicians
-  const totalClockedHours = technicians.reduce((sum, t) => sum + (t.clockedHours || 0), 0);
-  const totalFlaggedHours = technicians.reduce((sum, t) => sum + (t.flaggedHours || 0), 0);
-  const averageTechEfficiency = totalClockedHours > 0 
-    ? Math.round((totalFlaggedHours / totalClockedHours) * 100) 
-    : 0;
-
-  const todayStr = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-
-  const previewStartDateVal = advisorStartDate || "2026-05-01";
-  const previewEndDateVal = advisorEndDate || "2026-05-28";
-  const previewTechStartDateVal = techStartDate || "2026-05-16";
-  const previewTechEndDateVal = techEndDate || "2026-05-28";
-  const previewWorkingDays = getWorkingDaysCount(previewStartDateVal, previewEndDateVal);
-  const previewAvgROsPerDay = previewWorkingDays > 0 ? (totalSOs / previewWorkingDays).toFixed(1) : "0.0";
-
-  const previewEndSplit = previewEndDateVal.split('-');
-  const previewMonthPrefix = previewEndSplit.length >= 2 ? `${previewEndSplit[0]}-${previewEndSplit[1]}` : "2026-05";
-  const previewScheduledCount = appointments
-    .filter((stat: any) => stat.date && stat.date.startsWith(previewMonthPrefix))
-    .reduce((sum: number, stat: any) => sum + (stat.count || 0), 0);
-
-  const previewFinalScheduled = previewScheduledCount > 0 ? previewScheduledCount : Math.round(totalSOs * 1.12);
-  const previewShowedUpPercent = previewFinalScheduled > 0 
-    ? Math.round((totalSOs / previewFinalScheduled) * 1000) / 10 
-    : 91.5;
-
   return (
     <AnimatePresence>
       <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-start p-4 md:p-8 z-50 overflow-y-auto no-print">
-        
+
         {/* TOP CONTROLS BAR (Non-printable) */}
         <div id="print-controls" className="w-full max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-4 mb-6 bg-slate-900 border border-white/5 p-4 rounded-3xl shrink-0">
           <div className="flex items-center gap-3">
@@ -576,7 +525,7 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
               <p className="text-xs text-slate-400 font-bold mt-0.5">Preview & Print Team Analytics</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               onClick={handlePrint}
@@ -603,24 +552,18 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
             <p className="text-[11px] text-slate-400 font-bold ">Compiling performance aggregates...</p>
           </div>
         ) : (
-          <div 
-            id="print-sheet" 
+          <div
+            id="print-sheet"
             className="w-full max-w-5xl bg-white text-slate-950 p-8 md:p-12 shadow-2xl rounded-3xl font-sans relative overflow-hidden print-container min-h-[11in]"
             style={{
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
             }}
           >
-            
-            {/* Elegant Header Accent line for On-Screen representation, hidden on actual ink print using CSS */}
+
+            {/* Header accent line, on screen only */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500 screen-only-header" />
 
-            {/* Print Friendly CSS Rules (Injected specifically for this view subtree) */}
             <style dangerouslySetInnerHTML={{ __html: `
-              @media p-screen {
-                .print-container {
-                  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                }
-              }
               @media print {
                 body * {
                   visibility: hidden !important;
@@ -683,40 +626,38 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                   </div>
                   <h2 className="text-sm font-semibold text-slate-900 ">I. Fixed Ops Performance</h2>
                 </div>
-                <span className="text-xs font-semibold text-slate-400 ">
-                  {formatDateRangeShort(previewStartDateVal, previewEndDateVal)}
-                </span>
+                <span className="text-xs font-semibold text-slate-400 ">{report.advisorPeriod}</span>
               </div>
 
               {advisors.length === 0 ? (
                 <div className="text-center py-8 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 ">
-                  No active service advisor metrics found for this dealership.
+                  No advisor figures saved for this month.
                 </div>
               ) : (
                 <>
-                  {/* Advisor Quick KPI Board */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
                       <p className="text-xs font-semibold text-slate-400 truncate">Total Repair Orders</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{totalSOs}</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{report.totalSOs}</p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
                       <p className="text-xs font-semibold text-slate-400 truncate">Avg ROs / Day</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{previewAvgROsPerDay}</p>
-                      <p className="text-xs text-slate-400 font-bold ">{previewWorkingDays} Working Days</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{report.avgROsPerDay}</p>
+                      <p className="text-xs text-slate-400 font-bold ">{report.workingDays} working days</p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
-                      <p className="text-xs font-semibold text-slate-400 truncate">Hours Sold MTD</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{totalHrs.toFixed(1)} hrs</p>
+                      <p className="text-xs font-semibold text-slate-400 truncate">Hours Sold</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{report.totalHrs.toFixed(1)} hrs</p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
-                      <p className="text-xs font-semibold text-slate-400 truncate">Showed Up %</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-emerald-800 mt-0.5 truncate">{previewShowedUpPercent}%</p>
-                      <p className="text-xs text-slate-400 font-bold ">Cross Ref. {previewFinalScheduled} Appts</p>
+                      <p className="text-xs font-semibold text-slate-400 truncate">Show-up Rate</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-emerald-800 mt-0.5 truncate">
+                        {report.showUpRate != null ? `${report.showUpRate}%` : '—'}
+                      </p>
+                      <p className="text-xs text-slate-400 font-bold ">{report.showUpDetail}</p>
                     </div>
                   </div>
 
-                  {/* Main Advisor Table */}
                   <div className="border border-slate-200 rounded-2xl overflow-hidden mb-6">
                     <table className="w-full text-left border-collapse">
                       <thead>
@@ -734,63 +675,36 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                       </thead>
                       <tbody>
                         {advisors.map((advisor, i) => {
-                          const elrVal = advisor.soCount > 0 ? (advisor.laborSold / (advisor.hrsSold || 1)) : 0;
-                          
+                          const elrVal = (advisor.hrsSold || 0) > 0 ? advisor.laborSold / advisor.hrsSold : 0;
                           return (
                             <tr key={i} className="border-b border-slate-100 text-[11px] text-slate-800 last:border-b-0">
                               <td className="py-3 px-3 font-semibold text-slate-900">{advisor.name}</td>
-                              <td className="py-3 px-2 text-right font-medium text-slate-700">
-                                ${(advisor.laborSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="py-3 px-2 text-right font-medium text-slate-700">
-                                ${(advisor.grossLabor || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="py-3 px-2 text-right font-medium text-slate-700">
-                                ${(advisor.partsSold || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="py-3 px-2 text-right font-medium text-slate-700">
-                                ${(advisor.grossParts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </td>
-                              <td className="py-3 px-2 text-center font-semibold text-slate-900">
-                                ${((advisor.elr || elrVal || 0)).toFixed(2)}
-                              </td>
-                              <td className="py-3 px-2 text-center font-semibold text-emerald-700">
-                                {(advisor.gpPercent || 0).toFixed(1)}%
-                              </td>
-                              <td className="py-3 px-2 text-center font-bold text-slate-800">
-                                {(advisor.hrsSold || 0).toFixed(1)}
-                              </td>
-                              <td className="py-3 px-3 text-center font-bold text-slate-800">
-                                {advisor.soCount || 0}
-                              </td>
+                              <td className="py-3 px-2 text-right font-medium text-slate-700">{money(advisor.laborSold)}</td>
+                              <td className="py-3 px-2 text-right font-medium text-slate-700">{money(advisor.grossLabor)}</td>
+                              <td className="py-3 px-2 text-right font-medium text-slate-700">{money(advisor.partsSold)}</td>
+                              <td className="py-3 px-2 text-right font-medium text-slate-700">{money(advisor.grossParts)}</td>
+                              <td className="py-3 px-2 text-center font-semibold text-slate-900">${(advisor.elr || elrVal || 0).toFixed(2)}</td>
+                              <td className="py-3 px-2 text-center font-semibold text-emerald-700">{(advisor.gpPercent || 0).toFixed(1)}%</td>
+                              <td className="py-3 px-2 text-center font-bold text-slate-800">{(advisor.hrsSold || 0).toFixed(1)}</td>
+                              <td className="py-3 px-3 text-center font-bold text-slate-800">{advisor.soCount || 0}</td>
                             </tr>
                           );
                         })}
-                        {/* Totals Summary Row */}
                         <tr className="bg-slate-100 border-t-2 border-slate-900 text-xs font-semibold text-slate-900">
                           <td className="py-3 px-3">Department Totals</td>
-                          <td className="py-3 px-2 text-right text-slate-950">
-                            ${totalLaborStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-3 px-2 text-right text-slate-950">
-                            ${totalLaborGrossStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-3 px-2 text-right text-slate-950">
-                            ${totalPartsStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-3 px-2 text-right text-slate-950">
-                            ${totalPartsGrossStr.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-3 px-2 text-center">${computedElr.toFixed(2)}</td>
-                          <td className="py-3 px-2 text-center text-emerald-800">{computedGp.toFixed(1)}%</td>
-                          <td className="py-3 px-2 text-center">{totalHrs.toFixed(1)}</td>
-                          <td className="py-3 px-3 text-center">{totalSOs}</td>
+                          <td className="py-3 px-2 text-right text-slate-950">{money(report.totalLabor)}</td>
+                          <td className="py-3 px-2 text-right text-slate-950">{money(report.totalLaborGross)}</td>
+                          <td className="py-3 px-2 text-right text-slate-950">{money(report.totalParts)}</td>
+                          <td className="py-3 px-2 text-right text-slate-950">{money(report.totalPartsGross)}</td>
+                          <td className="py-3 px-2 text-center">${report.elr.toFixed(2)}</td>
+                          <td className="py-3 px-2 text-center text-emerald-800">{report.gp.toFixed(1)}%</td>
+                          <td className="py-3 px-2 text-center">{report.totalHrs.toFixed(1)}</td>
+                          <td className="py-3 px-3 text-center">{report.totalSOs}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
-                  {/* Page 1 Print Footer Details */}
                   <div className="border-t border-slate-200 pt-6 mt-8 flex flex-col sm:flex-row justify-between sm:justify-end items-center text-xs font-medium text-slate-400">
                     <p className="mt-2 sm:mt-0 italic">Page 1 of 2 — Confidentially Distributed Report</p>
                   </div>
@@ -807,34 +721,39 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                   </div>
                   <h2 className="text-sm font-semibold text-slate-900 ">II. Workshop Technician Efficiency Summary</h2>
                 </div>
-                <span className="text-xs font-semibold text-slate-400 ">
-                  {formatDateRangeShort(previewTechStartDateVal, previewTechEndDateVal)}
-                </span>
+                <span className="text-xs font-semibold text-slate-400 ">{report.techPeriod}</span>
               </div>
 
               {technicians.length === 0 ? (
                 <div className="text-center py-8 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 ">
-                  No technician productivity entries logged. Upload a DMS PDF report or key manual entries to view.
+                  No technician figures saved for this month.
                 </div>
               ) : (
                 <>
-                  {/* Tech Quick Statistics Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
                       <p className="text-xs font-semibold text-slate-400 truncate">Total Clocked Hours</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{totalClockedHours.toFixed(2)} hrs</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">
+                        {report.hasClock ? `${report.totalClocked.toFixed(2)} hrs` : '—'}
+                      </p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
                       <p className="text-xs font-semibold text-slate-400 truncate">Total Flagged (Sold) Hours</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{totalFlaggedHours.toFixed(2)} hrs</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-slate-900 mt-0.5 truncate">{report.totalFlagged.toFixed(2)} hrs</p>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl min-w-0">
                       <p className="text-xs font-semibold text-slate-400 truncate">Workshop Average Efficiency</p>
-                      <p className="text-base sm:text-lg md:text-xl font-semibold text-indigo-700 mt-0.5 truncate">{averageTechEfficiency}%</p>
+                      <p className="text-base sm:text-lg md:text-xl font-semibold text-indigo-700 mt-0.5 truncate">
+                        {report.shopEfficiency != null ? `${report.shopEfficiency}%` : '—'}
+                      </p>
                     </div>
                   </div>
+                  {!report.hasClock && (
+                    <p className="text-xs text-slate-500 mb-4">
+                      PBS sent no time clock for this period, so efficiency can't be worked out. Flagged hours are shown.
+                    </p>
+                  )}
 
-                  {/* Main Technicians Table */}
                   <div className="border border-slate-200 rounded-2xl overflow-hidden mb-6">
                     <table className="w-full text-left border-collapse">
                       <thead>
@@ -848,33 +767,33 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
                       </thead>
                       <tbody>
                         {technicians.map((tech, i) => {
-                          const isAboveStandard = tech.efficiency >= 80;
-                          
+                          const row = techRow(tech);
                           return (
                             <tr key={i} className="border-b border-slate-100 text-[11px] text-slate-800 last:border-b-0">
                               <td className="py-3 px-4 font-semibold text-slate-900">{tech.techName}</td>
-                              <td className="py-3 px-4 text-center font-bold">{tech.clockedHours.toFixed(2)} hrs</td>
-                              <td className="py-3 px-4 text-center font-bold">{tech.flaggedHours.toFixed(2)} hrs</td>
-                              <td className="py-3 px-4 text-center font-semibold text-slate-900">{tech.efficiency}%</td>
+                              <td className="py-3 px-4 text-center font-bold">{row.clocked}</td>
+                              <td className="py-3 px-4 text-center font-bold">{row.flagged}</td>
+                              <td className="py-3 px-4 text-center font-semibold text-slate-900">{row.efficiency}</td>
                               <td className="py-3 px-6 text-center">
                                 <span className={cn(
-                                  "inline-flex px-2 py-0.5 rounded text-xs font-semibold ",
-                                  isAboveStandard 
-                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200" 
-                                    : "bg-rose-50 text-rose-700 border border-rose-250 text-rose-700 font-bold"
+                                  "inline-flex px-2 py-0.5 rounded text-xs font-semibold border",
+                                  row.tone === 'good'
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : row.tone === 'bad'
+                                      ? "bg-rose-50 text-rose-700 border-rose-200 font-bold"
+                                      : "bg-slate-50 text-slate-500 border-slate-200"
                                 )}>
-                                  {isAboveStandard ? 'Above Standard' : 'Below Standard'}
+                                  {row.status}
                                 </span>
                               </td>
                             </tr>
                           );
                         })}
-                        {/* Overall Workshop Summary row */}
                         <tr className="bg-slate-100 border-t-2 border-slate-900 text-xs font-semibold text-slate-900">
                           <td className="py-3 px-4">Workshop Summary</td>
-                          <td className="py-3 px-4 text-center">{totalClockedHours.toFixed(2)} hrs</td>
-                          <td className="py-3 px-4 text-center">{totalFlaggedHours.toFixed(2)} hrs</td>
-                          <td className="py-3 px-4 text-center text-indigo-900">{averageTechEfficiency}%</td>
+                          <td className="py-3 px-4 text-center">{report.hasClock ? `${report.totalClocked.toFixed(2)} hrs` : '—'}</td>
+                          <td className="py-3 px-4 text-center">{report.totalFlagged.toFixed(2)} hrs</td>
+                          <td className="py-3 px-4 text-center text-indigo-900">{report.shopEfficiency != null ? `${report.shopEfficiency}%` : '—'}</td>
                           <td className="py-3 px-6 text-center text-slate-600">Active Staff ({technicians.length})</td>
                         </tr>
                       </tbody>
@@ -884,16 +803,9 @@ export const PerformancePrintModal: React.FC<PerformancePrintModalProps> = ({
               )}
             </div>
 
-            {/* Print Footer Details */}
             <div className="border-t border-slate-200 pt-6 mt-8 flex flex-col sm:flex-row justify-between sm:justify-end items-center text-xs font-medium text-slate-400">
               <p className="mt-2 sm:mt-0 italic">Page 2 of 2 — Confidentially Distributed Report</p>
             </div>
-
-            {/* Corner Decorative Watermark Stamp */}
-            <div className="absolute bottom-16 right-16 w-32 h-32 border border-slate-100 rounded-full flex items-center justify-center -rotate-12 pointer-events-none opacity-40 select-none">
-              <p className="text-xs font-semibold text-slate-300 text-center leading-tight">SERVICE<br />COMPLIANCE<br />PASSED</p>
-            </div>
-            
           </div>
         )}
       </div>

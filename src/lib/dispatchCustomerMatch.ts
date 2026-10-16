@@ -1,5 +1,5 @@
 import { Customer } from '../types';
-import { formatCustomerDisplayName } from './customerName';
+import { formatCustomerDisplayName, NO_NAME_LABEL } from './customerName';
 import { DispatchRepairOrder } from '../types';
 
 function normalizeNamePart(value: string): string {
@@ -37,7 +37,8 @@ export function splitDispatchCustomerName(
   customerLastName?: string
 ): { firstName: string; lastName: string } {
   const last = (customerLastName || '').trim();
-  const full = (customerName || '').trim();
+  // The no-name label is not a name to split into first and last.
+  const full = customerName === NO_NAME_LABEL ? '' : (customerName || '').trim();
 
   if (last) {
     if (full && full.toLowerCase() !== last.toLowerCase()) {

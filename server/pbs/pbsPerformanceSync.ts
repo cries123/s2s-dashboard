@@ -12,6 +12,7 @@ import {
 } from './pbsPerformanceAggregator.js';
 import {
   buildPbsAdvisorAliases,
+  isRealPbsAdvisorName,
   matchesPerformanceAdvisorRoster,
   normalizePbsAdvisorCode,
 } from './pbsAdvisorName.js';
@@ -148,7 +149,13 @@ async function loadAdvisorSettings(
     if (mapRaw && typeof mapRaw === 'object') {
       for (const [code, name] of Object.entries(mapRaw as Record<string, unknown>)) {
         const label = String(name || '').trim();
-        if (code.trim() && label) codeMap.set(normalizePbsAdvisorCode(code), label);
+        // A mapping onto a name that is itself thrown away as junk only hides
+        // tickets. Hyundai's had {"jaryn": "JAY"} — entered back to front — which
+        // renamed every repair order Jaryn wrote to "JAY", and "jay" is junk, so
+        // Jaryn showed 0 repair orders every month.
+        if (code.trim() && label && isRealPbsAdvisorName(label)) {
+          codeMap.set(normalizePbsAdvisorCode(code), label);
+        }
       }
     }
 

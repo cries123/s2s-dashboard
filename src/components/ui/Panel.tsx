@@ -86,28 +86,5 @@ export function ListRowButton({
   );
 }
 
-/**
- * PBS sends names, vehicles and concerns in capitals ("RAMOS, CRYSTAL",
- * "2024 HYUNDAI TUCSON"). Shouting text is the fastest way to look unfinished.
- * Only rewrites strings that are mostly upper-case; anything typed normally is left alone.
- */
-export function tidyCase(s: string | null | undefined, mode: 'title' | 'sentence' = 'title'): string {
-  if (!s) return '';
-  const letters = s.replace(/[^A-Za-z]/g, '');
-  if (letters.length < 3 || letters !== letters.toUpperCase()) return s;
-  const lower = s.toLowerCase();
-  const KEEP = new Set(['ac', 'a/c', 'suv', 'awd', 'fwd', 'rwd', 'ev', 'vin', 'ro', 'gl', 'gls', 'sel', 'se', 'hev', 'phev', 'abs', 'tpms', 'cel']);
-  if (mode === 'sentence') {
-    return lower
-      .replace(/[a-z][a-z'/]*/g, (w) => (KEEP.has(w) ? w.toUpperCase() : w))
-      .replace(/(^\s*[a-z])|([.!?]\s+[a-z])/g, (m) => m.toUpperCase());
-  }
-  return lower.replace(/[a-z][a-z'/]*/g, (w) => (KEEP.has(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)));
-}
-
-/** "RAMOS, CRYSTAL" -> "Crystal Ramos". */
-export function tidyPersonName(s: string | null | undefined): string {
-  const t = tidyCase(s);
-  const m = t.match(/^\s*([^,]+),\s*(.+)$/);
-  return m ? `${m[2].trim()} ${m[1].trim()}` : t;
-}
+// Moved to lib so plain helpers can use it; re-exported so existing imports keep working.
+export { tidyCase, tidyPersonName } from '../../lib/tidyCase';
