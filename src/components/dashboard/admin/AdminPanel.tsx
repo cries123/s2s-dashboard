@@ -17,7 +17,6 @@ import {
   FileText,
   Loader2,
   Database,
-  SlidersHorizontal,
   Trophy,
   Lightbulb
 } from 'lucide-react';
@@ -37,7 +36,6 @@ import { SystemLogs } from './SystemLogs';
 import { MasterUserSettings } from './MasterUserSettings';
 import { AiUsageLogsPanel } from './AiUsageLogsPanel';
 import { SuggestionsPanel } from './SuggestionsPanel';
-import { SettingsPage } from '../../settings/SettingsPage';
 import { DealershipAnnouncementSettings } from './DealershipAnnouncementSettings';
 import { DmsImportHealthPanel } from './DmsImportHealthPanel';
 import { PbsSyncPanel } from './PbsSyncPanel';
@@ -102,7 +100,6 @@ type AdminSubTab =
   | 'operations'
   | 'users'
   | 'logs'
-  | 'preferences'
   | 'master-users'
   | 'ai-usage'
   | 'suggestions'
@@ -123,12 +120,6 @@ function getPanelSectionMeta(
         eyebrow: scope,
         title: 'Operation settings',
         description: 'Dispatch, service alerts, goals and imports for this store.',
-      };
-    case 'preferences':
-      return {
-        eyebrow: scope,
-        title: 'Preferences',
-        description: 'Your own display and contact-workflow settings.',
       };
     case 'users':
       return {
@@ -764,7 +755,6 @@ export default function AdminPanel({
               { id: 'operations', label: 'Operations', icon: Target, desc: 'Store Configuration' },
               { id: 'users', label: 'User Settings', icon: Users, desc: 'Identity & Access' },
               { id: 'logs', label: 'Logs', icon: FileText, desc: 'System Audit Logs' },
-              { id: 'preferences', label: 'Preferences', icon: SlidersHorizontal, desc: 'Your Workspace' }
             ] as const).map(tab => {
               const Icon = tab.icon;
               const isSelected = subTab === tab.id;
@@ -1077,17 +1067,6 @@ export default function AdminPanel({
 
       {subTab === 'master-users' && panelMode === 'admin' && (
         <MasterUserSettings onSuccess={onSuccess} onError={onError} />
-      )}
-
-      {/* SYSTEM TRAILS / LOGS */}
-      {subTab === 'preferences' && (
-        <SettingsPage
-          embedded
-          onNavigate={(tab) => onNavigateTab?.(tab)}
-          onNotify={(msg, isError) => (isError ? onError?.(msg) : onSuccess?.(msg))}
-          currentDealershipId={currentDealershipId}
-          onDealershipChange={onDealershipChange}
-        />
       )}
 
       {subTab === 'ai-usage' && panelMode === 'admin' && (

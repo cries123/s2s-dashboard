@@ -8,7 +8,6 @@ export type AppTab =
   | 'vin-search'
   | 'pot-of-gold'
   | 'sales-to-service'
-  | 'webdcs'
   | 'forecast'
   | 'dispatch'
   | 'sales-performance';
@@ -24,7 +23,6 @@ export const TAB_PATHS: Record<AppTab, string> = {
   dispatch: '/service/dispatch',
   'pot-of-gold': '/competitions/pot-of-gold',
   'sales-to-service': '/reports/sales-to-service',
-  webdcs: '/manager/webdcs',
   appointments: '/reports/operations',
   'sales-performance': '/reports/sales-performance',
   forecast: '/reports/forecast',

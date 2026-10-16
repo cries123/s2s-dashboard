@@ -184,14 +184,6 @@ export function buildSidebarNav({
           managerSubTab: 'operations',
         },
         {
-          id: 'mgr-prefs',
-          label: 'Preferences',
-          href: '/manager/preferences',
-          icon: Settings,
-          tab: 'manager',
-          managerSubTab: 'preferences',
-        },
-        {
           id: 'mgr-team',
           label: 'User administration',
           href: '/manager/team',
@@ -207,10 +199,6 @@ export function buildSidebarNav({
           tab: 'manager',
           managerSubTab: 'logs',
         },
-        // WebDCS is Hyundai's dealer portal; the other stores have no equivalent here.
-        ...(currentDealershipId === 'hyundai'
-          ? [{ id: 'mgr-webdcs', label: 'WebDCS', href: '/manager/webdcs', icon: Bell, tab: 'webdcs' as const }]
-          : []),
       ],
     });
   }

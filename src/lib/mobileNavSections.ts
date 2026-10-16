@@ -114,12 +114,6 @@ export function buildMobileNavSections({
         },
         {
           tabId: 'manager',
-          label: 'Preferences',
-          href: '/manager/preferences',
-          managerSubTab: 'preferences',
-        },
-        {
-          tabId: 'manager',
           label: 'Team',
           href: '/manager/team',
           managerSubTab: 'team',
@@ -130,9 +124,6 @@ export function buildMobileNavSections({
           href: '/manager/logs',
           managerSubTab: 'logs',
         },
-        ...(currentDealershipId === 'hyundai'
-          ? [{ tabId: 'webdcs', label: 'WebDCS', href: '/manager/webdcs' }]
-          : []),
         ...adminItems,
       ],
     });

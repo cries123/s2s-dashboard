@@ -14,7 +14,6 @@ export type AppTab =
   | 'open-ros'
   | 'sales-performance'
   | 'sales-to-service'
-  | 'webdcs'
   | 'settings';
 
 export type AdminSubTab =
@@ -26,7 +25,7 @@ export type AdminSubTab =
   | 'enrollments'
   | 'import-health'
   | 'pbs-sync';
-export type ManagerSubTab = 'operations' | 'preferences' | 'team' | 'logs';
+export type ManagerSubTab = 'operations' | 'team' | 'logs';
 
 export interface AppRouteState {
   activeTab: AppTab;
@@ -49,11 +48,12 @@ const PATH_TO_ROUTE: Record<string, AppRouteState> = {
   '/reports/schedule': { activeTab: 'schedule' },
   '/reports/sales-performance': { activeTab: 'sales-performance' },
   '/reports/sales-to-service': { activeTab: 'sales-to-service' },
-  '/manager/webdcs': { activeTab: 'webdcs' },
+  // Old links: WebDCS was removed; Preferences was a second door to Settings.
+  '/manager/webdcs': { activeTab: 'home' },
+  '/manager/preferences': { activeTab: 'settings' },
   '/settings': { activeTab: 'settings' },
   '/reports/forecast': { activeTab: 'forecast' },
   '/manager/operations': { activeTab: 'manager', managerSubTab: 'operations' },
-  '/manager/preferences': { activeTab: 'manager', managerSubTab: 'preferences' },
   '/manager/team': { activeTab: 'manager', managerSubTab: 'team' },
   '/manager/logs': { activeTab: 'manager', managerSubTab: 'logs' },
   '/admin/operations': { activeTab: 'admin', adminSubTab: 'logs' },
@@ -86,8 +86,6 @@ export function parseAppRoute(pathname: string): AppRouteState {
 export function buildAppPath(state: AppRouteState): string {
   if (state.activeTab === 'manager') {
     switch (state.managerSubTab) {
-      case 'preferences':
-        return '/manager/preferences';
       case 'team':
         return '/manager/team';
       case 'logs':
@@ -145,8 +143,6 @@ export function buildAppPath(state: AppRouteState): string {
       return '/reports/sales-performance';
     case 'sales-to-service':
       return '/reports/sales-to-service';
-    case 'webdcs':
-      return '/manager/webdcs';
     case 'settings':
       return '/settings';
     case 'forecast':

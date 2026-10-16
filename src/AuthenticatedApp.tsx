@@ -17,7 +17,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import CustomerForm from './components/dashboard/customers/CustomerForm';
 const SalesPerformance = React.lazy(() => import('./components/dashboard/analytics/SalesPerformance'));
 const SalesToService = React.lazy(() => import('./components/dashboard/analytics/SalesToService'));
-const WebDcsPanel = React.lazy(() => import('./components/dashboard/webdcs/WebDcsPanel'));
 import ServiceAlerts from './components/dashboard/customers/ServiceAlerts';
 const Appointments = React.lazy(() => import('./components/dashboard/appointments/Appointments'));
 const DaySchedule = React.lazy(() => import('./components/dashboard/appointments/DaySchedule'));
@@ -334,9 +333,6 @@ function DashboardShell({ user }: { user: User }) {
       : []),
     ...(modules.showSalesPerformanceTab
       ? [{ id: 'sales-to-service', label: 'Sales to Service', icon: ArrowRightLeft }]
-      : []),
-    ...(canSeeManagerPanel(user) && currentDealershipId === 'hyundai'
-      ? [{ id: 'webdcs', label: 'WebDCS', icon: Bell }]
       : []),
     ...(canSeeManagerPanel(user) ? [{ id: 'manager', label: 'Manager', icon: Shield }] : []),
   ];
@@ -737,12 +733,9 @@ function DashboardShell({ user }: { user: User }) {
 
           {activeTab === 'sales-to-service' && !customersLoading && <SalesToService customers={customers} />}
 
-          {activeTab === 'webdcs' && canSeeManagerPanel(currentUser) && currentDealershipId === 'hyundai' && (
-            <WebDcsPanel />
-          )}
-
-          {/* Personal preferences — available to every approved user, not just
-              managers. Store-wide configuration stays under Manager. */}
+          {/* Personal settings — available to every approved user from the gear
+              in the top bar. The only way in: Manager used to have a second copy
+              called "Preferences". Store-wide configuration stays under Manager. */}
           {activeTab === 'settings' && (
             <SettingsPage
               onNavigate={(tab) => setActiveTab(tab as typeof activeTab)}
@@ -767,16 +760,9 @@ function DashboardShell({ user }: { user: User }) {
               currentDealershipId={currentDealershipId || 'hyundai'}
               onSuccess={(msg) => showNotification(msg)}
               onError={(msg) => showNotification(msg, true)}
-              activeSubTab={
-                managerSubTab === 'preferences'
-                  ? 'preferences'
-                  : managerSubTab === 'logs'
-                    ? 'logs'
-                    : 'operations'
-              }
+              activeSubTab={managerSubTab === 'logs' ? 'logs' : 'operations'}
               onChangeSubTab={(tab) => {
-                if (tab === 'preferences') setManagerSubTab('preferences');
-                else if (tab === 'logs') setManagerSubTab('logs');
+                if (tab === 'logs') setManagerSubTab('logs');
                 else setManagerSubTab('operations');
               }}
               onNavigateTab={(tab) => setActiveTab(tab as typeof activeTab)}

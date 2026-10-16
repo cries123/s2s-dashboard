@@ -13,7 +13,6 @@ import {
   RefreshCw,
   ScrollText,
   Search,
-  SlidersHorizontal,
   TrendingUp,
   Trophy,
   UserCog,
@@ -35,7 +34,7 @@ export interface MobileNavSubItem {
   label: string;
   href: string;
   badge?: number;
-  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
+  managerSubTab?: 'operations' | 'team' | 'logs';
   adminSubTab?: string;
 }
 
@@ -48,13 +47,13 @@ export interface MobileNavSection {
 
 export interface MobileNavSelection {
   tab: string;
-  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
+  managerSubTab?: 'operations' | 'team' | 'logs';
   adminSubTab?: string;
 }
 
 interface MobileBottomNavProps {
   activeTab: string;
-  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs';
+  managerSubTab?: 'operations' | 'team' | 'logs';
   adminSubTab?: string;
   sections: MobileNavSection[];
   onNavigate: (selection: MobileNavSelection) => void;
@@ -97,7 +96,6 @@ const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   'sales-performance': BarChart2,
   forecast: TrendingUp,
   'manager:operations': Settings,
-  'manager:preferences': SlidersHorizontal,
   'manager:team': Users,
   'manager:logs': FileText,
   'admin:master-users': UserCog,
@@ -105,7 +103,6 @@ const SUB_ITEM_ICONS: Record<string, LucideIcon> = {
   'admin:suggestions': Lightbulb,
   'admin:import-health': Activity,
   'admin:pbs-sync': RefreshCw,
-  webdcs: Bell,
 };
 
 function subItemIcon(item: MobileNavSubItem): LucideIcon {
@@ -118,7 +115,7 @@ function subItemIcon(item: MobileNavSubItem): LucideIcon {
 function isSubItemActive(
   item: MobileNavSubItem,
   activeTab: string,
-  managerSubTab?: 'operations' | 'preferences' | 'team' | 'logs',
+  managerSubTab?: 'operations' | 'team' | 'logs',
   adminSubTab?: string
 ): boolean {
   if (item.tabId !== activeTab) return false;
