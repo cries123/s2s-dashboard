@@ -4,18 +4,13 @@ import {
   Loader2, 
   BadgeCheck, 
   Car, 
-  Info, 
   AlertTriangle,
   Fuel,
   Zap, 
   Droplets, 
-  Gauge, 
-  DollarSign, 
-  Sparkles,
-  Maximize2
+  Gauge
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { PageHeader } from '../../layout/PageHeader';
 
@@ -30,10 +25,7 @@ export const VinLookup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<VinData[] | null>(null);
   const [fuelData, setFuelData] = useState<any | null>(null);
-  const [marketValue, setMarketValue] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isValuing, setIsValuing] = useState(false);
-  const [valuationError, setValuationError] = useState<string | null>(null);
 
   const getMake = () => data?.find(r => (r.Variable === "Make" || r.Variable === "Vehicle Make"))?.Value;
   const getModel = () => data?.find(r => (r.Variable === "Model" || r.Variable === "Vehicle Model"))?.Value;
@@ -48,8 +40,6 @@ export const VinLookup: React.FC = () => {
     setError(null);
     setData(null);
     setFuelData(null);
-    setMarketValue(null);
-    setValuationError(null);
     try {
       // 1. Decode VIN
       const decodeRes = await fetch(`/api/nhtsa/decode/${cleanVin}`);
@@ -101,48 +91,6 @@ export const VinLookup: React.FC = () => {
           } catch (fErr) {
             console.error("Fuel Economy fetch failed", fErr);
           }
-
-          // 3. Fetch Valuation
-          try {
-            setIsValuing(true);
-            const valRes = await fetch('/api/estimate-value', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                year,
-                make,
-                model,
-                trim: filtered.find((r: any) => r.Variable === "Series")?.Value || "",
-                mileage: "15000"
-              })
-            });
-            
-            if (!valRes.ok) {
-              let msg = 'Valuation service unavailable';
-              const contentType = valRes.headers.get('content-type');
-              if (contentType && contentType.includes('application/json')) {
-                const errData = await valRes.json();
-                msg = errData.error || msg;
-              } else {
-                const text = await valRes.text();
-                console.error('Valuation service non-JSON error:', text.substring(0, 200));
-              }
-              setValuationError(msg);
-            } else {
-              let valData: any;
-              try {
-                valData = await valRes.json();
-                setMarketValue(valData);
-              } catch (jsonErr) {
-                console.error('Failed to parse valuation JSON:', jsonErr);
-                setValuationError("Failed to parse system response");
-              }
-            }
-          } catch (vErr) {
-            setValuationError("Unable to connect to valuation service");
-          } finally {
-            setIsValuing(false);
-          }
         }
       }
     } catch (err) {
@@ -156,7 +104,7 @@ export const VinLookup: React.FC = () => {
     <div className="space-y-8 pb-12">
       <PageHeader
         title="VIN search"
-        description="Decode a VIN to see vehicle specs and estimated value."
+        description="Decode a VIN to see vehicle specs and fuel economy."
         breadcrumbs={[{ label: 'Sales' }, { label: 'VIN search' }]}
       />
 
@@ -202,8 +150,9 @@ export const VinLookup: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 stagger-fade-in">
           
           {/* Main Display: Identity & Image */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="relative overflow-hidden group rounded-[2.5rem] bg-slate-950/40 border border-white/5 backdrop-blur-3xl shadow-2xl">
+          <div className="md:col-span-2 lg:col-span-6 space-y-6">
+            {/* No backdrop-blur-3xl here: index.css hides any class containing "blur-3xl" (meant for glow blobs). */}
+            <div className="relative overflow-hidden group rounded-[2.5rem] bg-slate-950/40 border border-white/5 shadow-2xl">
               <div className="absolute inset-0 bg-gradient-to-br from-brand-primary/10 via-transparent to-brand-secondary/10 opacity-30" />
               
               <div className="relative p-10 flex flex-col md:flex-row items-center gap-10">
@@ -245,80 +194,8 @@ export const VinLookup: React.FC = () => {
 
           </div>
 
-          {/* Right Column: Key Metrics */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Market Sidepiece */}
-            <div className="p-8 bg-slate-950/40 backdrop-blur-2xl border border-white/5 rounded-[2rem] shadow-2xl flex flex-col h-full">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-brand-primary/10 rounded-lg">
-                    <DollarSign className="text-brand-primary" size={16} />
-                  </div>
-                  <h4 className="text-xs font-semibold text-slate-400 ">Market Value</h4>
-                </div>
-                {marketValue?.marketTrend && (
-                  <div className={cn(
-                    "px-2 py-1 rounded text-xs font-semibold border",
-                    marketValue.marketTrend === 'Rising' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-slate-500/10 border-white/10 text-slate-500"
-                  )}>
-                    {marketValue.marketTrend}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 space-y-8">
-                {isValuing ? (
-                  <div className="space-y-4 animate-pulse">
-                    <div className="h-10 bg-white/5 rounded-2xl w-full" />
-                    <div className="h-32 bg-white/5 rounded-3xl w-full" />
-                  </div>
-                ) : marketValue ? (
-                  <>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 mb-2 ">Est. Trade-In Range</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-4xl font-semibold text-white tracking-tighter">${(marketValue.tradeInLow / 1000).toFixed(1)}k</span>
-                        <span className="text-slate-600 font-bold mx-1">/</span>
-                        <span className="text-2xl font-semibold text-brand-primary tracking-tighter">${(marketValue.tradeInHigh / 1000).toFixed(1)}k</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-brand-primary/5 border border-brand-primary/10 p-5 rounded-[2rem] relative overflow-hidden group">
-                      <Sparkles className="absolute -right-2 -top-2 text-brand-primary/10 w-20 h-20 grayscale" />
-                      <div className="flex items-center gap-2 mb-3">
-                        <Maximize2 size={12} className="text-brand-primary" />
-                        <span className="text-xs font-semibold text-brand-primary ">Profit Max Insight</span>
-                      </div>
-                      <p className="text-xs text-slate-300 font-medium leading-relaxed ">"{marketValue.advisorTip}"</p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-xs font-bold">
-                        <span className="text-slate-500 ">Private Party</span>
-                        <span className="text-white">${(marketValue.privatePartyLow / 1000).toFixed(1)}k - ${(marketValue.privatePartyHigh / 1000).toFixed(1)}k</span>
-                      </div>
-                      <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="w-2/3 h-full bg-brand-primary/40" />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-slate-700 opacity-30 text-center">
-                    <DollarSign size={48} strokeWidth={1} />
-                    <p className="text-xs font-semibold mt-4">Analyzing Market...</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-8 flex items-center gap-2 text-slate-700">
-                <Info size={12} />
-                <span className="text-xs font-semibold ">Regional Market Mapping Enabled</span>
-              </div>
-            </div>
-          </div>
-
           {/* Efficiency Details (Full Width Flow) */}
-          <div className="lg:col-span-6 space-y-6">
+          <div className="md:col-span-2 lg:col-span-6 space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Efficiency Panel */}
               <div className="p-8 bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] shadow-2xl">
@@ -352,11 +229,16 @@ export const VinLookup: React.FC = () => {
                        <p className="text-4xl font-semibold text-white tracking-tighter">{fuelData.comb08}<span className="text-xs ml-1 text-amber-500 font-semibold">AVG</span></p>
                     </div>
                   </div>
-                ) : (
+                ) : loading ? (
                   <div className="py-12 flex flex-col items-center opacity-20">
                      <Loader2 className="animate-spin mb-4" size={32} />
                      <p className="text-xs font-semibold ">Fetching Diagnostics...</p>
                   </div>
+                ) : (
+                  // fueleconomy.gov names many cars differently ("Tucson" finds nothing).
+                  <p className="py-8 text-sm text-center text-text-secondary">
+                    fueleconomy.gov has no listing under "{getModel()}" for {getYear()}.
+                  </p>
                 )}
               </div>
 
@@ -364,7 +246,7 @@ export const VinLookup: React.FC = () => {
           </div>
 
             {/* Full specification */}
-          <div className="lg:col-span-6 space-y-6 pt-12">
+          <div className="md:col-span-2 lg:col-span-6 space-y-6 pt-12">
             <div className="flex items-center gap-4 mb-4">
               <div className="h-px flex-1 bg-white/5" />
               <h4 className="text-[11px] font-semibold text-slate-600 px-4 ">Full specification</h4>
@@ -400,7 +282,7 @@ export const VinLookup: React.FC = () => {
           <Car size={40} strokeWidth={1.5} style={{ color: 'var(--color-text-secondary)' }} />
           <h3 className="crm-section-title text-base mt-4">Look up a vehicle</h3>
           <p className="crm-label text-sm mt-1 max-w-xs">
-            Enter all 17 characters of the VIN to see specs and estimated value.
+            Enter all 17 characters of the VIN to see specs and fuel economy.
           </p>
         </motion.div>
       )}

@@ -101,7 +101,6 @@ export async function createApiApp() {
     '/api/parse-technician-report',
     '/api/parse-performance',
     '/api/parse-sales-note',
-    '/api/estimate-value',
     '/api/gemini-parse-dms',
     '/api/outreach/bulk',
     // Briefing, history summary, explain-a-visit. Not /api/ai-config, which is public.
@@ -415,67 +414,6 @@ export async function createApiApp() {
     } catch (error: any) {
       console.error("API Error Pot of Gold:", error);
       res.status(500).json({ error: `Internal Server Error: ${error.message}` });
-    }
-  });
-
-  app.post("/api/estimate-value", async (req, res) => {
-    try {
-      const { year, make, model, trim, mileage } = req.body;
-      const vYear = parseInt(year) || 2020;
-      const vMileage = parseInt(mileage) || 15000;
-      const strToHash = `${make || ''}-${model || ''}-${trim || ''}`.toLowerCase();
-      let nameHashVal = 0;
-      for (let i = 0; i < strToHash.length; i++) {
-        nameHashVal = (nameHashVal + strToHash.charCodeAt(i) * (i + 1)) % 1000;
-      }
-      
-      const trimBonus = trim ? (trim.toLowerCase().includes("limited") || trim.toLowerCase().includes("ultimate") || trim.toLowerCase().includes("premium") || trim.toLowerCase().includes("sport") ? 6000 : 2500) : 0;
-      const baseOriginal = 25000 + (nameHashVal * 40) + trimBonus;
-      
-      const currentYear = 2026;
-      const age = Math.max(0, currentYear - vYear);
-      let depreciated = baseOriginal * Math.pow(0.88, age);
-      
-      const mileageDepreciation = vMileage * 0.11;
-      depreciated = Math.max(2500, depreciated - mileageDepreciation);
-      
-      const tradeInLow = Math.round(depreciated * 0.92 / 100) * 100;
-      const tradeInHigh = Math.round(depreciated * 1.04 / 100) * 100;
-      
-      const privatePartyLow = Math.round(depreciated * 1.05 / 100) * 100;
-      const privatePartyHigh = Math.round(depreciated * 1.18 / 100) * 100;
-      
-      let advisorTip = "";
-      if (vMileage > 75000) {
-        advisorTip = `With ${vMileage.toLocaleString()} miles, this vehicle is nearing major milestone servicing thresholds. Trading now avoids immediate maintenance costs while market demand is peak.`;
-      } else if (age >= 6) {
-        advisorTip = "A solid contender for budget buyers, but rapidly outdated tech makes this an outstanding time to transition into modern active driver-assistance safety suites.";
-      } else if (tradeInHigh > 35000) {
-        advisorTip = "High-demand tier vehicle. Dealership stock is actively depleted for this exact model segment, commanding peak trade equity values right now.";
-      } else {
-        advisorTip = "Strong stable performer in regional pre-owned grids. Perfect candidate for clean trade rollover with excellent competitive value retention.";
-      }
-      
-      let marketTrend = "Stable";
-      if (age < 2) {
-        marketTrend = "Rising";
-      } else if (age > 6 || vMileage > 90000) {
-        marketTrend = "Falling";
-      } else if (nameHashVal % 3 === 0) {
-        marketTrend = "Rising";
-      }
-      
-      res.json({
-        tradeInLow,
-        tradeInHigh,
-        privatePartyLow,
-        privatePartyHigh,
-        advisorTip,
-        marketTrend
-      });
-    } catch (error: any) {
-      console.error("Valuation Error (Deterministic):", error);
-      res.status(500).json({ error: "Failed to calculate vehicle value" });
     }
   });
 
