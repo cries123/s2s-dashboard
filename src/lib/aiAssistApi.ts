@@ -26,6 +26,7 @@ export interface BriefingFacts {
   lastDayNoShows?: string;
   monthShowUpRate?: string;
   todayAppointments?: string;
+  todayCancelled?: string;
   laborAsOf?: string;
 }
 

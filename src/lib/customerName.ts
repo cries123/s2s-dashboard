@@ -17,9 +17,11 @@ export function formatCustomerDisplayName(
   const first = tidyNamePart((firstName || '').trim());
   const last = tidyNamePart((lastName || '').trim());
   const showFirst = first.length > 0 && !PLACEHOLDER_FIRST_NAMES.test(first);
+  // Some records carry the placeholder as the last name: "Customer".
+  const showLast = last.length > 0 && !PLACEHOLDER_FIRST_NAMES.test(last);
 
-  if (showFirst && last) return `${first} ${last}`;
-  if (last) return last;
+  if (showFirst && showLast) return `${first} ${last}`;
+  if (showLast) return last;
   if (showFirst) return first;
   return NO_NAME_LABEL;
 }

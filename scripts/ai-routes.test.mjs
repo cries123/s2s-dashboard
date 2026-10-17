@@ -166,11 +166,24 @@ F.briefing = { ...F.briefing, facts: { ...F.briefing.facts, laborGross: '$29,400
 openai = makeOpenAI(['Labor gross is about $30,000.', 'Labor gross hit $31,000.']);
 r = await call('GET /api/ai/briefing');
 check('new numbers + an AI that keeps rounding: the app writes it itself', [r.body.source, r.body.text.startsWith('Labor gross is $29,400 so far in October')], ['template', true]);
+const briefPath = 'artifacts/hyundai-sales-to-service/public/data/aiBriefings/hyundai_2026-10-17';
+check('and the record says why', F.db.store[briefPath].aiFailure, 'kept adding numbers not in the facts: 31000');
+
+openai = makeOpenAI(['should not be asked']);
+r = await call('GET /api/ai/briefing');
+check('a fallback minutes old is kept as is', [r.body.source, openai.sent.length], ['template', 0]);
+
+F.db.store[briefPath].generatedAt = new Date(Date.now() - 31 * 60_000).toISOString();
+openai = makeOpenAI(['Labor gross is $29,400, trending to $54,334.']);
+r = await call('GET /api/ai/briefing');
+check('after 30 minutes the AI gets another go', [r.body.source, openai.sent.length], ['ai', 1]);
+check('and the failure note clears', F.db.store[briefPath].aiFailure, null);
 
 F.db = makeDb(customers);
 openai = makeOpenAI([new Error('OpenAI is down')]);
 r = await call('GET /api/ai/briefing');
 check('OpenAI down: the briefing still shows', [r.status, r.body.source], [200, 'template']);
+check('and the record says OpenAI failed', String(F.db.store[briefPath].aiFailure).startsWith('OpenAI error'), true);
 
 rmSync(outDir, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);

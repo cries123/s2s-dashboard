@@ -141,9 +141,13 @@ export async function loadBriefingFacts(db: Firestore, dealershipId: string, now
   const monthShowUp = summarizeShowUp(monthDays.map((d) => schedule.get(d)).filter((d): d is ShowUpDay => Boolean(d)), today);
   if (monthShowUp.rate != null) facts.monthShowUpRate = `${monthShowUp.rate}%`;
 
+  // Counted the way the rest of the app counts today (Home, the week view):
+  // everything on the schedule, with the cancelled ones said out loud rather
+  // than quietly dropped — "12, 2 of them cancelled", not a bare 10.
   const todaysSlots = schedule.get(today)?.appointments ?? [];
-  const todayBooked = todaysSlots.filter((a) => showUpOutcome(a, today, today) !== 'cancelled').length;
-  if (todayBooked > 0) facts.todayAppointments = String(todayBooked);
+  const todayCancelled = todaysSlots.filter((a) => showUpOutcome(a, today, today) === 'cancelled').length;
+  if (todaysSlots.length > 0) facts.todayAppointments = String(todaysSlots.length);
+  if (todayCancelled > 0) facts.todayCancelled = String(todayCancelled);
 
   return { facts, noShowNames, today };
 }

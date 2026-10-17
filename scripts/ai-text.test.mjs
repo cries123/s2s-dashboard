@@ -61,10 +61,10 @@ check('history is newest first, one line a visit, undated left out', hist.split(
 ]);
 
 // --- the briefing ---------------------------------------------------------------------
-const f = { todayLabel: 'Friday, October 17', month: 'October', laborGross: '$27,167', laborGoal: '$85,000', laborTrending: '$54,334', laborPctOfGoal: '64%', lastDayLabel: 'Thursday', lastDayShowed: '19', lastDayBooked: '21', lastDayNoShows: '2', todayAppointments: '22' };
-check('facts text has only filled facts', A.briefingFactsText(f).split('\n').length, 11);
+const f = { todayLabel: 'Friday, October 17', month: 'October', laborGross: '$27,167', laborGoal: '$85,000', laborTrending: '$54,334', laborPctOfGoal: '64%', lastDayLabel: 'Thursday', lastDayShowed: '19', lastDayBooked: '21', lastDayNoShows: '2', todayAppointments: '12', todayCancelled: '2' };
+check('facts text has only filled facts', A.briefingFactsText(f).split('\n').length, 12);
 const t = A.templateBriefing(f);
-check('the template briefing reads', t, 'Labor gross is $27,167 so far in October, trending to $54,334 against a $85,000 goal (64%). Thursday, 19 of 21 appointments showed up and 2 didn\'t. 22 appointments are on the schedule today.');
+check('the template briefing reads', t, 'Labor gross is $27,167 so far in October, trending to $54,334 against a $85,000 goal (64%). Thursday, 19 of 21 appointments showed up and 2 didn\'t. 12 appointments are on today\'s schedule, 2 of them cancelled.');
 check('and passes its own number check', A.unsupportedNumbers(t, [A.briefingFactsText(f)]), []);
 check('no numbers yet', A.templateBriefing({ todayLabel: 'x', month: 'October' }), 'No numbers have been pulled for this month yet.');
 

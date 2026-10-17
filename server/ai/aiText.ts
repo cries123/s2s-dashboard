@@ -122,7 +122,10 @@ export interface BriefingFacts {
   lastDayBooked?: string;
   lastDayNoShows?: string;
   monthShowUpRate?: string;
+  /** Everything on today's schedule, cancelled included — the number Home shows. */
   todayAppointments?: string;
+  /** Of those, cancelled (PBS "Void"). */
+  todayCancelled?: string;
   /** When the labor numbers were last pulled from PBS, e.g. "6:04 AM". */
   laborAsOf?: string;
 }
@@ -144,7 +147,8 @@ const LABELS: Record<keyof BriefingFacts, string> = {
   lastDayBooked: 'Appointments due that day',
   lastDayNoShows: 'No-shows that day',
   monthShowUpRate: 'Show-up rate this month',
-  todayAppointments: 'Appointments on the schedule today',
+  todayAppointments: 'Appointments on the schedule today (cancelled ones included)',
+  todayCancelled: 'Of today\'s appointments, cancelled',
   laborAsOf: 'Labor numbers last pulled from PBS at',
 };
 
@@ -175,7 +179,12 @@ export function templateBriefing(f: BriefingFacts): string {
         '.'
     );
   }
-  if (f.todayAppointments) s.push(`${f.todayAppointments} appointments are on the schedule today.`);
+  if (f.todayAppointments) {
+    s.push(
+      `${f.todayAppointments} appointments are on today's schedule` +
+        (f.todayCancelled ? `, ${f.todayCancelled} of them cancelled.` : '.')
+    );
+  }
   if (f.appointmentsMtd) {
     s.push(
       `${f.appointmentsMtd} appointments so far this month` +

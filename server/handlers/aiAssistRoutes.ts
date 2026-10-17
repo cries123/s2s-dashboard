@@ -41,19 +41,21 @@ function approvedUser(req: Request): ApprovedUser | undefined {
 
 /**
  * Ask once; if the answer carries a number that is not in the source, ask again
- * with that pointed out. Returns null when it still strays.
+ * with that pointed out. `text` is null when it still strays, and `invented`
+ * says what it kept adding.
  */
-async function faithfulCompletion(
+async function faithfulCompletionDetailed(
   openai: OpenAI,
   system: string,
   user: string,
   sources: string[],
   maxTokens: number
-): Promise<string | null> {
+): Promise<{ text: string | null; invented: string[] }> {
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: 'system', content: system },
     { role: 'user', content: user },
   ];
+  let invented: string[] = [];
   for (let attempt = 0; attempt < 2; attempt++) {
     const completion = await openai.chat.completions.create({
       model: MODEL(),
@@ -63,8 +65,8 @@ async function faithfulCompletion(
     });
     const text = completion.choices[0]?.message?.content?.trim() ?? '';
     if (!text) continue;
-    const invented = unsupportedNumbers(text, sources);
-    if (invented.length === 0) return text;
+    invented = unsupportedNumbers(text, sources);
+    if (invented.length === 0) return { text, invented };
     console.warn(`[ai] Answer used numbers not in its source (${invented.join(', ')}); ${attempt === 0 ? 'retrying' : 'giving up'}.`);
     messages.push(
       { role: 'assistant', content: text },
@@ -74,8 +76,21 @@ async function faithfulCompletion(
       }
     );
   }
-  return null;
+  return { text: null, invented };
 }
+
+async function faithfulCompletion(
+  openai: OpenAI,
+  system: string,
+  user: string,
+  sources: string[],
+  maxTokens: number
+): Promise<string | null> {
+  return (await faithfulCompletionDetailed(openai, system, user, sources, maxTokens)).text;
+}
+
+/** How long a fallback briefing stands before the AI is asked again for the same numbers. */
+const RETRY_AI_AFTER_MS = 30 * 60_000;
 
 // --- the briefing -------------------------------------------------------------------------
 
@@ -99,28 +114,39 @@ async function briefingRoute(req: Request, res: Response, getOpenAI: GetOpenAI) 
     const cached = (await cacheRef.get()).data();
     const base = { facts, noShowNames, date: today };
 
-    // Same numbers as the last one written today: send that one back.
-    if (cached?.factsText === factsText && typeof cached.text === 'string') {
+    // Same numbers as the last one written today: send that one back — unless it
+    // is the app's fallback and has stood long enough to give the AI another go.
+    const fallbackAge = cached?.generatedAt ? Date.now() - new Date(String(cached.generatedAt)).getTime() : Infinity;
+    const retryAi = cached?.source === 'template' && hasUsableOpenAIKey() && fallbackAge > RETRY_AI_AFTER_MS;
+    if (cached?.factsText === factsText && typeof cached.text === 'string' && !retryAi) {
       return res.json({ ...base, text: cached.text, source: cached.source, generatedAt: cached.generatedAt });
     }
 
     let text = templateBriefing(facts);
     let source: 'ai' | 'template' = 'template';
+    // Why the AI's version wasn't used, kept on the record so it can be read
+    // without server logs. Null when the AI's version is the one shown.
+    let aiFailure: string | null = hasUsableOpenAIKey() ? null : 'no OpenAI key on the server';
     if (hasUsableOpenAIKey() && (facts.laborGross || facts.appointmentsMtd || facts.lastDayBooked)) {
       try {
-        const written = await faithfulCompletion(getOpenAI(), BRIEFING_SYSTEM, `Facts:\n${factsText}`, [factsText], 220);
-        if (written) {
-          text = written;
+        const written = await faithfulCompletionDetailed(getOpenAI(), BRIEFING_SYSTEM, `Facts:\n${factsText}`, [factsText], 220);
+        if (written.text) {
+          text = written.text;
           source = 'ai';
+        } else {
+          aiFailure = written.invented.length
+            ? `kept adding numbers not in the facts: ${written.invented.join(', ')}`
+            : 'empty answer';
         }
       } catch (err) {
         // The briefing still shows, in the app's own words.
         console.error('[ai/briefing] OpenAI failed; using the template:', err);
+        aiFailure = `OpenAI error: ${openAiFailureMessage(err)}`.slice(0, 300);
       }
     }
 
     const generatedAt = new Date().toISOString();
-    await cacheRef.set({ factsText, text, source, generatedAt, model: source === 'ai' ? MODEL() : null });
+    await cacheRef.set({ factsText, text, source, generatedAt, model: source === 'ai' ? MODEL() : null, aiFailure });
     return res.json({ ...base, text, source, generatedAt });
   } catch (err) {
     console.error('[ai/briefing]', err);
