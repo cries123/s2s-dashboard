@@ -76,6 +76,22 @@ check('held back: two full VINs, two years, two models', g.skipped.map((s) => s.
   'Model years differ (2022 / 2019)', 'Models differ (ELANTRA / SONATA)', 'Different full VINs share the last 8',
 ]);
 check('an already merged profile is not grouped again', g.groups.some((x) => x.tail === 'NU000003'), false);
+const g2 = P.groupCarsOnSeveralProfiles([
+  { id: 'a', data: { vinLast8: 'SH050201', year: '2025', model: 'SANTA FE' } },
+  { id: 'b', data: { vin: '5NMP5DGL0SH050201', year: '2025', model: 'SANTAFE' } },
+  { id: 'c', data: { vinLast8: 'RM039410', model: 'TACOMA 4WD' } },
+  { id: 'd', data: { vinLast8: 'RM039410', model: 'TACOMA' } },
+  { id: 'e', data: { vinLast8: 'RU187948', model: 'TUCSON HEV' } },
+  { id: 'f', data: { vinLast8: 'RU187948', model: 'TUCSON HYBRID' } },
+  { id: 'g', data: { vinLast8: 'PU183568', model: 'KONA EV' } },
+  { id: 'h', data: { vinLast8: 'PU183568', model: 'KONA ELECTRIC' } },
+  { id: 'i', data: { vinLast8: 'PU000070', model: 'GV70' } },
+  { id: 'j', data: { vinLast8: 'PU000070', model: 'GV80' } },
+  { id: 'k', data: { vinLast8: 'RIO00001', model: 'RIO' } },
+  { id: 'l', data: { vinLast8: 'RIO00001', model: 'RIO 5-DOOR' } },
+]);
+check('one model, spelled differently: SANTA FE, TACOMA 4WD, TUCSON HEV/HYBRID, KONA EV/ELECTRIC, RIO', g2.groups.map((x) => x.tail), ['PU183568', 'RIO00001', 'RM039410', 'RU187948', 'SH050201']);
+check('GV70 / GV80 held back', g2.skipped.map((x) => x.tail), ['PU000070']);
 
 // --- people ----------------------------------------------------------------------------------
 check('"Customer" is no name', P.isPlaceholderName({ firstName: '', lastName: 'Customer' }), true);

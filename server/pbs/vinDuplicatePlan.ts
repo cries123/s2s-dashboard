@@ -54,7 +54,23 @@ const fullVin = (data: Record<string, unknown>) => {
   return vin.length === 17 ? vin : '';
 };
 
-const modelWord = (data: Record<string, unknown>) => clean(String(data.model ?? '').trim().split(/\s+/)[0]);
+/** The model without spaces: "SANTA FE" and "SANTAFE" are one model. */
+const modelKey = (data: Record<string, unknown>) => clean(data.model);
+
+/**
+ * Two spellings of one model start the same way — "TUCSON HEV" / "TUCSON
+ * HYBRID", "KONA EV" / "KONA ELECTRIC", "TACOMA 4WD" / "TACOMA" — for at least
+ * four letters, or all of the shorter one. "GV70" / "GV80" and "ELANTRA" /
+ * "SONATA" do not. The VIN is the real match; this only catches a wrong one.
+ */
+function modelsAgree(models: readonly string[]): boolean {
+  const agree = (a: string, b: string) => {
+    let n = 0;
+    while (n < a.length && n < b.length && a[n] === b[n]) n++;
+    return n >= Math.min(4, a.length, b.length) && (n >= 4 || n === Math.min(a.length, b.length));
+  };
+  return models.every((a) => models.every((b) => agree(a, b)));
+}
 
 export interface DuplicateGroup {
   tail: string;
@@ -88,10 +104,10 @@ export function groupCarsOnSeveralProfiles(
     const ids = list.map((p) => p.id).sort();
     const vins = new Set(list.map((p) => fullVin(p.data)).filter(Boolean));
     const years = new Set(list.map((p) => String(p.data.year ?? '').trim()).filter(Boolean));
-    const models = new Set(list.map((p) => modelWord(p.data)).filter((m) => m && m !== 'UNKNOWN'));
+    const models = [...new Set(list.map((p) => modelKey(p.data)).filter((m) => m && m !== 'UNKNOWN'))];
     if (vins.size > 1) skipped.push({ tail, ids, reason: 'Different full VINs share the last 8' });
     else if (years.size > 1) skipped.push({ tail, ids, reason: `Model years differ (${[...years].join(' / ')})` });
-    else if (models.size > 1) skipped.push({ tail, ids, reason: `Models differ (${[...models].join(' / ')})` });
+    else if (!modelsAgree(models)) skipped.push({ tail, ids, reason: `Models differ (${models.join(' / ')})` });
     else groups.push({ tail, ids });
   }
   groups.sort((a, b) => a.tail.localeCompare(b.tail));
