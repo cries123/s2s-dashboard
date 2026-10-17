@@ -24,7 +24,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 const outDir = mkdtempSync(join('node_modules', '.s2s-vinmerge-emu-'));
 const entry = join(outDir, 'bundle.mjs');
 await esbuild.build({ entryPoints: ['server/pbs/vinDuplicateMerge.ts'], bundle: true, format: 'esm', platform: 'node', packages: 'external', outfile: entry, logLevel: 'error' });
-const { findCarsOnSeveralProfiles, previewCarMerge, mergeCar } = await import(pathToFileURL(entry).href);
+const { findCarsOnSeveralProfiles, previewCarMerge, mergeCar, runCarMergeBatch } = await import(pathToFileURL(entry).href);
 
 initializeApp({ projectId: 'demo-s2s' });
 const db = getFirestore();
@@ -122,6 +122,19 @@ check('nothing left to merge', (await findCarsOnSeveralProfiles(db, 'hyundai')).
 const again = await mergeCar(db, { tail: 'MGB18836', ids: ['IMP1', 'PBS1'] }, { dealershipId: 'hyundai', now: NOW, runId: 'run-2' });
 check('a second run on the same car does nothing', [again.status, again.reason], ['skipped', 'Already merged']);
 check('...and writes no backup', (await backups.get()).size, 2);
+
+// --- the Admin page's batches: a request can only name one car per group ------------------------------
+await customers.doc('X1').set({ dealershipId: 'hyundai', vinLast8: 'AAAAAAAA', lastName: 'ONE' });
+await customers.doc('X2').set({ dealershipId: 'hyundai', vinLast8: 'BBBBBBBB', lastName: 'TWO' });
+const bad = await runCarMergeBatch(db, { dealershipId: 'hyundai', groups: [{ tail: 'AAAAAAAA', ids: ['X1', 'X2'] }], dryRun: false, runId: 'run-bad', now: NOW });
+check('a request naming two different cars is refused, nothing written', [bad[0].status, bad[0].reason, (await customers.doc('X2').get()).get('mergedInto'), (await backups.get()).size], ['failed', 'These profiles no longer share this VIN', undefined, 2]);
+let threw = false;
+try {
+  await runCarMergeBatch(db, { dealershipId: 'hyundai', groups: Array.from({ length: 9 }, () => ({ tail: 'AAAAAAAA', ids: ['X1', 'X2'] })), dryRun: false, runId: 'run-x', now: NOW });
+} catch { threw = true; }
+check('more than 8 cars in one merge request is refused', threw, true);
+const rows = await runCarMergeBatch(db, { dealershipId: 'hyundai', groups: [{ tail: 'MGB18836', ids: ['IMP1', 'PBS1'] }], dryRun: true, runId: 'run-p', now: NOW });
+check('a preview of an already merged car says so', [rows[0].status, rows[0].reason], ['skipped', 'Already merged']);
 
 await wipe();
 rmSync(outDir, { recursive: true, force: true });

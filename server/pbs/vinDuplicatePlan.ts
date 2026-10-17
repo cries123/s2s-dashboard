@@ -232,6 +232,9 @@ export interface CarMergePlan {
   ownerId: string;
   ownerReason: OwnerReason;
   ownerName: string;
+  /** The kept record's name before, and each merged record's: for the preview. */
+  keptNameBefore: string;
+  mergedNames: string[];
   /** Real names on both sides that are not one person: the car changed hands. */
   ownerChanged: boolean;
   /** Field changes for the kept profile. `null` means delete the field. */
@@ -429,6 +432,8 @@ export function planCarMerge(tail: string, profiles: ReadonlyArray<ProfileForMer
     ownerId: owner.id,
     ownerReason,
     ownerName: personName(finalPerson),
+    keptNameBefore: personName(keepData),
+    mergedNames: merged.map((m) => personName(m.data)),
     ownerChanged,
     keepPatch,
     mergePatches,

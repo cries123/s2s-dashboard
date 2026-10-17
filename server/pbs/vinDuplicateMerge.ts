@@ -4,6 +4,7 @@ import { SERVICE_VISITS_COLLECTION, type StoredVisit } from '../../src/lib/visit
 import {
   groupCarsOnSeveralProfiles,
   planCarMerge,
+  vinTail,
   type CarMergePlan,
   type DuplicateGroup,
   type ProfileForMerge,
@@ -84,6 +85,21 @@ async function readGroup(db: Firestore, ids: readonly string[], reader: Reader) 
   return { profiles, snaps, contactLogs };
 }
 
+/**
+ * The group a request names must still be one car in this store. The browser
+ * sends the groups it was shown; anything that changed since is refused here.
+ */
+function liveProfilesOf(group: DuplicateGroup, profiles: ProfileForMerge[], dealershipId: string): ProfileForMerge[] {
+  const live = profiles.filter((p) => !p.data.mergedInto);
+  if (live.some((p) => String(p.data.dealershipId || '') !== dealershipId)) {
+    throw new Error('A profile in this group belongs to another store');
+  }
+  if (live.some((p) => vinTail(p.data) !== group.tail)) {
+    throw new Error('These profiles no longer share this VIN');
+  }
+  return live;
+}
+
 export interface CarMergeResult {
   tail: string;
   status: 'merged' | 'planned' | 'skipped' | 'failed';
@@ -94,11 +110,16 @@ export interface CarMergeResult {
 }
 
 /** Preview one car: reads only. */
-export async function previewCarMerge(db: Firestore, group: DuplicateGroup, now: string): Promise<CarMergeResult> {
+export async function previewCarMerge(
+  db: Firestore,
+  group: DuplicateGroup,
+  now: string,
+  dealershipId = 'hyundai'
+): Promise<CarMergeResult> {
   try {
     const reader: Reader = { get: (x: any) => x.get() } as Reader;
     const { profiles } = await readGroup(db, group.ids, reader);
-    const live = profiles.filter((p) => !p.data.mergedInto);
+    const live = liveProfilesOf(group, profiles, dealershipId);
     if (live.length < 2) return { tail: group.tail, status: 'skipped', reason: 'Already merged' };
     return { tail: group.tail, status: 'planned', plan: planCarMerge(group.tail, live, now) };
   } catch (err) {
@@ -116,11 +137,8 @@ export async function mergeCar(
   try {
     const outcome = await db.runTransaction(async (tx) => {
       const { profiles, contactLogs } = await readGroup(db, group.ids, tx as unknown as Reader);
-      const live = profiles.filter((p) => !p.data.mergedInto);
+      const live = liveProfilesOf(group, profiles, options.dealershipId);
       if (live.length < 2) return 'already-merged' as const;
-      if (live.some((p) => String(p.data.dealershipId || '') !== options.dealershipId)) {
-        throw new Error('A profile in this group belongs to another store');
-      }
       plan = planCarMerge(group.tail, live, options.now);
       const keepRef = customersCollection(db).doc(plan.keepId);
 
@@ -197,4 +215,72 @@ export async function mergeCar(
   } catch (err) {
     return { tail: group.tail, status: 'failed', plan, reason: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/** One car's outcome, as the Admin page shows it: names and counts, no visit detail. */
+export interface CarMergeRow {
+  tail: string;
+  status: CarMergeResult['status'];
+  reason?: string;
+  vin?: string;
+  keptId?: string;
+  mergedIds?: string[];
+  ownerName?: string;
+  keptNameBefore?: string;
+  mergedNames?: string[];
+  ownerReason?: string;
+  ownerChanged?: boolean;
+  nameFilled?: boolean;
+  phoneFilled?: boolean;
+  visitsCopied?: number;
+  verified?: boolean;
+}
+
+export function toCarMergeRow(r: CarMergeResult): CarMergeRow {
+  const p = r.plan;
+  return {
+    tail: r.tail,
+    status: r.status,
+    ...(r.reason ? { reason: r.reason } : {}),
+    ...(p
+      ? {
+          vin: p.vin || p.tail,
+          keptId: p.keepId,
+          mergedIds: p.mergeIds,
+          ownerName: p.ownerName,
+          keptNameBefore: p.keptNameBefore,
+          mergedNames: p.mergedNames,
+          ownerReason: p.ownerReason,
+          ownerChanged: p.ownerChanged,
+          nameFilled: 'lastName' in p.keepPatch,
+          phoneFilled: 'phone' in p.keepPatch,
+          visitsCopied: p.visitCopies.length,
+        }
+      : {}),
+    ...(r.verified !== undefined ? { verified: r.verified } : {}),
+  };
+}
+
+/** Most cars a request may name: each is its own transaction, inside the ~26 s gateway. */
+export const CAR_MERGE_BATCH_LIMIT = { preview: 25, merge: 8 } as const;
+
+/**
+ * Preview or merge the cars a request names, one after another. The browser
+ * gets the list once (findCarsOnSeveralProfiles) and sends it back a few cars
+ * at a time, so the store's customers are read once per run, not per request.
+ */
+export async function runCarMergeBatch(
+  db: Firestore,
+  options: { dealershipId: string; groups: DuplicateGroup[]; dryRun: boolean; runId: string; now: string }
+): Promise<CarMergeRow[]> {
+  const limit = options.dryRun ? CAR_MERGE_BATCH_LIMIT.preview : CAR_MERGE_BATCH_LIMIT.merge;
+  if (options.groups.length > limit) throw new Error(`At most ${limit} cars per request`);
+  const rows: CarMergeRow[] = [];
+  for (const group of options.groups) {
+    const result = options.dryRun
+      ? await previewCarMerge(db, group, options.now, options.dealershipId)
+      : await mergeCar(db, group, { dealershipId: options.dealershipId, now: options.now, runId: options.runId });
+    rows.push(toCarMergeRow(result));
+  }
+  return rows;
 }

@@ -553,3 +553,101 @@ export async function waitForPbsSyncCompletion(
 ): Promise<PbsSyncRunResponse> {
   return pollPbsSyncUntilComplete(startedAfter);
 }
+
+/** One car's outcome — server/pbs/vinDuplicateMerge.ts CarMergeRow. */
+export interface DuplicateCarRow {
+  tail: string;
+  status: 'merged' | 'planned' | 'skipped' | 'failed';
+  reason?: string;
+  vin?: string;
+  ownerName?: string;
+  keptNameBefore?: string;
+  mergedNames?: string[];
+  ownerReason?: string;
+  ownerChanged?: boolean;
+  nameFilled?: boolean;
+  phoneFilled?: boolean;
+  visitsCopied?: number;
+  verified?: boolean;
+}
+
+export interface DuplicateCarReport {
+  dryRun: boolean;
+  /** Cars found on two or more profiles, held-back ones excluded. */
+  cars: number;
+  /** Cars checked (preview) or attempted (merge) so far. */
+  done: number;
+  /** Planned on a preview; merged and read back on a real run. */
+  ok: number;
+  namesFilled: number;
+  phonesFilled: number;
+  visitsCopied: number;
+  changedHands: DuplicateCarRow[];
+  failed: DuplicateCarRow[];
+  /** Merged but the read-back did not match — should be zero. */
+  unverified: DuplicateCarRow[];
+  /** Records that disagree about the car (two full VINs, years, models): left for a person. */
+  heldBack: Array<{ tail: string; reason: string }>;
+}
+
+/**
+ * Cars on two profiles: find them once, then preview or merge a few per
+ * request. `dryRun: true` reads only. The real run merges each car in one
+ * transaction (backed up first) and reads it back. Safe to run twice: a merged
+ * car is no longer on two profiles.
+ */
+export async function runDuplicateCarMerge(
+  dryRun: boolean,
+  onProgress?: (report: DuplicateCarReport) => void
+): Promise<DuplicateCarReport> {
+  const headers = await bearerHeaders();
+  const findRes = await fetch('/api/pbs/duplicate-cars/find', { method: 'POST', headers, body: '{}' });
+  const found = await parseJson<{
+    ok?: boolean;
+    error?: string;
+    groups?: Array<{ tail: string; ids: string[] }>;
+    skipped?: Array<{ tail: string; reason: string }>;
+  }>(findRes);
+  if (!findRes.ok || !found.ok) throw new Error(found.error || 'Could not look for cars on two profiles.');
+
+  const groups = found.groups || [];
+  const report: DuplicateCarReport = {
+    dryRun,
+    cars: groups.length,
+    done: 0,
+    ok: 0,
+    namesFilled: 0,
+    phonesFilled: 0,
+    visitsCopied: 0,
+    changedHands: [],
+    failed: [],
+    unverified: [],
+    heldBack: (found.skipped || []).map((s) => ({ tail: s.tail, reason: s.reason })),
+  };
+  onProgress?.({ ...report });
+
+  const runId = `run-${Date.now().toString(36)}`;
+  const size = dryRun ? 25 : 8;
+  for (let i = 0; i < groups.length; i += size) {
+    const res: Response = await fetch('/api/pbs/duplicate-cars/run', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ dryRun, runId, groups: groups.slice(i, i + size) }),
+    });
+    const page = await parseJson<{ ok?: boolean; error?: string; rows?: DuplicateCarRow[] }>(res);
+    if (!res.ok || !page.ok) throw new Error(page.error || 'Could not merge cars on two profiles.');
+    for (const row of page.rows || []) {
+      report.done += 1;
+      if (row.status === 'failed') report.failed.push(row);
+      if (row.status !== 'planned' && row.status !== 'merged') continue;
+      report.ok += 1;
+      if (row.nameFilled) report.namesFilled += 1;
+      if (row.phoneFilled) report.phonesFilled += 1;
+      report.visitsCopied += row.visitsCopied || 0;
+      if (row.ownerChanged) report.changedHands.push(row);
+      if (row.status === 'merged' && row.verified === false) report.unverified.push(row);
+    }
+    onProgress?.({ ...report, changedHands: [...report.changedHands], failed: [...report.failed], unverified: [...report.unverified] });
+  }
+  return report;
+}

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Car,
   CheckCircle2,
   Database,
   KeyRound,
@@ -15,8 +16,10 @@ import {
   runPbsSyncNow,
   previewRepairOrderLinking,
   runVisitMigration,
+  runDuplicateCarMerge,
   setRepairOrderLinking,
   waitForPbsSyncCompletion,
+  type DuplicateCarReport,
   type LinkPreview,
   type PbsCapability,
   type PbsSyncStatusResponse,
@@ -26,6 +29,7 @@ import { ConfirmModal } from '../../ui/ConfirmModal';
 import { isPbsSyncDealership, PBS_SYNC_DEALERSHIP_NAME } from '../../../lib/pbsSyncScope';
 import { cn } from '../../../lib/utils';
 import { CardNotice, CardNoticeRow } from '../../ui/CardNotice';
+import { tidyPersonName } from '../../../lib/tidyCase';
 
 interface PbsSyncPanelProps {
   dealershipId: string;
@@ -93,6 +97,11 @@ function PbsSyncPanelInner({
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [confirmMove, setConfirmMove] = useState(false);
+  /** Cars on two profiles, folded into one. Preview first, always. */
+  const [dupReport, setDupReport] = useState<DuplicateCarReport | null>(null);
+  const [dupBusy, setDupBusy] = useState(false);
+  const [dupError, setDupError] = useState<string | null>(null);
+  const [confirmDup, setConfirmDup] = useState(false);
   /** Dry run of linking customers from repair orders. Read-only. */
   const [linkMonth, setLinkMonth] = useState(() => {
     const d = new Date();
@@ -212,6 +221,21 @@ function PbsSyncPanelInner({
       setMoveError(err instanceof Error ? err.message : 'Could not move service history.');
     } finally {
       setMoveBusy(false);
+    }
+  };
+
+  const handleDuplicates = async (dryRun: boolean) => {
+    setDupBusy(true);
+    setDupError(null);
+    setConfirmDup(false);
+    try {
+      const report = await runDuplicateCarMerge(dryRun, (partial) => setDupReport(partial));
+      setDupReport(report);
+      if (!dryRun) onSuccess?.(`Merged ${report.ok} cars onto one profile each.`);
+    } catch (err) {
+      setDupError(err instanceof Error ? err.message : 'Could not merge cars on two profiles.');
+    } finally {
+      setDupBusy(false);
     }
   };
 
@@ -642,6 +666,133 @@ function PbsSyncPanelInner({
             confirmLabel="Move history"
             onConfirm={() => handleMoveHistory(false)}
             onCancel={() => setConfirmMove(false)}
+          />
+        </div>
+
+        {/*
+          One profile per car.
+
+          The PBS sync made a second profile for cars it could not match to an
+          old spreadsheet import. Jaryn's rule: the customer who came in most
+          recently keeps the car, and every visit goes with it. Preview first;
+          the real run backs each car up, merges it in one step, and reads it
+          back. The other profile is hidden, never deleted.
+        */}
+        <div className="border-t pt-4" style={{ borderColor: 'var(--color-row-divider)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Car size={14} style={{ color: 'var(--color-text-secondary)' }} />
+                Cars on two profiles
+              </h4>
+              <p className="crm-label mt-0.5">
+                {dupBusy
+                  ? dupReport
+                    ? `${dupReport.dryRun ? 'Checked' : 'Merged'} ${dupReport.done.toLocaleString()} of ${dupReport.cars.toLocaleString()} cars…`
+                    : 'Looking for cars on two profiles…'
+                  : 'One profile per car. Whoever came in last keeps it, with every visit.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleDuplicates(true)}
+                disabled={dupBusy}
+                className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {dupBusy && dupReport?.dryRun !== false ? <Loader2 size={14} className="animate-spin" /> : null}
+                Preview
+              </button>
+              {dupReport?.dryRun && dupReport.ok > 0 && !dupBusy ? (
+                <button type="button" onClick={() => setConfirmDup(true)} className="btn-primary">
+                  Merge {dupReport.ok.toLocaleString()} cars
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          {dupError ? (
+            <p className="text-sm mt-3" style={{ color: 'var(--color-badge-error-text)' }}>
+              {cleanErrorText(dupError)}
+            </p>
+          ) : null}
+
+          {dupReport && !dupBusy ? (
+            <div className="mt-3 space-y-3">
+              <div className="card-base rounded-lg divide-y" style={{ borderColor: 'var(--color-row-divider)' }}>
+                {(
+                  dupReport.dryRun
+                    ? [
+                        ['Cars to merge', dupReport.ok],
+                        ['"Customer" records getting the real name', dupReport.namesFilled],
+                        ['Phone numbers filled in', dupReport.phonesFilled],
+                        ['Visits copied to the kept profile', dupReport.visitsCopied],
+                      ]
+                    : [
+                        ['Cars merged and checked', dupReport.ok - dupReport.unverified.length],
+                        ['Visits copied to the kept profile', dupReport.visitsCopied],
+                        ['Merged, check did not match', dupReport.unverified.length],
+                      ]
+                ).map(([label, value]) => (
+                  <div key={label as string} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      {label}
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums">{(value as number).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+
+              {dupReport.changedHands.length + dupReport.heldBack.length + dupReport.failed.length > 0 ? (
+                <CardNoticeRow>
+                  {dupReport.changedHands.length > 0 ? (
+                    <CardNotice tone="info" summary={`${dupReport.changedHands.length} changed hands`}>
+                      The customer who came in last keeps the car. The earlier owner's profile is hidden, not
+                      deleted.{' '}
+                      {dupReport.changedHands
+                        .map(
+                          (r) =>
+                            `${(r.mergedNames ?? []).map((n) => tidyPersonName(n) || 'No name').join(', ')} → ${tidyPersonName(r.ownerName ?? '') || 'No name'}`
+                        )
+                        .join('; ')}
+                    </CardNotice>
+                  ) : null}
+                  {dupReport.heldBack.length > 0 ? (
+                    <CardNotice tone="warn" summary={`${dupReport.heldBack.length} held back`}>
+                      These records disagree about which car it is, so they are left as they are for you to check.{' '}
+                      {dupReport.heldBack.map((h) => `…${h.tail}: ${h.reason}`).join('; ')}
+                    </CardNotice>
+                  ) : null}
+                  {dupReport.failed.length > 0 ? (
+                    <CardNotice tone="warn" summary={`${dupReport.failed.length} failed`}>
+                      Left exactly as they were. Run it again to retry.{' '}
+                      {dupReport.failed
+                        .slice(0, 5)
+                        .map((r) => `…${r.tail}: ${r.reason}`)
+                        .join('; ')}
+                      {dupReport.failed.length > 5 ? '…' : ''}
+                    </CardNotice>
+                  ) : null}
+                </CardNoticeRow>
+              ) : null}
+
+              <p className="crm-label">
+                {dupReport.dryRun
+                  ? dupReport.ok === 0
+                    ? 'No cars are on two profiles.'
+                    : 'Nothing has been changed. This is what Merge would do.'
+                  : 'Done. Every profile was backed up before it was changed.'}
+              </p>
+            </div>
+          ) : null}
+
+          <ConfirmModal
+            open={confirmDup}
+            title="Merge cars on two profiles?"
+            description={`This merges ${dupReport?.ok.toLocaleString() ?? 0} cars. For each one, the customer who came in last keeps the car and every visit. The other profile is backed up, then hidden — not deleted. A car that fails is left untouched.`}
+            confirmLabel="Merge cars"
+            onConfirm={() => handleDuplicates(false)}
+            onCancel={() => setConfirmDup(false)}
           />
         </div>
 

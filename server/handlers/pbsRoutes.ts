@@ -43,6 +43,7 @@ import {
 } from '../pbs/pbsMonthRebuild.js';
 import { probePbsCapabilities } from '../pbs/pbsCapabilityProbe.js';
 import { migrateCustomerVisitsPage } from '../pbs/pbsVisitMigration.js';
+import { findCarsOnSeveralProfiles, runCarMergeBatch } from '../pbs/vinDuplicateMerge.js';
 import { getPbsEnvDiagnostics, getPbsCronDiagnostics } from '../pbs/pbsEnvDiagnostics.js';
 import { formatFirestoreError, isFirestoreQuotaError } from '../pbs/firestoreErrors.js';
 import type { PbsSyncLogEntry, PbsSyncState } from '../pbs/pbsTypes.js';
@@ -368,6 +369,63 @@ export function registerPbsRoutes(app: Express) {
         );
       }
       return res.json({ ok: true, ...page });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * Cars on more than one customer profile (vinDuplicateMerge). Reads only:
+   * the store's customers once, small fields, grouped by the VIN they share.
+   */
+  app.post('/api/pbs/duplicate-cars/find', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) return res.status(401).json({ error: 'Unauthorized.' });
+    const db = getAdminFirestore();
+    if (!db) return res.status(503).json({ error: 'Firestore is not configured.' });
+    try {
+      const found = await findCarsOnSeveralProfiles(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID);
+      return res.json({ ok: true, ...found });
+    } catch (err) {
+      return handlePbsError(res, err);
+    }
+  });
+
+  /**
+   * Preview or merge the cars named in the body, a few per request.
+   *
+   * A preview unless the body says `dryRun: false` in so many words. Each car
+   * is one transaction: backed up, copied, updated, read back — or untouched.
+   */
+  app.post('/api/pbs/duplicate-cars/run', async (req: Request, res: Response) => {
+    const caller = await resolvePbsSyncCaller(req);
+    if (!caller) return res.status(401).json({ error: 'Unauthorized.' });
+    const db = getAdminFirestore();
+    if (!db) return res.status(503).json({ error: 'Firestore is not configured.' });
+    const dryRun = req.body?.dryRun !== false;
+    const runId = String(req.body?.runId ?? '');
+    if (!/^run-[0-9a-z-]{4,40}$/.test(runId)) return res.status(400).json({ error: 'A run id is required.' });
+    const raw: unknown[] = Array.isArray(req.body?.groups) ? req.body.groups : [];
+    const groups = raw
+      .map((g) => g as { tail?: unknown; ids?: unknown })
+      .filter((g) => typeof g.tail === 'string' && Array.isArray(g.ids) && g.ids.length >= 2 && g.ids.every((id) => typeof id === 'string'))
+      .map((g) => ({ tail: String(g.tail), ids: (g.ids as string[]).slice(0, 5) }));
+    if (groups.length !== raw.length || groups.length === 0) return res.status(400).json({ error: 'Send the cars to check.' });
+    try {
+      const rows = await runCarMergeBatch(db, {
+        dealershipId: PBS_AUTOMATED_SYNC_DEALERSHIP_ID,
+        groups,
+        dryRun,
+        runId,
+        now: new Date().toISOString(),
+      });
+      if (!dryRun) {
+        console.log(
+          `[Duplicates] ${runId} by ${caller.email}: ${rows.filter((r) => r.status === 'merged').length} merged, ` +
+            `${rows.filter((r) => r.status === 'failed').length} failed, ${rows.filter((r) => r.status === 'skipped').length} skipped`
+        );
+      }
+      return res.json({ ok: true, rows });
     } catch (err) {
       return handlePbsError(res, err);
     }
