@@ -18,8 +18,6 @@ import { motion } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { PageHeader } from '../../layout/PageHeader';
-import { VinRecallReport } from './VinRecallReport';
-import { fetchVinRecalls, type VinRecallReport as RecallReport } from '../../../lib/recallApi';
 
 interface VinData {
   Variable: string;
@@ -31,9 +29,6 @@ export const VinLookup: React.FC = () => {
   const [vin, setVin] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<VinData[] | null>(null);
-  const [recallReport, setRecallReport] = useState<RecallReport | null>(null);
-  const [recallLoading, setRecallLoading] = useState(false);
-  const [recallError, setRecallError] = useState<string | null>(null);
   const [fuelData, setFuelData] = useState<any | null>(null);
   const [marketValue, setMarketValue] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,8 +47,6 @@ export const VinLookup: React.FC = () => {
     setLoading(true);
     setError(null);
     setData(null);
-    setRecallReport(null);
-    setRecallError(null);
     setFuelData(null);
     setMarketValue(null);
     setValuationError(null);
@@ -88,16 +81,7 @@ export const VinLookup: React.FC = () => {
         const model = decodeResult.Results.find((r: any) => r.Variable === "Model")?.Value;
         const year = decodeResult.Results.find((r: any) => r.Variable === "Model Year")?.Value;
 
-        // 2. Recalls: the right model (hybrid and electric included), checked
-        // against this car's repair orders on the server. Runs alongside the
-        // rest; a failure shows as "couldn't be checked", never as "no recalls".
-        setRecallLoading(true);
-        fetchVinRecalls(cleanVin)
-          .then(setRecallReport)
-          .catch((rErr) => setRecallError(rErr instanceof Error ? rErr.message : 'Recalls could not be checked.'))
-          .finally(() => setRecallLoading(false));
-
-        // 3. Fetch Fuel Economy Data
+        // 2. Fetch Fuel Economy Data
         if (make && model && year) {
           try {
             const optionsRes = await fetch(`https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=${year}&make=${make}&model=${model}`, {
@@ -118,7 +102,7 @@ export const VinLookup: React.FC = () => {
             console.error("Fuel Economy fetch failed", fErr);
           }
 
-          // 4. Fetch Valuation
+          // 3. Fetch Valuation
           try {
             setIsValuing(true);
             const valRes = await fetch('/api/estimate-value', {
@@ -172,7 +156,7 @@ export const VinLookup: React.FC = () => {
     <div className="space-y-8 pb-12">
       <PageHeader
         title="VIN search"
-        description="Decode a VIN to see vehicle specs, recalls and estimated value."
+        description="Decode a VIN to see vehicle specs and estimated value."
         breadcrumbs={[{ label: 'Sales' }, { label: 'VIN search' }]}
       />
 
@@ -259,9 +243,6 @@ export const VinLookup: React.FC = () => {
               </div>
             </div>
 
-            {/* Recalls for this car's model, checked against its repair orders.
-                This used to read "NO RECALLS — Fully Compliant" for every VIN. */}
-            <VinRecallReport report={recallReport} loading={recallLoading} error={recallError} />
           </div>
 
           {/* Right Column: Key Metrics */}
@@ -336,7 +317,7 @@ export const VinLookup: React.FC = () => {
             </div>
           </div>
 
-          {/* Efficiency & Recalls Details (Full Width Flow) */}
+          {/* Efficiency Details (Full Width Flow) */}
           <div className="lg:col-span-6 space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Efficiency Panel */}
@@ -419,7 +400,7 @@ export const VinLookup: React.FC = () => {
           <Car size={40} strokeWidth={1.5} style={{ color: 'var(--color-text-secondary)' }} />
           <h3 className="crm-section-title text-base mt-4">Look up a vehicle</h3>
           <p className="crm-label text-sm mt-1 max-w-xs">
-            Enter all 17 characters of the VIN to see specs, recalls and estimated value.
+            Enter all 17 characters of the VIN to see specs and estimated value.
           </p>
         </motion.div>
       )}

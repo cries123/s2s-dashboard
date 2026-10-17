@@ -13,10 +13,8 @@ import fs from "fs";
 import { parseAppointmentReportDeterministic } from "./server/parsers/appointmentReport";
 import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } from "./server/dms/index.js";
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
-import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
 import { registerParseSalesNoteRoute } from "./server/handlers/parseSalesNote.js";
 import { registerAiAssistRoutes } from "./server/handlers/aiAssistRoutes.js";
-import { registerRecallRoutes } from "./server/handlers/recallRoutes.js";
 import { registerAiConfigRoute } from "./server/handlers/aiConfig.js";
 import { registerPbsRoutes } from "./server/handlers/pbsRoutes.js";
 import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
@@ -32,28 +30,6 @@ import { extractOperationsPayTypes } from "./src/lib/operationsPayTypes.ts";
 
 dotenv.config();
 getFirebaseAdminApp();
-
-// Helper sleep function for Sequential Throttling
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Status tracking for the off-peak sequential background recall sync worker
-let isRecallWorkerRunning = false;
-const recallWorkerStatus = {
-  lastRun: null as string | null,
-  status: "idle",
-  processedCount: 0,
-  totalToProcess: 0,
-  errors: [] as string[]
-};
-
-// Initialize server-side Admin Firebase connection - Set to null to shift Firestore operations to Client-side (ensures proper Active User OAuth security context)
-let serverDb: any = null;
-
-try {
-  console.log("[Recall SDK] Server-side Firebase Admin bypassed intentionally. All Firestore synchronization requests are executed securely on the user client-side session.");
-} catch (dbErr) {
-  console.error("[Recall SDK] Failed during startup:", dbErr);
-}
 
 // Deterministic Helper: Extract text from PDF buffer on server if possible
 async function extractTextFromPDFBuffer(buffer: Buffer): Promise<string> {
@@ -96,11 +72,6 @@ async function extractTextFromPDFBuffer(buffer: Buffer): Promise<string> {
   }
 }
 
-// Background sequential matching worker representing off-peak cron processing
-async function runRecallUpdateWorker() {
-  console.log("[Recall Worker] Server-side database crawler is bypassed. Synchronizations are triggered and processed securely client-side in the user session to enforce direct Google user credentials.");
-}
-
 export async function createApiApp() {
   const app = express();
 
@@ -129,14 +100,10 @@ export async function createApiApp() {
     '/api/parse-pot-of-gold',
     '/api/parse-technician-report',
     '/api/parse-performance',
-    '/api/parse-recall-campaign',
     '/api/parse-sales-note',
     '/api/estimate-value',
     '/api/gemini-parse-dms',
     '/api/outreach/bulk',
-    '/api/recalls/sync',
-    // Reads the car's repair orders to see which recalls were done.
-    '/api/recalls/vin/',
     // Briefing, history summary, explain-a-visit. Not /api/ai-config, which is public.
     '/api/ai/',
   ];
@@ -178,27 +145,9 @@ export async function createApiApp() {
     }
   });
 
-  app.get("/api/nhtsa/recalls", async (req, res) => {
-    try {
-      const { make, model, year } = req.query;
-      const response = await fetch(`https://api.nhtsa.gov/recalls/recallsByVehicle?make=${make}&model=${model}&modelYear=${year}`);
-      if (!response.ok) {
-        const text = await response.text();
-        console.error("NHTSA Recalls API Error:", text);
-        return res.status(response.status).json({ error: `Recall service reported ${response.status}` });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("NHTSA Recalls Error:", error);
-      res.status(500).json({ error: "Failed to connect to NHTSA recall service" });
-    }
-  });
-
-  // There is no NHTSA "recalls by VIN" API: recalls/recallsByVin answers 403 to
-  // every request, and the VIN page read that as "no recalls" for every car.
-  // A VIN's recalls are now /api/recalls/vin/:vin (server/recalls).
-  registerRecallRoutes(app);
+  // No recall check: NHTSA's free data lists recalls by model only, and its
+  // exact-VIN check is behind a robot check, so the app sent advisors to
+  // nhtsa.gov/recalls?vin= instead of guessing (removed 2026-10-16).
 
   app.post("/api/parse-appointments", async (req, res) => {
     try {
@@ -667,11 +616,6 @@ export async function createApiApp() {
     performanceSchemaGemini,
   });
 
-  registerParseRecallCampaignRoute(app, {
-    extractTextFromPDFBuffer,
-    getOpenAIClient,
-  });
-
   registerParseSalesNoteRoute(app, { getOpenAIClient });
 
   registerAiAssistRoutes(app, { getOpenAIClient });
@@ -1010,37 +954,6 @@ export async function createApiApp() {
     }
   });
 
-  // Manual Trigger for Sequential Safety Recalls Off-Peak Worker
-  app.post("/api/recalls/sync", async (req, res) => {
-    try {
-      if (isRecallWorkerRunning) {
-        return res.status(409).json({ 
-          error: "Recall synchronization worker is already running.", 
-          status: recallWorkerStatus 
-        });
-      }
-      
-      // Async trigger to not block HTTP response
-      runRecallUpdateWorker();
-      
-      res.json({ 
-        success: true, 
-        message: "Off-peak sequential recall scan initiated in background.",
-        status: recallWorkerStatus
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: `Failed to trigger recall sync: ${err.message}` });
-    }
-  });
-
-  // Get status of the recall sync worker
-  app.get("/api/recalls/status", (req, res) => {
-    res.json({ 
-      isRecallWorkerRunning,
-      status: recallWorkerStatus
-    });
-  });
-
   // API 404 Fallback
   app.all("/api/*", (req, res) => {
     console.warn(`404 - API Route Not Found: ${req.method} ${req.path}`);
@@ -1088,16 +1001,6 @@ async function startServer() {
       .filter((r: any) => r.route)
       .map((r: any) => `${Object.keys(r.route.methods).join(',').toUpperCase()} ${r.route.path}`);
     console.log('Registered Routes:', routes);
-
-    // Off-peak sequential cron scheduler: triggers every hour at minute 0 when hour is 2 AM
-    console.log("[Scheduler] Registering 2:00 AM off-peak safety campaigns sync cron check...");
-    setInterval(() => {
-      const now = new Date();
-      if (now.getHours() === 2 && now.getMinutes() === 0) {
-        console.log("[Scheduler] 2:00 AM off-peak hours reached. Activating background sequential recall scanner...");
-        runRecallUpdateWorker();
-      }
-    }, 60000); // verify once every minute
   });
 }
 
