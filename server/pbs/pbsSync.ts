@@ -207,23 +207,12 @@ async function loadCustomerIndex(
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
     if (!customerBelongsToPbsSyncDealership(data, dealershipId)) continue;
+    // Folded into another profile (vinDuplicateMerge): its car lives there now.
+    if (data.mergedInto) continue;
 
-    index.dataById.set(docSnap.id, data);
-
-    const vinLast8 = String(data.vinLast8 || '').toUpperCase();
-    if (vinLast8) index.byVinLast8.set(vinLast8, docSnap.id);
-
-    const vin = String(data.vin || '').toUpperCase();
-    if (vin) index.byVin.set(vin, docSnap.id);
-
-    const phone = normalizePhone(String(data.phone || ''));
-    if (phone) index.byPhone.set(phone, docSnap.id);
-
-    const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
-    if (vehicleRef) index.byVehicleRef.set(vehicleRef, docSnap.id);
-
-    const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
-    if (contactRef) index.byContactRef.set(contactRef, docSnap.id);
+    // Same keys as a profile registered mid-run, including every PBS record
+    // for its car — a merged car carries the other profile's in pbsVehicleRefs.
+    registerCustomerInIndex(index, docSnap.id, data);
   }
 
   return index;

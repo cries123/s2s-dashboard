@@ -32,7 +32,9 @@
     "test:scheduled": "node scripts/scheduled-sync.test.mjs",
     "test:aitext": "node scripts/ai-text.test.mjs",
     "test:airoutes": "node scripts/ai-routes.test.mjs",
-    "test:categories": "node scripts/service-category.test.mjs"
+    "test:categories": "node scripts/service-category.test.mjs",
+    "test:vinmerge": "node scripts/vin-merge.test.mjs",
+    "test:vinmerge:emulator": "firebase emulators:exec --only firestore \"node scripts/vin-merge.emulator.test.mjs\" --project demo-s2s"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",

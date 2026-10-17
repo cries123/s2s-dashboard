@@ -152,6 +152,7 @@ async function loadCustomerIndexForOpenRos(
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
     if (!customerBelongsToPbsSyncDealership(data, dealershipId)) continue;
+    if (data.mergedInto) continue;
     index.dataById.set(docSnap.id, data);
 
     // A profile can be tied to more than one PBS record for its car.

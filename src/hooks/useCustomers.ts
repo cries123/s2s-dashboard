@@ -54,7 +54,11 @@ export function useCustomers(dealershipId?: string, isAdmin?: boolean) {
         // an empty list and every "0" that follows from it.
         if (snapshot.empty && snapshot.metadata.fromCache) return;
 
-        let list = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Customer));
+        // A profile folded into another one for the same car (mergedInto) is
+        // kept for the record but is not a customer to list, alert or count.
+        let list = snapshot.docs
+          .filter((docSnap) => !docSnap.get('mergedInto'))
+          .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Customer));
 
         if (dealershipId) {
           list = customersForDealership(list, dealershipId);

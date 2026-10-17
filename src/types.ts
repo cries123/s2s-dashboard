@@ -502,6 +502,16 @@ export interface Customer {
   pbsVehicleId?: string;
   /** ISO timestamp of last PBS sync touch. */
   pbsSyncedAt?: string;
+  /** Every PBS vehicle record for this car (a merged car can have two). */
+  pbsVehicleRefs?: string[];
+  /**
+   * Set on a profile folded into another for the same car: the id it went to.
+   * Such a profile is hidden everywhere; it stays for the record.
+   */
+  mergedInto?: string;
+  /** Profiles folded into this one. */
+  mergedFrom?: string[];
+  mergedAt?: string;
 }
 
 export interface ContactLog {

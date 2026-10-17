@@ -130,7 +130,8 @@ export function useVisitsInRange(
       .then((snap) => {
         if (cancelled) return;
         setStored(
-          snap.docs.map((d) => ({
+          // A merged profile's visit is also on the profile it went to (copiedTo).
+          snap.docs.filter((d) => !d.get('mergedInto')).map((d) => ({
             customerId: String(d.data().customerId || d.ref.parent.parent?.id || ''),
             visit: { ...(d.data() as ServiceVisit), id: d.id },
           }))

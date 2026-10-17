@@ -32,6 +32,18 @@ export function dedupeContactVehiclesByVin(vehicles: PbsContactVehicle[]): PbsCo
   return Array.from(byVin.values());
 }
 
+/**
+ * A name with nothing in it but PBS's placeholders: blank, "Customer",
+ * "Unknown" (the same words customerName.ts hides). PBS has no name for many
+ * cars, and the sync writes "Customer" for them.
+ */
+export function isPlaceholderPersonName(firstName: unknown, lastName: unknown): boolean {
+  return `${firstName ?? ''} ${lastName ?? ''}`
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w && w !== 'customer' && w !== 'unknown').length === 0;
+}
+
 /** True when PBS shows a different registered owner for the same vehicle. */
 export function pbsOwnerIdentityChanged(
   existing: Record<string, unknown>,
@@ -45,11 +57,39 @@ export function pbsOwnerIdentityChanged(
   const nextPhone = normalizePhone(String(mapped.phone || ''));
   if (prevPhone && nextPhone && prevPhone !== nextPhone) return true;
 
+  // "Customer" is PBS having no name, not a new owner.
+  if (isPlaceholderPersonName(mapped.firstName, mapped.lastName)) return false;
+  if (isPlaceholderPersonName(existing.firstName, existing.lastName)) return false;
   const prevName = `${existing.firstName || ''} ${existing.lastName || ''}`.trim().toLowerCase();
   const nextName = `${mapped.firstName || ''} ${mapped.lastName || ''}`.trim().toLowerCase();
   if (prevName && nextName && prevName !== nextName) return true;
 
   return false;
+}
+
+/**
+ * What PBS has no value for, the profile keeps: a real name over "Customer",
+ * and a phone or email over a blank. A real new owner (ownerChanged) still
+ * replaces everything.
+ */
+function keepWhatPbsLacks(
+  existing: Record<string, unknown>,
+  mapped: Record<string, unknown>,
+  ownerChanged: boolean
+): Record<string, unknown> {
+  if (ownerChanged) return {};
+  const kept: Record<string, unknown> = {};
+  if (
+    isPlaceholderPersonName(mapped.firstName, mapped.lastName) &&
+    !isPlaceholderPersonName(existing.firstName, existing.lastName)
+  ) {
+    kept.firstName = existing.firstName;
+    kept.lastName = existing.lastName;
+  }
+  for (const field of ['phone', 'email'] as const) {
+    if (!String(mapped[field] ?? '').trim() && String(existing[field] ?? '').trim()) kept[field] = existing[field];
+  }
+  return kept;
 }
 
 export function buildPbsCustomerUpdatePatch(
@@ -87,6 +127,7 @@ export function buildPbsCustomerUpdatePatch(
     ownerChanged,
     patch: stripUndefinedDeep({
       ...mapped,
+      ...keepWhatPbsLacks(existing, mapped, ownerChanged),
       ...preserved,
     }),
   };

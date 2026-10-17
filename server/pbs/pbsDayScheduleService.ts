@@ -51,11 +51,15 @@ async function loadCustomerIndex(db: Firestore, dealershipId: string) {
   for (const docSnap of snap.docs) {
     const data = docSnap.data();
     if (!customerBelongsToPbsSyncDealership(data, dealershipId)) continue;
+    if (data.mergedInto) continue;
 
     dataById.set(docSnap.id, data);
 
-    const vehicleRef = normalizePbsRef(String(data.pbsVehicleId || ''));
-    if (vehicleRef) byVehicleRef.set(vehicleRef, docSnap.id);
+    // A profile can be tied to more than one PBS record for its car.
+    for (const raw of [data.pbsVehicleId, ...(Array.isArray(data.pbsVehicleRefs) ? data.pbsVehicleRefs : [])]) {
+      const vehicleRef = normalizePbsRef(String(raw || ''));
+      if (vehicleRef) byVehicleRef.set(vehicleRef, docSnap.id);
+    }
 
     const contactRef = normalizePbsRef(String(data.pbsContactId || ''));
     if (contactRef) byContactRef.set(contactRef, docSnap.id);

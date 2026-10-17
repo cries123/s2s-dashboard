@@ -49,6 +49,10 @@ const SYSTEM_OWNED_FIELDS = new Set([
   'createdAt',
   'duplicateOfCustomerId',
   'duplicateFlaggedAt',
+  'mergedInto',
+  'mergedFrom',
+  'mergedAt',
+  'mergedVin',
 ]);
 
 export default function ProfileModal({ customer, currentUser, onClose, onDelete }: ProfileModalProps) {
