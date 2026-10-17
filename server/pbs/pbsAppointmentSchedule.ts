@@ -16,6 +16,7 @@ import {
   stripUndefinedDeep,
 } from './pbsFirestore.js';
 import type { PbsAppointment, PbsAppointmentContactVehicleInfo } from './pbsTypes.js';
+import { categorizeServiceText } from '../dms/parsers/serviceCategory.js';
 
 export interface ScheduledAppointmentSlot {
   id: string;
@@ -29,6 +30,8 @@ export interface ScheduledAppointmentSlot {
   status: string;
   concern: string;
   category: 'diagnosis' | 'oilChange' | 'recall' | 'misc';
+  /** Every category the appointment fits when more than one — "oil change, also a recall". */
+  tags?: Array<'diagnosis' | 'oilChange' | 'recall'>;
   isWaiter: boolean;
   pickupTimeLabel?: string;
   /** Still Open, but a repair order was opened for this car on the appointment day. */
@@ -242,6 +245,8 @@ export function mapPbsAppointmentToSlot(
 
   const concern = appointmentConcernText(appt);
   const category = categorizeAppointmentText(concern || 'misc');
+  // Everything it is, for the schedule to show beside the main category.
+  const tags = categorizeServiceText(concern).tags;
   const firstLine = appt.RequestLines?.[0];
   const advisor = (appt.Advisor || firstLine?.CSR || '').trim();
   const { customerName, vehicleLabel } = resolveDisplayFields(
@@ -274,6 +279,7 @@ export function mapPbsAppointmentToSlot(
     status: (appt.Status || 'Open').trim(),
     concern: concern.slice(0, 160),
     category,
+    tags: tags.length > 1 ? tags : undefined,
     isWaiter: Boolean(appt.IsWaiter),
     pickupTimeLabel,
   };

@@ -1,33 +1,9 @@
 import type { AppointmentParseResult } from '../types';
+import { categorizeServiceText } from './serviceCategory.js';
 
+/** The appointment's primary category — the shared rules in serviceCategory. */
 export function categorizeAppointmentBlock(block: string): 'recall' | 'oilChange' | 'diagnosis' | 'misc' {
-  const isRecall =
-    block.includes('RECALL') ||
-    block.includes('CAMPAIGN') ||
-    block.includes('UPDATE') ||
-    block.includes('BULLETIN') ||
-    block.includes('ECU');
-  const isOil =
-    block.includes('OIL') ||
-    block.includes('FILTER') ||
-    block.includes('MAINTENANCE') ||
-    block.includes('LUBE') ||
-    block.includes('ROTATION');
-  const isDiag =
-    block.includes('CHECK') ||
-    block.includes('NOISE') ||
-    block.includes('INSPECTION') ||
-    block.includes('DIAG') ||
-    block.includes('WARN') ||
-    block.includes('LIGHT') ||
-    block.includes('LOST POWER') ||
-    block.includes('ADVISE');
-
-  // Oil change wins when combined with recall/diag lines on the same RO (common at dealers).
-  if (isOil) return 'oilChange';
-  if (isRecall) return 'recall';
-  if (isDiag) return 'diagnosis';
-  return 'misc';
+  return categorizeServiceText(block).primary;
 }
 
 function countByKeys(text: string, keys: string[]): AppointmentParseResult {
@@ -81,13 +57,8 @@ function countByKeys(text: string, keys: string[]): AppointmentParseResult {
         else misc++;
       }
     }
-
-    if (oilChange === 0 && recall === 0 && diagnosis === 0 && misc === 0) {
-      oilChange = 8;
-      recall = 6;
-      diagnosis = 3;
-      misc = 3;
-    }
+    // A report that can't be read counts nothing. This used to fill in 8 oil
+    // changes, 6 recalls, 3 diagnoses and 3 other — invented, and saved as the day.
   }
 
   return {

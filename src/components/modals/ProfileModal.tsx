@@ -24,6 +24,7 @@ import { visitCount } from '../../lib/customerVisits';
 import { visitDay } from '../../lib/visitStore';
 import { useCustomerVisits } from '../../hooks/useServiceVisits';
 import { HistoryAtAGlance } from '../dashboard/customers/HistoryAtAGlance';
+import { CustomerRecalls } from '../dashboard/customers/CustomerRecalls';
 import { Panel } from '../ui/Panel';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
@@ -37,7 +38,7 @@ interface ProfileModalProps {
   onDelete: (id: string, name: string) => void;
 }
 
-type TabType = 'overview' | 'demographics' | 'history' | 'campaigns';
+type TabType = 'overview' | 'demographics' | 'history' | 'recalls' | 'campaigns';
 
 /** Fields the sync and the system maintain. A profile edit never writes them. */
 const SYSTEM_OWNED_FIELDS = new Set([
@@ -440,7 +441,10 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
             { id: 'overview', label: 'Overview' },
             { id: 'demographics', label: 'Details' },
             { id: 'history', label: `History${visitCount(customer) ? ` (${visitCount(customer)})` : ''}` },
-            { id: 'campaigns', label: 'Recalls' },
+            // "Recalls" used to be this tab's name while it held only the
+            // service-alert controls; it now shows the car's recalls.
+            { id: 'recalls', label: 'Recalls' },
+            { id: 'campaigns', label: 'Alerts' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -731,7 +735,12 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                 </div>
               )}
 
-              {/* TABS 4: SERVICE ALERTS & CAMPAIGNS */}
+              {/* TABS 4: RECALLS — checked when opened, never stored */}
+              {activeTab === 'recalls' && !isEditing && (
+                <CustomerRecalls vin={customer.vin} vinLast8={customer.vinLast8} />
+              )}
+
+              {/* TABS 5: SERVICE ALERTS */}
               {activeTab === 'campaigns' && !isEditing && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                   {/* Alert Control panel */}

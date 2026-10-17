@@ -89,7 +89,10 @@ function AppointmentDetail({ appt, onBack }: { appt: ScheduledAppointmentSlot; o
     { label: 'Technician', value: appt.techNumber || 'Open / unassigned' },
     { label: 'Appt #', value: appt.appointmentNumber || '—' },
     { label: 'Status', value: appt.status || '—' },
-    { label: 'Category', value: categoryLabel(appt.category) },
+    {
+      label: 'Category',
+      value: [categoryLabel(appt.category), ...(appt.tags ?? []).filter((t) => t !== appt.category).map((t) => `also ${categoryLabel(t)}`)].join(' · '),
+    },
     { label: 'Waiter', value: appt.isWaiter ? 'Yes' : 'No' },
     { label: 'Pickup', value: appt.pickupTimeLabel || '—' },
     { label: 'Concern', value: appt.concern || '—' },

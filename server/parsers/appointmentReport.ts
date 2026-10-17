@@ -1,3 +1,5 @@
+import { categorizeServiceText } from '../dms/parsers/serviceCategory.js';
+
 export type AppointmentCategory = 'diagnosis' | 'oilChange' | 'recall' | 'misc';
 
 export interface ParsedAppointment {
@@ -40,46 +42,9 @@ function hasScheduledServices(services: string): boolean {
   return services.replace(/\s/g, '').length > 0;
 }
 
-/** Categorize one appointment. Diagnosis wins over recall/oil when multiple apply. */
+/** Categorize one appointment — the same rules as the PBS schedule (serviceCategory). */
 export function categorizeAppointmentServices(services: string): AppointmentCategory {
-  const upper = services.toUpperCase();
-
-  const isDiag =
-    /CUSTOMER STATES/.test(upper) ||
-    /CUSTOMER REQUEST TO DIAGNOSE/.test(upper) ||
-    /TELL US MORE/.test(upper) ||
-    /CHECK AND ADVISE/.test(upper) ||
-    /INSPECT AND ADVISE/.test(upper) ||
-    /CHECK ENGINE/.test(upper) ||
-    /LOST POWER/.test(upper) ||
-    /WON'?T START/.test(upper) ||
-    /DELAY AFTER/.test(upper) ||
-    /TICKING NOISE/.test(upper) ||
-    /UNDERCOVER IS LOOSE/.test(upper) ||
-    /GAS PANEL WILL NOT OPEN/.test(upper);
-
-  const isRecall =
-    /\bRECALL\b/.test(upper) ||
-    /\bCAMPAIGN\b/.test(upper) ||
-    /\bECU SW UPDATE\b/.test(upper) ||
-    /\bECU SOFTWARE UPDATE\b/.test(upper) ||
-    /\bTSB#/.test(upper) ||
-    /\bANTITHEFT\b/.test(upper) ||
-    /\(\d{2}-\d{2}-\d{3}[A-Z]?\)/.test(upper) ||
-    /\(\d{2,4}-\d{2,3}[A-Z]?\)/.test(upper) ||
-    /\b\d{2}-[A-Z]{2}-\d{3}[A-Z]?\b/.test(upper);
-
-  const isOil =
-    /FULL SYNTHETIC OIL/.test(upper) ||
-    /HYUNDAI COMPLIMENTARY/.test(upper) ||
-    /COMPLIMENTARY MAINTENANCE/.test(upper) ||
-    /OIL & FILTER CHANGE/.test(upper) ||
-    /OIL AND FILTER CHANGE/.test(upper);
-
-  if (isDiag) return 'diagnosis';
-  if (isRecall) return 'recall';
-  if (isOil) return 'oilChange';
-  return 'misc';
+  return categorizeServiceText(services).primary;
 }
 
 /**

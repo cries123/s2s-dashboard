@@ -555,6 +555,8 @@ export interface ScheduledAppointmentSlot {
   status: string;
   concern: string;
   category: 'diagnosis' | 'oilChange' | 'recall' | 'misc';
+  /** Every category the appointment fits when more than one — "oil change, also a recall". */
+  tags?: Array<'diagnosis' | 'oilChange' | 'recall'>;
   isWaiter: boolean;
   pickupTimeLabel?: string;
   /** Still Open, but a repair order was opened for this car on the appointment day. */
