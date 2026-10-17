@@ -15,6 +15,8 @@ import { normalizeDmsProvider, parseAppointmentsReport, parseTechnicianReport } 
 import { registerParsePerformanceRoute } from "./server/dms/handlers/parsePerformance.js";
 import { registerParseRecallCampaignRoute } from "./server/handlers/parseRecallCampaign.js";
 import { registerParseSalesNoteRoute } from "./server/handlers/parseSalesNote.js";
+import { registerAiAssistRoutes } from "./server/handlers/aiAssistRoutes.js";
+import { registerRecallRoutes } from "./server/handlers/recallRoutes.js";
 import { registerAiConfigRoute } from "./server/handlers/aiConfig.js";
 import { registerPbsRoutes } from "./server/handlers/pbsRoutes.js";
 import { registerOutreachRoutes } from "./server/handlers/registerOutreachRoutes.js";
@@ -133,6 +135,10 @@ export async function createApiApp() {
     '/api/gemini-parse-dms',
     '/api/outreach/bulk',
     '/api/recalls/sync',
+    // Reads the car's repair orders to see which recalls were done.
+    '/api/recalls/vin/',
+    // Briefing, history summary, explain-a-visit. Not /api/ai-config, which is public.
+    '/api/ai/',
   ];
 
   app.use(async (req, res, next) => {
@@ -189,21 +195,10 @@ export async function createApiApp() {
     }
   });
 
-  app.get("/api/nhtsa/recallsByVin/:vin", async (req, res) => {
-    try {
-      const response = await fetch(`https://api.nhtsa.gov/recalls/recallsByVin?vin=${req.params.vin}`);
-      if (!response.ok) {
-        const text = await response.text();
-        console.error("NHTSA Recall by VIN Error:", text);
-        return res.status(response.status).json({ error: `Recall service reported ${response.status}` });
-      }
-      const data = await response.json();
-      res.json(data);
-    } catch (error: any) {
-      console.error("NHTSA Recall by VIN Error:", error);
-      res.status(500).json({ error: "Failed to connect to NHTSA recall service" });
-    }
-  });
+  // There is no NHTSA "recalls by VIN" API: recalls/recallsByVin answers 403 to
+  // every request, and the VIN page read that as "no recalls" for every car.
+  // A VIN's recalls are now /api/recalls/vin/:vin (server/recalls).
+  registerRecallRoutes(app);
 
   app.post("/api/parse-appointments", async (req, res) => {
     try {
@@ -678,6 +673,8 @@ export async function createApiApp() {
   });
 
   registerParseSalesNoteRoute(app, { getOpenAIClient });
+
+  registerAiAssistRoutes(app, { getOpenAIClient });
 
   registerOutreachRoutes(app);
 

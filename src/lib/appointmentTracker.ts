@@ -10,11 +10,8 @@ const TRACKER_SEGMENTS = [
 ] as const;
 
 /** Local calendar date YYYY-MM-DD (avoids UTC drift from toISOString). */
-export function toLocalDateString(date: Date): string {
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60 * 1000);
-  return local.toISOString().split('T')[0];
-}
+export { toLocalDateString } from './localDate';
+import { toLocalDateString } from './localDate';
 
 /** Shift a YYYY-MM-DD string by calendar days in local time. */
 export function addDaysToDateString(dateStr: string, deltaDays: number): string {

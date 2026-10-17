@@ -19,6 +19,7 @@ import { KpiStripSkeleton, TableSkeleton } from '../../ui/Skeleton';
 import { EmptyState } from '../../ui/EmptyState';
 import { cn } from '../../../lib/utils';
 import { ListRowButton, Panel, tidyCase, tidyPersonName } from '../../ui/Panel';
+import { MorningBriefingCard } from './MorningBriefingCard';
 import { countOverdueOrders } from '../../../lib/dispatchPromiseTime';
 
 interface HomeDashboardProps {
@@ -177,6 +178,8 @@ export function HomeDashboard({
       </header>
 
       {loading ? <KpiStripSkeleton /> : <KpiStrip tiles={tiles} columns={4} />}
+
+      <MorningBriefingCard />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
         <Panel

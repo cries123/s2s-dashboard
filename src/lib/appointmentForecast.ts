@@ -1,4 +1,4 @@
-import { toLocalDateString } from './appointmentTracker';
+import { toLocalDateString } from './localDate';
 
 export interface DailyCountStat {
   date: string;

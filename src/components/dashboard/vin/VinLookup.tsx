@@ -5,23 +5,21 @@ import {
   BadgeCheck, 
   Car, 
   Info, 
-  AlertTriangle, 
-  ListFilter, 
-  Fuel, 
+  AlertTriangle,
+  Fuel,
   Zap, 
   Droplets, 
   Gauge, 
   DollarSign, 
   Sparkles,
-  ShieldCheck,
-  ShieldAlert,
-  ArrowRight,
   Maximize2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { cn } from '../../../lib/utils';
 import { useAuth } from '../../../hooks/useAuth';
 import { PageHeader } from '../../layout/PageHeader';
+import { VinRecallReport } from './VinRecallReport';
+import { fetchVinRecalls, type VinRecallReport as RecallReport } from '../../../lib/recallApi';
 
 interface VinData {
   Variable: string;
@@ -33,10 +31,9 @@ export const VinLookup: React.FC = () => {
   const [vin, setVin] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<VinData[] | null>(null);
-  const [recalls, setRecalls] = useState<any[] | null>(null);
-  const [modelRecalls, setModelRecalls] = useState<any[] | null>(null);
-  const [recallsExpanded, setRecallsExpanded] = useState(false);
-  const [modelRecallsExpanded, setModelRecallsExpanded] = useState(false);
+  const [recallReport, setRecallReport] = useState<RecallReport | null>(null);
+  const [recallLoading, setRecallLoading] = useState(false);
+  const [recallError, setRecallError] = useState<string | null>(null);
   const [fuelData, setFuelData] = useState<any | null>(null);
   const [marketValue, setMarketValue] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,10 +52,8 @@ export const VinLookup: React.FC = () => {
     setLoading(true);
     setError(null);
     setData(null);
-    setRecalls(null);
-    setModelRecalls(null);
-    setRecallsExpanded(false);
-    setModelRecallsExpanded(false);
+    setRecallReport(null);
+    setRecallError(null);
     setFuelData(null);
     setMarketValue(null);
     setValuationError(null);
@@ -93,26 +88,14 @@ export const VinLookup: React.FC = () => {
         const model = decodeResult.Results.find((r: any) => r.Variable === "Model")?.Value;
         const year = decodeResult.Results.find((r: any) => r.Variable === "Model Year")?.Value;
 
-        // 2. Fetch Recalls
-        try {
-          const recallRes = await fetch(`/api/nhtsa/recallsByVin/${cleanVin}`);
-          if (recallRes.ok) {
-            const recallData = await recallRes.json();
-            const openRecalls = recallData.results || recallData.Results || [];
-            setRecalls(openRecalls);
-          }
-
-          if (make && model && year) {
-            const modelRecallRes = await fetch(`/api/nhtsa/recalls?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&year=${year}`);
-            if (modelRecallRes.ok) {
-              const modelRecallData = await modelRecallRes.json();
-              const mRecalls = modelRecallData.results || modelRecallData.Results || [];
-              setModelRecalls(mRecalls);
-            }
-          }
-        } catch (rErr) {
-          console.error("Recall fetch failed", rErr);
-        }
+        // 2. Recalls: the right model (hybrid and electric included), checked
+        // against this car's repair orders on the server. Runs alongside the
+        // rest; a failure shows as "couldn't be checked", never as "no recalls".
+        setRecallLoading(true);
+        fetchVinRecalls(cleanVin)
+          .then(setRecallReport)
+          .catch((rErr) => setRecallError(rErr instanceof Error ? rErr.message : 'Recalls could not be checked.'))
+          .finally(() => setRecallLoading(false));
 
         // 3. Fetch Fuel Economy Data
         if (make && model && year) {
@@ -189,7 +172,7 @@ export const VinLookup: React.FC = () => {
     <div className="space-y-8 pb-12">
       <PageHeader
         title="VIN search"
-        description="Decode a VIN to see vehicle specs, open recalls and estimated value."
+        description="Decode a VIN to see vehicle specs, recalls and estimated value."
         breadcrumbs={[{ label: 'Sales' }, { label: 'VIN search' }]}
       />
 
@@ -276,50 +259,9 @@ export const VinLookup: React.FC = () => {
               </div>
             </div>
 
-            {/* Recall Status Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {recalls && recalls.length > 0 ? (
-                  <button 
-                    onClick={() => setRecallsExpanded(!recallsExpanded)}
-                    className="flex flex-col gap-4 p-6 bg-rose-500/10 border border-rose-500/20 rounded-3xl hover:bg-rose-500/15 transition-all text-left group shadow-lg shadow-rose-500/10"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500 ring-4 ring-rose-500/5 group-hover:scale-110 transition-transform">
-                          <ShieldAlert size={24} />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-semibold text-rose-500 leading-none">{recalls.length} RECALLS</h4>
-                          <p className="text-xs font-bold text-rose-400/60 mt-1">Pending Unrepaired Repairs</p>
-                        </div>
-                      </div>
-                      <div className="p-2 bg-rose-500/10 rounded-xl text-rose-500 group-hover:translate-x-1 transition-transform">
-                        <ArrowRight size={16} />
-                      </div>
-                    </div>
-                  </button>
-               ) : (
-                 <div className="flex items-center gap-4 p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl shadow-lg shadow-emerald-500/10">
-                   <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-500">
-                     <ShieldCheck size={24} />
-                   </div>
-                   <div>
-                     <h4 className="text-lg font-semibold text-emerald-500 leading-none">NO RECALLS</h4>
-                     <p className="text-xs font-bold text-emerald-400/60 mt-1">Status: Fully Compliant</p>
-                   </div>
-                 </div>
-               )}
-
-               <div className="flex items-center gap-4 p-6 bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-3xl">
-                  <div className="w-12 h-12 bg-brand-primary/20 rounded-2xl flex items-center justify-center text-brand-primary">
-                    <BadgeCheck size={24} />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-semibold text-white leading-none">VALID VIN</h4>
-                    <p className="text-xs font-bold text-slate-500 mt-1">Format: North American Std</p>
-                  </div>
-               </div>
-            </div>
+            {/* Recalls for this car's model, checked against its repair orders.
+                This used to read "NO RECALLS — Fully Compliant" for every VIN. */}
+            <VinRecallReport report={recallReport} loading={recallLoading} error={recallError} />
           </div>
 
           {/* Right Column: Key Metrics */}
@@ -396,50 +338,6 @@ export const VinLookup: React.FC = () => {
 
           {/* Efficiency & Recalls Details (Full Width Flow) */}
           <div className="lg:col-span-6 space-y-6">
-            <AnimatePresence>
-               {recallsExpanded && recalls && (
-                 <motion.div 
-                   initial={{ height: 0, opacity: 0 }}
-                   animate={{ height: 'auto', opacity: 1 }}
-                   exit={{ height: 0, opacity: 0 }}
-                   className="overflow-hidden"
-                 >
-                   <div className="p-8 bg-rose-950/20 border border-rose-500/20 rounded-[2.5rem] mb-6 backdrop-blur-xl">
-                     <div className="flex items-center justify-between mb-8">
-                        <div>
-                          <h4 className="text-2xl font-semibold text-rose-500 tracking-tighter ">Safety Campaign Directives</h4>
-                          <p className="text-rose-400/60 text-xs font-semibold mt-1">Source: NHTSA recall database</p>
-                        </div>
-                        <button onClick={() => setRecallsExpanded(false)} className="p-2 hover:bg-rose-500/10 rounded-full transition-colors">
-                          <AlertTriangle className="text-rose-500" size={24} />
-                        </button>
-                     </div>
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {recalls.map((recall, i) => (
-                           <div key={i} className="p-8 bg-black/40 border border-white/5 rounded-3xl shadow-2xl">
-                             <div className="flex justify-between items-start mb-6">
-                               <div className="px-3 py-1 bg-rose-500/10 border border-rose-500/20 rounded-full">
-                                 <span className="text-xs font-semibold text-rose-500 ">ID: {recall.NHTSACampaignNumber}</span>
-                               </div>
-                               <span className="text-xs font-bold text-slate-500 ">{recall.ReportReceivedDate}</span>
-                             </div>
-                             <h5 className="text-xl font-bold text-white mb-3 leading-tight underline decoration-rose-500/30 underline-offset-4">{recall.Component}</h5>
-                             <p className="text-sm text-slate-400 font-medium leading-relaxed mb-8">{recall.Summary}</p>
-                             <div className="p-6 bg-rose-500/5 border border-rose-500/10 rounded-[1.5rem]">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <ShieldAlert size={14} className="text-rose-400" />
-                                  <p className="text-xs font-semibold text-rose-400 ">Mandatory Field Remedy</p>
-                                </div>
-                                <p className="text-sm text-slate-300 font-medium leading-relaxed ">"{recall.Remedy}"</p>
-                             </div>
-                           </div>
-                        ))}
-                     </div>
-                   </div>
-                 </motion.div>
-               )}
-            </AnimatePresence>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Efficiency Panel */}
               <div className="p-8 bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] shadow-2xl">
@@ -481,44 +379,6 @@ export const VinLookup: React.FC = () => {
                 )}
               </div>
 
-              {/* Historical Context Bar */}
-              {modelRecalls && modelRecalls.length > 0 && (
-                <div className="p-8 bg-slate-900/40 backdrop-blur-xl border border-white/5 rounded-[2.5rem] shadow-2xl">
-                   <div className="flex items-center justify-between mb-8">
-                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-slate-800/40 rounded-xl text-slate-400">
-                          <ListFilter size={20} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-white ">Model Heritage</h4>
-                          <p className="text-xs font-bold text-slate-500 mt-0.5">Historical Platform Recalls</p>
-                        </div>
-                     </div>
-                     <div className="px-4 py-2 bg-slate-950/50 rounded-2xl border border-white/5">
-                        <span className="text-xl font-semibold text-white font-mono">{modelRecalls.length}</span>
-                     </div>
-                  </div>
-
-                  <div className="space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
-                     {modelRecalls.slice(0, 5).map((r, i) => (
-                        <div key={i} className="flex justify-between items-center p-3 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                           <div className="flex-1 overflow-hidden">
-                              <p className="text-xs font-semibold text-slate-300 truncate tracking-tight">{r.Component}</p>
-                              <p className="text-xs font-bold text-slate-600 ">Affected System Path</p>
-                           </div>
-                           <ArrowRight size={12} className="text-slate-700 ml-4 shrink-0" />
-                        </div>
-                     ))}
-                  </div>
-
-                  <button 
-                    onClick={() => setModelRecallsExpanded(!modelRecallsExpanded)}
-                    className="w-full mt-6 py-4 bg-slate-950/50 border border-white/5 rounded-2xl text-xs font-semibold text-slate-400 hover:bg-slate-950 transition-colors"
-                  >
-                    {modelRecallsExpanded ? 'Compact List' : 'View Full Model History'}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
@@ -559,58 +419,11 @@ export const VinLookup: React.FC = () => {
           <Car size={40} strokeWidth={1.5} style={{ color: 'var(--color-text-secondary)' }} />
           <h3 className="crm-section-title text-base mt-4">Look up a vehicle</h3>
           <p className="crm-label text-sm mt-1 max-w-xs">
-            Enter all 17 characters of the VIN to see specs, open recalls and estimated value.
+            Enter all 17 characters of the VIN to see specs, recalls and estimated value.
           </p>
         </motion.div>
       )}
 
-      {/* Model Recalls Expansion Panel (Global Overlay Style) */}
-      <AnimatePresence>
-        {modelRecallsExpanded && modelRecalls && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl"
-            onClick={() => setModelRecallsExpanded(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-6xl max-h-[80vh] bg-slate-900 border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden flex flex-col"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="p-10 border-b border-white/5 flex items-center justify-between">
-                <div>
-                   <h3 className="text-3xl font-semibold text-white tracking-tighter ">Platform Recall History</h3>
-                   <p className="text-slate-500 text-xs font-semibold mt-1">{getYear()} {getMake()} {getModel()} (Generic Model Context)</p>
-                </div>
-                <button onClick={() => setModelRecallsExpanded(false)} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors">
-                  <ArrowRight className="rotate-180" size={24} />
-                </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 custom-scrollbar">
-                {modelRecalls.map((recall, i) => (
-                  <div key={i} className="p-8 bg-slate-950/50 border border-white/5 rounded-3xl hover:border-brand-primary/20 transition-all group">
-                     <div className="flex justify-between items-start mb-6">
-                        <span className="text-xs font-semibold text-brand-primary ">#{recall.NHTSACampaignNumber}</span>
-                        <span className="text-xs font-bold text-slate-600 ">{recall.ReportReceivedDate}</span>
-                     </div>
-                     <h5 className="text-base font-bold text-white mb-3 group-hover:text-brand-primary transition-colors leading-tight">{recall.Component}</h5>
-                     <p className="text-xs text-slate-500 leading-relaxed font-medium line-clamp-4 ">"{recall.Summary}"</p>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="p-6 bg-slate-950 border-t border-white/5 text-center">
-                 <p className="text-xs font-bold text-slate-700 ">Disclaimer: Model-wide recalls may not apply to your specific VIN if repairs were previously completed.</p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

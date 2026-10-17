@@ -1,11 +1,14 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { X, Wrench, Printer } from 'lucide-react';
+import { X, Wrench, Printer, Sparkles, Loader2, Copy, Check } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { explainVisit } from '../../../lib/aiAssistApi';
 import type { ServiceVisit, ServiceVisitLine } from '../../../types';
 
 interface ServiceVisitDetailModalProps {
   visit: ServiceVisit;
+  /** Needed for "Explain to customer", which reads this repair order on the server. */
+  customerId?: string;
   customerName?: string;
   vehicleLabel?: string;
   onOpenCustomer?: () => void;
@@ -76,8 +79,88 @@ function lineTotal(line: ServiceVisitLine): number {
   return laborTotal + partsTotal;
 }
 
+/**
+ * The repair order in plain words, for the advisor to tell the customer. Only
+ * when an advisor asks: made fresh each time, never saved, and the repair order
+ * below stays exactly as PBS has it. The server rejects any version that adds a
+ * number not on the repair order.
+ */
+function ExplainToCustomer({ customerId, visit }: { customerId: string; visit: ServiceVisit }) {
+  const [text, setText] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const ask = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await explainVisit(customerId, visit.id, String(visit.soNumber || ''));
+      setText(res.text);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not explain this repair order.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — the text is on screen to select */
+    }
+  };
+
+  if (!text) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={ask} disabled={busy} className="btn-secondary text-sm">
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+          {busy ? 'Writing it up…' : 'Explain to customer'}
+        </button>
+        {error && (
+          <p className="text-xs" role="status" style={{ color: 'var(--color-badge-error-text)' }}>
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-xl border border-brand-primary/30 bg-brand-primary/[0.06] px-4 sm:px-5 py-4">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <p className="text-xs font-semibold text-brand-primary flex items-center gap-1.5">
+          <Sparkles size={13} /> For the customer
+        </p>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={copy} className="icon-btn tap-expand" aria-label="Copy the explanation">
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+          <button type="button" onClick={() => setText(null)} className="icon-btn tap-expand" aria-label="Hide the explanation">
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {text.split(/\n{2,}|\n/).filter((p) => p.trim()).map((p, i) => (
+          <p key={i} className="text-sm leading-relaxed text-slate-100">{p}</p>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500 mt-3">
+        AI rewrite of the technician's notes below · not saved · read it over before you share it
+      </p>
+    </section>
+  );
+}
+
 export function ServiceVisitDetailModal({
   visit,
+  customerId,
   customerName,
   vehicleLabel,
   onOpenCustomer,
@@ -190,6 +273,7 @@ export function ServiceVisitDetailModal({
 
         {/* Job lines */}
         <div className="overflow-y-auto px-5 sm:px-8 py-6 space-y-5">
+          {customerId && lines.length > 0 && <ExplainToCustomer key={visit.id} customerId={customerId} visit={visit} />}
           {lines.length === 0 ? (
             <p className="crm-label text-center py-10">
               No line detail stored for this repair order. Run Pull changes in Admin → PBS Sync to

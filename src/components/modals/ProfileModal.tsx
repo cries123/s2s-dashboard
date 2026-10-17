@@ -23,6 +23,7 @@ import { parseCustomerDate } from '../../lib/serviceReminder';
 import { visitCount } from '../../lib/customerVisits';
 import { visitDay } from '../../lib/visitStore';
 import { useCustomerVisits } from '../../hooks/useServiceVisits';
+import { HistoryAtAGlance } from '../dashboard/customers/HistoryAtAGlance';
 import { Panel } from '../ui/Panel';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { useToast } from '../../context/ToastContext';
@@ -721,6 +722,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
                       {visitsError}
                     </p>
                   ) : null}
+                  <HistoryAtAGlance customerId={customer.id} visits={serviceVisits} loading={visitsLoading} />
                   <CustomerTimeline
                     events={timelineEvents}
                     loading={timelineLoading}
@@ -1092,6 +1094,7 @@ export default function ProfileModal({ customer, currentUser, onClose, onDelete 
       {selectedServiceVisit && (
         <ServiceVisitDetailModal
           visit={selectedServiceVisit}
+          customerId={customer.id}
           customerName={formatCustomerDisplayName(customer.firstName, customer.lastName)}
           vehicleLabel={[customer.year, customer.make, customer.model].filter(Boolean).join(' ')}
           onClose={() => setSelectedServiceVisit(null)}
