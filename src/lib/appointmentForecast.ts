@@ -71,9 +71,6 @@ export interface AppointmentForecastMetrics {
   partsDailyAvg: number;
   partsVariance: number;
   mtdHoursSold: number;
-  hoursDailyAvg: number;
-  /** Hours sold so far plus the same working-day pace as labor gross for the days left. */
-  hoursForecast: number;
   /** Labor sales ÷ hours sold; 0 until any hours are sold. */
   effectiveLaborRate: number;
   elapsedWorkingDays: number;
@@ -195,12 +192,8 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
   const laborSalesForecast = Math.round(input.mtdLaborSales + laborSalesDailyAvg * remainingWorkingDays);
   const grossVariance = input.mtdGross - grossPaceTarget;
 
-  // Hours sold pace exactly like labor gross, so projected hours and trending
-  // labor gross always tell the same story.
-  const mtdHoursSold = input.mtdHoursSold ?? 0;
-  const hoursDailyAvg = mtdHoursSold / salesPaceDays;
-  const hoursForecast = Math.round(mtdHoursSold + hoursDailyAvg * remainingWorkingDays);
   // Effective labor rate: labor sales per hour sold.
+  const mtdHoursSold = input.mtdHoursSold ?? 0;
   const effectiveLaborRate = mtdHoursSold > 0 ? input.mtdLaborSales / mtdHoursSold : 0;
 
   const partsDailyAvg = input.mtdPartsGross / salesPaceDays;
@@ -237,8 +230,6 @@ export function calculateAppointmentForecast(input: AppointmentForecastInput): A
     partsDailyAvg,
     partsVariance,
     mtdHoursSold,
-    hoursDailyAvg,
-    hoursForecast,
     effectiveLaborRate,
     elapsedWorkingDays,
     totalWorkingDays,

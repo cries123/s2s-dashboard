@@ -912,29 +912,14 @@ export default function Appointments({ currentUser, currentDealershipId, moduleP
           <p className="crm-label mt-1.5">
             {performanceReport.status === 'ready' ? `$${Math.round(metrics.laborDailyAvg).toLocaleString()}/day · goal $${Math.round(metrics.laborTarget).toLocaleString()}` : 'Results unavailable'}
           </p>
-          {/* Same shape as the Appointments tile. Projected hours pace like labor gross does, so
-              they agree with its Trending figure; a finished month has nothing left to project. */}
-          <dl
-            className={cn(
-              'grid gap-3 mt-3 pt-3 border-t items-end',
-              viewPeriod.isHistorical ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'
-            )}
-            style={{ borderColor: 'var(--color-row-divider)' }}
-          >
+          {/* Same shape as the Appointments tile: two figures, label over value. */}
+          <dl className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t items-end" style={{ borderColor: 'var(--color-row-divider)' }}>
             <div>
               <dt className="crm-label">Hours sold</dt>
               <dd className="text-base font-semibold tabular-nums">
                 {performanceReport.status === 'ready' ? `${Math.round(metrics.mtdHoursSold).toLocaleString()} hrs` : '—'}
               </dd>
             </div>
-            {!viewPeriod.isHistorical && (
-              <div>
-                <dt className="crm-label">Projected hrs</dt>
-                <dd className="text-base font-semibold tabular-nums">
-                  {performanceReport.status === 'ready' ? `${metrics.hoursForecast.toLocaleString()} hrs` : '—'}
-                </dd>
-              </div>
-            )}
             <div>
               <dt className="crm-label">ELR</dt>
               <dd className="text-base font-semibold tabular-nums">

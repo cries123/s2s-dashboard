@@ -1,9 +1,8 @@
 /**
- * Hours sold, projected hours and ELR on the Operations labor tile.
+ * Hours sold and ELR on the Operations labor tile.
  *
- * Projected hours use the same working-day pace as labor gross, so the two
- * projections agree. Figures are October 2026's, as the live page showed them
- * on Oct 15: $27,167 labor gross trending $54,334, 219 hours, $33,090 labor sales.
+ * Figures are October 2026's, as the live page showed them on Oct 15:
+ * $27,167 labor gross, 219 hours, $33,090 labor sales.
  *
  * Run: npm run test:labortile
  */
@@ -50,15 +49,13 @@ const base = {
 const oct = calculateAppointmentForecast({ ...base, mtdHoursSold: 219 });
 check('labor gross still trends to $54,334, as on the live page', oct.grossForecast, 54334);
 check('hours sold carried through', oct.mtdHoursSold, 219);
-check('projected hours pace the same way: 219 over 11 days, 11 to go', oct.hoursForecast, 438);
 check('ELR is labor sales per hour sold', Math.round(oct.effectiveLaborRate), 151);
 
 const none = calculateAppointmentForecast({ ...base, mtdHoursSold: 0 });
 check('no hours: no ELR rather than a divide-by-zero', none.effectiveLaborRate, 0);
-check('no hours: nothing projected', none.hoursForecast, 0);
 
 const old = calculateAppointmentForecast(base);
-check('callers that pass no hours still work', old.hoursForecast, 0);
+check('callers that pass no hours still work', old.mtdHoursSold, 0);
 
 const sep = calculateAppointmentForecast({
   ...base,
@@ -69,7 +66,6 @@ const sep = calculateAppointmentForecast({
   performanceReportEndDate: '2026-09-30',
   referenceDate: new Date(2026, 8, 30, 12),
 });
-check('a finished month projects exactly what it sold', sep.hoursForecast, 521);
 check("September's ELR", Math.round(sep.effectiveLaborRate), 151);
 
 rmSync(outDir, { recursive: true, force: true });
