@@ -137,6 +137,41 @@ openai = makeOpenAI(['We replaced your front brake pads and rotors.']);
 r = await call('POST /api/ai/explain-visit', { customerId: 'c1', soNumber: '111682' });
 check('found by repair order number too', r.status, 200);
 
+// --- a project that isn't allowed the first model (Hyundai's, 2026-10-16) -----------------------
+{
+  const asked = [];
+  openai = {
+    client: {
+      chat: {
+        completions: {
+          create: async (req) => {
+            asked.push(req.model);
+            if (req.model === 'gpt-4o-mini' || req.model === 'gpt-4.1-mini') {
+              const e = new Error('403 Project `proj_2iK4VKde9tXzOzPRdBF4MPuU` does not have access to model `' + req.model + '`');
+              e.status = 403;
+              throw e;
+            }
+            if (req.model.startsWith('gpt-5')) {
+              if ('temperature' in req || 'max_tokens' in req) throw new Error('unsupported parameter for a reasoning model');
+            }
+            return { choices: [{ message: { content: 'We replaced your front brake pads and rotors.' } }] };
+          },
+        },
+      },
+    },
+  };
+  F.db = makeDb(customers);
+  r = await call('POST /api/ai/explain-visit', { customerId: 'c1', visitId: 'pbs-111682' });
+  check('a refused model moves on to the next one the project allows', [r.status, asked], [200, ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-5-mini']]);
+  asked.length = 0;
+  r = await call('POST /api/ai/explain-visit', { customerId: 'c1', visitId: 'pbs-111682' });
+  check('and remembers it', asked, ['gpt-5-mini']);
+
+  openai = { client: { chat: { completions: { create: async () => { const e = new Error('Project `proj_abc123` does not have access to model `x`'); e.status = 403; throw e; } } } } };
+  r = await call('POST /api/ai/explain-visit', { customerId: 'c1', visitId: 'pbs-111682' });
+  check('none allowed: a plain message, no project id', [r.status >= 400, r.body.error.includes('Settings → Project → Limits'), r.body.error.includes('proj_')], [true, true, false]);
+}
+
 // --- summarize history -------------------------------------------------------------------
 F.db = makeDb(customers);
 openai = makeOpenAI(['This Elantra came in on 2026-04-07 at 32,104 miles for a brake squeal; the front pads and rotors were replaced.']);

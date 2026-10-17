@@ -2,7 +2,13 @@ import type { Express, Request, Response } from 'express';
 import type OpenAI from 'openai';
 import { getAdminFirestore } from '../admin/initFirebaseAdmin.js';
 import type { ApprovedUser } from '../admin/requireApprovedUser.js';
-import { hasUsableOpenAIKey, openAiFailureMessage, openAiFailureStatus, OPENAI_REQUIRED_MESSAGE } from '../dms/requireOpenAi.js';
+import {
+  hasUsableOpenAIKey,
+  isOpenAiModelAccessError,
+  openAiFailureMessage,
+  openAiFailureStatus,
+  OPENAI_REQUIRED_MESSAGE,
+} from '../dms/requireOpenAi.js';
 import { customersCollection } from '../pbs/pbsFirestore.js';
 import {
   briefingFactsText,
@@ -32,7 +38,54 @@ import { loadBriefingFacts } from '../ai/briefingFacts.js';
  */
 
 type GetOpenAI = () => OpenAI;
-const MODEL = () => process.env.OPENAI_ASSIST_MODEL?.trim() || 'gpt-4o-mini';
+
+/**
+ * Which model to ask. An OpenAI project can be limited to certain models —
+ * Hyundai's refused gpt-4o-mini on 2026-10-16 ("does not have access to
+ * model") — so these are tried in order and the first one the project allows
+ * is remembered. OPENAI_ASSIST_MODEL, if set, goes first.
+ */
+const MODEL_CANDIDATES = ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-5-mini', 'gpt-4o', 'gpt-4.1', 'gpt-5'];
+let workingModel: string | null = null;
+
+function modelCandidates(): string[] {
+  const preferred = process.env.OPENAI_ASSIST_MODEL?.trim();
+  return [...new Set([...(preferred ? [preferred] : []), ...MODEL_CANDIDATES])];
+}
+
+/** Reasoning models take max_completion_tokens and their default temperature only. */
+function isReasoningModel(model: string): boolean {
+  return /^(gpt-5|o\d)/.test(model);
+}
+
+async function createChat(
+  openai: OpenAI,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  temperature: number,
+  maxTokens: number
+): Promise<{ text: string; model: string }> {
+  // The one that worked last time first, then the rest in order.
+  const candidates = [...new Set([...(workingModel ? [workingModel] : []), ...modelCandidates()])];
+  let lastError: unknown;
+  for (const model of candidates) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        // A reasoning model spends tokens thinking before it answers.
+        ...(isReasoningModel(model) ? { max_completion_tokens: maxTokens * 8 } : { temperature, max_tokens: maxTokens }),
+      });
+      workingModel = model;
+      return { text: completion.choices[0]?.message?.content?.trim() ?? '', model };
+    } catch (err) {
+      if (!isOpenAiModelAccessError(err)) throw err;
+      console.warn(`[ai] OpenAI project can't use ${model}; trying the next model.`);
+      lastError = err;
+    }
+  }
+  workingModel = null;
+  throw lastError;
+}
 const DATA_ROOT = 'artifacts/hyundai-sales-to-service/public/data';
 
 function approvedUser(req: Request): ApprovedUser | undefined {
@@ -50,23 +103,20 @@ async function faithfulCompletionDetailed(
   user: string,
   sources: string[],
   maxTokens: number
-): Promise<{ text: string | null; invented: string[] }> {
+): Promise<{ text: string | null; invented: string[]; model: string }> {
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: 'system', content: system },
     { role: 'user', content: user },
   ];
   let invented: string[] = [];
+  let model = '';
   for (let attempt = 0; attempt < 2; attempt++) {
-    const completion = await openai.chat.completions.create({
-      model: MODEL(),
-      temperature: attempt === 0 ? 0.3 : 0,
-      max_tokens: maxTokens,
-      messages,
-    });
-    const text = completion.choices[0]?.message?.content?.trim() ?? '';
+    const answer = await createChat(openai, messages, attempt === 0 ? 0.3 : 0, maxTokens);
+    model = answer.model;
+    const text = answer.text;
     if (!text) continue;
     invented = unsupportedNumbers(text, sources);
-    if (invented.length === 0) return { text, invented };
+    if (invented.length === 0) return { text, invented, model };
     console.warn(`[ai] Answer used numbers not in its source (${invented.join(', ')}); ${attempt === 0 ? 'retrying' : 'giving up'}.`);
     messages.push(
       { role: 'assistant', content: text },
@@ -76,7 +126,7 @@ async function faithfulCompletionDetailed(
       }
     );
   }
-  return { text: null, invented };
+  return { text: null, invented, model };
 }
 
 async function faithfulCompletion(
@@ -127,12 +177,14 @@ async function briefingRoute(req: Request, res: Response, getOpenAI: GetOpenAI) 
     // Why the AI's version wasn't used, kept on the record so it can be read
     // without server logs. Null when the AI's version is the one shown.
     let aiFailure: string | null = hasUsableOpenAIKey() ? null : 'no OpenAI key on the server';
+    let model: string | null = null;
     if (hasUsableOpenAIKey() && (facts.laborGross || facts.appointmentsMtd || facts.lastDayBooked)) {
       try {
         const written = await faithfulCompletionDetailed(getOpenAI(), BRIEFING_SYSTEM, `Facts:\n${factsText}`, [factsText], 220);
         if (written.text) {
           text = written.text;
           source = 'ai';
+          model = written.model;
         } else {
           aiFailure = written.invented.length
             ? `kept adding numbers not in the facts: ${written.invented.join(', ')}`
@@ -146,7 +198,7 @@ async function briefingRoute(req: Request, res: Response, getOpenAI: GetOpenAI) 
     }
 
     const generatedAt = new Date().toISOString();
-    await cacheRef.set({ factsText, text, source, generatedAt, model: source === 'ai' ? MODEL() : null, aiFailure });
+    await cacheRef.set({ factsText, text, source, generatedAt, model, aiFailure });
     return res.json({ ...base, text, source, generatedAt });
   } catch (err) {
     console.error('[ai/briefing]', err);

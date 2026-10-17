@@ -1,6 +1,7 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import { customersCollection } from '../pbs/pbsFirestore.js';
 import {
+  vehicleFromProfile,
   baseMayNotCoverCar,
   candidateNames,
   findRecallWork,
@@ -36,6 +37,8 @@ export interface VinRecall {
 
 export interface VinRecallReport {
   vehicle: DecodedVin;
+  /** 'profile' when NHTSA's VIN decoder was down and the profile's year and model were used. */
+  vehicleSource: 'vin' | 'profile';
   /** The NHTSA model names asked about, e.g. ["KONA ELECTRIC"]. */
   checkedModels: string[];
   recalls: VinRecall[];
@@ -65,10 +68,19 @@ function nhtsaDate(s: unknown): string {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : String(s ?? '');
 }
 
+/** The decoder itself didn't answer — as opposed to answering that the VIN is bad. */
+class DecoderUnavailable extends RecallLookupError {}
+
 async function decodeVin(vin: string): Promise<DecodedVin> {
-  const { status, body } = await getJson(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${encodeURIComponent(vin)}?format=json`);
+  let status = 0;
+  let body: any = null;
+  try {
+    ({ status, body } = await getJson(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${encodeURIComponent(vin)}?format=json`));
+  } catch {
+    /* unreachable: treated as down */
+  }
   const r = body?.Results?.[0];
-  if (status !== 200 || !r) throw new RecallLookupError("NHTSA's VIN decoder didn't answer. Try again in a minute.");
+  if (status !== 200 || !r) throw new DecoderUnavailable("NHTSA's VIN decoder didn't answer. Try again in a minute.");
   if (!r.Make || !r.Model || !r.ModelYear) throw new RecallLookupError("This VIN couldn't be decoded to a year, make and model. Check it for typos.");
   return {
     vin,
@@ -118,7 +130,11 @@ async function visitsForVin(db: Firestore, vin: string, dealershipId: string, is
       if (!seen.has(String(v?.soNumber ?? ''))) visits.push(v);
     }
   }
-  return { profiles: profiles.size, visits };
+  // A profile tied to the full VIN describes the car best.
+  const described = [...profiles.values()].sort((a, b) => Number(String(b.vin || '').length === 17) - Number(String(a.vin || '').length === 17));
+  const first = described.find((p) => p.model);
+  const profileVehicle = first ? { year: first.year, make: first.make, model: first.model } : null;
+  return { profiles: profiles.size, visits, profileVehicle };
 }
 
 export async function checkVinRecalls(
@@ -129,7 +145,20 @@ export async function checkVinRecalls(
   const vin = String(rawVin || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (vin.length !== 17) throw new RecallLookupError('A VIN is 17 characters.');
 
-  const vehicle = await decodeVin(vin);
+  // The car's own history first: it is needed either way, and when NHTSA's
+  // VIN decoder is down its profile says what the car is.
+  const history = db ? await visitsForVin(db, vin, caller.dealershipId, caller.isAdmin) : { profiles: 0, visits: [] as RecallWorkVisit[], profileVehicle: null };
+
+  let vehicle: DecodedVin;
+  let vehicleSource: 'vin' | 'profile' = 'vin';
+  try {
+    vehicle = await decodeVin(vin);
+  } catch (err) {
+    const fromProfile = err instanceof DecoderUnavailable && history.profileVehicle ? vehicleFromProfile(vin, history.profileVehicle) : null;
+    if (!fromProfile) throw err;
+    vehicle = fromProfile;
+    vehicleSource = 'profile';
+  }
   const { variants, base, extras } = candidateNames(vehicle);
   if (!base) throw new RecallLookupError("This VIN's model couldn't be read.");
 
@@ -176,8 +205,6 @@ export async function checkVinRecalls(
     }
   }
 
-  const history = db ? await visitsForVin(db, vin, caller.dealershipId, caller.isAdmin) : { profiles: 0, visits: [] as RecallWorkVisit[] };
-
   const recalls: VinRecall[] = [...byCampaign.values()].map(({ r, listedFor, baseModelOnly }) => {
     const hyundaiCodes = hyundaiCodesFrom(r.Remedy, r.Notes, r.Summary);
     return {
@@ -200,6 +227,7 @@ export async function checkVinRecalls(
 
   return {
     vehicle,
+    vehicleSource,
     checkedModels,
     recalls,
     history: { profiles: history.profiles, visits: history.visits.length },

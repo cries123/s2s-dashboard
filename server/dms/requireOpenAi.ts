@@ -46,6 +46,17 @@ export function openAiFailureStatus(err: unknown): number {
   return 502;
 }
 
+/**
+ * The project behind the key is not allowed this model ("Project `proj_…`
+ * does not have access to model `gpt-4o-mini`"), or the model doesn't exist.
+ * Hyundai's project hit this on 2026-10-16.
+ */
+export function isOpenAiModelAccessError(err: unknown): boolean {
+  const anyErr = err as { message?: string; code?: string; error?: { message?: string; code?: string } };
+  const text = `${anyErr?.error?.message ?? ''} ${anyErr?.message ?? ''} ${anyErr?.code ?? ''} ${anyErr?.error?.code ?? ''}`.toLowerCase();
+  return text.includes('does not have access to model') || text.includes('model_not_found') || text.includes('the model `') && text.includes('does not exist');
+}
+
 export function openAiFailureMessage(err: unknown): string {
   const anyErr = err as { message?: string; error?: { message?: string } };
   const raw = anyErr?.error?.message || anyErr?.message || String(err);
@@ -57,7 +68,11 @@ export function openAiFailureMessage(err: unknown): string {
   ) {
     return 'The server OpenAI API key was rejected. Update OPENAI_API_KEY in Netlify → Environment variables (Functions scope), redeploy, and try again.';
   }
+  if (isOpenAiModelAccessError(err)) {
+    return "The OpenAI project this app uses isn't allowed to use the AI model it asked for. In OpenAI's dashboard (platform.openai.com → Settings → Project → Limits), allow gpt-4o-mini, then try again.";
+  }
   return raw
+    .replace(/proj_[a-zA-Z0-9]+/g, 'proj_***')
     .replace(/sk-proj-[a-zA-Z0-9_*-]+/gi, 'sk-proj-***')
     .replace(/sk-[a-zA-Z0-9_*-]+/gi, 'sk-***')
     .replace(/OPENAI_API_KEY[=:\s]+[^\s]+/gi, 'OPENAI_API_KEY=[redacted]');

@@ -69,6 +69,12 @@ export function VinRecallReport({ report, loading, error }: { report: Report | n
         )}
       </header>
 
+      {report.vehicleSource === 'profile' && (
+        <p className="px-4 py-2.5 text-xs border-b text-text-secondary" style={{ borderColor: 'var(--color-row-divider)' }}>
+          NHTSA's VIN decoder isn't answering right now, so this uses the year and model on the customer's profile.
+        </p>
+      )}
+
       {baseOnly && (
         <p className="px-4 py-2.5 text-xs border-b" style={{ borderColor: 'var(--color-row-divider)', color: 'var(--color-badge-warn-text)' }}>
           NHTSA has nothing filed under the {POWERTRAIN_LABEL[v.powertrain].toLowerCase()} {v.model} for {v.year}, so these are the{' '}

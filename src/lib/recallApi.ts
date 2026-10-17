@@ -18,6 +18,8 @@ export interface VinRecall {
 
 export interface VinRecallReport {
   vehicle: { vin: string; year: string; make: string; model: string; trim?: string; powertrain: 'ice' | 'hev' | 'phev' | 'ev' };
+  /** 'profile' when NHTSA's VIN decoder was down and the profile's year and model were used. */
+  vehicleSource: 'vin' | 'profile';
   checkedModels: string[];
   recalls: VinRecall[];
   history: { profiles: number; visits: number };

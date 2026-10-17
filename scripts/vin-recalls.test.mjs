@@ -84,6 +84,17 @@ check('op code with a letter (304A) for campaign 304', R.lineHasCampaign({ labou
 check('but 3041 is not 304', R.lineHasCampaign({ labourLines: [{ opCode: '3041' }] }, '304'), false);
 check('no Hyundai number: nothing to match', R.findRecallWork([ro110361], []), null);
 
+// --- when NHTSA's decoder is down: the profile says what the car is -------------------------------
+const p = (year, model, make) => R.vehicleFromProfile('X', { year, model, make });
+check('"TUCSON HYBRID" 2023', p('2023', 'TUCSON HYBRID'), { vin: 'X', year: '2023', make: 'HYUNDAI', model: 'TUCSON', trim: undefined, powertrain: 'hev' });
+check('"2023 HYUNDAI TUCSON HYBRID BLUE" with no year field', p('', '2023 HYUNDAI TUCSON HYBRID BLUE'), { vin: 'X', year: '2023', make: 'HYUNDAI', model: 'TUCSON', trim: 'BLUE', powertrain: 'hev' });
+check('"Kona Electric"', p('2019', 'Kona Electric').powertrain, 'ev');
+check('"IONIQ 5" is electric', p('2024', 'IONIQ 5'), { vin: 'X', year: '2024', make: 'HYUNDAI', model: 'IONIQ 5', trim: undefined, powertrain: 'ev' });
+check('"SANTA FE PLUG-IN HYBRID"', p('2022', 'SANTA FE PLUG-IN HYBRID').powertrain, 'phev');
+check('"Santa Fe XL" keeps its name', p('2019', 'Santa Fe XL').model, 'SANTA FE XL');
+check('"ELANTRA N LINE" keeps the trim for N-LINE', p('2021', 'ELANTRA N LINE'), { vin: 'X', year: '2021', make: 'HYUNDAI', model: 'ELANTRA', trim: 'N LINE', powertrain: 'ice' });
+check('no year anywhere: nothing to look up', p('', 'Tucson'), null);
+
 check('NHTSA lookup link', R.nhtsaVinLookupUrl('KM8K53AG1KU000000'), 'https://www.nhtsa.gov/recalls?vin=KM8K53AG1KU000000');
 
 rmSync(outDir, { recursive: true, force: true });

@@ -193,6 +193,39 @@ export function findRecallWork(visits: readonly RecallWorkVisit[], codes: readon
   return hits.find((h) => !h.open) ?? hits[0] ?? null;
 }
 
+const HYUNDAI_MODELS = [
+  'SANTA FE XL', 'SANTA FE', 'SANTA CRUZ', 'IONIQ 5', 'IONIQ 6', 'IONIQ 9', 'IONIQ', 'ELANTRA GT', 'ELANTRA',
+  'SONATA', 'TUCSON', 'KONA', 'PALISADE', 'VENUE', 'ACCENT', 'VELOSTER', 'NEXO', 'AZERA', 'GENESIS',
+];
+
+/**
+ * The car as its profile describes it — for when NHTSA's VIN decoder is down
+ * (it answered 503 to everyone on 2026-10-16). Profiles carry the model the
+ * way PBS writes it: "TUCSON HYBRID", "2023 HYUNDAI TUCSON HYBRID BLUE",
+ * "Kona Electric", "Ioniq 5".
+ */
+export function vehicleFromProfile(
+  vin: string,
+  profile: { year?: unknown; make?: unknown; model?: unknown }
+): DecodedVin | null {
+  let model = norm(profile.model).replace(/^(19|20)\d{2}\s+/, '').replace(/^HYUNDAI\s+/, '');
+  const year = String(profile.year ?? '').match(/\b(19|20)\d{2}\b/)?.[0] ?? norm(profile.model).match(/^(19|20)\d{2}\b/)?.[0];
+  if (!model || !year) return null;
+  const make = norm(profile.make) || 'HYUNDAI';
+
+  const powertrain: Powertrain = /PLUG-?IN|\bPHEV\b/.test(model)
+    ? 'phev'
+    : /\bHYBRID\b|\bHEV\b/.test(model)
+      ? 'hev'
+      : /\bELECTRIC\b|\bEV\b|\bBEV\b/.test(model) || /^IONIQ [5-9]\b/.test(model)
+        ? 'ev'
+        : 'ice';
+  model = model.replace(/\b(PLUG-?IN|HYBRID|PHEV|HEV|ELECTRIC|BEV|EV)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const base = HYUNDAI_MODELS.find((m) => model === m || model.startsWith(`${m} `)) ?? model.split(' ')[0];
+  const trim = model.slice(base.length).trim() || undefined;
+  return { vin, year, make, model: base, trim, powertrain };
+}
+
 /** NHTSA's VIN lookup, for the one question this can't answer: is this exact car included? */
 export function nhtsaVinLookupUrl(vin: string): string {
   return `https://www.nhtsa.gov/recalls?vin=${encodeURIComponent(vin)}`;
