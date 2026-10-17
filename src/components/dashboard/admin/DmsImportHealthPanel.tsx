@@ -183,14 +183,23 @@ export function DmsImportHealthPanel({ dealershipSettings }: DmsImportHealthPane
               label="Scheduler last checked in"
               value={
                 heartbeat?.lastInvokedAt
-                  ? `${ago(heartbeat.lastInvokedAt)}${heartbeat.lastOutcome === 'pulled' ? ' · pulled' : ''}`
+                  ? `${ago(heartbeat.lastInvokedAt)}${
+                      heartbeat.lastOutcome === 'pulled'
+                        ? ' · pulled'
+                        : heartbeat.lastOutcome === 'in-progress'
+                          ? ' · pulling'
+                          : heartbeat.lastOutcome === 'failed'
+                            ? ' · failed'
+                            : ''
+                    }`
                   : 'No check-in recorded yet'
               }
               tone={
-                heartbeat?.lastInvokedAt && (hoursSince(heartbeat.lastInvokedAt) ?? 0) > 3 ? 'warning' : undefined
+                // It wakes every five minutes; an hour of silence means it has stopped.
+                heartbeat?.lastInvokedAt && (hoursSince(heartbeat.lastInvokedAt) ?? 0) > 1 ? 'warning' : undefined
               }
             />
-            <Row label="Next window" value={status.nextScheduledWindow || 'Daily at 6:00 AM Pacific'} />
+            <Row label="Pulls" value={status.nextScheduledWindow || 'Daily at 6:00 AM and 4:45 PM Pacific'} />
             {state?.summary ? (
               <div className="px-4 py-3 border-t" style={{ borderColor: 'var(--color-row-divider)' }}>
                 <p className="crm-label">What the last pull brought in</p>

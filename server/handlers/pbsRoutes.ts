@@ -23,7 +23,6 @@ import { resolveApprovedUser } from '../admin/requireApprovedUser.js';
 import { listOpenRepairOrdersForDealership, getOpenRepairOrderDetail } from '../pbs/pbsOpenRepairOrders.js';
 import {
   executePbsSyncStage,
-  isPacificMorningSyncHour,
   previewRepairOrderLinking,
   setRepairOrderLinking,
   PBS_SYNC_STAGE_LABELS,
@@ -34,6 +33,7 @@ import {
   type PbsSyncStageName,
 } from '../pbs/pbsSync.js';
 import { getOrHydrateDaySchedule } from '../pbs/pbsDayScheduleService.js';
+import { isWithinSyncSlot, nextSyncSlot, PBS_SYNC_SCHEDULE_LABEL } from '../pbs/pbsSyncSchedule.js';
 import {
   findEmptyPastMonths,
   isMonthKey,
@@ -232,7 +232,9 @@ export function registerPbsRoutes(app: Express) {
           scopedDealerships: [PBS_AUTOMATED_SYNC_DEALERSHIP_ID],
           state,
           logs,
-          nextScheduledWindow: 'Daily at 6:00 AM America/Los_Angeles (Hyundai only)',
+          nextScheduledWindow: PBS_SYNC_SCHEDULE_LABEL,
+          nextScheduledAt: nextSyncSlot(new Date()).toISOString(),
+          cronHeartbeat: data?.pbsCronHeartbeat ?? null,
         });
       } catch (firestoreErr) {
         console.error('[PBS] sync/status Firestore read failed:', firestoreErr);
@@ -268,11 +270,11 @@ export function registerPbsRoutes(app: Express) {
     const force = Boolean(req.body?.force);
     const cron = Boolean(req.body?.cron);
 
-    if (cron && !force && !isPacificMorningSyncHour()) {
+    if (cron && !force && !isWithinSyncSlot(new Date())) {
       return res.json({
         ok: true,
         skipped: true,
-        reason: 'Outside 6:00 AM America/Los_Angeles sync window.',
+        reason: `Not a pull time (${PBS_SYNC_SCHEDULE_LABEL}).`,
       });
     }
 

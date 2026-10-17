@@ -1,3 +1,4 @@
+import { PBS_SYNC_SCHEDULE_LABEL } from './pbsSyncSchedule.js';
 import { loadServiceAccountFromEnv } from '../admin/parseServiceAccountJson.js';
 import { isPbsPartnerHubConfigured } from './partnerHubConfig.js';
 import { getPbsSyncSecret } from './pbsSyncAuth.js';
@@ -34,7 +35,7 @@ export function getPbsEnvDiagnostics() {
 export function getPbsCronDiagnostics() {
   const env = getPbsEnvDiagnostics();
   return {
-    schedule: '@hourly (executes pull at 6:00 AM America/Los_Angeles)',
+    schedule: `every 5 minutes; pulls ${PBS_SYNC_SCHEDULE_LABEL.replace(/^Daily/, 'daily')}`,
     functionName: 'pbs-daily-sync',
     cronReady: env.pbsConfigured && env.firestoreAdminReady,
     pbsSyncSecretConfigured: Boolean(getPbsSyncSecret()),
@@ -43,6 +44,6 @@ export function getPbsCronDiagnostics() {
       ...(!env.firestoreAdminReady ? ['FIREBASE_SERVICE_ACCOUNT_JSON'] : []),
     ],
     setupHint:
-      'Netlify runs the pbs-daily-sync function every hour. It only pulls PBS data during the 6 AM Pacific hour. After saving env vars, trigger a new production deploy.',
+      'Netlify runs the pbs-daily-sync function every five minutes. It pulls PBS data at 6:00 AM and 4:45 PM Pacific, a few stages per run. After saving env vars, trigger a new production deploy.',
   };
 }

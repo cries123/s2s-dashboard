@@ -13,8 +13,10 @@
 [functions.api]
   timeout = 300
 
+# Wakes every five minutes; pulls at 6:00 AM and 4:45 PM Pacific, a few stages
+# per wake-up (server/pbs/pbsSyncSchedule.ts, netlify/functions/pbs-daily-sync.ts).
 [functions."pbs-daily-sync"]
-  schedule = "@hourly"
+  schedule = "*/5 * * * *"
   timeout = 300
 
 # API routes must be proxied to the serverless function BEFORE the SPA fallback.

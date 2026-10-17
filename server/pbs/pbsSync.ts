@@ -1783,15 +1783,44 @@ export async function executePbsSyncStage(
   };
 }
 
-export function isPacificMorningSyncHour(reference = new Date()): boolean {
-  const hour = Number(
-    reference.toLocaleString('en-US', {
-      timeZone: 'America/Los_Angeles',
-      hour: 'numeric',
-      hour12: false,
-    })
+/** The saved sync state, for callers outside this module (the scheduler). */
+export async function readPbsSyncStateFor(dealershipId: string): Promise<PbsSyncState | null> {
+  const db = getAdminFirestore();
+  if (!db) return null;
+  return readPbsSyncState(db, dealershipId);
+}
+
+/**
+ * Give up on a staged run that will not finish, and say so in the sync log.
+ *
+ * Without this a run that dies mid-stage leaves no record at all — which is how
+ * three weeks of 6 AM pulls vanished. Failing it writes a log entry with the
+ * reason, clears the lock, and leaves the next pull time to start afresh.
+ */
+export async function failStagedPbsSync(reason: string): Promise<PbsSyncResult | null> {
+  const db = getAdminFirestore();
+  if (!db) return null;
+  const dealershipId = PBS_AUTOMATED_SYNC_DEALERSHIP_ID;
+  const state = await readPbsSyncState(db, dealershipId);
+  const run = state?.stagedRun;
+  if (!run) return null;
+  const monthStart = run.fetched?.appointmentMonthStart || monthRangePacific().start;
+  const monthEnd = run.fetched?.appointmentMonthEnd || monthRangePacific().end;
+  return finalizePbsSyncRun(
+    db,
+    dealershipId,
+    run.runId,
+    {
+      triggeredBy: run.triggeredBy,
+      triggeredByEmail: run.triggeredByEmail,
+      triggeredByUsername: run.triggeredByUsername,
+      fullRefresh: run.fullRefresh,
+    },
+    { ...emptyCounts(), ...run.counts },
+    { ...emptyFetched(monthStart, monthEnd), ...run.fetched },
+    false,
+    reason
   );
-  return hour === 6;
 }
 
 /**

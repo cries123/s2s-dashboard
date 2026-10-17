@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { dealershipSettingsDoc } from './pbsFirestore.js';
 import { PBS_AUTOMATED_SYNC_DEALERSHIP_ID } from './pbsDealershipScope.js';
 
@@ -12,15 +12,17 @@ import { PBS_AUTOMATED_SYNC_DEALERSHIP_ID } from './pbsDealershipScope.js';
  */
 export type PbsCronOutcome =
   | 'pulled'
-  | 'skipped-outside-window'
+  | 'in-progress'
+  | 'skipped-not-due'
   | 'skipped-not-configured'
   | 'skipped-already-running'
+  | 'backfilled'
   | 'failed';
 
 export interface PbsCronHeartbeat {
   lastInvokedAt: string;
   lastOutcome: PbsCronOutcome;
-  /** Pacific hour at the moment of the call — shows the window check working. */
+  /** Pacific hour at the moment of the call — shows the schedule check working. */
   pacificHour: number;
   lastPulledAt?: string;
   note?: string;
@@ -42,44 +44,24 @@ export async function recordPbsCronHeartbeat(
   note?: string
 ): Promise<void> {
   const now = new Date();
-  const heartbeat: PbsCronHeartbeat = {
-    lastInvokedAt: now.toISOString(),
-    lastOutcome: outcome,
-    pacificHour: pacificHourOf(now),
-    ...(outcome === 'pulled' ? { lastPulledAt: now.toISOString() } : {}),
-    ...(note ? { note } : {}),
-  };
   try {
     await dealershipSettingsDoc(db, PBS_AUTOMATED_SYNC_DEALERSHIP_ID).set(
-      { pbsCronHeartbeat: heartbeat },
+      {
+        pbsCronHeartbeat: {
+          lastInvokedAt: now.toISOString(),
+          lastOutcome: outcome,
+          pacificHour: pacificHourOf(now),
+          ...(outcome === 'pulled' ? { lastPulledAt: now.toISOString() } : {}),
+          // A merge keeps nested fields it is not told about, so an old note
+          // ("catch-up run after a missed window") rode along on every later
+          // check-in. Clear it unless this one has its own.
+          note: note ?? FieldValue.delete(),
+        },
+      },
       { merge: true }
     );
   } catch (err) {
     // A heartbeat must never be the reason a sync fails.
     console.error('[pbs-daily-sync] Could not record heartbeat:', err);
   }
-}
-
-/** Hours since the last successful pull, or null when there has never been one. */
-export function hoursSince(iso: string | null | undefined, now = new Date()): number | null {
-  if (!iso) return null;
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return null;
-  return (now.getTime() - then) / 3_600_000;
-}
-
-/**
- * The morning window is the normal trigger. A catch-up covers the case that
- * actually bit: the 6 AM hour passed without the function being called, and
- * without this the data would sit stale until someone noticed by eye.
- */
-export const CATCH_UP_AFTER_HOURS = 25;
-
-export function shouldRunCatchUp(
-  lastSuccessfulSyncAt: string | null | undefined,
-  now = new Date()
-): boolean {
-  const age = hoursSince(lastSuccessfulSyncAt, now);
-  if (age === null) return true; // never synced: pull on the next call
-  return age >= CATCH_UP_AFTER_HOURS;
 }

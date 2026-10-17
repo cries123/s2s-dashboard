@@ -112,6 +112,7 @@ function PbsSyncPanelInner({
   const [diagnostics, setDiagnostics] = useState<PbsSyncStatusResponse['diagnostics']>();
   const [cronStatus, setCronStatus] = useState<PbsSyncStatusResponse['cron']>();
   const [serverState, setServerState] = useState<PbsSyncStatusResponse['state']>(null);
+  const [nextScheduledAt, setNextScheduledAt] = useState<string | undefined>();
   const [panelMessage, setPanelMessage] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const resumeChecked = useRef(false);
@@ -128,6 +129,7 @@ function PbsSyncPanelInner({
       setDiagnostics(status.diagnostics);
       setCronStatus(status.cron);
       setServerState(status.state);
+      setNextScheduledAt(status.nextScheduledAt);
       return status;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load PBS sync status';
@@ -781,15 +783,18 @@ function PbsSyncPanelInner({
             ) : null}
           </div>
           <div className="rounded-xl border border-white/5 bg-slate-950/40 p-3">
-            <p className="text-xs font-semibold text-slate-500 ">Morning auto-sync</p>
+            <p className="text-xs font-semibold text-slate-500 ">Auto-sync</p>
             <p
               className={cn(
                 'text-xs font-bold mt-1',
                 cronStatus?.cronReady ? 'text-emerald-300' : 'text-amber-300'
               )}
             >
-              {cronStatus?.cronReady ? 'Scheduled (6 AM Pacific)' : 'Not ready'}
+              {cronStatus?.cronReady ? 'Scheduled (6:00 AM & 4:45 PM Pacific)' : 'Not ready'}
             </p>
+            {cronStatus?.cronReady && nextScheduledAt ? (
+              <p className="text-xs text-slate-600 mt-1">Next pull {formatWhen(nextScheduledAt)}</p>
+            ) : null}
             {cronStatus?.lastRunAt ? (
               <p className="text-xs text-slate-600 mt-1">
                 Last scheduled run {formatWhen(cronStatus.lastRunAt)}

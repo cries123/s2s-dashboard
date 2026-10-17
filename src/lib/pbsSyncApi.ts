@@ -35,6 +35,8 @@ export interface PbsSyncStatusResponse {
   } | null;
   logs: PbsSyncLogEntry[];
   nextScheduledWindow?: string;
+  /** ISO time of the next scheduled pull. */
+  nextScheduledAt?: string;
   cron?: {
     schedule: string;
     functionName: string;
